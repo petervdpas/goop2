@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"goop/internal/config"
-	"goop/internal/viewer/render"
+	"goop/internal/ui/render"
 )
 
 func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {

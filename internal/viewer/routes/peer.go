@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"goop/internal/viewer/render"
+	"goop/internal/ui/render"
 )
 
 func registerPeerRoutes(mux *http.ServeMux, d Deps) {

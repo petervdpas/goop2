@@ -1,9 +1,8 @@
-// internal/viewer/render/templates.go
+// internal/ui/render/templates.go
 
 package render
 
 import (
-	"embed"
 	"fmt"
 	"html"
 	"html/template"
@@ -11,10 +10,9 @@ import (
 	"strings"
 	"sync"
 	"time"
-)
 
-//go:embed templates/*.html
-var templateFS embed.FS
+	"goop/internal/ui" // adjust if you choose another package name
+)
 
 var (
 	tmpl    *template.Template
@@ -35,9 +33,6 @@ func InitTemplates() error {
 			"isActive": func(active, key string) bool { return active == key },
 			"trim":     strings.TrimSpace,
 
-			// include renders a named template (e.g. "page.settings") and returns HTML.
-			// This is required because Go templates cannot dynamically choose a template
-			// name in the {{template ...}} action.
 			"include": func(name string, data any) template.HTML {
 				if tmpl == nil {
 					return template.HTML(`<pre class="err">templates not initialized</pre>`)
@@ -51,7 +46,8 @@ func InitTemplates() error {
 		}
 
 		var err error
-		tmpl, err = template.New("root").Funcs(funcs).ParseFS(templateFS, "templates/*.html")
+		// IMPORTANT: ParseFS paths must match the embedded paths exactly.
+		tmpl, err = template.New("root").Funcs(funcs).ParseFS(ui.TemplatesFS, "templates/*.html")
 		if err != nil {
 			initErr = err
 			return

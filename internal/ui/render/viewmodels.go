@@ -1,4 +1,4 @@
-// internal/viewer/render/viewmodels.go
+// internal/ui/render/viewmodels.go
 
 package render
 

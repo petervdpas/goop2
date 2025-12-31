@@ -1,4 +1,4 @@
-// internal/viewer/assets/assets.go
+// internal/ui/assets.go
 
 package assets
 

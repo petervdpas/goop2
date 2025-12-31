@@ -5,7 +5,7 @@ package routes
 import (
 	"net/http"
 
-	"goop/internal/viewer/render"
+	"goop/internal/ui/render"
 )
 
 func registerLogsUIRoutes(mux *http.ServeMux, d Deps) {

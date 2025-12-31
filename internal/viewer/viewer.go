@@ -7,8 +7,8 @@ import (
 	"goop/internal/content"
 	"goop/internal/p2p"
 	"goop/internal/state"
-	viewerassets "goop/internal/viewer/assets"
-	"goop/internal/viewer/render"
+	viewerassets "goop/internal/ui/assets"
+	"goop/internal/ui/render"
 	"goop/internal/viewer/routes"
 )
 

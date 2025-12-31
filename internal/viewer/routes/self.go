@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"goop/internal/config"
-	"goop/internal/viewer/render"
+	"goop/internal/ui/render"
 )
 
 func registerSelfRoutes(mux *http.ServeMux, d Deps, csrf string) {

@@ -5,7 +5,7 @@ package routes
 import (
 	"net/http"
 
-	"goop/internal/viewer/render"
+	"goop/internal/ui/render"
 )
 
 func registerHomeRoutes(mux *http.ServeMux, d Deps) {

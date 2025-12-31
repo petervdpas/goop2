@@ -10,7 +10,7 @@ import (
 	"path"
 	"strings"
 
-	"goop/internal/viewer/render"
+	"goop/internal/ui/render"
 )
 
 func baseVM(title, active, contentTmpl string, d Deps) render.BaseVM {
