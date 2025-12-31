@@ -1,0 +1,97 @@
+<!-- internal/rendezvous/assets/index.html -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{.Title}}</title>
+  <link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <h1>{{.Title}}</h1>
+        <div class="muted small">Local debug page for presence messages. Auto-refreshes.</div>
+      </div>
+      <div class="controls">
+        <input id="q" class="search" placeholder="Filter by peer id / label..." />
+        <a class="btn" href="/peers.json" target="_blank" rel="noopener">peers.json</a>
+        <a class="btn" href="/healthz" target="_blank" rel="noopener">healthz</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div class="pill"><span class="dot up"></span><span>Endpoint:</span> <code>{{.Endpoint}}</code></div>
+        <div class="pill"><span class="dot"></span><span>Peers tracked:</span> <b id="count">{{.PeerCount}}</b></div>
+        <div class="pill muted">Updated: <span class="mono">{{.Now}}</span></div>
+      </div>
+
+      <table id="tbl" aria-label="peers">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>PeerID</th>
+            <th>Label / Content</th>
+            <th class="right">Last seen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{if eq (len .Peers) 0}}
+            <tr>
+              <td colspan="4" class="empty">
+                No peers yet. Once a peer POSTs to <code>/publish</code>, they appear here.
+              </td>
+            </tr>
+          {{else}}
+            {{range .Peers}}
+              <tr class="peer-row">
+                <td>
+                  <span class="dot {{statusClass .Type}}" title="{{.Type}}"></span>
+                  <span class="muted small">{{.Type}}</span>
+                </td>
+                <td><code>{{.PeerID}}</code></td>
+                <td>{{.Content}}</td>
+                <td class="right"><span class="muted small">{{fmtMillis .LastSeen}}</span></td>
+              </tr>
+            {{end}}
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+
+    <script>
+      (function(){
+        var REFRESH_MS = 2000;
+
+        setInterval(function(){
+          if (document.hidden) return;
+          var q = document.getElementById('q');
+          if (q && q === document.activeElement) return;
+          location.reload();
+        }, REFRESH_MS);
+
+        var q = document.getElementById('q');
+        var tbl = document.getElementById('tbl');
+        if (!q || !tbl) return;
+
+        function apply(){
+          var v = (q.value || '').toLowerCase().trim();
+          var rows = tbl.querySelectorAll('tbody tr.peer-row');
+          var shown = 0;
+          rows.forEach(function(tr){
+            var t = tr.textContent.toLowerCase();
+            var ok = !v || t.indexOf(v) !== -1;
+            tr.style.display = ok ? '' : 'none';
+            if (ok) shown++;
+          });
+          document.getElementById('count').textContent = shown;
+        }
+        q.addEventListener('input', apply);
+        apply();
+      })();
+    </script>
+  </div>
+</body>
+</html>

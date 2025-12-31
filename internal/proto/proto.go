@@ -1,0 +1,31 @@
+// internal/proto/proto.go
+
+package proto
+
+import "time"
+
+const (
+	PresenceTopic = "goop.presence.v1"
+	MdnsTag       = "goop-mdns"
+
+	// libp2p stream protocol ID used to fetch a peer's current content (single line)
+	ContentProtoID = "/goop/content/1.0.0"
+
+	// libp2p stream protocol ID used to fetch files from a peer's site folder
+	SiteProtoID = "/goop/site/1.0.0"
+)
+
+const (
+	TypeOnline  = "online"
+	TypeUpdate  = "update"
+	TypeOffline = "offline"
+)
+
+type PresenceMsg struct {
+	Type    string `json:"type"` // online|update|offline
+	PeerID  string `json:"peerId"`
+	Content string `json:"content,omitempty"`
+	TS      int64  `json:"ts"`
+}
+
+func NowMillis() int64 { return time.Now().UnixMilli() }

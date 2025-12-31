@@ -1,0 +1,18 @@
+<!-- internal/viewer/render/templates/peer.html -->
+{{define "page.peer"}}
+<p>
+  <a class="back" href="/peers">← back</a>
+</p>
+
+<h1>{{.PeerID}}</h1>
+
+<p class="actions">
+  <a class="btn"
+     href="/p/{{.PeerID}}/"
+     target="_blank" rel="noopener">
+    Open in Browser
+  </a>
+</p>
+
+<pre class="content">{{.Content}}</pre>
+{{end}}

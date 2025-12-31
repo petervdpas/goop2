@@ -1,0 +1,47 @@
+<!-- internal/viewer/render/templates/logs.html -->
+{{define "page.logs"}}
+<h1>Logs</h1>
+
+<p class="muted small">Live tail from this Go process.</p>
+
+<pre id="logbox" class="content" style="height:70vh; overflow:auto; white-space:pre-wrap;"></pre>
+
+<script>
+(() => {
+  const box = document.getElementById("logbox");
+  const maxChars = 200000;
+
+  function appendLine(s) {
+    if (!s) return;
+    box.textContent += s + "\n";
+    if (box.textContent.length > maxChars) {
+      box.textContent = box.textContent.slice(box.textContent.length - maxChars);
+    }
+    box.scrollTop = box.scrollHeight;
+  }
+
+  // Load snapshot then stream.
+  fetch("/api/logs")
+    .then(r => r.json())
+    .then(items => {
+      for (const it of items) {
+        // it.ts is RFC3339-ish; keep it short.
+        appendLine(it.msg);
+      }
+      const es = new EventSource("/api/logs/stream");
+      es.addEventListener("message", (ev) => {
+        try {
+          const it = JSON.parse(ev.data);
+          appendLine(it.msg);
+        } catch {
+          appendLine(ev.data);
+        }
+      });
+      es.onerror = () => {
+        // silently let browser auto-retry
+      };
+    })
+    .catch(err => appendLine("logs error: " + err));
+})();
+</script>
+{{end}}

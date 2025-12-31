@@ -1,0 +1,29 @@
+<!-- internal/viewer/render/templates/peers.html -->
+{{define "page.peers"}}
+<h1>Peers</h1>
+
+{{if not .Peers}}
+  <p class="muted"><i>No peers yet</i></p>
+{{else}}
+<ul class="peers">
+  {{range .Peers}}
+  <li class="peerrow">
+    <div class="peerleft">
+      <a class="peerid" href="/peer/{{.ID}}">{{shortID .ID}}</a>
+      <span class="peercontent"><code>{{.Content}}</code></span>
+    </div>
+
+    <div class="peerright">
+      <span class="seen muted">seen {{rfc3339 .LastSeen}}</span>
+
+      <a class="btn"
+         href="/p/{{.ID}}/"
+         target="_blank" rel="noopener">
+        Open in Browser
+      </a>
+    </div>
+  </li>
+  {{end}}
+</ul>
+{{end}}
+{{end}}

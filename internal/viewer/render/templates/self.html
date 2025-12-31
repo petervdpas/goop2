@@ -1,0 +1,153 @@
+<!-- internal/viewer/render/templates/self.html -->
+{{define "page.self"}}
+<div class="page page-self">
+  <h1>Me</h1>
+
+  <div class="card">
+    <p>
+      <b>Label:</b> {{.SelfName}}<br>
+      <b>PeerID:</b> <code>{{.SelfID}}</code>
+    </p>
+  </div>
+
+  <div class="actions" style="margin: 12px 0 18px 0;">
+    <a class="btn"
+       href="/p/{{.SelfID}}/"
+       target="_blank" rel="noopener">
+      Open my site
+    </a>
+  </div>
+
+  <h1 id="settings" style="margin-top: 18px;">Settings</h1>
+
+  <p class="muted small">
+    Config file: <code>{{.CfgPath}}</code>
+  </p>
+
+  {{if .Saved}}
+    <div class="banner ok">Saved.</div>
+  {{end}}
+
+  {{if .Error}}
+    <div class="banner err">{{.Error}}</div>
+  {{end}}
+
+  <form class="form" method="post" action="/settings/save">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+
+    <div class="field">
+      <label>Label</label>
+      <input name="profile_label"
+             value="{{.Cfg.Profile.Label}}"
+             placeholder="Peer-A">
+    </div>
+
+    <div class="field">
+      <label>Viewer HTTP addr</label>
+      <input name="viewer_http_addr"
+             value="{{.Cfg.Viewer.HTTPAddr}}"
+             placeholder=":7777">
+      <div class="hint">
+        Empty disables the viewer (UI will not start with -ui).
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="field">
+        <label>P2P listen port</label>
+        <input name="p2p_listen_port"
+               value="{{.Cfg.P2P.ListenPort}}"
+               placeholder="0">
+        <div class="hint">0 = random</div>
+      </div>
+
+      <div class="field">
+        <label>mDNS tag</label>
+        <input name="p2p_mdns_tag"
+               value="{{.Cfg.P2P.MdnsTag}}"
+               placeholder="goop-mdns">
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="field">
+        <label>Presence TTL seconds</label>
+        <input name="presence_ttl_sec"
+               value="{{.Cfg.Presence.TTLSec}}"
+               placeholder="20">
+      </div>
+
+      <div class="field">
+        <label>Presence heartbeat seconds</label>
+        <input name="presence_heartbeat_sec"
+               value="{{.Cfg.Presence.HeartbeatSec}}"
+               placeholder="5">
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 12px;">
+      <h3>Rendezvous</h3>
+
+      <!-- Local rendezvous server + port belong together -->
+      <div class="rv-local">
+        <div class="rv-local-title">Local rendezvous server</div>
+
+        <div class="rv-local-toggle">
+          <span class="muted small">Off</span>
+          <label class="switch" title="Enable local rendezvous server">
+            <input id="rv_host"
+                   type="checkbox"
+                   name="presence_rendezvous_host"
+                   {{if .Cfg.Presence.RendezvousHost}}checked{{end}}>
+            <span class="slider"></span>
+          </label>
+          <span class="muted small">On</span>
+        </div>
+
+        <div class="rv-local-row">
+          <div class="field rv-port-field">
+            <label>Port</label>
+            <input id="rv_port"
+                   name="presence_rendezvous_port"
+                   value="{{.Cfg.Presence.RendezvousPort}}"
+                   placeholder="8787">
+            <div class="hint">
+              Local service runs at <code>127.0.0.1:PORT</code>
+              (publish later via Caddy).
+            </div>
+          </div>
+
+          <!-- Keep the button: plain link that opens a new tab -->
+          <div class="rv-open">
+            <a id="rv-open-link"
+               class="btn secondary"
+               href="http://127.0.0.1:{{.Cfg.Presence.RendezvousPort}}/"
+               target="_blank" rel="noopener">
+              Open rendezvous
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- WAN stands apart -->
+      <div class="field" style="margin-top: 12px;">
+        <label>WAN rendezvous</label>
+        <input name="presence_rendezvous_wan"
+               value="{{.Cfg.Presence.RendezvousWAN}}"
+               placeholder="https://rendezvous.example.org">
+        <div class="hint">
+          Optional. Join WAN presence mesh (LAN + WAN).
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn" type="submit">Save</button>
+    </div>
+  </form>
+
+  <p class="muted small">
+    Note: Changing networking or viewer settings may require restarting this peer.
+  </p>
+</div>
+{{end}}

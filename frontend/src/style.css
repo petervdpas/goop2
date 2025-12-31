@@ -1,0 +1,228 @@
+/* frontend/src/style.css */
+/* Metro-ish: flat, square, generous spacing, Segoe-like typography. */
+
+:root {
+	color-scheme: dark;
+	--bg: #0e1621;
+	--panel: #111c2a;
+	--panel2: #0f1926;
+	--line: rgba(255, 255, 255, 0.10);
+
+	--text: #e8eef6;
+	--muted: rgba(232, 238, 246, 0.72);
+
+	--accent: #2d89ef;
+	--danger: #e81123;
+
+	--shadow: 0 16px 44px rgba(0, 0, 0, 0.35);
+
+	--pad: 16px;
+	--gap: 14px;
+}
+
+html,
+body {
+	height: 100%;
+	margin: 0;
+	background: var(--bg);
+	color: var(--text);
+	font-family: "Segoe UI", system-ui, -apple-system, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
+}
+
+#app {
+	min-height: 100%;
+}
+
+.shell {
+	min-height: 100vh;
+	padding: 36px 28px;
+	box-sizing: border-box;
+}
+
+.top {
+	max-width: 1100px;
+	margin: 0 auto 18px auto;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.h1 {
+	font-size: 34px;
+	font-weight: 600;
+	letter-spacing: 0.2px;
+}
+
+.p {
+	font-size: 14px;
+	color: var(--muted);
+}
+
+.grid {
+	max-width: 1100px;
+	margin: 0 auto;
+	display: grid;
+	grid-template-columns: 1.2fr 0.8fr;
+	gap: var(--gap);
+}
+
+.card {
+	background: linear-gradient(180deg, var(--panel), var(--panel2));
+	border: 1px solid var(--line);
+	box-shadow: var(--shadow);
+	overflow: hidden;
+}
+
+.card.wide {
+	max-width: 1100px;
+	margin: 0 auto;
+}
+
+.cardHead {
+	padding: var(--pad);
+	border-bottom: 1px solid var(--line);
+}
+
+.cardBody {
+	padding: var(--pad);
+}
+
+.cardFoot {
+	padding: var(--pad);
+	border-top: 1px solid var(--line);
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.row {
+	display: flex;
+	gap: 10px;
+	align-items: center;
+}
+
+.input {
+	flex: 1;
+	height: 38px;
+	padding: 0 12px;
+	background: rgba(0, 0, 0, 0.22);
+	border: 1px solid var(--line);
+	color: var(--text);
+	outline: none;
+}
+
+.input:focus {
+	border-color: rgba(45, 137, 239, 0.9);
+	box-shadow: 0 0 0 2px rgba(45, 137, 239, 0.25);
+}
+
+.btn {
+	height: 38px;
+	padding: 0 14px;
+	border: 1px solid var(--line);
+	background: rgba(255, 255, 255, 0.06);
+	color: var(--text);
+	cursor: pointer;
+	font-weight: 600;
+}
+
+.btn.primary {
+	border-color: rgba(45, 137, 239, 0.9);
+	background: rgba(45, 137, 239, 0.22);
+}
+
+.btn.primary:hover {
+	background: rgba(45, 137, 239, 0.32);
+}
+
+.btn.secondary:hover {
+	background: rgba(255, 255, 255, 0.10);
+}
+
+.btn.danger {
+	border-color: rgba(232, 17, 35, 0.9);
+	background: rgba(232, 17, 35, 0.18);
+}
+
+.btn.danger:hover {
+	background: rgba(232, 17, 35, 0.26);
+}
+
+.btn:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+.status {
+	flex: 1;
+	color: rgba(232, 238, 246, 0.75);
+	font-size: 13px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.error {
+	color: rgba(255, 120, 120, 0.95);
+	font-size: 13px;
+	white-space: nowrap;
+}
+
+.tileList {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.tile {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+
+	background: rgba(0, 0, 0, 0.18);
+	border: 1px solid rgba(255, 255, 255, 0.10);
+	padding: 12px;
+
+	cursor: pointer;
+}
+
+.tile:hover {
+	border-color: rgba(45, 137, 239, 0.45);
+	background: rgba(0, 0, 0, 0.24);
+}
+
+.tileLeft {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-width: 0;
+}
+
+.tileMeta {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	min-width: 0;
+}
+
+.tileName {
+	font-size: 16px;
+	font-weight: 650;
+	letter-spacing: 0.2px;
+}
+
+.tilePath {
+	font-size: 12px;
+	color: var(--muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 560px;
+}
+
+.empty {
+	color: var(--muted);
+	font-size: 13px;
+	padding: 10px 2px;
+}

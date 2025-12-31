@@ -1,0 +1,98 @@
+<!-- internal/viewer/render/templates/editor.html -->
+{{define "page.editor"}}
+<div class="page page-editor">
+  <h1>Editor</h1>
+
+  {{if .Error}}
+    <div class="banner err">{{.Error}}</div>
+  {{end}}
+
+  {{if .Saved}}
+    <div class="banner ok">Saved.</div>
+  {{end}}
+
+  <div class="ed">
+    <aside class="ed-left panel">
+      <div class="ed-left-head">
+        <div class="ed-left-title">Site tree</div>
+        <div class="muted small"><code>site/</code></div>
+      </div>
+
+      <div class="ed-treewrap">
+        <div
+          id="ed"
+          data-csrf="{{.CSRF}}"
+          data-open-path="{{.Path}}"
+          data-selected-dir="{{.Dir}}"
+        >
+          <ul id="ed-tree" class="ed-tree">
+            {{range .Tree}}
+              <li
+                class="ed-tree-item depth-{{.Depth}} {{if .IsDir}}is-dir{{else}}is-file{{end}}"
+                data-path="{{.Path}}"
+                data-type="{{if .IsDir}}dir{{else}}file{{end}}"
+                role="button"
+                tabindex="0"
+              >
+                <span class="ed-tree-icon">{{if .IsDir}}📁{{else}}📄{{end}}</span>
+                <span class="ed-tree-label"></span>
+              </li>
+            {{end}}
+          </ul>
+        </div>
+      </div>
+
+      <div class="ed-left-foot">
+        <div class="muted small">
+          Selected dir: <code id="ed-selected-dir-label"></code>
+        </div>
+        <div class="muted small">
+          Right click a folder/file for actions.
+        </div>
+      </div>
+
+      <div id="ed-menu" class="ed-menu hidden">
+        <button type="button" data-action="new-folder" data-show="any">New folder…</button>
+        <button type="button" data-action="new-file" data-show="any">New file…</button>
+        <hr>
+        <button type="button" data-action="open" data-show="file">Open</button>
+        <button type="button" data-action="rename" data-show="any">Rename / Move…</button>
+        <button type="button" data-action="delete" data-show="any">Delete…</button>
+      </div>
+    </aside>
+
+    <section class="ed-right panel">
+      <div class="ed-right-head">
+        <form method="GET" action="/edit" class="ed-open">
+          <label class="muted" for="path">File</label>
+          <input id="path" class="ed-path ed-input" type="text" name="path" value="{{.Path}}">
+          <button type="submit">Open</button>
+          <a class="muted" href="/p/self/">View self</a>
+        </form>
+
+        <div class="ed-meta">
+          <div class="muted small">ETag</div>
+          <code class="small">{{.ETag}}</code>
+        </div>
+      </div>
+
+      <div class="ed-fileops">
+        <form method="POST" action="/edit/save" class="ed-save">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <input type="hidden" name="path" value="{{.Path}}">
+          <input type="hidden" name="if_match" value="{{.ETag}}">
+
+          <div class="ed-savebar">
+            <button type="submit">Save</button>
+            <span class="muted small">Editing: <code>{{.Path}}</code></span>
+          </div>
+
+          <div class="ed-editorwrap">
+            <textarea class="ed-area" name="content">{{.Content}}</textarea>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+</div>
+{{end}}

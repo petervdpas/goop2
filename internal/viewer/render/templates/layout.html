@@ -1,0 +1,78 @@
+<!-- internal/viewer/render/templates/layout.html -->
+{{define "layout"}}
+<!DOCTYPE html>
+<html data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{.Title}}</title>
+
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("goop.theme");
+          if (t !== "light" && t !== "dark") t = "dark";
+          document.documentElement.setAttribute("data-theme", t);
+        } catch (e) {}
+      })();
+    </script>
+
+    <link rel="stylesheet" href="/assets/vendor/codemirror/codemirror.css" />
+    <link rel="stylesheet" href="/assets/vendor/codemirror/theme/xq-dark.css" />
+    <link rel="stylesheet" href="/assets/vendor/codemirror/theme/xq-light.css" />
+
+    <script defer src="/assets/vendor/codemirror/codemirror.js"></script>
+    <script defer src="/assets/vendor/codemirror/mode/xml.js"></script>
+    <script defer src="/assets/vendor/codemirror/mode/javascript.js"></script>
+    <script defer src="/assets/vendor/codemirror/mode/css.js"></script>
+    <script defer src="/assets/vendor/codemirror/mode/htmlmixed.js"></script>
+
+    <link rel="stylesheet" href="/assets/app.css" />
+    <script defer src="/assets/app.js"></script>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="logo">Goop</span>
+          <span class="tag">ephemeral web</span>
+        </div>
+
+        <nav class="topnav">
+          <a class="navitem {{if isActive .Active "peers"}}active{{end}}" href="/peers">Peers</a>
+          <a class="navitem {{if isActive .Active "self"}}active{{end}}" href="/self">Me</a>
+          <a class="navitem {{if isActive .Active "editor"}}active{{end}}" href="/edit">Editor</a>
+          <a class="navitem {{if isActive .Active "logs"}}active{{end}}" href="/logs">Logs</a>
+        </nav>
+
+        <div class="topright">
+          <div class="theme">
+            <span class="theme-label small muted">Theme</span>
+            <label class="switch" title="Toggle light/dark">
+              <input id="themeToggle" type="checkbox" aria-label="Toggle theme" />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="me">
+            <span class="me-label">{{.SelfName}}</span>
+            <span class="me-id"><code>{{.SelfID}}</code></span>
+          </div>
+        </div>
+      </header>
+
+      <main class="main">
+        <div class="content">{{ include .ContentTmpl . }}</div>
+      </main>
+
+      <footer class="footer">
+        <div class="footer-inner">
+          <span class="muted small">Goop</span>
+          <span class="muted small">·</span>
+          <span class="muted small">ephemeral web</span>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>
+{{end}}
