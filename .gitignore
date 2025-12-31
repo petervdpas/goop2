@@ -1,0 +1,67 @@
+# -----------------------------
+# OS / Editor noise
+# -----------------------------
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.tmp
+*.log
+
+.vscode/
+.idea/
+
+# -----------------------------
+# Go
+# -----------------------------
+/bin/
+/build/bin/
+/*.exe
+/*.exe~
+/*.dll
+/*.so
+/*.dylib
+
+# Go test / coverage
+*.test
+*.out
+
+# -----------------------------
+# Wails build output
+# -----------------------------
+/build/darwin/
+/build/windows/installer/
+/build/windows/*.exe
+/build/windows/*.msi
+/build/windows/*.zip
+
+# -----------------------------
+# Frontend / Node
+# -----------------------------
+/frontend/node_modules/
+/frontend/package.json.md5
+
+# Vite / frontend build cache
+/frontend/dist/assets/*.map
+
+# -----------------------------
+# Wails generated JS bindings
+# (regenerated automatically)
+# -----------------------------
+/frontend/wailsjs/
+
+# -----------------------------
+# Runtime / user data
+# -----------------------------
+/peers/*/site/**/.DS_Store
+
+# If peers are runtime-created and not source:
+# Uncomment the next line to ignore ALL peers
+# /peers/
+
+# -----------------------------
+# Temporary / local files
+# -----------------------------
+*.pid
+*.sock
+*.lock
