@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"goop/internal/ui" // adjust if you choose another package name
+	"goop/internal/ui"
 )
 
 var (

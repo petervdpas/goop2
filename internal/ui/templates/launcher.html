@@ -1,0 +1,40 @@
+<!-- internal/ui/templates/launcher.html -->
+{{ define "page.launcher" }}
+<div class="page page-launcher">
+  <h1>Goop</h1>
+  <p class="muted">Select a peer to start.</p>
+
+  {{ if .Error }}
+    <div class="card" style="border: 1px solid rgba(255,80,80,0.35);">
+      <b>Error</b><br>
+      <span class="muted">{{ .Error }}</span>
+    </div>
+  {{ end }}
+
+  <div class="card">
+    <form method="POST" action="/start" style="display:flex; gap:12px; align-items:center;">
+      <label for="peer" class="muted" style="min-width:80px;">Peer</label>
+
+      <select id="peer" name="peer" style="flex:1;">
+        {{ range .Peers }}
+          <option value="{{ . }}">{{ . }}</option>
+        {{ end }}
+      </select>
+
+      <button class="btn" type="submit">Start</button>
+    </form>
+
+    {{ if not .Peers }}
+      <p class="muted" style="margin-top:12px;">
+        No peers found under <code>./peers</code>.
+      </p>
+    {{ end }}
+  </div>
+
+  <div class="card" style="margin-top:14px;">
+    <p class="muted" style="margin:0;">
+      After starting, you’ll be redirected to the local viewer UI.
+    </p>
+  </div>
+</div>
+{{ end }}

@@ -38,27 +38,41 @@
           <span class="tag">ephemeral web</span>
         </div>
 
-        <nav class="topnav">
-          <a class="navitem {{if isActive .Active "peers"}}active{{end}}" href="/peers">Peers</a>
-          <a class="navitem {{if isActive .Active "self"}}active{{end}}" href="/self">Me</a>
-          <a class="navitem {{if isActive .Active "editor"}}active{{end}}" href="/edit">Editor</a>
-          <a class="navitem {{if isActive .Active "logs"}}active{{end}}" href="/logs">Logs</a>
-        </nav>
+        {{/* Viewer-only chrome: nav + self info */}}
+        {{if .SelfID}}
+          <nav class="topnav">
+            <a class="navitem {{if isActive .Active "peers"}}active{{end}}" href="{{.BaseURL}}/peers">Peers</a>
+            <a class="navitem {{if isActive .Active "self"}}active{{end}}" href="{{.BaseURL}}/self">Me</a>
+            <a class="navitem {{if isActive .Active "editor"}}active{{end}}" href="{{.BaseURL}}/edit">Editor</a>
+            <a class="navitem {{if isActive .Active "logs"}}active{{end}}" href="{{.BaseURL}}/logs">Logs</a>
+          </nav>
 
-        <div class="topright">
-          <div class="theme">
-            <span class="theme-label small muted">Theme</span>
-            <label class="switch" title="Toggle light/dark">
-              <input id="themeToggle" type="checkbox" aria-label="Toggle theme" />
-              <span class="slider"></span>
-            </label>
-          </div>
+          <div class="topright">
+            <div class="theme">
+              <span class="theme-label small muted">Theme</span>
+              <label class="switch" title="Toggle light/dark">
+                <input id="themeToggle" type="checkbox" aria-label="Toggle theme" />
+                <span class="slider"></span>
+              </label>
+            </div>
 
-          <div class="me">
-            <span class="me-label">{{.SelfName}}</span>
-            <span class="me-id"><code>{{.SelfID}}</code></span>
+            <div class="me">
+              <span class="me-label">{{.SelfName}}</span>
+              <span class="me-id"><code>{{.SelfID}}</code></span>
+            </div>
           </div>
-        </div>
+        {{else}}
+          {{/* Launcher-only chrome: just theme toggle (optional) */}}
+          <div class="topright">
+            <div class="theme">
+              <span class="theme-label small muted">Theme</span>
+              <label class="switch" title="Toggle light/dark">
+                <input id="themeToggle" type="checkbox" aria-label="Toggle theme" />
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+        {{end}}
       </header>
 
       <main class="main">
