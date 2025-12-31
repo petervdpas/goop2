@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"goop/internal/ui/render"
+	"goop/internal/ui/viewmodels"
 )
 
 func registerPeerRoutes(mux *http.ServeMux, d Deps) {
@@ -28,7 +29,7 @@ func registerPeerRoutes(mux *http.ServeMux, d Deps) {
 			return
 		}
 
-		vm := render.PeerContentVM{
+		vm := viewmodels.PeerContentVM{
 			BaseVM:  baseVM("Peer", "peers", "page.peer", d),
 			PeerID:  peerID,
 			Content: txt,

@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"goop/internal/ui/render"
+	"goop/internal/ui/viewmodels"
 )
 
 func registerHomeRoutes(mux *http.ServeMux, d Deps) {
@@ -18,9 +19,9 @@ func registerHomeRoutes(mux *http.ServeMux, d Deps) {
 	})
 
 	mux.HandleFunc("/peers", func(w http.ResponseWriter, r *http.Request) {
-		vm := render.PeersVM{
+		vm := viewmodels.PeersVM{
 			BaseVM: baseVM("Goop", "peers", "page.peers", d),
-			Peers:  render.BuildPeerRows(d.Peers.Snapshot()),
+			Peers:  viewmodels.BuildPeerRows(d.Peers.Snapshot()),
 		}
 		render.Render(w, vm)
 	})

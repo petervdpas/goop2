@@ -7,6 +7,7 @@ import (
 
 	"goop/internal/config"
 	"goop/internal/ui/render"
+	"goop/internal/ui/viewmodels"
 )
 
 func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
@@ -67,7 +68,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		cfg.Presence.RendezvousWAN = strings.TrimSpace(r.PostForm.Get("presence_rendezvous_wan"))
 
 		if err := config.Save(d.CfgPath, cfg); err != nil {
-			vm := render.SettingsVM{
+			vm := viewmodels.SettingsVM{
 				BaseVM:  baseVM("Me", "self", "page.self", d),
 				CfgPath: d.CfgPath,
 				Cfg:     cfg,

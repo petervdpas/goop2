@@ -9,6 +9,7 @@ import (
 
 	"goop/internal/content"
 	"goop/internal/ui/render"
+	"goop/internal/ui/viewmodels"
 )
 
 func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {
@@ -31,7 +32,7 @@ func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			b = []byte("")
 			etag = "none"
 		} else if err != nil {
-			vm := render.EditorVM{
+			vm := viewmodels.EditorVM{
 				BaseVM: baseVM("Editor", "editor", "page.editor", d),
 				CSRF:   csrf,
 				Path:   rel,
@@ -45,9 +46,9 @@ func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		tree, _ := d.Content.ListTree(r.Context(), "")
 		list, _ := d.Content.List(r.Context(), dir)
 
-		files := make([]render.EditorFileRow, 0, len(list))
+		files := make([]viewmodels.EditorFileRow, 0, len(list))
 		for _, it := range list {
-			files = append(files, render.EditorFileRow{
+			files = append(files, viewmodels.EditorFileRow{
 				Path:  it.Path,
 				IsDir: it.IsDir,
 				Size:  it.Size,
@@ -56,16 +57,16 @@ func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			})
 		}
 
-		treeRows := make([]render.EditorTreeRow, 0, len(tree))
+		treeRows := make([]viewmodels.EditorTreeRow, 0, len(tree))
 		for _, it := range tree {
-			treeRows = append(treeRows, render.EditorTreeRow{
+			treeRows = append(treeRows, viewmodels.EditorTreeRow{
 				Path:  it.Path,
 				IsDir: it.IsDir,
 				Depth: it.Depth,
 			})
 		}
 
-		vm := render.EditorVM{
+		vm := viewmodels.EditorVM{
 			BaseVM:  baseVM("Editor", "editor", "page.editor", d),
 			CSRF:    csrf,
 			Path:    rel,

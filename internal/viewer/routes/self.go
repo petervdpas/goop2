@@ -6,13 +6,14 @@ import (
 
 	"goop/internal/config"
 	"goop/internal/ui/render"
+	"goop/internal/ui/viewmodels"
 )
 
 func registerSelfRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	mux.HandleFunc("/self", func(w http.ResponseWriter, r *http.Request) {
 		cfg, err := config.Load(d.CfgPath)
 		if err != nil {
-			vm := render.SettingsVM{
+			vm := viewmodels.SettingsVM{
 				BaseVM:  baseVM("Me", "self", "page.self", d),
 				CfgPath: d.CfgPath,
 				Error:   err.Error(),
@@ -22,7 +23,7 @@ func registerSelfRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			return
 		}
 
-		vm := render.SettingsVM{
+		vm := viewmodels.SettingsVM{
 			BaseVM:  baseVM("Me", "self", "page.self", d),
 			CfgPath: d.CfgPath,
 			Cfg:     cfg,

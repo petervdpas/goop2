@@ -10,11 +10,11 @@ import (
 	"path"
 	"strings"
 
-	"goop/internal/ui/render"
+	"goop/internal/ui/viewmodels"
 )
 
-func baseVM(title, active, contentTmpl string, d Deps) render.BaseVM {
-	return render.BaseVM{
+func baseVM(title, active, contentTmpl string, d Deps) viewmodels.BaseVM {
+	return viewmodels.BaseVM{
 		Title:       title,
 		Active:      active,
 		ContentTmpl: contentTmpl,
