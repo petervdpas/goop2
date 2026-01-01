@@ -1,10 +1,9 @@
-/* frontend/src/style.css */
+/* frontend/src/style.css
+   Shell + launcher styling, robust against either:
+   - the original .tile* markup, OR
+   - a plain <ul><li> list inside the peers card
+*/
 
-/* This is your viewer app.css, plus a few small additions at the end for the launcher tiles and iframe. */
-
-/* -----------------------------
-   Theme variables
------------------------------- */
 :root{
   --bg:#0f1115;
   --panel:#151924;
@@ -13,22 +12,27 @@
   --muted:#9aa3b2;
   --line:rgba(255,255,255,0.10);
   --accent:#7aa2ff;
+
   --chip:rgba(255,255,255,0.04);
   --chip2:rgba(255,255,255,0.06);
+  --glass:rgba(255,255,255,0.06);
+
   --radius:14px;
   --radius-sm:10px;
-  --radius-xs:8px;
+
   --shadow-sm:0 8px 22px rgba(0,0,0,0.22);
   --shadow-md:0 18px 46px rgba(0,0,0,0.34);
-  --glass:rgba(255,255,255,0.06);
-  --glass2:rgba(255,255,255,0.08);
+
   --ring:0 0 0 4px rgba(122,162,255,0.22);
   --ease:170ms cubic-bezier(.2,.7,.2,1);
+
   --bg-grad-1:rgba(122,162,255,0.10);
   --bg-grad-2:rgba(170,120,255,0.06);
   --bg-grad-3:rgba(0,0,0,0);
+
   --field-bg:rgba(0,0,0,0.25);
   --field-bg-2:rgba(0,0,0,0.18);
+
   --content-pad:22px;
   --footer-h:44px;
   --topbar-h:56px;
@@ -42,23 +46,25 @@ html[data-theme="light"]{
   --muted:#4a4f6b;
   --line:rgba(16,19,37,0.12);
   --accent:#5a3dff;
+
   --chip:rgba(16,19,37,0.04);
   --chip2:rgba(16,19,37,0.06);
+  --glass:rgba(16,19,37,0.04);
+
   --shadow-sm:0 10px 24px rgba(16,19,37,0.10);
   --shadow-md:0 22px 60px rgba(16,19,37,0.14);
-  --glass:rgba(16,19,37,0.04);
-  --glass2:rgba(16,19,37,0.06);
+
   --ring:0 0 0 4px rgba(90,61,255,0.18);
+
   --bg-grad-1:rgba(90,61,255,0.10);
   --bg-grad-2:rgba(122,162,255,0.08);
   --bg-grad-3:rgba(255,255,255,0);
+
   --field-bg:rgba(16,19,37,0.04);
   --field-bg-2:rgba(16,19,37,0.03);
 }
 
-/* -----------------------------
-   Base
------------------------------- */
+/* Base */
 *{ box-sizing:border-box; }
 html, body{ height:100%; }
 
@@ -91,13 +97,9 @@ h1{
 
 .muted{ color:var(--muted); }
 .small{ font-size:12px; }
-
-/* GLOBAL hidden helper */
 .hidden{ display:none !important; }
 
-/* -----------------------------
-   App layout (FIXED FOOTER)
------------------------------- */
+/* App layout */
 .app{
   height:100vh;
   min-height:100vh;
@@ -128,40 +130,6 @@ h1{
 .logo{ font-weight: 750; letter-spacing: 0.6px; }
 .tag{ color: var(--muted); font-size: 12px; }
 
-/* -----------------------------
-   TOP NAV (FIXED: was display:none)
------------------------------- */
-.topnav{
-  display:flex;
-  gap: 10px;
-  align-items:center;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.navitem{
-  padding: 8px 10px;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  color: var(--muted);
-  text-decoration:none;
-  transition: background var(--ease), border-color var(--ease), color var(--ease);
-  white-space: nowrap;
-}
-
-.navitem:hover{
-  color: var(--text);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
-  text-decoration:none;
-}
-
-.navitem.active{
-  color: var(--text);
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
-}
-
 .topright{
   display:flex;
   gap: 14px;
@@ -169,16 +137,7 @@ h1{
   flex: 0 0 auto;
 }
 
-.me{
-  display:flex;
-  gap: 10px;
-  align-items:center;
-  white-space: nowrap;
-}
-
-.me-label{ font-weight: 650; }
-.me-id{ color: var(--muted); font-size: 12px; }
-
+/* Theme pill + switch */
 .theme{
   display:flex;
   gap: 10px;
@@ -187,101 +146,8 @@ h1{
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--glass);
-  box-shadow: none;
 }
 
-/* MAIN is the only scroll area now */
-.main{
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-  display:block;
-}
-
-/* content should NOT be scrollable, it should just layout */
-.content{
-  min-height: 0;
-  padding: var(--content-pad);
-}
-
-/* footer always sits at bottom */
-.footer{
-  flex: 0 0 var(--footer-h);
-  height: var(--footer-h);
-  border-top: 1px solid var(--line);
-  background: color-mix(in srgb, var(--panel) 88%, transparent);
-  backdrop-filter: blur(10px);
-  display:flex;
-  align-items:center;
-}
-
-.footer-inner{
-  width: 100%;
-  padding: 0 18px;
-  display:flex;
-  gap: 10px;
-  align-items:center;
-  justify-content:center;
-}
-
-/* -----------------------------
-   Panels / cards
------------------------------- */
-.panel{
-  border: 1px solid var(--line);
-  background: linear-gradient(180deg, var(--chip), color-mix(in srgb, var(--chip) 55%, transparent));
-  border-radius: var(--radius);
-  padding: 14px;
-  box-shadow: var(--shadow-sm);
-}
-
-.card{
-  border: 1px solid var(--line);
-  background: linear-gradient(180deg, var(--chip2), color-mix(in srgb, var(--chip) 55%, transparent));
-  border-radius: var(--radius);
-  padding: 14px;
-  margin: 12px 0 16px 0;
-  box-shadow: var(--shadow-sm);
-}
-
-/* -----------------------------
-   Buttons
------------------------------- */
-.btn,
-button{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--text);
-  cursor:pointer;
-  transition: background var(--ease), transform var(--ease), border-color var(--ease), box-shadow var(--ease);
-}
-
-.btn:hover,
-button:hover{
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
-  text-decoration:none;
-  transform: translateY(-0.5px);
-}
-
-.btn:active,
-button:active{
-  transform: translateY(0px);
-}
-
-.btn:focus-visible,
-button:focus-visible{
-  outline: none;
-  box-shadow: var(--ring);
-}
-
-/* -----------------------------
-   Switch
------------------------------- */
 .switch{
   position: relative;
   display:inline-block;
@@ -329,9 +195,122 @@ button:focus-visible{
   box-shadow: var(--ring);
 }
 
-/* -----------------------------
-   Launcher specific (peer tiles)
------------------------------- */
+/* Main scroll area */
+.main{
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.content{
+  padding: var(--content-pad);
+}
+
+/* Footer */
+.footer{
+  flex: 0 0 var(--footer-h);
+  height: var(--footer-h);
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  backdrop-filter: blur(10px);
+  display:flex;
+  align-items:center;
+}
+
+.footer-inner{
+  width: 100%;
+  padding: 0 18px;
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  justify-content:center;
+}
+
+/* Panels / Cards */
+.panel{
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--chip), color-mix(in srgb, var(--chip) 55%, transparent));
+  border-radius: var(--radius);
+  padding: 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+.card{
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--chip2), color-mix(in srgb, var(--chip) 55%, transparent));
+  border-radius: var(--radius);
+  padding: 14px;
+  margin: 12px 0 16px 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.cardHead{
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* Buttons */
+.btn,
+button{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--text);
+  cursor:pointer;
+  transition: background var(--ease), transform var(--ease), border-color var(--ease), box-shadow var(--ease);
+}
+
+.btn:hover,
+button:hover{
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  text-decoration:none;
+  transform: translateY(-0.5px);
+}
+
+.btn:active,
+button:active{
+  transform: translateY(0px);
+}
+
+.btn:focus-visible,
+button:focus-visible{
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+button:disabled,
+.btn:disabled{
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform:none;
+}
+
+/* Inputs */
+.input,
+input[type="text"]{
+  width:100%;
+  padding: 11px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--field-bg);
+  color: var(--text);
+  outline:none;
+  transition: border-color var(--ease), box-shadow var(--ease), background var(--ease);
+}
+
+.input:focus,
+input[type="text"]:focus{
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: var(--ring);
+  background: var(--field-bg-2);
+}
+
+/* Launcher */
 .shell{ max-width: 980px; margin: 0 auto; }
 .top{ margin-bottom: 14px; }
 .h1{ font-size: 32px; font-weight: 800; margin: 0 0 6px 0; }
@@ -341,9 +320,9 @@ button:focus-visible{
   display:grid;
   grid-template-columns: 1.5fr 1fr;
   gap: 14px;
+  align-items:start;
 }
 
-.cardHead{ margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 .cardBody{ margin-top: 10px; }
 .cardFoot{
   margin-top: 14px;
@@ -355,7 +334,62 @@ button:focus-visible{
   flex-wrap:wrap;
 }
 
+.row{ display:flex; gap: 10px; align-items:center; }
+
+/* === IMPORTANT: robust list styling (fixes your screenshot) === */
+/* If your JS renders a plain UL/LI, kill bullets and make it look like tiles. */
+.card ul,
+.card ol{
+  list-style:none;
+  margin:0;
+  padding:0;
+}
+
+.card li{
+  margin:0;
+  padding:0;
+}
+
+.card ul li,
+.card ol li{
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--panel2) 60%, transparent);
+  cursor:pointer;
+  transition: background var(--ease), border-color var(--ease), transform var(--ease);
+  display:flex;
+  align-items:flex-start;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.card ul li:hover,
+.card ol li:hover{
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  transform: translateY(-0.5px);
+}
+
+/* If your LI contains a radio/checkbox, make it sane */
+.card li input[type="radio"],
+.card li input[type="checkbox"]{
+  margin-top: 2px;
+  flex: 0 0 auto;
+}
+
+/* If your LI has multiple lines of text, make them readable */
+.card li > *{
+  min-width: 0;
+}
+
+.card li .muted,
+.card li small{
+  color: var(--muted);
+}
+
+/* Your original tile classes (still supported) */
 .tileList{ display:flex; flex-direction:column; gap: 10px; }
+
 .tile{
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -364,10 +398,12 @@ button:focus-visible{
   cursor:pointer;
   transition: background var(--ease), border-color var(--ease), transform var(--ease);
 }
+
 .tile:hover{
   background: color-mix(in srgb, var(--accent) 10%, transparent);
   transform: translateY(-0.5px);
 }
+
 .tileLeft{ display:flex; gap: 12px; align-items:flex-start; }
 .tileMeta{ display:flex; flex-direction:column; gap: 6px; min-width:0; }
 .tileName{ font-weight: 800; }
@@ -380,40 +416,11 @@ button:focus-visible{
   color: var(--muted);
 }
 
-.row{ display:flex; gap: 10px; align-items:center; }
-
-.input{
-  width:100%;
-  padding: 11px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--field-bg);
-  color: var(--text);
-  outline:none;
-  transition: border-color var(--ease), box-shadow var(--ease), background var(--ease);
-}
-
-.input:focus{
-  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
-  box-shadow: var(--ring);
-  background: var(--field-bg-2);
-}
-
 .status{ color: var(--muted); font-size: 12px; }
 .error{ color: #ff7b7b; font-size: 12px; }
 
-/* -----------------------------
-   RunPeer screen (iframe fills content area)
------------------------------- */
-.viewerWrap{
-  height: calc(100vh - var(--topbar-h) - var(--footer-h) - (var(--content-pad) * 2));
-  min-height: 0;
-  display:flex;
-}
-
-.viewerFrame{
-  width: 100%;
-  height: 100%;
-  border: 0;
-  background: var(--bg);
+/* Responsive */
+@media (max-width: 980px){
+  :root{ --content-pad:16px; }
+  .grid{ grid-template-columns: 1fr; }
 }
