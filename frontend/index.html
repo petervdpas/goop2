@@ -14,17 +14,6 @@
       } catch (e) {}
     })();
   </script>
-
-  <!-- CodeMirror (GLOBAL) -->
-  <link rel="stylesheet" href="/vendor/codemirror/codemirror.css" />
-  <link rel="stylesheet" href="/vendor/codemirror/theme/xq-dark.css" />
-  <link rel="stylesheet" href="/vendor/codemirror/theme/xq-light.css" />
-
-  <script defer src="/vendor/codemirror/codemirror.js"></script>
-  <script defer src="/vendor/codemirror/mode/xml.js"></script>
-  <script defer src="/vendor/codemirror/mode/javascript.js"></script>
-  <script defer src="/vendor/codemirror/mode/css.js"></script>
-  <script defer src="/vendor/codemirror/mode/htmlmixed.js"></script>
 </head>
 
 <body>
@@ -35,14 +24,6 @@
         <span class="tag">ephemeral web</span>
       </div>
 
-      <!-- MENU: exists always, hidden until started -->
-      <nav class="topnav hidden" id="topnav">
-        <a class="navitem" id="nav-peers" href="#">Peers</a>
-        <a class="navitem" id="nav-self" href="#">Me</a>
-        <a class="navitem" id="nav-editor" href="#">Editor</a>
-        <a class="navitem" id="nav-logs" href="#">Logs</a>
-      </nav>
-
       <div class="topright">
         <div class="theme">
           <span class="theme-label small muted">Theme</span>
@@ -52,12 +33,6 @@
           </label>
         </div>
 
-        <!-- SELF: exists always, hidden until started -->
-        <div class="me hidden" id="me">
-          <span class="me-label" id="me-label"></span>
-          <span class="me-id"><code id="me-id"></code></span>
-        </div>
-      </div>
     </header>
 
     <main class="main">

@@ -23,7 +23,7 @@ func main() {
 			Assets: assets,
 		},
 		OnStartup: app.startup,
-		Bind: []interface{}{
+		Bind: []any{
 			app,
 		},
 	})
