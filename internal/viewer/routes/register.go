@@ -1,5 +1,4 @@
 // internal/viewer/routes/register.go
-
 package routes
 
 import (
@@ -28,6 +27,8 @@ type Deps struct {
 
 func Register(mux *http.ServeMux, d Deps) {
 	csrf := newToken(32)
+
+	RegisterOpenRoute(mux)
 
 	registerAPILogRoutes(mux, d)
 

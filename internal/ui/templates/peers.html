@@ -17,8 +17,8 @@
       <span class="seen muted">seen {{rfc3339 .LastSeen}}</span>
 
       <a class="btn"
-         href="/p/{{.ID}}/"
-         target="_blank" rel="noopener">
+         href="/open?url={{printf "%s/p/%s/" $.BaseURL .ID | urlquery}}"
+         rel="noopener">
         Open in Browser
       </a>
     </div>

@@ -8,8 +8,8 @@
 
 <p class="actions">
   <a class="btn"
-     href="/p/{{.PeerID}}/"
-     target="_blank" rel="noopener">
+     href="/open?url={{printf "%s/p/%s/" .BaseURL .PeerID | urlquery}}"
+     rel="noopener">
     Open in Browser
   </a>
 </p>

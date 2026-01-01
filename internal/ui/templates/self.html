@@ -12,8 +12,8 @@
 
   <div class="actions" style="margin: 12px 0 18px 0;">
     <a class="btn"
-       href="/p/{{.SelfID}}/"
-       target="_blank" rel="noopener">
+       href="/open?url={{printf "%s/p/%s/" .BaseURL .SelfID | urlquery}}"
+       rel="noopener">
       Open my site
     </a>
   </div>
@@ -88,7 +88,6 @@
     <div class="card" style="margin-top: 12px;">
       <h3>Rendezvous</h3>
 
-      <!-- Local rendezvous server + port belong together -->
       <div class="rv-local">
         <div class="rv-local-title">Local rendezvous server</div>
 
@@ -117,19 +116,17 @@
             </div>
           </div>
 
-          <!-- Keep the button: plain link that opens a new tab -->
           <div class="rv-open">
             <a id="rv-open-link"
                class="btn secondary"
-               href="http://127.0.0.1:{{.Cfg.Presence.RendezvousPort}}/"
-               target="_blank" rel="noopener">
+               href="/open?url={{printf "http://127.0.0.1:%d/" .Cfg.Presence.RendezvousPort | urlquery}}"
+               rel="noopener">
               Open rendezvous
             </a>
           </div>
         </div>
       </div>
 
-      <!-- WAN stands apart -->
       <div class="field" style="margin-top: 12px;">
         <label>WAN rendezvous</label>
         <input name="presence_rendezvous_wan"
