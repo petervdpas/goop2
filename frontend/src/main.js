@@ -1,14 +1,24 @@
+// frontend/src/main.js
 import "./style.css";
+
+/*
+Goal (what you actually want):
+- Launcher (Wails SPA) for peer selection.
+- After peer selected + started: REPLACE the whole document with the viewer app
+  (no iframe, so scroll + scaling behave correctly).
+- Theme toggle uses localStorage "goop.theme" (same as viewer).
+*/
 
 function clear(node) {
 	while (node.firstChild) node.removeChild(node.firstChild);
 }
 
-function div(cls) {
-	const d = document.createElement("div");
-	if (cls) d.className = cls;
-	return d;
+function el(tag, cls) {
+	const e = document.createElement(tag);
+	if (cls) e.className = cls;
+	return e;
 }
+function div(cls) { return el("div", cls); }
 
 function btn(label, kind) {
 	const b = document.createElement("button");
@@ -29,35 +39,75 @@ function input(placeholder) {
 }
 
 function h1(text) {
-	const h = document.createElement("div");
-	h.className = "h1";
+	const h = div("h1");
 	h.textContent = text;
 	return h;
 }
 
 function p(text) {
-	const d = document.createElement("div");
-	d.className = "p";
+	const d = div("p");
 	d.textContent = text;
 	return d;
 }
 
-async function boot() {
-	const root = document.querySelector("#app");
-	const status = await window.go.main.App.GetStatus();
+// ----------------------
+// Theme (same key/behavior as viewer layout.html)
+// ----------------------
 
-	// IMPORTANT:
-	// If already started, we MUST navigate, not render launcher/shell
-	if (status.started === "true" && status.viewerURL) {
-		window.location.href = status.viewerURL;
-		return;
+function loadTheme() {
+	try {
+		let t = localStorage.getItem("goop.theme");
+		if (t !== "light" && t !== "dark") t = "dark";
+		return t;
+	} catch {
+		return "dark";
 	}
-
-	return renderLauncher(root);
 }
 
-async function renderLauncher(root) {
-	clear(root);
+function applyTheme(t) {
+	try {
+		if (t !== "light" && t !== "dark") t = "dark";
+		document.documentElement.setAttribute("data-theme", t);
+		localStorage.setItem("goop.theme", t);
+	} catch {}
+}
+
+function wireThemeToggle() {
+	const themeToggle = document.getElementById("themeToggle");
+	if (!themeToggle) return;
+
+	applyTheme(loadTheme());
+	themeToggle.checked = (document.documentElement.getAttribute("data-theme") || "dark") === "light";
+
+	themeToggle.addEventListener("change", () => {
+		const cur = document.documentElement.getAttribute("data-theme") || "dark";
+		applyTheme(cur === "dark" ? "light" : "dark");
+		themeToggle.checked = (document.documentElement.getAttribute("data-theme") || "dark") === "light";
+	});
+}
+
+// ----------------------
+// Navigation to viewer (REAL REPLACE)
+// ----------------------
+
+function normalizeBase(viewerURL) {
+	return String(viewerURL || "").replace(/\/+$/, "");
+}
+
+function goViewer(viewerURL, path) {
+	const base = normalizeBase(viewerURL);
+	if (!base) throw new Error("viewerURL is empty");
+	const p = path && String(path).startsWith("/") ? path : "/peers";
+	// Real replacement: no iframe, no nested scrolling issues.
+	window.location.replace(base + p);
+}
+
+// ----------------------
+// Launcher UI (peer picker)
+// ----------------------
+
+async function renderLauncher(host) {
+	clear(host);
 
 	const shell = div("shell");
 	const top = div("top");
@@ -111,7 +161,7 @@ async function renderLauncher(root) {
 	grid.appendChild(createCard);
 	shell.appendChild(grid);
 
-	root.appendChild(shell);
+	host.appendChild(shell);
 
 	let peers = await window.go.main.App.ListPeers();
 	let selected = "";
@@ -143,7 +193,6 @@ async function renderLauncher(root) {
 			radio.type = "radio";
 			radio.name = "peer";
 			radio.checked = peer === selected;
-
 			radio.addEventListener("change", () => setSelected(peer));
 
 			const meta = div("tileMeta");
@@ -176,7 +225,6 @@ async function renderLauncher(root) {
 		renderList();
 	}
 
-	// 🔥🔥🔥 THIS IS THE ONLY BEHAVIOR CHANGE 🔥🔥🔥
 	start.addEventListener("click", async () => {
 		if (!selected) return;
 
@@ -189,8 +237,8 @@ async function renderLauncher(root) {
 			await window.go.main.App.StartPeer(selected);
 			const st = await window.go.main.App.GetStatus();
 
-			// SAME WINDOW, NO FRAME, NO BROWSER
-			window.location.href = st.viewerURL;
+			if (!st || !st.viewerURL) throw new Error("Started but viewerURL missing from status.");
+			goViewer(st.viewerURL, "/peers");
 		} catch (e) {
 			err.textContent = String(e);
 			status.textContent = "";
@@ -251,6 +299,26 @@ async function renderLauncher(root) {
 
 	renderList();
 	setSelected("");
+}
+
+// ----------------------
+// Boot
+// ----------------------
+
+async function boot() {
+	wireThemeToggle();
+
+	// IMPORTANT: once a peer is already started, we *immediately* replace with viewer.
+	const st = await window.go.main.App.GetStatus();
+	if (st && st.started === "true" && st.viewerURL) {
+		goViewer(st.viewerURL, "/peers");
+		return;
+	}
+
+	const content = document.getElementById("content") || document.getElementById("app");
+	if (!content) return;
+
+	await renderLauncher(content);
 }
 
 boot();

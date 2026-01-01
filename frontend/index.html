@@ -1,12 +1,78 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
-    <meta charset="UTF-8"/>
-    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-    <title>goop2</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>goop2</title>
+
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("goop.theme");
+        if (t !== "light" && t !== "dark") t = "dark";
+        document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    })();
+  </script>
+
+  <!-- CodeMirror (GLOBAL) -->
+  <link rel="stylesheet" href="/vendor/codemirror/codemirror.css" />
+  <link rel="stylesheet" href="/vendor/codemirror/theme/xq-dark.css" />
+  <link rel="stylesheet" href="/vendor/codemirror/theme/xq-light.css" />
+
+  <script defer src="/vendor/codemirror/codemirror.js"></script>
+  <script defer src="/vendor/codemirror/mode/xml.js"></script>
+  <script defer src="/vendor/codemirror/mode/javascript.js"></script>
+  <script defer src="/vendor/codemirror/mode/css.js"></script>
+  <script defer src="/vendor/codemirror/mode/htmlmixed.js"></script>
 </head>
+
 <body>
-<div id="app"></div>
-<script src="./src/main.js" type="module"></script>
+  <div class="app" id="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">Goop</span>
+        <span class="tag">ephemeral web</span>
+      </div>
+
+      <!-- MENU: exists always, hidden until started -->
+      <nav class="topnav hidden" id="topnav">
+        <a class="navitem" id="nav-peers" href="#">Peers</a>
+        <a class="navitem" id="nav-self" href="#">Me</a>
+        <a class="navitem" id="nav-editor" href="#">Editor</a>
+        <a class="navitem" id="nav-logs" href="#">Logs</a>
+      </nav>
+
+      <div class="topright">
+        <div class="theme">
+          <span class="theme-label small muted">Theme</span>
+          <label class="switch" title="Toggle light/dark">
+            <input id="themeToggle" type="checkbox" aria-label="Toggle theme" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <!-- SELF: exists always, hidden until started -->
+        <div class="me hidden" id="me">
+          <span class="me-label" id="me-label"></span>
+          <span class="me-id"><code id="me-id"></code></span>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <div class="content" id="content"></div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <span class="muted small">Goop</span>
+        <span class="muted small">·</span>
+        <span class="muted small">ephemeral web</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="./src/main.js" type="module"></script>
 </body>
 </html>

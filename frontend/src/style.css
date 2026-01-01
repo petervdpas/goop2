@@ -1,228 +1,419 @@
 /* frontend/src/style.css */
-/* Metro-ish: flat, square, generous spacing, Segoe-like typography. */
 
-:root {
-	color-scheme: dark;
-	--bg: #0e1621;
-	--panel: #111c2a;
-	--panel2: #0f1926;
-	--line: rgba(255, 255, 255, 0.10);
+/* This is your viewer app.css, plus a few small additions at the end for the launcher tiles and iframe. */
 
-	--text: #e8eef6;
-	--muted: rgba(232, 238, 246, 0.72);
-
-	--accent: #2d89ef;
-	--danger: #e81123;
-
-	--shadow: 0 16px 44px rgba(0, 0, 0, 0.35);
-
-	--pad: 16px;
-	--gap: 14px;
+/* -----------------------------
+   Theme variables
+------------------------------ */
+:root{
+  --bg:#0f1115;
+  --panel:#151924;
+  --panel2:#10131b;
+  --text:#e6e9ef;
+  --muted:#9aa3b2;
+  --line:rgba(255,255,255,0.10);
+  --accent:#7aa2ff;
+  --chip:rgba(255,255,255,0.04);
+  --chip2:rgba(255,255,255,0.06);
+  --radius:14px;
+  --radius-sm:10px;
+  --radius-xs:8px;
+  --shadow-sm:0 8px 22px rgba(0,0,0,0.22);
+  --shadow-md:0 18px 46px rgba(0,0,0,0.34);
+  --glass:rgba(255,255,255,0.06);
+  --glass2:rgba(255,255,255,0.08);
+  --ring:0 0 0 4px rgba(122,162,255,0.22);
+  --ease:170ms cubic-bezier(.2,.7,.2,1);
+  --bg-grad-1:rgba(122,162,255,0.10);
+  --bg-grad-2:rgba(170,120,255,0.06);
+  --bg-grad-3:rgba(0,0,0,0);
+  --field-bg:rgba(0,0,0,0.25);
+  --field-bg-2:rgba(0,0,0,0.18);
+  --content-pad:22px;
+  --footer-h:44px;
+  --topbar-h:56px;
 }
 
-html,
-body {
-	height: 100%;
-	margin: 0;
-	background: var(--bg);
-	color: var(--text);
-	font-family: "Segoe UI", system-ui, -apple-system, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
+html[data-theme="light"]{
+  --bg:#f6f7fb;
+  --panel:#ffffff;
+  --panel2:#f0f2fa;
+  --text:#101325;
+  --muted:#4a4f6b;
+  --line:rgba(16,19,37,0.12);
+  --accent:#5a3dff;
+  --chip:rgba(16,19,37,0.04);
+  --chip2:rgba(16,19,37,0.06);
+  --shadow-sm:0 10px 24px rgba(16,19,37,0.10);
+  --shadow-md:0 22px 60px rgba(16,19,37,0.14);
+  --glass:rgba(16,19,37,0.04);
+  --glass2:rgba(16,19,37,0.06);
+  --ring:0 0 0 4px rgba(90,61,255,0.18);
+  --bg-grad-1:rgba(90,61,255,0.10);
+  --bg-grad-2:rgba(122,162,255,0.08);
+  --bg-grad-3:rgba(255,255,255,0);
+  --field-bg:rgba(16,19,37,0.04);
+  --field-bg-2:rgba(16,19,37,0.03);
 }
 
-#app {
-	min-height: 100%;
+/* -----------------------------
+   Base
+------------------------------ */
+*{ box-sizing:border-box; }
+html, body{ height:100%; }
+
+body{
+  margin:0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial;
+  color: var(--text);
+  background:
+    radial-gradient(1200px 700px at 18% -10%, var(--bg-grad-1), var(--bg-grad-3) 62%),
+    radial-gradient(900px 600px at 92% 18%, var(--bg-grad-2), var(--bg-grad-3) 58%),
+    linear-gradient(180deg, rgba(0,0,0,0.10), rgba(0,0,0,0.0) 30%),
+    var(--bg);
+  overflow: hidden;
 }
 
-.shell {
-	min-height: 100vh;
-	padding: 36px 28px;
-	box-sizing: border-box;
+a{ color:var(--accent); text-decoration:none; }
+a:hover{ text-decoration:underline; }
+
+code{
+  background: var(--chip2);
+  padding: 2px 6px;
+  border-radius: 999px;
 }
 
-.top {
-	max-width: 1100px;
-	margin: 0 auto 18px auto;
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
+h1{
+  margin: 0 0 12px 0;
+  font-size: 26px;
+  letter-spacing: 0.2px;
 }
 
-.h1 {
-	font-size: 34px;
-	font-weight: 600;
-	letter-spacing: 0.2px;
+.muted{ color:var(--muted); }
+.small{ font-size:12px; }
+
+/* GLOBAL hidden helper */
+.hidden{ display:none !important; }
+
+/* -----------------------------
+   App layout (FIXED FOOTER)
+------------------------------ */
+.app{
+  height:100vh;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
 }
 
-.p {
-	font-size: 14px;
-	color: var(--muted);
+.topbar{
+  flex: 0 0 var(--topbar-h);
+  height: var(--topbar-h);
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap: 14px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  backdrop-filter: blur(10px);
 }
 
-.grid {
-	max-width: 1100px;
-	margin: 0 auto;
-	display: grid;
-	grid-template-columns: 1.2fr 0.8fr;
-	gap: var(--gap);
+.brand{
+  display:flex;
+  gap:10px;
+  align-items: baseline;
+  flex: 0 0 auto;
 }
 
-.card {
-	background: linear-gradient(180deg, var(--panel), var(--panel2));
-	border: 1px solid var(--line);
-	box-shadow: var(--shadow);
-	overflow: hidden;
+.logo{ font-weight: 750; letter-spacing: 0.6px; }
+.tag{ color: var(--muted); font-size: 12px; }
+
+/* -----------------------------
+   TOP NAV (FIXED: was display:none)
+------------------------------ */
+.topnav{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
-.card.wide {
-	max-width: 1100px;
-	margin: 0 auto;
+.navitem{
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  color: var(--muted);
+  text-decoration:none;
+  transition: background var(--ease), border-color var(--ease), color var(--ease);
+  white-space: nowrap;
 }
 
-.cardHead {
-	padding: var(--pad);
-	border-bottom: 1px solid var(--line);
+.navitem:hover{
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  text-decoration:none;
 }
 
-.cardBody {
-	padding: var(--pad);
+.navitem.active{
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
-.cardFoot {
-	padding: var(--pad);
-	border-top: 1px solid var(--line);
-	display: flex;
-	align-items: center;
-	gap: 10px;
+.topright{
+  display:flex;
+  gap: 14px;
+  align-items:center;
+  flex: 0 0 auto;
 }
 
-.row {
-	display: flex;
-	gap: 10px;
-	align-items: center;
+.me{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  white-space: nowrap;
 }
 
-.input {
-	flex: 1;
-	height: 38px;
-	padding: 0 12px;
-	background: rgba(0, 0, 0, 0.22);
-	border: 1px solid var(--line);
-	color: var(--text);
-	outline: none;
+.me-label{ font-weight: 650; }
+.me-id{ color: var(--muted); font-size: 12px; }
+
+.theme{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--glass);
+  box-shadow: none;
 }
 
-.input:focus {
-	border-color: rgba(45, 137, 239, 0.9);
-	box-shadow: 0 0 0 2px rgba(45, 137, 239, 0.25);
+/* MAIN is the only scroll area now */
+.main{
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display:block;
 }
 
-.btn {
-	height: 38px;
-	padding: 0 14px;
-	border: 1px solid var(--line);
-	background: rgba(255, 255, 255, 0.06);
-	color: var(--text);
-	cursor: pointer;
-	font-weight: 600;
+/* content should NOT be scrollable, it should just layout */
+.content{
+  min-height: 0;
+  padding: var(--content-pad);
 }
 
-.btn.primary {
-	border-color: rgba(45, 137, 239, 0.9);
-	background: rgba(45, 137, 239, 0.22);
+/* footer always sits at bottom */
+.footer{
+  flex: 0 0 var(--footer-h);
+  height: var(--footer-h);
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  backdrop-filter: blur(10px);
+  display:flex;
+  align-items:center;
 }
 
-.btn.primary:hover {
-	background: rgba(45, 137, 239, 0.32);
+.footer-inner{
+  width: 100%;
+  padding: 0 18px;
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  justify-content:center;
 }
 
-.btn.secondary:hover {
-	background: rgba(255, 255, 255, 0.10);
+/* -----------------------------
+   Panels / cards
+------------------------------ */
+.panel{
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--chip), color-mix(in srgb, var(--chip) 55%, transparent));
+  border-radius: var(--radius);
+  padding: 14px;
+  box-shadow: var(--shadow-sm);
 }
 
-.btn.danger {
-	border-color: rgba(232, 17, 35, 0.9);
-	background: rgba(232, 17, 35, 0.18);
+.card{
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--chip2), color-mix(in srgb, var(--chip) 55%, transparent));
+  border-radius: var(--radius);
+  padding: 14px;
+  margin: 12px 0 16px 0;
+  box-shadow: var(--shadow-sm);
 }
 
-.btn.danger:hover {
-	background: rgba(232, 17, 35, 0.26);
+/* -----------------------------
+   Buttons
+------------------------------ */
+.btn,
+button{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--text);
+  cursor:pointer;
+  transition: background var(--ease), transform var(--ease), border-color var(--ease), box-shadow var(--ease);
 }
 
-.btn:disabled {
-	opacity: 0.55;
-	cursor: not-allowed;
+.btn:hover,
+button:hover{
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  text-decoration:none;
+  transform: translateY(-0.5px);
 }
 
-.status {
-	flex: 1;
-	color: rgba(232, 238, 246, 0.75);
-	font-size: 13px;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
+.btn:active,
+button:active{
+  transform: translateY(0px);
 }
 
-.error {
-	color: rgba(255, 120, 120, 0.95);
-	font-size: 13px;
-	white-space: nowrap;
+.btn:focus-visible,
+button:focus-visible{
+  outline: none;
+  box-shadow: var(--ring);
 }
 
-.tileList {
-	display: flex;
-	flex-direction: column;
-	gap: 10px;
+/* -----------------------------
+   Switch
+------------------------------ */
+.switch{
+  position: relative;
+  display:inline-block;
+  width: 46px;
+  height: 24px;
 }
 
-.tile {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 10px;
-
-	background: rgba(0, 0, 0, 0.18);
-	border: 1px solid rgba(255, 255, 255, 0.10);
-	padding: 12px;
-
-	cursor: pointer;
+.switch input{
+  opacity:0;
+  width:0;
+  height:0;
 }
 
-.tile:hover {
-	border-color: rgba(45, 137, 239, 0.45);
-	background: rgba(0, 0, 0, 0.24);
+.slider{
+  position:absolute;
+  inset:0;
+  cursor:pointer;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 36%, transparent);
+  border-radius: 999px;
+  transition: background var(--ease), border-color var(--ease), box-shadow var(--ease);
 }
 
-.tileLeft {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	min-width: 0;
+.slider:before{
+  content:"";
+  position:absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  top: 2px;
+  background: var(--text);
+  border-radius: 999px;
+  transition: transform var(--ease), background var(--ease);
 }
 
-.tileMeta {
-	display: flex;
-	flex-direction: column;
-	gap: 3px;
-	min-width: 0;
+.switch input:checked + .slider{
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
-.tileName {
-	font-size: 16px;
-	font-weight: 650;
-	letter-spacing: 0.2px;
+.switch input:checked + .slider:before{
+  transform: translateX(22px);
 }
 
-.tilePath {
-	font-size: 12px;
-	color: var(--muted);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	max-width: 560px;
+.switch input:focus-visible + .slider{
+  box-shadow: var(--ring);
 }
 
-.empty {
-	color: var(--muted);
-	font-size: 13px;
-	padding: 10px 2px;
+/* -----------------------------
+   Launcher specific (peer tiles)
+------------------------------ */
+.shell{ max-width: 980px; margin: 0 auto; }
+.top{ margin-bottom: 14px; }
+.h1{ font-size: 32px; font-weight: 800; margin: 0 0 6px 0; }
+.p{ margin: 0; color: var(--muted); }
+
+.grid{
+  display:grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 14px;
+}
+
+.cardHead{ margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.cardBody{ margin-top: 10px; }
+.cardFoot{
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+.tileList{ display:flex; flex-direction:column; gap: 10px; }
+.tile{
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--panel2) 60%, transparent);
+  cursor:pointer;
+  transition: background var(--ease), border-color var(--ease), transform var(--ease);
+}
+.tile:hover{
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  transform: translateY(-0.5px);
+}
+.tileLeft{ display:flex; gap: 12px; align-items:flex-start; }
+.tileMeta{ display:flex; flex-direction:column; gap: 6px; min-width:0; }
+.tileName{ font-weight: 800; }
+.tilePath{ color: var(--muted); font-size: 12px; }
+
+.empty{
+  padding: 12px 14px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+}
+
+.row{ display:flex; gap: 10px; align-items:center; }
+
+.input{
+  width:100%;
+  padding: 11px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--field-bg);
+  color: var(--text);
+  outline:none;
+  transition: border-color var(--ease), box-shadow var(--ease), background var(--ease);
+}
+
+.input:focus{
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: var(--ring);
+  background: var(--field-bg-2);
+}
+
+.status{ color: var(--muted); font-size: 12px; }
+.error{ color: #ff7b7b; font-size: 12px; }
+
+/* -----------------------------
+   RunPeer screen (iframe fills content area)
+------------------------------ */
+.viewerWrap{
+  height: calc(100vh - var(--topbar-h) - var(--footer-h) - (var(--content-pad) * 2));
+  min-height: 0;
+  display:flex;
+}
+
+.viewerFrame{
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--bg);
 }
