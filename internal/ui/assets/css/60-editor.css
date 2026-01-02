@@ -1,0 +1,315 @@
+/* internal/ui/assets/css/60-editor.css */
+
+/* -----------------------------
+   Page / editor layout
+------------------------------ */
+.page{
+  min-width: 0;
+}
+
+.page-editor{
+  min-height: 0;
+}
+
+.page-editor .ed{
+  height: calc(100dvh - var(--footer-h) - (var(--content-pad) * 2) - 96px);
+  min-height: 0;
+}
+
+.ed{
+  display:grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
+  min-height: 0;
+  min-width: 0;
+}
+
+.ed-left, .ed-right{
+  display:flex;
+  flex-direction:column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.ed-left.panel,
+.ed-right.panel{
+  min-height: 0;
+}
+
+.ed-left-head{
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 10px;
+}
+
+.ed-left-title{ font-weight: 750; }
+
+/* Header row + New button (added) */
+.ed-left-head-row{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 12px;
+}
+
+.ed-left-newbtn{
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.ed-treewrap{
+  flex:1 1 auto;
+  min-height:0;
+  overflow:auto;
+  padding-right: 6px;
+}
+
+/* IMPORTANT: keep tree sane even if other global CSS messes with list items */
+.ed-tree{
+  list-style:none;
+  padding:0;
+  margin:0;
+}
+.ed-tree > li{ margin:0; padding:0; }
+
+/* Tree items */
+.ed-tree-item{
+  line-height: 1.7;
+  white-space: nowrap;
+  display:flex;
+  align-items:center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  cursor:pointer;
+  user-select:none;
+  transition: background var(--ease), border-color var(--ease), transform var(--ease);
+}
+
+.ed-tree-item:hover{
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.ed-tree-item.selected{
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+/* Root node subtlety (added) */
+.ed-tree-root{
+  opacity: 0.9;
+}
+.ed-tree-root.selected{
+  opacity: 1;
+}
+
+.ed-tree-icon{
+  width: 18px;
+  text-align:center;
+  flex: 0 0 auto;
+}
+
+.ed-tree-label{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+/* Depth indent (stable, no layout “flattening”) */
+.ed-tree-item.depth-0{ padding-left: 8px; }
+.ed-tree-item.depth-1{ padding-left: 22px; }
+.ed-tree-item.depth-2{ padding-left: 36px; }
+.ed-tree-item.depth-3{ padding-left: 50px; }
+.ed-tree-item.depth-4{ padding-left: 64px; }
+.ed-tree-item.depth-5{ padding-left: 78px; }
+.ed-tree-item.depth-6{ padding-left: 92px; }
+.ed-tree-item.depth-7{ padding-left: 106px; }
+.ed-tree-item.depth-8{ padding-left: 120px; }
+
+.ed-left-foot{
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  display:flex;
+  flex-direction:column;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.ed-right{
+  overflow: hidden;
+}
+
+.ed-right-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 10px;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+.ed-open{
+  display:flex;
+  gap: 8px;
+  align-items:center;
+  flex: 1;
+  min-width:0;
+}
+
+.ed-path{
+  flex: 1;
+  min-width:0;
+}
+
+.ed-meta{
+  display:flex;
+  flex-direction:column;
+  gap: 4px;
+  align-items:flex-end;
+  flex: 0 0 auto;
+}
+
+.ed-fileops{
+  display:flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.ed-input{
+  padding: 11px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--field-bg);
+  color: var(--text);
+  outline:none;
+  transition: border-color var(--ease), box-shadow var(--ease), background var(--ease);
+}
+
+.ed-input:focus{
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: var(--ring);
+  background: var(--field-bg-2);
+}
+
+.ed-save{
+  display:flex;
+  flex-direction:column;
+  gap: 10px;
+  min-height: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.ed-savebar{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  flex: 0 0 auto;
+}
+
+/* -----------------------------
+   Editor header: requested layout
+------------------------------ */
+.ed-savebar.ed-savebar-compact{
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.ed-savebar.ed-savebar-compact .ed-savebar-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ed-savebar.ed-savebar-compact .ed-savebar-title{
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ed-savebar.ed-savebar-compact .ed-savebar-title code{
+  white-space: nowrap;
+}
+
+.ed-savebar.ed-savebar-compact .ed-savebar-save{
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding: 6px 10px;
+}
+
+.ed-savebar.ed-savebar-compact .ed-savebar-etag{
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ed-savebar.ed-savebar-compact .ed-savebar-etag code{
+  white-space: nowrap;
+}
+
+/* -----------------------------
+   Editor area
+------------------------------ */
+.ed-editorwrap{
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  display:flex;
+}
+
+.ed-area{
+  width:100%;
+  height:100%;
+  min-height: 0;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--field-bg);
+  color: var(--text);
+  outline:none;
+  padding: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  resize: none;
+}
+
+/* CodeMirror fill */
+.ed-fileops .CodeMirror{
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  height: 100% !important;
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--line);
+}
+
+.ed-fileops .CodeMirror-scroll{
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+.ed-fileops .CodeMirror-sizer{ min-height: 0 !important; }
+.ed-fileops .CodeMirror-lines{ padding-bottom: 24px; }
+
+.CodeMirror-gutters{
+  border-right: 1px solid var(--line) !important;
+}

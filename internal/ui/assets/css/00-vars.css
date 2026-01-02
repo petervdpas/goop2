@@ -1,0 +1,54 @@
+/* internal/ui/assets/css/00-vars.css */
+
+/* -----------------------------
+   Theme variables
+------------------------------ */
+:root{
+  --bg:#0f1115;
+  --panel:#151924;
+  --panel2:#10131b;
+  --text:#e6e9ef;
+  --muted:#9aa3b2;
+  --line:rgba(255,255,255,0.10);
+  --accent:#7aa2ff;
+  --chip:rgba(255,255,255,0.04);
+  --chip2:rgba(255,255,255,0.06);
+  --radius:14px;
+  --radius-sm:10px;
+  --radius-xs:8px;
+  --shadow-sm:0 8px 22px rgba(0,0,0,0.22);
+  --shadow-md:0 18px 46px rgba(0,0,0,0.34);
+  --glass:rgba(255,255,255,0.06);
+  --glass2:rgba(255,255,255,0.08);
+  --ring:0 0 0 4px rgba(122,162,255,0.22);
+  --ease:170ms cubic-bezier(.2,.7,.2,1);
+  --bg-grad-1:rgba(122,162,255,0.10);
+  --bg-grad-2:rgba(170,120,255,0.06);
+  --bg-grad-3:rgba(0,0,0,0);
+  --field-bg:rgba(0,0,0,0.25);
+  --field-bg-2:rgba(0,0,0,0.18);
+  --content-pad:22px;
+  --footer-h:44px;
+}
+
+html[data-theme="light"]{
+  --bg:#f6f7fb;
+  --panel:#ffffff;
+  --panel2:#f0f2fa;
+  --text:#101325;
+  --muted:#4a4f6b;
+  --line:rgba(16,19,37,0.12);
+  --accent:#5a3dff;
+  --chip:rgba(16,19,37,0.04);
+  --chip2:rgba(16,19,37,0.06);
+  --shadow-sm:0 10px 24px rgba(16,19,37,0.10);
+  --shadow-md:0 22px 60px rgba(16,19,37,0.14);
+  --glass:rgba(16,19,37,0.04);
+  --glass2:rgba(16,19,37,0.06);
+  --ring:0 0 0 4px rgba(90,61,255,0.18);
+  --bg-grad-1:rgba(90,61,255,0.10);
+  --bg-grad-2:rgba(122,162,255,0.08);
+  --bg-grad-3:rgba(255,255,255,0);
+  --field-bg:rgba(16,19,37,0.04);
+  --field-bg-2:rgba(16,19,37,0.03);
+}

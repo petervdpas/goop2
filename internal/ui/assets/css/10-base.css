@@ -1,0 +1,40 @@
+/* internal/ui/assets/css/10-base.css */
+
+/* -----------------------------
+   Base
+------------------------------ */
+*{ box-sizing:border-box; }
+html, body{ height:100%; }
+
+body{
+  margin:0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial;
+  color: var(--text);
+  background:
+    radial-gradient(1200px 700px at 18% -10%, var(--bg-grad-1), var(--bg-grad-3) 62%),
+    radial-gradient(900px 600px at 92% 18%, var(--bg-grad-2), var(--bg-grad-3) 58%),
+    linear-gradient(180deg, rgba(0,0,0,0.10), rgba(0,0,0,0.0) 30%),
+    var(--bg);
+  overflow: hidden;
+}
+
+a{ color:var(--accent); text-decoration:none; }
+a:hover{ text-decoration:underline; }
+
+code{
+  background: var(--chip2);
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+
+h1{
+  margin: 0 0 12px 0;
+  font-size: 26px;
+  letter-spacing: 0.2px;
+}
+
+.muted{ color:var(--muted); }
+.small{ font-size:12px; }
+
+/* GLOBAL hidden helper (used for rv-open) */
+.hidden{ display:none !important; }

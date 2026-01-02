@@ -1,0 +1,64 @@
+/* internal/ui/assets/css/80-rendezvous.css */
+
+/* -----------------------------
+   Rendezvous UI (local server + port together, WAN separate)
+------------------------------ */
+.rv-local{
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+  background: color-mix(in srgb, var(--panel2) 55%, transparent);
+
+  display:grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "title toggle"
+    "port  open";
+  column-gap: 12px;
+  row-gap: 10px;
+  align-items: start;
+}
+
+.rv-local-head{ display: contents; }
+.rv-local-right{ display: contents; }
+.rv-local-row{ display: contents; }
+
+.rv-local-title{
+  grid-area: title;
+  font-weight: 750;
+  letter-spacing: 0.2px;
+}
+
+.rv-local-toggle{
+  grid-area: toggle;
+  justify-self: end;
+
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--glass);
+}
+
+.rv-open{
+  grid-area: open;
+  justify-self: end;
+  align-self: center;
+
+  display:flex;
+  justify-content:flex-end;
+  margin: 0;
+}
+
+.rv-port-field{
+  grid-area: port;
+
+  margin-bottom: 0;
+  width: min(520px, 100%);
+}
+
+#rv_port.rv-disabled{
+  opacity: 0.60;
+}

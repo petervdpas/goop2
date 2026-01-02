@@ -1,0 +1,140 @@
+/* internal/ui/assets/css/70-overlays.css */
+
+/* -----------------------------
+   Context menu
+------------------------------ */
+.ed-menu{
+  position: fixed;
+  z-index: 9999;
+  min-width: 190px;
+  padding: 6px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel2) 92%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-md);
+}
+
+.ed-menu.hidden{ display:none; }
+
+.ed-menu button{
+  width:100%;
+  text-align:left;
+  border: 0;
+  background: transparent;
+  padding: 10px 10px;
+  border-radius: 12px;
+}
+
+.ed-menu button:hover{
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.ed-menu hr{
+  border:0;
+  height: 1px;
+  background: var(--line);
+  margin: 6px 0;
+}
+
+/* -----------------------------
+   Dialogs
+------------------------------ */
+.ed-dlg-backdrop{
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0,0,0,0.55);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding: 16px;
+  backdrop-filter: blur(6px);
+}
+
+.ed-dlg{
+  width: min(520px, 96vw);
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border-radius: 16px;
+  box-shadow: var(--shadow-md);
+  overflow:hidden;
+}
+
+.ed-dlg-head{
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.ed-dlg-title{ font-weight: 750; }
+
+.ed-dlg-body{
+  padding: 14px;
+  display:flex;
+  flex-direction:column;
+  gap: 10px;
+}
+
+.ed-dlg-msg{
+  color: var(--muted);
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+
+.ed-dlg-input{
+  width:100%;
+  padding: 11px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--field-bg);
+  color: var(--text);
+  outline:none;
+  font: inherit;
+  transition: border-color var(--ease), box-shadow var(--ease), background var(--ease);
+}
+
+.ed-dlg-input:focus{
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: var(--ring);
+  background: var(--field-bg-2);
+}
+
+.ed-dlg-foot{
+  padding: 12px 14px;
+  border-top: 1px solid var(--line);
+  display:flex;
+  gap: 10px;
+  justify-content:flex-end;
+}
+
+.ed-dlg-btn{
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--text);
+  padding: 8px 12px;
+  cursor:pointer;
+  transition: background var(--ease), transform var(--ease), box-shadow var(--ease), border-color var(--ease);
+}
+
+.ed-dlg-btn:hover{
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  transform: translateY(-0.5px);
+}
+
+.ed-dlg-btn:focus-visible{
+  outline:none;
+  box-shadow: var(--ring);
+}
+
+.ed-dlg-btn.danger{
+  border-color: color-mix(in srgb, #ff5a5a 42%, transparent);
+  background: color-mix(in srgb, #ff5a5a 14%, transparent);
+}
+
+.ed-dlg-btn.danger:hover{
+  background: color-mix(in srgb, #ff5a5a 20%, transparent);
+}

@@ -1,0 +1,40 @@
+/* internal/ui/assets/css/50-banners.css */
+
+/* -----------------------------
+   Banners
+------------------------------ */
+.banner{
+  margin: 10px 0 12px 0;
+  padding: 11px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--chip);
+  box-shadow: var(--shadow-sm);
+}
+
+.banner.ok{
+  border-color: color-mix(in srgb, #50c878 40%, transparent);
+  background: color-mix(in srgb, #50c878 12%, transparent);
+}
+
+.banner.err{
+  border-color: color-mix(in srgb, #ff5a5a 40%, transparent);
+  background: color-mix(in srgb, #ff5a5a 12%, transparent);
+}
+
+.banner.banner-autohide{
+  overflow: hidden;
+  transition: opacity var(--ease), transform var(--ease), max-height var(--ease), margin var(--ease), padding var(--ease), border-width var(--ease);
+  max-height: 120px;
+}
+
+.banner.banner-autohide.is-gone{
+  opacity: 0;
+  transform: translateY(-6px);
+  max-height: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-width: 0;
+}

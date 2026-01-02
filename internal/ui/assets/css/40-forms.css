@@ -1,0 +1,70 @@
+/* internal/ui/assets/css/40-forms.css */
+
+/* -----------------------------
+   Pre / form
+------------------------------ */
+pre.content{
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, #000 18%, transparent);
+  padding: 14px;
+  border-radius: var(--radius);
+  overflow:auto;
+  box-shadow: var(--shadow-sm);
+}
+
+.form{
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--chip2), color-mix(in srgb, var(--chip) 55%, transparent));
+  border-radius: var(--radius);
+  padding: 16px;
+  width: 100%;
+  max-width: none;
+  box-shadow: var(--shadow-sm);
+}
+
+.field{ margin-bottom: 14px; }
+
+.field label{
+  display:block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 7px;
+  letter-spacing: 0.2px;
+}
+
+.field input{
+  width:100%;
+  padding: 11px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--field-bg);
+  color: var(--text);
+  outline:none;
+  transition: border-color var(--ease), box-shadow var(--ease), background var(--ease);
+}
+
+.field input:focus{
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: var(--ring);
+  background: var(--field-bg-2);
+}
+
+.hint{
+  margin-top: 7px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.grid2{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.actions{ margin-top: 10px; }
+
+.field input:disabled{
+  cursor: not-allowed;
+  opacity: 0.60;
+}

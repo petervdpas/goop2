@@ -1,0 +1,158 @@
+/* internal/ui/assets/css/30-components.css */
+
+/* -----------------------------
+   Panels / cards
+------------------------------ */
+.panel{
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--chip), color-mix(in srgb, var(--chip) 55%, transparent));
+  border-radius: var(--radius);
+  padding: 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+.card{
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--chip2), color-mix(in srgb, var(--chip) 55%, transparent));
+  border-radius: var(--radius);
+  padding: 14px;
+  margin: 12px 0 16px 0;
+  box-shadow: var(--shadow-sm);
+}
+
+/* -----------------------------
+   Peers list
+------------------------------ */
+.peers{
+  list-style:none;
+  padding:0;
+  margin:0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow:hidden;
+  background: color-mix(in srgb, var(--panel2) 60%, transparent);
+}
+
+.peerrow{
+  display:flex;
+  justify-content:space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--chip) 90%, transparent), color-mix(in srgb, var(--chip) 55%, transparent));
+  transition: background var(--ease);
+}
+
+.peerrow:hover{
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 12%, transparent), color-mix(in srgb, var(--chip) 55%, transparent));
+}
+
+.peerrow:last-child{ border-bottom:0; }
+
+.peerleft{
+  display:flex;
+  flex-direction:column;
+  gap: 6px;
+  min-width:0;
+}
+
+.peerid{ font-weight: 750; }
+
+.peercontent{
+  color: var(--muted);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  max-width: 520px;
+}
+
+.peerright{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+}
+
+/* -----------------------------
+   Buttons
+------------------------------ */
+.btn,
+button{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--text);
+  cursor:pointer;
+  transition: background var(--ease), transform var(--ease), border-color var(--ease), box-shadow var(--ease);
+}
+
+.btn:hover,
+button:hover{
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  text-decoration:none;
+  transform: translateY(-0.5px);
+}
+
+.btn:active,
+button:active{
+  transform: translateY(0px);
+}
+
+.btn:focus-visible,
+button:focus-visible{
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+/* -----------------------------
+   Switch
+------------------------------ */
+.switch{
+  position: relative;
+  display:inline-block;
+  width: 46px;
+  height: 24px;
+}
+
+.switch input{
+  opacity:0;
+  width:0;
+  height:0;
+}
+
+.slider{
+  position:absolute;
+  inset:0;
+  cursor:pointer;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 36%, transparent);
+  border-radius: 999px;
+  transition: background var(--ease), border-color var(--ease), box-shadow var(--ease);
+}
+
+.slider:before{
+  content:"";
+  position:absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  top: 2px;
+  background: var(--text);
+  border-radius: 999px;
+  transition: transform var(--ease), background var(--ease);
+}
+
+.switch input:checked + .slider{
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.switch input:checked + .slider:before{
+  transform: translateX(22px);
+}
+
+.switch input:focus-visible + .slider{
+  box-shadow: var(--ring);
+}

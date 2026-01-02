@@ -1,0 +1,128 @@
+/* internal/ui/assets/css/20-layout.css */
+
+/* -----------------------------
+   App layout
+------------------------------ */
+.app{
+  height:100%;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
+
+.topbar{
+  flex: 0 0 auto;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap: 14px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.brand{
+  display:flex;
+  gap:10px;
+  align-items: baseline;
+  flex: 0 0 auto;
+}
+
+.logo{ font-weight: 750; letter-spacing: 0.6px; }
+.tag{ color: var(--muted); font-size: 12px; }
+
+.topnav{
+  display:flex;
+  gap: 6px;
+  align-items:center;
+  flex: 1;
+  justify-content:center;
+  min-width: 0;
+}
+
+.topnav .navitem{
+  position: relative;
+  padding: 8px 12px;
+  border-radius: 999px;
+  color: var(--text);
+  text-decoration:none;
+  background: transparent;
+  border: 1px solid transparent;
+  transition: background var(--ease), border-color var(--ease), transform var(--ease), opacity var(--ease);
+  opacity: 0.92;
+}
+
+.topnav .navitem:hover{
+  background: var(--glass);
+  border-color: color-mix(in srgb, var(--line) 70%, transparent);
+  text-decoration:none;
+  opacity: 1;
+  transform: translateY(-0.5px);
+}
+
+.topnav .navitem.active{
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  opacity: 1;
+}
+
+.topright{
+  display:flex;
+  gap: 14px;
+  align-items:center;
+  flex: 0 0 auto;
+}
+
+.me{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  white-space: nowrap;
+}
+
+.me-label{ font-weight: 650; }
+.me-id{ color: var(--muted); font-size: 12px; }
+
+.theme{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--glass);
+  box-shadow: none;
+}
+
+.main{
+  flex: 1 1 auto;
+  min-height: 0;
+  display:flex;
+}
+
+.content{
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--content-pad);
+  overflow: auto;
+}
+
+.footer{
+  flex: 0 0 auto;
+  height: var(--footer-h);
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  backdrop-filter: blur(10px);
+  display:flex;
+  align-items:center;
+}
+
+.footer-inner{
+  width: 100%;
+  padding: 0 18px;
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  justify-content:center;
+}

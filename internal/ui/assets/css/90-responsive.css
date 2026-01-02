@@ -1,0 +1,30 @@
+/* internal/ui/assets/css/90-responsive.css */
+
+/* -----------------------------
+   Responsive
+------------------------------ */
+@media (max-width: 980px){
+  :root{ --content-pad:16px; }
+  .topnav{ justify-content:flex-start; }
+  .ed{ grid-template-columns: 1fr; }
+  .grid2{ grid-template-columns: 1fr; }
+  .content{ padding: var(--content-pad); }
+  .page-editor .ed{ height: calc(100dvh - var(--footer-h) - (var(--content-pad) * 2) - 120px); }
+
+  /* restore stacked layout on narrow screens */
+  .rv-local{
+    display:block;
+  }
+  .rv-local-head{ display:block; }
+  .rv-local-right{
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .rv-local-row{ display:block; }
+
+  .rv-local-toggle{ width: 100%; justify-content:space-between; }
+  .rv-open{ justify-content:flex-start; align-self: auto; }
+}
