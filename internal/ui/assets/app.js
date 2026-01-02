@@ -1,4 +1,4 @@
-// internal/viewer/assets/app.js
+// internal/ui/assets/app.js
 (() => {
   function onReady(fn) {
     if (document.readyState === "loading") {
@@ -90,7 +90,6 @@
       port.disabled = !on;
       port.classList.toggle("rv-disabled", !on);
 
-      // THIS is the show/hide you asked for:
       // hidden when OFF, visible when ON.
       open.classList.toggle("hidden", !on);
 
@@ -116,6 +115,7 @@
       csrf: ed.dataset.csrf || "",
       openPath: ed.dataset.openPath || "",
       selectedDir: ed.dataset.selectedDir || "",
+      selectedFile: "", // current open file (highlight), not folder
       menuTarget: null, // { type: "dir"|"file", path: "..." }
     };
 
@@ -143,11 +143,18 @@
 
       const label = document.getElementById("ed-selected-dir-label");
       if (label) label.textContent = state.selectedDir || "(root)";
+      // no folder highlight: selection is for file only
+    }
+
+    function setSelectedFile(p) {
+      p = (p && typeof p === "string") ? p : "";
+      state.selectedFile = p;
 
       tree.querySelectorAll(".ed-tree-item").forEach((n) => n.classList.remove("selected"));
-      if (dir) {
+
+      if (p) {
         const node = tree.querySelector(
-          `.ed-tree-item[data-type="dir"][data-path="${CSS.escape(dir)}"]`
+          `.ed-tree-item[data-type="file"][data-path="${CSS.escape(p)}"]`
         );
         if (node) node.classList.add("selected");
       }
@@ -253,7 +260,11 @@
       const type = li.dataset.type || "file";
       const p = li.dataset.path || "";
 
-      if (type === "dir") setSelectedDir(p);
+      if (type === "dir") {
+        setSelectedDir(p);
+      } else {
+        setSelectedFile(p);
+      }
 
       showMenu(e.clientX, e.clientY, { type, path: p });
     });
@@ -462,6 +473,9 @@
 
     initLabelsAndIndent();
     setSelectedDir(state.selectedDir);
+
+    // Highlight the CURRENT open file (not its folder)
+    if (state.openPath) setSelectedFile(state.openPath);
   })();
 
   // 4) CodeMirror 5 hookup + theming
@@ -472,7 +486,7 @@
     if (!ta) return;
 
     const form = ta.closest("form");
-    const pathInput = document.querySelector("input[name='path']") || document.getElementById("path");
+    const pathInput = document.querySelector("input[name='path']");
 
     function modeFromPath(p) {
       p = (p || "").toLowerCase();

@@ -1,4 +1,4 @@
-/* internal/viewer/assets/app.css */
+/* internal/ui/assets/app.css */
 
 /* -----------------------------
    Theme variables
@@ -608,6 +608,54 @@ pre.content{
   flex: 0 0 auto;
 }
 
+/* -----------------------------
+   Editor header: requested layout
+------------------------------ */
+.ed-savebar.ed-savebar-compact{
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.ed-savebar.ed-savebar-compact .ed-savebar-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ed-savebar.ed-savebar-compact .ed-savebar-title{
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ed-savebar.ed-savebar-compact .ed-savebar-title code{
+  white-space: nowrap;
+}
+
+.ed-savebar.ed-savebar-compact .ed-savebar-save{
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding: 6px 10px;
+}
+
+.ed-savebar.ed-savebar-compact .ed-savebar-etag{
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ed-savebar.ed-savebar-compact .ed-savebar-etag code{
+  white-space: nowrap;
+}
+
+/* -----------------------------
+   Editor area
+------------------------------ */
 .ed-editorwrap{
   flex: 1 1 auto;
   min-height: 0;
@@ -846,10 +894,6 @@ pre.content{
 
 /* -----------------------------
    Rendezvous UI (local server + port together, WAN separate)
-   CHANGE: keep your HTML as-is, but layout as a 2x2 grid so:
-           row 1 = title | toggle
-           row 2 = port  | open-button
-           => port and button are on the same height.
 ------------------------------ */
 .rv-local{
   border: 1px solid var(--line);

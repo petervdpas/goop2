@@ -24,6 +24,7 @@
           data-csrf="{{.CSRF}}"
           data-open-path="{{.Path}}"
           data-selected-dir="{{.Dir}}"
+          data-etag="{{.ETag}}"
         >
           <ul id="ed-tree" class="ed-tree">
             {{range .Tree}}
@@ -62,29 +63,27 @@
     </aside>
 
     <section class="ed-right panel">
-      <div class="ed-right-head">
-        <form method="GET" action="/edit" class="ed-open">
-          <label class="muted" for="path">File</label>
-          <input id="path" class="ed-path ed-input" type="text" name="path" value="{{.Path}}">
-          <button type="submit">Open</button>
-          <a class="muted" href="/p/self/">View self</a>
-        </form>
-
-        <div class="ed-meta">
-          <div class="muted small">ETag</div>
-          <code class="small">{{.ETag}}</code>
-        </div>
-      </div>
-
       <div class="ed-fileops">
         <form method="POST" action="/edit/save" class="ed-save">
           <input type="hidden" name="csrf" value="{{.CSRF}}">
           <input type="hidden" name="path" value="{{.Path}}">
           <input type="hidden" name="if_match" value="{{.ETag}}">
 
-          <div class="ed-savebar">
-            <button type="submit">Save</button>
-            <span class="muted small">Editing: <code>{{.Path}}</code></span>
+          <!-- Compact header: exactly as requested -->
+          <div class="ed-savebar ed-savebar-compact">
+            <div class="ed-savebar-row">
+              <div class="ed-savebar-title">
+                Edit file: <code>{{.Path}}</code>
+              </div>
+
+              <button type="submit" class="ed-savebar-save">Save</button>
+            </div>
+
+            <div class="ed-savebar-row ed-savebar-row2">
+              <div class="ed-savebar-etag">
+                ETag: <code>{{.ETag}}</code>
+              </div>
+            </div>
           </div>
 
           <div class="ed-editorwrap">
