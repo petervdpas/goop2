@@ -1,0 +1,250 @@
+name: Build goop2 (Windows + Linux)
+
+on:
+  push:
+    branches:
+      - "ci/**"
+      - "master"
+  workflow_dispatch: {}
+
+env:
+  GO_VERSION: "1.24.x"
+  NODE_VERSION: "20"
+  WAILS_VERSION: "v2.11.0"
+
+jobs:
+  windows:
+    name: Windows (wails build)
+    runs-on: windows-2025
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Wails CLI
+        shell: pwsh
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@${env:WAILS_VERSION}
+          wails version
+
+      - name: Build (Windows amd64)
+        shell: pwsh
+        run: |
+          wails doctor
+          wails build -clean -platform windows/amd64
+
+      - name: Collect artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          if (Test-Path "build/bin/goop2.exe") {
+            Copy-Item "build/bin/goop2.exe" "artifacts/goop2-windows-amd64.exe"
+          } else {
+            Write-Host "Expected build/bin/goop2.exe not found"
+            Get-ChildItem -Force build/bin
+            exit 1
+          }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: goop2-windows
+          path: artifacts/*
+
+  linux_debian:
+    name: Linux (Debian bookworm)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build in Debian container
+        uses: addnab/docker-run-action@v3
+        with:
+          image: debian:bookworm
+          options: -v ${{ github.workspace }}:/src -w /src
+          shell: bash
+          run: |
+            set -euo pipefail
+
+            NODE_VERSION="${NODE_VERSION:-20}"
+            WAILS_VERSION="${WAILS_VERSION:-v2.11.0}"
+            export NODE_VERSION WAILS_VERSION
+            export DEBIAN_FRONTEND=noninteractive
+
+            apt-get update
+            apt-get install -y --no-install-recommends \
+              bash ca-certificates curl git build-essential pkg-config \
+              libgtk-3-dev libwebkit2gtk-4.0-dev libayatana-appindicator3-dev \
+              libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
+              libgl1-mesa-dev \
+              zip unzip
+            rm -rf /var/lib/apt/lists/*
+
+            curl -fsSL "https://deb.nodesource.com/setup_${NODE_VERSION}.x" | bash -
+            apt-get update
+            apt-get install -y --no-install-recommends nodejs
+            rm -rf /var/lib/apt/lists/*
+
+            curl -fsSL "https://go.dev/dl/go1.24.0.linux-amd64.tar.gz" -o /tmp/go.tgz
+            rm -rf /usr/local/go
+            tar -C /usr/local -xzf /tmp/go.tgz
+            export PATH="/usr/local/go/bin:${PATH}"
+
+            go version
+            node --version
+            npm --version
+
+            go install "github.com/wailsapp/wails/v2/cmd/wails@${WAILS_VERSION}"
+            export PATH="$(go env GOPATH)/bin:${PATH}"
+
+            wails doctor
+            wails build -clean -platform linux/amd64
+
+            mkdir -p /src/artifacts/debian
+            if [ -f build/bin/goop2 ]; then
+              cp -av build/bin/goop2 /src/artifacts/debian/goop2-linux-amd64
+            else
+              echo "Expected build/bin/goop2 not found. Listing build/bin:"
+              ls -la build/bin || true
+              exit 1
+            fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: goop2-linux-debian
+          path: artifacts/debian/*
+
+  linux_fedora_41:
+    name: Linux (Fedora 41)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build in Fedora 41 container
+        uses: addnab/docker-run-action@v3
+        with:
+          image: fedora:41
+          options: -v ${{ github.workspace }}:/src -w /src
+          shell: bash
+          run: |
+            set -euo pipefail
+
+            NODE_VERSION="${NODE_VERSION:-20}"
+            WAILS_VERSION="${WAILS_VERSION:-v2.11.0}"
+            export NODE_VERSION WAILS_VERSION
+
+            dnf -y update
+            dnf -y install \
+              bash ca-certificates curl git \
+              gcc gcc-c++ make pkgconf-pkg-config \
+              gtk3-devel webkit2gtk3-devel libayatana-appindicator-gtk3-devel \
+              libX11-devel libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel \
+              mesa-libGL-devel \
+              zip unzip tar gzip
+
+            curl -fsSL "https://rpm.nodesource.com/setup_${NODE_VERSION}.x" | bash -
+            dnf -y install nodejs
+
+            curl -fsSL "https://go.dev/dl/go1.24.0.linux-amd64.tar.gz" -o /tmp/go.tgz
+            rm -rf /usr/local/go
+            tar -C /usr/local -xzf /tmp/go.tgz
+            export PATH="/usr/local/go/bin:${PATH}"
+
+            go version
+            node --version
+            npm --version
+
+            go install "github.com/wailsapp/wails/v2/cmd/wails@${WAILS_VERSION}"
+            export PATH="$(go env GOPATH)/bin:${PATH}"
+
+            wails doctor
+            wails build -clean -platform linux/amd64
+
+            mkdir -p /src/artifacts/fedora41
+            if [ -f build/bin/goop2 ]; then
+              cp -av build/bin/goop2 /src/artifacts/fedora41/goop2-linux-amd64
+            else
+              echo "Expected build/bin/goop2 not found. Listing build/bin:"
+              ls -la build/bin || true
+              exit 1
+            fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: goop2-linux-fedora41
+          path: artifacts/fedora41/*
+
+  linux_fedora_42:
+    name: Linux (Fedora 42)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build in Fedora 42 container
+        uses: addnab/docker-run-action@v3
+        with:
+          image: fedora:42
+          options: -v ${{ github.workspace }}:/src -w /src
+          shell: bash
+          run: |
+            set -euo pipefail
+
+            NODE_VERSION="${NODE_VERSION:-20}"
+            WAILS_VERSION="${WAILS_VERSION:-v2.11.0}"
+            export NODE_VERSION WAILS_VERSION
+
+            dnf -y update
+            dnf -y install \
+              bash ca-certificates curl git \
+              gcc gcc-c++ make pkgconf-pkg-config \
+              gtk3-devel webkit2gtk3-devel libayatana-appindicator-gtk3-devel \
+              libX11-devel libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel \
+              mesa-libGL-devel \
+              zip unzip tar gzip
+
+            curl -fsSL "https://rpm.nodesource.com/setup_${NODE_VERSION}.x" | bash -
+            dnf -y install nodejs
+
+            curl -fsSL "https://go.dev/dl/go1.24.0.linux-amd64.tar.gz" -o /tmp/go.tgz
+            rm -rf /usr/local/go
+            tar -C /usr/local -xzf /tmp/go.tgz
+            export PATH="/usr/local/go/bin:${PATH}"
+
+            go version
+            node --version
+            npm --version
+
+            go install "github.com/wailsapp/wails/v2/cmd/wails@${WAILS_VERSION}"
+            export PATH="$(go env GOPATH)/bin:${PATH}"
+
+            wails doctor
+            wails build -clean -platform linux/amd64
+
+            mkdir -p /src/artifacts/fedora42
+            if [ -f build/bin/goop2 ]; then
+              cp -av build/bin/goop2 /src/artifacts/fedora42/goop2-linux-amd64
+            else
+              echo "Expected build/bin/goop2 not found. Listing build/bin:"
+              ls -la build/bin || true
+              exit 1
+            fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: goop2-linux-fedora42
+          path: artifacts/fedora42/*
