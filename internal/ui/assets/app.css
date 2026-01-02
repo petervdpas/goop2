@@ -457,6 +457,21 @@ pre.content{
 
 .ed-left-title{ font-weight: 750; }
 
+/* Header row + New button (added) */
+.ed-left-head-row{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 12px;
+}
+
+.ed-left-newbtn{
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
 .ed-treewrap{
   flex:1 1 auto;
   min-height:0;
@@ -493,6 +508,14 @@ pre.content{
 .ed-tree-item.selected{
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+/* Root node subtlety (added) */
+.ed-tree-root{
+  opacity: 0.9;
+}
+.ed-tree-root.selected{
+  opacity: 1;
 }
 
 .ed-tree-icon{

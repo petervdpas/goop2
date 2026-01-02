@@ -14,8 +14,27 @@
   <div class="ed">
     <aside class="ed-left panel">
       <div class="ed-left-head">
-        <div class="ed-left-title">Site tree</div>
-        <div class="muted small"><code>site/</code></div>
+        <div class="ed-left-head-row">
+          <div>
+            <div class="ed-left-title">Site tree</div>
+            <div class="muted small">
+              <!-- Click to target root -->
+              <a href="#" id="ed-root-link" class="muted small" title="Target root (site/)">
+                <code>site/</code>
+              </a>
+            </div>
+          </div>
+
+          <!-- Always-visible action: creates in selected folder (defaults to root) -->
+          <button type="button" id="ed-new-btn" class="ed-left-newbtn" title="Create in selected folder">
+            New…
+          </button>
+        </div>
+
+        <!-- Make the creation target obvious -->
+        <div class="muted small" style="margin-top:8px;">
+          Target: <code id="ed-selected-dir-label"></code>
+        </div>
       </div>
 
       <div class="ed-treewrap">
@@ -45,9 +64,6 @@
 
       <div class="ed-left-foot">
         <div class="muted small">
-          Selected dir: <code id="ed-selected-dir-label"></code>
-        </div>
-        <div class="muted small">
           Right click a folder/file for actions.
         </div>
       </div>
@@ -69,7 +85,6 @@
           <input type="hidden" name="path" value="{{.Path}}">
           <input type="hidden" name="if_match" value="{{.ETag}}">
 
-          <!-- Compact header: exactly as requested -->
           <div class="ed-savebar ed-savebar-compact">
             <div class="ed-savebar-row">
               <div class="ed-savebar-title">

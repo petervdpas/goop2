@@ -9,10 +9,10 @@
   }
 
   function safeLocalStorageGet(key) {
-    try { return localStorage.getItem(key); } catch (e) { return null; }
+    try { return localStorage.getItem(key); } catch { return null; }
   }
   function safeLocalStorageSet(key, value) {
-    try { localStorage.setItem(key, value); } catch (e) {}
+    try { localStorage.setItem(key, value); } catch {}
   }
 
   // 1) Optional: peers autorefresh
@@ -115,7 +115,6 @@
       csrf: ed.dataset.csrf || "",
       openPath: ed.dataset.openPath || "",
       selectedDir: ed.dataset.selectedDir || "",
-      selectedFile: "", // current open file (highlight), not folder
       menuTarget: null, // { type: "dir"|"file", path: "..." }
     };
 
@@ -136,6 +135,19 @@
       return li.dataset.type === "dir";
     }
 
+    function setSelectedNode(type, p) {
+      p = (p && typeof p === "string") ? p : "";
+
+      tree.querySelectorAll(".ed-tree-item").forEach((n) => n.classList.remove("selected"));
+
+      // If root is selected (p=""), there is no root node to highlight.
+      if (type === "dir" && p === "") return;
+
+      const selector = `.ed-tree-item[data-type="${type}"][data-path="${CSS.escape(p)}"]`;
+      const node = tree.querySelector(selector);
+      if (node) node.classList.add("selected");
+    }
+
     function setSelectedDir(dir) {
       dir = (dir && typeof dir === "string") ? dir : "";
       state.selectedDir = dir;
@@ -143,21 +155,17 @@
 
       const label = document.getElementById("ed-selected-dir-label");
       if (label) label.textContent = state.selectedDir || "(root)";
-      // no folder highlight: selection is for file only
+
+      setSelectedNode("dir", state.selectedDir || "");
     }
 
-    function setSelectedFile(p) {
-      p = (p && typeof p === "string") ? p : "";
-      state.selectedFile = p;
-
-      tree.querySelectorAll(".ed-tree-item").forEach((n) => n.classList.remove("selected"));
-
-      if (p) {
-        const node = tree.querySelector(
-          `.ed-tree-item[data-type="file"][data-path="${CSS.escape(p)}"]`
-        );
-        if (node) node.classList.add("selected");
-      }
+    // Click "site/" to target root.
+    const rootLink = document.getElementById("ed-root-link");
+    if (rootLink) {
+      rootLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        setSelectedDir("");
+      });
     }
 
     function destDirForMenuAction() {
@@ -177,7 +185,6 @@
       tree.querySelectorAll(".ed-tree-item").forEach((li) => {
         const p = li.dataset.path || "";
         const label = li.querySelector(".ed-tree-label");
-
         if (label) label.textContent = basename(p);
         li.title = p;
 
@@ -263,7 +270,7 @@
       if (type === "dir") {
         setSelectedDir(p);
       } else {
-        setSelectedFile(p);
+        setSelectedNode("file", p);
       }
 
       showMenu(e.clientX, e.clientY, { type, path: p });
@@ -400,7 +407,6 @@
       if (!btn || !state.menuTarget) return;
 
       e.preventDefault();
-
       const t = state.menuTarget;
       hideMenu();
 
@@ -453,7 +459,6 @@
         case "delete": {
           const p = t.path;
           const isDir = t.type === "dir";
-
           const ok = await dlgConfirmDelete(p, isDir);
           if (!ok) return;
 
@@ -471,11 +476,45 @@
       }
     });
 
+    // Header "New…" button: create in currently selected folder (root by default).
+    const newBtn = document.getElementById("ed-new-btn");
+    if (newBtn) {
+      newBtn.addEventListener("click", async () => {
+        const dir = state.selectedDir || "";
+
+        const kind = await dlgAsk({
+          title: "Create",
+          message: `Create in "${dir || "(root)"}"\n\nType "folder" or "file"`,
+          placeholder: "folder",
+          value: "folder",
+          okText: "Next",
+          cancelText: "Cancel",
+        });
+        if (!kind) return;
+
+        const k = kind.trim().toLowerCase();
+        if (k !== "folder" && k !== "file") return;
+
+        const name = await dlgAsk({
+          title: k === "folder" ? "New folder" : "New file",
+          message: `Create ${k} under "${dir || "(root)"}"`,
+          placeholder: k === "folder" ? "e.g. sub" : "e.g. about.html",
+          value: k === "folder" ? "sub" : "about.html",
+          okText: "Create",
+          cancelText: "Cancel",
+        });
+        if (!name) return;
+
+        if (k === "folder") await post("/edit/mkdir", { dir, name });
+        else await post("/edit/new", { dir, name });
+      });
+    }
+
     initLabelsAndIndent();
     setSelectedDir(state.selectedDir);
 
-    // Highlight the CURRENT open file (not its folder)
-    if (state.openPath) setSelectedFile(state.openPath);
+    // Highlight the open file (separately from folder target)
+    if (state.openPath) setSelectedNode("file", state.openPath);
   })();
 
   // 4) CodeMirror 5 hookup + theming
