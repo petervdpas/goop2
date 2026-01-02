@@ -1,3 +1,4 @@
+// frontend/src/main.js
 import "./style.css";
 
 /*
@@ -7,7 +8,7 @@ Goal:
 - Theme:
   - Launcher reads authoritative theme from Go (App.GetTheme()).
   - Viewer receives ?theme=... and ?bridge=... on entry.
-  - Viewer posts changes back to bridge -> Go updates theme.
+  - Viewer posts changes back to bridge -> Go updates data/ui.json.
 */
 
 function clear(node) {
@@ -59,30 +60,23 @@ function normalizeTheme(t) {
 	return (t === "light" || t === "dark") ? t : "dark";
 }
 
-function loadThemeLocal() {
-	try {
-		return normalizeTheme(localStorage.getItem("goop.theme"));
-	} catch {
-		return "dark";
-	}
-}
-
 function applyTheme(t) {
 	try {
 		t = normalizeTheme(t);
 		document.documentElement.setAttribute("data-theme", t);
+
+		// Optional localStorage for launcher-only styling continuity.
+		// Not relied upon for cross-origin sync (ui.json is the authority).
 		localStorage.setItem("goop.theme", t);
 	} catch {}
 }
 
 async function loadThemeAuthoritative() {
-	// Prefer Go (shared authority across launcher + internal viewer)
 	try {
 		const t = await window.go.main.App.GetTheme();
 		return normalizeTheme(t);
 	} catch {
-		// Fallback to launcher localStorage
-		return loadThemeLocal();
+		return "dark";
 	}
 }
 
@@ -100,10 +94,8 @@ async function wireThemeToggle() {
 	const themeToggle = document.getElementById("themeToggle");
 	if (!themeToggle) return;
 
-	// Initialize from authoritative source (Go), so internal viewer changes reflect here
 	const t0 = await loadThemeAuthoritative();
 	applyTheme(t0);
-
 	themeToggle.checked = (t0 === "light");
 
 	themeToggle.addEventListener("change", async () => {
@@ -126,7 +118,7 @@ async function goViewer(viewerURL, path) {
 
 	const pth = path && String(path).startsWith("/") ? path : "/peers";
 
-	// Theme source of truth: launcher DOM (already set from Go)
+	// Theme source of truth: launcher DOM (already set from ui.json via Go)
 	const theme = normalizeTheme(document.documentElement.getAttribute("data-theme"));
 
 	// Bridge URL so internal viewer can sync theme back to Wails
@@ -350,7 +342,7 @@ async function renderLauncher(host) {
 async function boot() {
 	await wireThemeToggle();
 
-	// If already started, immediately replace with viewer (and pass bridge+theme)
+	// If a peer is already started, immediately replace with viewer.
 	const st = await window.go.main.App.GetStatus();
 	if (st && st.started === "true" && st.viewerURL) {
 		await goViewer(st.viewerURL, "/peers");
