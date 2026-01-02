@@ -68,6 +68,32 @@
 
   onReady(() => Theme.initToggle());
 
+  // 2.2) Auto-dismiss success banners ("Saved.") after X ms
+  onReady(() => {
+    const AUTO_HIDE_MS = 3500; // change to taste
+    const REMOVE_AFTER_MS = 260; // should match CSS transition-ish
+
+    document.querySelectorAll(".banner.ok").forEach((el) => {
+      // allow opting out per banner, if ever needed
+      if (el.hasAttribute("data-persist")) return;
+
+      // don't double-wire
+      if (el.dataset.autohideWired === "1") return;
+      el.dataset.autohideWired = "1";
+
+      el.classList.add("banner-autohide");
+
+      window.setTimeout(() => {
+        el.classList.add("is-gone");
+
+        window.setTimeout(() => {
+          // remove from DOM to free space completely
+          if (el && el.parentNode) el.parentNode.removeChild(el);
+        }, REMOVE_AFTER_MS);
+      }, AUTO_HIDE_MS);
+    });
+  });
+
   // 2.5) Rendezvous toggle wiring (Me page)
   onReady(() => {
     const host = document.getElementById("rv_host");
