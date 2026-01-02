@@ -10,9 +10,14 @@
     <script>
       (function () {
         try {
-          var t = localStorage.getItem("goop.theme");
+          var qp = new URLSearchParams(location.search);
+          var t = qp.get("theme");
+          if (t !== "light" && t !== "dark") {
+            t = localStorage.getItem("goop.theme");
+          }
           if (t !== "light" && t !== "dark") t = "dark";
           document.documentElement.setAttribute("data-theme", t);
+          try { localStorage.setItem("goop.theme", t); } catch (e) {}
         } catch (e) {}
       })();
     </script>

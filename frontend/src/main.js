@@ -1,12 +1,13 @@
-// frontend/src/main.js
 import "./style.css";
 
 /*
-Goal (what you actually want):
+Goal:
 - Launcher (Wails SPA) for peer selection.
-- After peer selected + started: REPLACE the whole document with the viewer app
-  (no iframe, so scroll + scaling behave correctly).
-- Theme toggle uses localStorage "goop.theme" (same as viewer).
+- After peer selected + started: REPLACE the whole document with the viewer app (no iframe).
+- Theme:
+  - Launcher reads authoritative theme from Go (App.GetTheme()).
+  - Viewer receives ?theme=... and ?bridge=... on entry.
+  - Viewer posts changes back to bridge -> Go updates theme.
 */
 
 function clear(node) {
@@ -51,14 +52,16 @@ function p(text) {
 }
 
 // ----------------------
-// Theme (same key/behavior as viewer layout.html)
+// Theme (launcher side)
 // ----------------------
 
-function loadTheme() {
+function normalizeTheme(t) {
+	return (t === "light" || t === "dark") ? t : "dark";
+}
+
+function loadThemeLocal() {
 	try {
-		let t = localStorage.getItem("goop.theme");
-		if (t !== "light" && t !== "dark") t = "dark";
-		return t;
+		return normalizeTheme(localStorage.getItem("goop.theme"));
 	} catch {
 		return "dark";
 	}
@@ -66,23 +69,46 @@ function loadTheme() {
 
 function applyTheme(t) {
 	try {
-		if (t !== "light" && t !== "dark") t = "dark";
+		t = normalizeTheme(t);
 		document.documentElement.setAttribute("data-theme", t);
 		localStorage.setItem("goop.theme", t);
 	} catch {}
 }
 
-function wireThemeToggle() {
+async function loadThemeAuthoritative() {
+	// Prefer Go (shared authority across launcher + internal viewer)
+	try {
+		const t = await window.go.main.App.GetTheme();
+		return normalizeTheme(t);
+	} catch {
+		// Fallback to launcher localStorage
+		return loadThemeLocal();
+	}
+}
+
+async function setThemeAuthoritative(t) {
+	t = normalizeTheme(t);
+	applyTheme(t);
+	try {
+		await window.go.main.App.SetTheme(t);
+	} catch {
+		// ignore
+	}
+}
+
+async function wireThemeToggle() {
 	const themeToggle = document.getElementById("themeToggle");
 	if (!themeToggle) return;
 
-	applyTheme(loadTheme());
-	themeToggle.checked = (document.documentElement.getAttribute("data-theme") || "dark") === "light";
+	// Initialize from authoritative source (Go), so internal viewer changes reflect here
+	const t0 = await loadThemeAuthoritative();
+	applyTheme(t0);
 
-	themeToggle.addEventListener("change", () => {
-		const cur = document.documentElement.getAttribute("data-theme") || "dark";
-		applyTheme(cur === "dark" ? "light" : "dark");
-		themeToggle.checked = (document.documentElement.getAttribute("data-theme") || "dark") === "light";
+	themeToggle.checked = (t0 === "light");
+
+	themeToggle.addEventListener("change", async () => {
+		const t = themeToggle.checked ? "light" : "dark";
+		await setThemeAuthoritative(t);
 	});
 }
 
@@ -94,12 +120,28 @@ function normalizeBase(viewerURL) {
 	return String(viewerURL || "").replace(/\/+$/, "");
 }
 
-function goViewer(viewerURL, path) {
+async function goViewer(viewerURL, path) {
 	const base = normalizeBase(viewerURL);
 	if (!base) throw new Error("viewerURL is empty");
-	const p = path && String(path).startsWith("/") ? path : "/peers";
-	// Real replacement: no iframe, no nested scrolling issues.
-	window.location.replace(base + p);
+
+	const pth = path && String(path).startsWith("/") ? path : "/peers";
+
+	// Theme source of truth: launcher DOM (already set from Go)
+	const theme = normalizeTheme(document.documentElement.getAttribute("data-theme"));
+
+	// Bridge URL so internal viewer can sync theme back to Wails
+	let bridge = "";
+	try {
+		bridge = await window.go.main.App.GetBridgeURL();
+	} catch {
+		bridge = "";
+	}
+
+	const u = new URL(base + pth);
+	u.searchParams.set("theme", theme);
+	if (bridge) u.searchParams.set("bridge", bridge);
+
+	window.location.replace(u.toString());
 }
 
 // ----------------------
@@ -238,7 +280,7 @@ async function renderLauncher(host) {
 			const st = await window.go.main.App.GetStatus();
 
 			if (!st || !st.viewerURL) throw new Error("Started but viewerURL missing from status.");
-			goViewer(st.viewerURL, "/peers");
+			await goViewer(st.viewerURL, "/peers");
 		} catch (e) {
 			err.textContent = String(e);
 			status.textContent = "";
@@ -306,12 +348,12 @@ async function renderLauncher(host) {
 // ----------------------
 
 async function boot() {
-	wireThemeToggle();
+	await wireThemeToggle();
 
-	// IMPORTANT: once a peer is already started, we *immediately* replace with viewer.
+	// If already started, immediately replace with viewer (and pass bridge+theme)
 	const st = await window.go.main.App.GetStatus();
 	if (st && st.started === "true" && st.viewerURL) {
-		goViewer(st.viewerURL, "/peers");
+		await goViewer(st.viewerURL, "/peers");
 		return;
 	}
 
