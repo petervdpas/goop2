@@ -48,6 +48,12 @@ function h1(text) {
   return h;
 }
 
+function h2(text) {
+  const h = div("h2");
+  h.textContent = text;
+  return h;
+}
+
 function p(text) {
   const d = div("p");
   d.textContent = text;
@@ -149,7 +155,7 @@ async function renderLauncher(host) {
 
   const shell = div("shell");
   const top = div("top");
-  top.appendChild(h1("Goop"));
+  top.appendChild(h1("Goop² - Launcher"));
   top.appendChild(p("Pick a peer, or create a new one."));
   shell.appendChild(top);
 

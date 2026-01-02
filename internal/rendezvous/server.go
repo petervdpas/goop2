@@ -334,7 +334,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("content-type", "text/html; charset=utf-8")
 	_ = s.tmpl.Execute(w, indexVM{
-		Title:     "Goop Rendezvous",
+		Title:     "Goop² Rendezvous",
 		Endpoint:  s.URL(),
 		PeerCount: len(peers),
 		Peers:     peers,

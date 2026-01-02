@@ -21,7 +21,7 @@ func main() {
 	app := NewApp()
 
 	err := wails.Run(&options.App{
-		Title:  "Goop",
+		Title:  "Goop²  ·  ephemeral web",
 		Width:  1200,
 		Height: 800,
 
