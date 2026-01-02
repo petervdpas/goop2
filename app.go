@@ -46,6 +46,60 @@ const (
 	themeKey = "goop.theme"
 )
 
+const defaultIndexHTML = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Goop² Peer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>Hello from Goop²</h1>
+    <p>This peer is live.</p>
+  </main>
+</body>
+</html>
+`
+
+const defaultStyleCSS = `:root {
+  --bg: #0f1115;
+  --panel: #151924;
+  --text: #e6e9ef;
+  --muted: #9aa3b2;
+  --accent: #7aa2ff;
+  --radius: 14px;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: radial-gradient(1200px 700px at 65% 18%, rgba(122,162,255,0.14), transparent 55%),
+              radial-gradient(900px 600px at 30% 35%, rgba(160,120,255,0.10), transparent 60%),
+              var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Noto Sans", Arial, sans-serif;
+}
+
+main {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 3rem 1.25rem;
+}
+
+h1 {
+  margin: 0 0 0.75rem 0;
+  color: var(--accent);
+  letter-spacing: -0.02em;
+}
+
+p {
+  margin: 0;
+  color: var(--muted);
+}
+`
+
 func NewApp() *App { return &App{} }
 
 func (a *App) startup(ctx context.Context) {
@@ -122,6 +176,12 @@ func (a *App) CreatePeer(name string) (string, error) {
 	if _, _, err := config.Ensure(cfgPath); err != nil {
 		return "", err
 	}
+
+	// Ensure default site files exist (index.html + style.css)
+	if err := ensureDefaultPeerSite(peerDir); err != nil {
+		return "", err
+	}
+
 	return name, nil
 }
 
@@ -341,6 +401,35 @@ func writeUIState(path string, s uiState) error {
 		return err
 	}
 	return os.WriteFile(path, b, 0o644)
+}
+
+func ensureDefaultPeerSite(peerDir string) error {
+	siteDir := filepath.Join(peerDir, "site")
+	if err := os.MkdirAll(siteDir, 0o755); err != nil {
+		return err
+	}
+
+	indexPath := filepath.Join(siteDir, "index.html")
+	if _, err := os.Stat(indexPath); err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+		if err := os.WriteFile(indexPath, []byte(defaultIndexHTML), 0o644); err != nil {
+			return err
+		}
+	}
+
+	stylePath := filepath.Join(siteDir, "style.css")
+	if _, err := os.Stat(stylePath); err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+		if err := os.WriteFile(stylePath, []byte(defaultStyleCSS), 0o644); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func listPeerDirs(root string) ([]string, error) {

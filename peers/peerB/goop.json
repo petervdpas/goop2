@@ -14,7 +14,11 @@
   "presence": {
     "topic": "goop.presence.v1",
     "ttl_seconds": 20,
-    "heartbeat_seconds": 5
+    "heartbeat_seconds": 5,
+    "rendezvous_host": false,
+    "rendezvous_port": 8787,
+    "rendezvous_wan": "",
+    "rendezvous_only": false
   },
   "profile": {
     "label": "Peer-B"
