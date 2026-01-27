@@ -5,7 +5,8 @@ import (
 	"net/http"
 	"path"
 	"strings"
-	"time"
+
+	"goop/internal/util"
 )
 
 func proxyPeerSite(v Viewer) http.HandlerFunc {
@@ -52,7 +53,7 @@ func proxyPeerSite(v Viewer) http.HandlerFunc {
 				rel = "index.html"
 			}
 
-			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), util.DefaultFetchTimeout)
 			defer cancel()
 
 			data, _, err := v.Content.Read(ctx, rel)
@@ -68,7 +69,7 @@ func proxyPeerSite(v Viewer) http.HandlerFunc {
 		}
 
 		// 🌍 Remote peer proxy (untrusted content)
-		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), 2*util.DefaultFetchTimeout)
 		defer cancel()
 
 		mt, data, err := v.Node.FetchSiteFile(ctx, peerID, reqPath)

@@ -15,6 +15,7 @@ import (
 	"goop/internal/proto"
 	"goop/internal/rendezvous"
 	"goop/internal/state"
+	"goop/internal/util"
 	"goop/internal/viewer"
 )
 
@@ -119,7 +120,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		for _, c := range rvClients {
 			cc := c
 			go func() {
-				ctx2, cancel := context.WithTimeout(pctx, 2*time.Second)
+				ctx2, cancel := context.WithTimeout(pctx, util.ShortTimeout)
 				defer cancel()
 				_ = cc.Publish(ctx2, proto.PresenceMsg{
 					Type:    typ,

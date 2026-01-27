@@ -6,10 +6,10 @@ import (
 	"context"
 	"net/http"
 	"strings"
-	"time"
 
 	"goop/internal/ui/render"
 	"goop/internal/ui/viewmodels"
+	"goop/internal/util"
 )
 
 func registerPeerRoutes(mux *http.ServeMux, d Deps) {
@@ -20,7 +20,7 @@ func registerPeerRoutes(mux *http.ServeMux, d Deps) {
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), util.DefaultFetchTimeout)
 		defer cancel()
 
 		txt, err := d.Node.FetchContent(ctx, peerID)

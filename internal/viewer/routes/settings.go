@@ -16,21 +16,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	})
 
 	mux.HandleFunc("/settings/save", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		if !isLocalRequest(r) {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-
-		if err := r.ParseForm(); err != nil {
-			http.Error(w, "bad form", http.StatusBadRequest)
-			return
-		}
-		if r.PostForm.Get("csrf") != csrf {
-			http.Error(w, "bad csrf", http.StatusForbidden)
+		if err := validatePOSTRequest(w, r, csrf); err != nil {
 			return
 		}
 
@@ -40,32 +26,32 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			return
 		}
 
-		cfg.Profile.Label = strings.TrimSpace(r.PostForm.Get("profile_label"))
-		cfg.Viewer.HTTPAddr = strings.TrimSpace(r.PostForm.Get("viewer_http_addr"))
-		cfg.P2P.MdnsTag = strings.TrimSpace(r.PostForm.Get("p2p_mdns_tag"))
+		cfg.Profile.Label = getTrimmedPostFormValue(r.PostForm, "profile_label")
+		cfg.Viewer.HTTPAddr = getTrimmedPostFormValue(r.PostForm, "viewer_http_addr")
+		cfg.P2P.MdnsTag = getTrimmedPostFormValue(r.PostForm, "p2p_mdns_tag")
 
-		if p := strings.TrimSpace(r.PostForm.Get("p2p_listen_port")); p != "" {
+		if p := getTrimmedPostFormValue(r.PostForm, "p2p_listen_port"); p != "" {
 			cfg.P2P.ListenPort = atoiOrNeg(p)
 		}
-		if ttl := strings.TrimSpace(r.PostForm.Get("presence_ttl_sec")); ttl != "" {
+		if ttl := getTrimmedPostFormValue(r.PostForm, "presence_ttl_sec"); ttl != "" {
 			cfg.Presence.TTLSec = atoiOrNeg(ttl)
 		}
-		if hb := strings.TrimSpace(r.PostForm.Get("presence_heartbeat_sec")); hb != "" {
+		if hb := getTrimmedPostFormValue(r.PostForm, "presence_heartbeat_sec"); hb != "" {
 			cfg.Presence.HeartbeatSec = atoiOrNeg(hb)
 		}
 
-		switch strings.ToLower(strings.TrimSpace(r.PostForm.Get("presence_rendezvous_host"))) {
+		switch strings.ToLower(getTrimmedPostFormValue(r.PostForm, "presence_rendezvous_host")) {
 		case "on", "1", "true", "yes":
 			cfg.Presence.RendezvousHost = true
 		default:
 			cfg.Presence.RendezvousHost = false
 		}
 
-		if rp := strings.TrimSpace(r.PostForm.Get("presence_rendezvous_port")); rp != "" {
+		if rp := getTrimmedPostFormValue(r.PostForm, "presence_rendezvous_port"); rp != "" {
 			cfg.Presence.RendezvousPort = atoiOrNeg(rp)
 		}
 
-		cfg.Presence.RendezvousWAN = strings.TrimSpace(r.PostForm.Get("presence_rendezvous_wan"))
+		cfg.Presence.RendezvousWAN = getTrimmedPostFormValue(r.PostForm, "presence_rendezvous_wan")
 
 		if err := config.Save(d.CfgPath, cfg); err != nil {
 			vm := viewmodels.SettingsVM{

@@ -1,0 +1,45 @@
+// internal/util/common.go
+package util
+
+import (
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+)
+
+// Common timeout durations
+const (
+	DefaultFetchTimeout   = 5 * time.Second
+	DefaultConnectTimeout = 3 * time.Second
+	ShortTimeout          = 2 * time.Second
+)
+
+// ValidatePeerName validates and normalizes a peer name.
+// Returns the trimmed name and an error if invalid.
+func ValidatePeerName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", errors.New("peer name is empty")
+	}
+	if strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
+		return "", errors.New("invalid peer name")
+	}
+	return name, nil
+}
+
+// WriteJSONFile writes a JSON object to a file, creating parent directories if needed.
+func WriteJSONFile(path string, v interface{}) error {
+	if dir := filepath.Dir(path); dir != "." && dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, b, 0o644)
+}

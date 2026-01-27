@@ -8,10 +8,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	"goop/internal/proto"
 	"goop/internal/state"
+	"goop/internal/util"
 
 	libp2p "github.com/libp2p/go-libp2p"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -41,7 +41,7 @@ type mdnsNotifee struct {
 }
 
 func (n *mdnsNotifee) HandlePeerFound(pi peer.AddrInfo) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), util.DefaultConnectTimeout)
 	defer cancel()
 	_ = n.h.Connect(ctx, pi)
 }

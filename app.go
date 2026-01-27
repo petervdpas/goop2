@@ -13,12 +13,12 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
 	goopapp "goop/internal/app"
 	"goop/internal/config"
+	"goop/internal/util"
 )
 
 type App struct {
@@ -157,12 +157,9 @@ func (a *App) ListPeers() ([]string, error) {
 }
 
 func (a *App) CreatePeer(name string) (string, error) {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return "", errors.New("peer name is empty")
-	}
-	if strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
-		return "", errors.New("invalid peer name")
+	name, err := util.ValidatePeerName(name)
+	if err != nil {
+		return "", err
 	}
 
 	peerDir := filepath.Join("./peers", name)
@@ -186,12 +183,9 @@ func (a *App) CreatePeer(name string) (string, error) {
 }
 
 func (a *App) DeletePeer(name string) error {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return errors.New("peer name is empty")
-	}
-	if strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
-		return errors.New("invalid peer name")
+	name, err := util.ValidatePeerName(name)
+	if err != nil {
+		return err
 	}
 
 	peerDir := filepath.Join("./peers", name)
@@ -250,18 +244,11 @@ func (a *App) StartPeer(peerName string) error {
 	}()
 
 	// wait until viewer is listening
-	addr := cfg.Viewer.HTTPAddr
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		c, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
-		if err == nil {
-			_ = c.Close()
-			return nil
-		}
-		time.Sleep(100 * time.Millisecond)
+	if err := goopapp.WaitTCP(cfg.Viewer.HTTPAddr, util.DefaultConnectTimeout); err != nil {
+		return fmt.Errorf("viewer did not start")
 	}
 
-	return fmt.Errorf("viewer did not start")
+	return nil
 }
 
 func (a *App) GetViewerURL() string {
@@ -389,18 +376,7 @@ func readUIState(path string) (uiState, error) {
 
 func writeUIState(path string, s uiState) error {
 	s.Theme = normalizeTheme(s.Theme)
-
-	if dir := filepath.Dir(path); dir != "." && dir != "" {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return err
-		}
-	}
-
-	b, err := json.MarshalIndent(s, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, b, 0o644)
+	return util.WriteJSONFile(path, s)
 }
 
 func ensureDefaultPeerSite(peerDir string) error {

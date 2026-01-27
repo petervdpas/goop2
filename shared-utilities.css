@@ -1,0 +1,38 @@
+/* shared-utilities.css - Common utility classes */
+
+/* Visibility */
+.hidden { 
+  display: none !important; 
+}
+
+/* Text utilities */
+.muted { 
+  color: var(--muted); 
+}
+
+.small { 
+  font-size: 12px; 
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Spacing helpers */
+.mt-0 { margin-top: 0; }
+.mb-0 { margin-bottom: 0; }
+.p-0 { padding: 0; }
+
+/* Flex helpers */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.gap-sm { gap: 8px; }
+.gap-md { gap: 14px; }
+
+/* Interactive states */
+.cursor-pointer { cursor: pointer; }
+.pointer-events-none { pointer-events: none; }

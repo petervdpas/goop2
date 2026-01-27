@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"goop/internal/proto"
+	"goop/internal/util"
 )
 
 //go:embed assets/index.html assets/style.css
@@ -205,7 +206,7 @@ func (s *Server) Start(ctx context.Context) error {
 	// Stop server when ctx ends
 	go func() {
 		<-ctx.Done()
-		shctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		shctx, cancel := context.WithTimeout(context.Background(), util.ShortTimeout)
 		defer cancel()
 		_ = s.srv.Shutdown(shctx)
 	}()

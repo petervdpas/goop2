@@ -111,3 +111,53 @@ func dirOf(p string) string {
 	}
 	return strings.TrimPrefix(d, "/")
 }
+
+// validatePOSTRequest performs common POST request validation:
+// - checks HTTP method is POST
+// - verifies request is from localhost
+// - parses form data
+// - validates CSRF token
+// Returns error if any check fails (error already sent to client).
+func validatePOSTRequest(w http.ResponseWriter, r *http.Request, csrf string) error {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return http.ErrNotSupported
+	}
+	if !isLocalRequest(r) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return http.ErrNotSupported
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return err
+	}
+	if r.PostForm.Get("csrf") != csrf {
+		http.Error(w, "bad csrf", http.StatusForbidden)
+		return http.ErrNotSupported
+	}
+	return nil
+}
+
+// getTrimmedFormValue returns a trimmed form value for the given key.
+func getTrimmedFormValue(form http.Header, key string) string {
+	return strings.TrimSpace(form.Get(key))
+}
+
+// getTrimmedPostFormValue returns a trimmed POST form value for the given key.
+func getTrimmedPostFormValue(form map[string][]string, key string) string {
+	values := form[key]
+	if len(values) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(values[0])
+}
+
+// requireContentStore checks if content store is configured and sends error if not.
+// Returns true if store is configured, false otherwise.
+func requireContentStore(w http.ResponseWriter, store interface{}) bool {
+	if store == nil {
+		http.Error(w, "content store not configured", http.StatusInternalServerError)
+		return false
+	}
+	return true
+}

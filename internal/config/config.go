@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"goop/internal/util"
 	"net"
 	"net/url"
 	"os"
@@ -230,19 +231,7 @@ func Save(path string, cfg Config) error {
 		return err
 	}
 
-	// Only create parent dirs if the path includes them.
-	if dir := filepath.Dir(path); dir != "." && dir != "" {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return err
-		}
-	}
-
-	b, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(path, b, 0o644)
+	return util.WriteJSONFile(path, cfg)
 }
 
 // Ensure loads config if it exists; otherwise creates a default config file.

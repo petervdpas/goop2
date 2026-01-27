@@ -10,6 +10,7 @@
     "40-rendezvous.js",
     "50-editor.js",
     "60-codemirror.js",
+    "99-dialogs.js",
   ];
 
   function loadSequentially(list, i = 0) {

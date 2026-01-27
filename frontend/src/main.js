@@ -1,5 +1,9 @@
 // frontend/src/main.js
 import "./style.css";
+import { 
+  clear, div, btn, input, h1, h2, p,
+  normalizeTheme, applyTheme, normalizeBase
+} from "./utils.js";
 
 /*
 Goal:
@@ -11,73 +15,9 @@ Goal:
   - Viewer posts changes back to bridge -> Go updates data/ui.json.
 */
 
-function clear(node) {
-  while (node.firstChild) node.removeChild(node.firstChild);
-}
-
-function el(tag, cls) {
-  const e = document.createElement(tag);
-  if (cls) e.className = cls;
-  return e;
-}
-function div(cls) {
-  return el("div", cls);
-}
-
-function btn(label, kind) {
-  const b = document.createElement("button");
-  b.type = "button";
-  b.className = kind ? `btn ${kind}` : "btn";
-  b.textContent = label;
-  return b;
-}
-
-function input(placeholder) {
-  const i = document.createElement("input");
-  i.type = "text";
-  i.className = "input";
-  i.placeholder = placeholder;
-  i.autocomplete = "off";
-  i.spellcheck = false;
-  return i;
-}
-
-function h1(text) {
-  const h = div("h1");
-  h.textContent = text;
-  return h;
-}
-
-function h2(text) {
-  const h = div("h2");
-  h.textContent = text;
-  return h;
-}
-
-function p(text) {
-  const d = div("p");
-  d.textContent = text;
-  return d;
-}
-
 // ----------------------
 // Theme (launcher side)
 // ----------------------
-
-function normalizeTheme(t) {
-  return t === "light" || t === "dark" ? t : "dark";
-}
-
-function applyTheme(t) {
-  try {
-    t = normalizeTheme(t);
-    document.documentElement.setAttribute("data-theme", t);
-
-    // Optional localStorage for launcher-only styling continuity.
-    // Not relied upon for cross-origin sync (ui.json is the authority).
-    localStorage.setItem("goop.theme", t);
-  } catch {}
-}
 
 async function loadThemeAuthoritative() {
   try {
@@ -115,10 +55,6 @@ async function wireThemeToggle() {
 // ----------------------
 // Navigation to viewer (REAL REPLACE)
 // ----------------------
-
-function normalizeBase(viewerURL) {
-  return String(viewerURL || "").replace(/\/+$/, "");
-}
 
 async function goViewer(viewerURL, path) {
   const base = normalizeBase(viewerURL);

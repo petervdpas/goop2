@@ -15,8 +15,7 @@ import (
 func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	// GET /edit?path=...
 	mux.HandleFunc("/edit", func(w http.ResponseWriter, r *http.Request) {
-		if d.Content == nil {
-			http.Error(w, "content store not configured", http.StatusInternalServerError)
+		if !requireContentStore(w, d.Content) {
 			return
 		}
 		if !isLocalRequest(r) {
@@ -82,30 +81,15 @@ func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 	// POST /edit/save
 	mux.HandleFunc("/edit/save", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireContentStore(w, d.Content) {
 			return
 		}
-		if d.Content == nil {
-			http.Error(w, "content store not configured", http.StatusInternalServerError)
-			return
-		}
-		if !isLocalRequest(r) {
-			http.Error(w, "forbidden", http.StatusForbidden)
+		if err := validatePOSTRequest(w, r, csrf); err != nil {
 			return
 		}
 
-		if err := r.ParseForm(); err != nil {
-			http.Error(w, "bad form", http.StatusBadRequest)
-			return
-		}
-		if r.PostForm.Get("csrf") != csrf {
-			http.Error(w, "bad csrf", http.StatusForbidden)
-			return
-		}
-
-		rel := normalizeRel(r.PostForm.Get("path")) // FILE path
-		ifMatch := strings.TrimSpace(r.PostForm.Get("if_match"))
+		rel := normalizeRel(getTrimmedPostFormValue(r.PostForm, "path")) // FILE path
+		ifMatch := getTrimmedPostFormValue(r.PostForm, "if_match")
 		body := r.PostForm.Get("content")
 
 		_, err := d.Content.Write(r.Context(), rel, []byte(body), ifMatch)
@@ -123,35 +107,21 @@ func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 	// POST /edit/mkdir
 	mux.HandleFunc("/edit/mkdir", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireContentStore(w, d.Content) {
 			return
 		}
-		if d.Content == nil {
-			http.Error(w, "content store not configured", http.StatusInternalServerError)
-			return
-		}
-		if !isLocalRequest(r) {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-		if err := r.ParseForm(); err != nil {
-			http.Error(w, "bad form", http.StatusBadRequest)
-			return
-		}
-		if r.PostForm.Get("csrf") != csrf {
-			http.Error(w, "bad csrf", http.StatusForbidden)
+		if err := validatePOSTRequest(w, r, csrf); err != nil {
 			return
 		}
 
-		rawDir := r.PostForm.Get("dir")
+		rawDir := getTrimmedPostFormValue(r.PostForm, "dir")
 		dir, err := d.Content.NormalizeDir(r.Context(), rawDir)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		name := strings.TrimSpace(r.PostForm.Get("name"))
+		name := getTrimmedPostFormValue(r.PostForm, "name")
 
 		createdDir, err := d.Content.MkdirUnder(r.Context(), dir, name)
 		if err != nil {
@@ -165,35 +135,21 @@ func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 	// POST /edit/new
 	mux.HandleFunc("/edit/new", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireContentStore(w, d.Content) {
 			return
 		}
-		if d.Content == nil {
-			http.Error(w, "content store not configured", http.StatusInternalServerError)
-			return
-		}
-		if !isLocalRequest(r) {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-		if err := r.ParseForm(); err != nil {
-			http.Error(w, "bad form", http.StatusBadRequest)
-			return
-		}
-		if r.PostForm.Get("csrf") != csrf {
-			http.Error(w, "bad csrf", http.StatusForbidden)
+		if err := validatePOSTRequest(w, r, csrf); err != nil {
 			return
 		}
 
-		rawDir := r.PostForm.Get("dir")
+		rawDir := getTrimmedPostFormValue(r.PostForm, "dir")
 		dir, err := d.Content.NormalizeDir(r.Context(), rawDir)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		name := strings.TrimSpace(r.PostForm.Get("name"))
+		name := getTrimmedPostFormValue(r.PostForm, "name")
 		name = strings.TrimPrefix(name, "/")
 		name = strings.TrimSuffix(name, "/")
 		if name == "" || name == "." || name == ".." {
@@ -218,30 +174,16 @@ func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		http.Redirect(w, r, "/edit?path="+url.QueryEscape(target), http.StatusFound)
 	})
 
-	// POST /edit/delete (unchanged)
+	// POST /edit/delete
 	mux.HandleFunc("/edit/delete", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireContentStore(w, d.Content) {
 			return
 		}
-		if d.Content == nil {
-			http.Error(w, "content store not configured", http.StatusInternalServerError)
-			return
-		}
-		if !isLocalRequest(r) {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-		if err := r.ParseForm(); err != nil {
-			http.Error(w, "bad form", http.StatusBadRequest)
-			return
-		}
-		if r.PostForm.Get("csrf") != csrf {
-			http.Error(w, "bad csrf", http.StatusForbidden)
+		if err := validatePOSTRequest(w, r, csrf); err != nil {
 			return
 		}
 
-		p := strings.TrimSpace(r.PostForm.Get("path"))
+		p := getTrimmedPostFormValue(r.PostForm, "path")
 		p = strings.TrimPrefix(p, "/")
 		p = strings.ReplaceAll(p, `\`, "/")
 		p = path.Clean(p)
@@ -265,31 +207,17 @@ func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		http.Redirect(w, r, "/edit?path="+url.QueryEscape(open), http.StatusFound)
 	})
 
-	// POST /edit/rename (unchanged)
+	// POST /edit/rename
 	mux.HandleFunc("/edit/rename", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireContentStore(w, d.Content) {
 			return
 		}
-		if d.Content == nil {
-			http.Error(w, "content store not configured", http.StatusInternalServerError)
-			return
-		}
-		if !isLocalRequest(r) {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-		if err := r.ParseForm(); err != nil {
-			http.Error(w, "bad form", http.StatusBadRequest)
-			return
-		}
-		if r.PostForm.Get("csrf") != csrf {
-			http.Error(w, "bad csrf", http.StatusForbidden)
+		if err := validatePOSTRequest(w, r, csrf); err != nil {
 			return
 		}
 
-		from := normalizeRel(r.PostForm.Get("from"))
-		to := normalizeRel(r.PostForm.Get("to"))
+		from := normalizeRel(getTrimmedPostFormValue(r.PostForm, "from"))
+		to := normalizeRel(getTrimmedPostFormValue(r.PostForm, "to"))
 
 		if from == "" || to == "" {
 			http.Error(w, "bad path", http.StatusBadRequest)

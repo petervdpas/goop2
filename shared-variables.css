@@ -1,0 +1,81 @@
+/* shared-variables.css - Shared CSS variables for both frontend and internal UI */
+
+:root {
+  /* Colors - Dark theme (default) */
+  --bg: #0f1115;
+  --panel: #151924;
+  --panel2: #10131b;
+  --text: #e6e9ef;
+  --muted: #9aa3b2;
+  --line: rgba(255, 255, 255, 0.10);
+  --accent: #7aa2ff;
+  
+  /* Surface treatments */
+  --chip: rgba(255, 255, 255, 0.04);
+  --chip2: rgba(255, 255, 255, 0.06);
+  --glass: rgba(255, 255, 255, 0.06);
+  --glass2: rgba(255, 255, 255, 0.08);
+  
+  /* Border radius */
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-xs: 8px;
+  
+  /* Shadows */
+  --shadow-sm: 0 8px 22px rgba(0, 0, 0, 0.22);
+  --shadow-md: 0 18px 46px rgba(0, 0, 0, 0.34);
+  
+  /* Focus ring */
+  --ring: 0 0 0 4px rgba(122, 162, 255, 0.22);
+  
+  /* Transitions */
+  --ease: 170ms cubic-bezier(.2, .7, .2, 1);
+  
+  /* Background gradients */
+  --bg-grad-1: rgba(122, 162, 255, 0.10);
+  --bg-grad-2: rgba(170, 120, 255, 0.06);
+  --bg-grad-3: rgba(0, 0, 0, 0);
+  
+  /* Form fields */
+  --field-bg: rgba(0, 0, 0, 0.25);
+  --field-bg-2: rgba(0, 0, 0, 0.18);
+  
+  /* Layout dimensions */
+  --content-pad: 22px;
+  --footer-h: 44px;
+  --topbar-h: 56px;
+  
+  /* Composite background pattern */
+  --bg-pattern: 
+    radial-gradient(1200px 700px at 18% -10%, var(--bg-grad-1), var(--bg-grad-3) 62%),
+    radial-gradient(900px 600px at 92% 18%, var(--bg-grad-2), var(--bg-grad-3) 58%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.10), rgba(0, 0, 0, 0.0) 30%);
+}
+
+/* Light theme overrides */
+html[data-theme="light"] {
+  --bg: #f6f7fb;
+  --panel: #ffffff;
+  --panel2: #f0f2fa;
+  --text: #101325;
+  --muted: #4a4f6b;
+  --line: rgba(16, 19, 37, 0.12);
+  --accent: #5a3dff;
+  
+  --chip: rgba(16, 19, 37, 0.04);
+  --chip2: rgba(16, 19, 37, 0.06);
+  --glass: rgba(16, 19, 37, 0.04);
+  --glass2: rgba(16, 19, 37, 0.06);
+  
+  --shadow-sm: 0 10px 24px rgba(16, 19, 37, 0.10);
+  --shadow-md: 0 22px 60px rgba(16, 19, 37, 0.14);
+  
+  --ring: 0 0 0 4px rgba(90, 61, 255, 0.18);
+  
+  --bg-grad-1: rgba(90, 61, 255, 0.10);
+  --bg-grad-2: rgba(122, 162, 255, 0.08);
+  --bg-grad-3: rgba(255, 255, 255, 0);
+  
+  --field-bg: rgba(16, 19, 37, 0.04);
+  --field-bg-2: rgba(16, 19, 37, 0.03);
+}
