@@ -201,11 +201,9 @@
               return;
             }
             
-            const html = logs.map(log => `<div class="log-entry">${log}</div>`).join('');
+            // Reverse to show newest first (descending order)
+            const html = logs.reverse().map(log => `<div class="log-entry">${log}</div>`).join('');
             logsContainer.innerHTML = html;
-            
-            // Auto-scroll to bottom
-            logsContainer.scrollTop = logsContainer.scrollHeight;
           } catch (err) {
             console.error('Failed to fetch logs:', err);
           }
