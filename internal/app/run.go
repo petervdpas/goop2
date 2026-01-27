@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"goop/internal/chat"
 	"goop/internal/config"
 	"goop/internal/content"
 	"goop/internal/p2p"
@@ -103,6 +104,10 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	node.EnableSite(filepath.Join(o.PeerDir, "site"))
 	log.Printf("peer id: %s", node.ID())
 
+	// ── Chat manager
+	chatMgr := chat.New(node.Host, 100) // 100 message buffer
+	log.Printf("💬 Chat enabled: direct messaging via /goop/chat/1.0.0")
+
 	for _, c := range rvClients {
 		cc := c
 		go cc.SubscribeEvents(ctx, func(pm proto.PresenceMsg) {
@@ -147,8 +152,10 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			SelfLabel: selfContent,
 			Peers:     peers,
 			CfgPath:   o.CfgPath,
+			Cfg:       cfg, // always *config.Config
 			Logs:      o.Logs,
 			Content:   store,
+			Chat:      chatMgr,
 			BaseURL:   url,
 		})
 	}

@@ -33,7 +33,87 @@
     <script defer src="/assets/vendor/codemirror/mode/htmlmixed.js"></script>
 
     <link rel="stylesheet" href="/assets/app.css" />
-    <script defer src="/assets/app.js"></script>
+    <script src="/assets/app.js"></script>
+    
+    {{if .SelfID}}
+    <!-- Global chat notifications -->
+    <script>
+    (function() {
+      console.log('=== CHAT NOTIFICATION SCRIPT STARTING ===');
+      console.log('SelfID exists:', '{{.SelfID}}');
+      console.log('window.Goop:', window.Goop);
+      
+      if (!window.Goop) window.Goop = {};
+      
+      // Track current peer page to avoid duplicate notifications
+      let currentPeerPage = null;
+      const pathMatch = window.location.pathname.match(/\/peer\/([^/]+)/);
+      if (pathMatch) {
+        currentPeerPage = pathMatch[1];
+      }
+
+      console.log('Chat notifications initialized, current page peer:', currentPeerPage);
+      console.log('window.Goop.toast available:', typeof window.Goop.toast);
+
+      // Wait for toast function to be available
+      function initChatNotifications() {
+        if (!window.Goop || !window.Goop.toast) {
+          console.log('Toast not ready yet, waiting...');
+          setTimeout(initChatNotifications, 100);
+          return;
+        }
+        
+        console.log('Toast function is ready! Starting SSE connection...');
+
+        // Listen for chat messages globally
+        const eventSource = new EventSource('/api/chat/events');
+        
+        // Listen for 'message' events specifically (not default messages)
+        eventSource.addEventListener('message', function(e) {
+          try {
+            const msg = JSON.parse(e.data);
+            
+            console.log('Received chat event:', msg);
+            
+            // Default to 'direct' if type is missing
+            const msgType = msg.type || 'direct';
+            
+            // Only show toast for direct messages (not broadcast)
+            // and only if we're NOT currently on that peer's chat page
+            if (msgType === 'direct' && msg.from && msg.from !== currentPeerPage) {
+              const shortID = msg.from.substring(0, 8) + '...';
+              
+              console.log('Showing toast for message from:', msg.from);
+              
+              window.Goop.toast({
+                icon: '💬',
+                title: 'New Message',
+                message: '<div class="toast-peer-id">' + shortID + '</div><div>' + 
+                         (msg.content.length > 60 ? msg.content.substring(0, 60) + '...' : msg.content) + 
+                         '</div>',
+                onClick: () => {
+                  window.location.href = '/peer/' + msg.from;
+                },
+                duration: 8000
+              });
+            } else {
+              console.log('Toast not shown - type:', msgType, 'from:', msg.from, 'currentPage:', currentPeerPage);
+            }
+          } catch (err) {
+            console.error('Failed to parse chat message:', err, e.data);
+          }
+        });
+
+        eventSource.onerror = function(err) {
+          console.error('Chat SSE error:', err);
+        };
+      }
+      
+      // Start initialization
+      initChatNotifications();
+    })();
+    </script>
+    {{end}}
   </head>
   <body>
     <div class="app">
@@ -89,6 +169,10 @@
           <span class="muted small">Goop²</span>
           <span class="muted small">·</span>
           <span class="muted small">ephemeral web</span>
+          {{if .Debug}}
+          <span class="muted small">·</span>
+          <a href="javascript:void(0)" onclick="(function(){var b=new URLSearchParams(location.search).get('bridge');if(b){fetch(b+'/open?url='+encodeURIComponent(location.href),{method:'POST'})}})();" class="muted small" style="text-decoration: none;" title="Open in browser">Debug</a>
+          {{end}}
         </div>
       </footer>
     </div>

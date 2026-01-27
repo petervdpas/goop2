@@ -24,6 +24,7 @@
     "label": "peer-C"
   },
   "viewer": {
-    "http_addr": ""
+    "http_addr": ":7779",
+    "debug": true
   }
 }

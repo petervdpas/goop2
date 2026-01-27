@@ -10,10 +10,18 @@ import (
 	"path"
 	"strings"
 
+	"goop/internal/config"
 	"goop/internal/ui/viewmodels"
 )
 
 func baseVM(title, active, contentTmpl string, d Deps) viewmodels.BaseVM {
+	debug := false
+	switch cfg := d.Cfg.(type) {
+	case *config.Config:
+		debug = cfg.Viewer.Debug
+	case config.Config:
+		debug = cfg.Viewer.Debug
+	}
 	return viewmodels.BaseVM{
 		Title:       title,
 		Active:      active,
@@ -21,6 +29,7 @@ func baseVM(title, active, contentTmpl string, d Deps) viewmodels.BaseVM {
 		SelfName:    safeCall(d.SelfLabel),
 		SelfID:      d.Node.ID(),
 		BaseURL:     d.BaseURL,
+		Debug:       debug,
 	}
 }
 

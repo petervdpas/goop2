@@ -9,4 +9,5 @@ type BaseVM struct {
 	SelfID      string
 	ContentTmpl string
 	BaseURL     string
+	Debug       bool
 }

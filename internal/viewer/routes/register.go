@@ -20,6 +20,7 @@ type Deps struct {
 	Peers     *state.PeerTable
 
 	CfgPath string
+	Cfg     interface{} // Config interface to avoid import cycle
 	Logs    Logs
 	Content *content.Store
 	BaseURL string

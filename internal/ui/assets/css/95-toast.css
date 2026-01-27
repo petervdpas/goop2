@@ -1,0 +1,111 @@
+/* internal/ui/assets/css/95-toast.css */
+
+/* -----------------------------
+   Toast Notifications
+------------------------------ */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.toast {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  min-width: 300px;
+  max-width: 400px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  pointer-events: auto;
+  cursor: pointer;
+  animation: slideInRight 0.3s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.toast:hover {
+  transform: translateX(-4px);
+}
+
+.toast.toast-exit {
+  animation: slideOutRight 0.3s ease;
+  opacity: 0;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+}
+
+.toast-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.toast-icon {
+  font-size: 20px;
+}
+
+.toast-title {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 14px;
+  flex: 1;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 18px;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.toast-close:hover {
+  color: var(--text);
+}
+
+.toast-body {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.toast-peer-id {
+  color: var(--accent);
+  font-weight: 500;
+  font-family: monospace;
+  font-size: 11px;
+}

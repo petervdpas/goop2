@@ -64,6 +64,7 @@ type Profile struct {
 
 type Viewer struct {
 	HTTPAddr string `json:"http_addr"`
+	Debug    bool   `json:"debug"`
 }
 
 func Default() Config {
@@ -94,6 +95,7 @@ func Default() Config {
 		},
 		Viewer: Viewer{
 			HTTPAddr: "",
+			Debug:    false,
 		},
 	}
 }

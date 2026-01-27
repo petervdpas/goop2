@@ -24,6 +24,7 @@
     "label": "Peer-B"
   },
   "viewer": {
-    "http_addr": ":7778"
+    "http_addr": ":7778",
+    "debug": true
   }
 }

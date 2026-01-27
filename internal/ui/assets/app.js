@@ -11,6 +11,7 @@
     "50-editor.js",
     "60-codemirror.js",
     "99-dialogs.js",
+    "99-toast.js",
   ];
 
   function loadSequentially(list, i = 0) {

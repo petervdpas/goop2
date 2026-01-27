@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -42,4 +44,20 @@ func WriteJSONFile(path string, v interface{}) error {
 		return err
 	}
 	return os.WriteFile(path, b, 0o644)
+}
+
+// OpenURL opens a URL in the system's default browser
+func OpenURL(url string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "linux":
+		cmd = exec.Command("xdg-open", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", url)
+	default:
+		return errors.New("unsupported platform")
+	}
+	return cmd.Start()
 }

@@ -24,6 +24,7 @@
     "label": "Peer-A"
   },
   "viewer": {
-    "http_addr": ":7777"
+    "http_addr": ":7777",
+    "debug": true
   }
 }

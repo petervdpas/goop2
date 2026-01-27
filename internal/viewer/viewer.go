@@ -4,6 +4,7 @@ package viewer
 import (
 	"net/http"
 
+	"goop/internal/chat"
 	"goop/internal/content"
 	"goop/internal/p2p"
 	"goop/internal/state"
@@ -18,8 +19,10 @@ type Viewer struct {
 	Peers     *state.PeerTable
 
 	CfgPath string
+	Cfg     interface{} // Config interface to avoid import cycle
 	Logs    *LogBuffer
 	Content *content.Store
+	Chat    *chat.Manager
 
 	// NEW: canonical base URL for templates (e.g. http://127.0.0.1:7777)
 	BaseURL string
@@ -48,10 +51,16 @@ func Start(addr string, v Viewer) error {
 		SelfLabel: v.SelfLabel,
 		Peers:     v.Peers,
 		CfgPath:   v.CfgPath,
+		Cfg:       v.Cfg,
 		Logs:      v.Logs,
 		Content:   v.Content,
 		BaseURL:   baseURL,
 	})
+
+	// Register chat endpoints if chat manager is available
+	if v.Chat != nil {
+		routes.RegisterChat(mux, v.Chat)
+	}
 
 	return http.ListenAndServe(addr, mux)
 }

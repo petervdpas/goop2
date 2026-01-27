@@ -56,7 +56,23 @@
   min-width:0;
 }
 
-.peerid{ font-weight: 750; }
+.peerid{ 
+  font-weight: 750;
+  position: relative;
+}
+
+.peer-badge {
+  color: var(--accent);
+  font-size: 20px;
+  line-height: 0;
+  margin-right: 4px;
+  animation: pulse-badge 2s ease-in-out infinite;
+}
+
+@keyframes pulse-badge {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
 
 .peercontent{
   color: var(--muted);
@@ -155,4 +171,112 @@ button:focus-visible{
 
 .switch input:focus-visible + .slider{
   box-shadow: var(--ring);
+}
+
+/* -----------------------------
+   Chat
+------------------------------ */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel2);
+  margin-top: 16px;
+  max-width: 800px;
+}
+
+.chat-messages {
+  min-height: 300px;
+  max-height: 500px;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chat-msg {
+  display: flex;
+  flex-direction: column;
+  max-width: 70%;
+  animation: slideIn 0.2s ease;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.chat-msg.msg-out {
+  align-self: flex-end;
+}
+
+.chat-msg.msg-in {
+  align-self: flex-start;
+}
+
+.msg-content {
+  padding: 10px 14px;
+  border-radius: 12px;
+  word-wrap: break-word;
+  line-height: 1.4;
+}
+
+.msg-out .msg-content {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--text);
+}
+
+.msg-in .msg-content {
+  background: var(--chip);
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+
+.msg-time {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+  padding: 0 6px;
+}
+
+.msg-out .msg-time {
+  text-align: right;
+}
+
+.msg-in .msg-time {
+  text-align: left;
+}
+
+.chat-input {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.chat-input input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  transition: border-color var(--ease), box-shadow var(--ease);
+}
+
+.chat-input input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--ring);
+}
+
+.chat-input button {
+  padding: 10px 20px;
+  white-space: nowrap;
 }

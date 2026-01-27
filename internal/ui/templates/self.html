@@ -52,6 +52,19 @@
       </div>
     </div>
 
+    <div class="field">
+      <label>Debug mode</label>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <label class="switch" title="Enable debug mode">
+          <input type="checkbox"
+                 name="viewer_debug"
+                 {{if .Cfg.Viewer.Debug}}checked{{end}}>
+          <span class="slider"></span>
+        </label>
+        <span class="muted small">Show console debug indicator (F12)</span>
+      </div>
+    </div>
+
     <div class="grid2">
       <div class="field">
         <label>P2P listen port</label>

@@ -28,6 +28,15 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 		cfg.Profile.Label = getTrimmedPostFormValue(r.PostForm, "profile_label")
 		cfg.Viewer.HTTPAddr = getTrimmedPostFormValue(r.PostForm, "viewer_http_addr")
+
+		// Handle debug checkbox
+		switch strings.ToLower(getTrimmedPostFormValue(r.PostForm, "viewer_debug")) {
+		case "on", "1", "true", "yes":
+			cfg.Viewer.Debug = true
+		default:
+			cfg.Viewer.Debug = false
+		}
+
 		cfg.P2P.MdnsTag = getTrimmedPostFormValue(r.PostForm, "p2p_mdns_tag")
 
 		if p := getTrimmedPostFormValue(r.PostForm, "p2p_listen_port"); p != "" {

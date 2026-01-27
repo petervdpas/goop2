@@ -19,6 +19,8 @@ import (
 	goopapp "goop/internal/app"
 	"goop/internal/config"
 	"goop/internal/util"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type App struct {
@@ -162,6 +164,11 @@ func (a *App) GetBridgeURL() string {
 	a.uiMu.Lock()
 	defer a.uiMu.Unlock()
 	return a.bridgeURL
+}
+
+// OpenInBrowser opens a URL in the default browser.
+func (a *App) OpenInBrowser(url string) {
+	runtime.BrowserOpenURL(a.ctx, url)
 }
 
 // -------------------------
@@ -342,6 +349,21 @@ func (a *App) startBridge() error {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+	}))
+
+	// Open URL in browser endpoint
+	mux.HandleFunc("/open", withCORS(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		url := r.URL.Query().Get("url")
+		if url == "" {
+			http.Error(w, "missing url parameter", http.StatusBadRequest)
+			return
+		}
+		runtime.BrowserOpenURL(a.ctx, url)
+		w.WriteHeader(http.StatusOK)
 	}))
 
 	srv := &http.Server{

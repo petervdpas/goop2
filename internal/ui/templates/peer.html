@@ -15,4 +15,107 @@
 </p>
 
 <pre class="content">{{.Content}}</pre>
+
+<hr>
+
+<h2>💬 Chat</h2>
+<div class="chat-container">
+  <div class="chat-messages" id="chat-messages">
+    <p class="muted"><i>Loading messages...</i></p>
+  </div>
+  <form class="chat-input" id="chat-form">
+    <input type="text" id="chat-message" placeholder="Type a message..." autocomplete="off" required>
+    <button type="submit">Send</button>
+  </form>
+</div>
+
+<script>
+(function() {
+  const peerID = {{.PeerID}};
+  const messagesDiv = document.getElementById('chat-messages');
+  const form = document.getElementById('chat-form');
+  const input = document.getElementById('chat-message');
+
+  // Load existing messages
+  async function loadMessages() {
+    try {
+      const res = await fetch(`/api/chat/messages?peer=${encodeURIComponent(peerID)}`);
+      const messages = await res.json();
+      renderMessages(messages);
+    } catch (err) {
+      console.error('Failed to load messages:', err);
+      messagesDiv.innerHTML = '<p class="error">Failed to load messages</p>';
+    }
+  }
+
+  // Render messages
+  function renderMessages(messages) {
+    if (messages.length === 0) {
+      messagesDiv.innerHTML = '<p class="muted"><i>No messages yet. Start a conversation!</i></p>';
+      return;
+    }
+
+    messagesDiv.innerHTML = messages.map(msg => {
+      const time = new Date(msg.timestamp).toLocaleString();
+      const isOutgoing = msg.from !== peerID;
+      const className = isOutgoing ? 'msg-out' : 'msg-in';
+      return `<div class="chat-msg ${className}">
+        <div class="msg-content">${escapeHtml(msg.content)}</div>
+        <div class="msg-time">${time}</div>
+      </div>`;
+    }).join('');
+
+    // Scroll to bottom
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  }
+
+  // Send message
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const content = input.value.trim();
+    if (!content) return;
+
+    try {
+      const res = await fetch('/api/chat/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: peerID, content })
+      });
+
+      if (res.ok) {
+        input.value = '';
+        loadMessages(); // Reload to show sent message
+      } else {
+        alert('Failed to send message');
+      }
+    } catch (err) {
+      console.error('Failed to send:', err);
+      alert('Failed to send message');
+    }
+  });
+
+  // Listen for new messages via SSE
+  const eventSource = new EventSource('/api/chat/events');
+  eventSource.addEventListener('message', (e) => {
+    const msg = JSON.parse(e.data);
+    // Only update if this message is part of this conversation
+    if (msg.from === peerID || msg.to === peerID) {
+      loadMessages();
+    }
+  });
+
+  eventSource.onerror = () => {
+    console.error('SSE connection lost, reconnecting...');
+  };
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // Initial load
+  loadMessages();
+})();
+</script>
 {{end}}

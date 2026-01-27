@@ -7,9 +7,12 @@
 {{else}}
 <ul class="peers">
   {{range .Peers}}
-  <li class="peerrow">
+  <li class="peerrow" data-peer-id="{{.ID}}">
     <div class="peerleft">
-      <a class="peerid" href="/peer/{{.ID}}">{{shortID .ID}}</a>
+      <a class="peerid" href="/peer/{{.ID}}">
+        <span class="peer-badge" data-unread-badge="{{.ID}}" style="display:none;">●</span>
+        {{shortID .ID}}
+      </a>
       <span class="peercontent"><code>{{.Content}}</code></span>
     </div>
 
@@ -25,5 +28,48 @@
   </li>
   {{end}}
 </ul>
+
+<script>
+(function() {
+  // Track unread messages per peer
+  const unreadPeers = new Set();
+
+  // Listen for incoming messages
+  const eventSource = new EventSource('/api/chat/events');
+  eventSource.addEventListener('message', (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.from) {
+        // Mark peer as having unread messages
+        unreadPeers.add(msg.from);
+        updateBadges();
+      }
+    } catch (err) {
+      console.error('Failed to parse message:', err);
+    }
+  });
+
+  function updateBadges() {
+    unreadPeers.forEach(peerID => {
+      const badge = document.querySelector('[data-unread-badge="' + peerID + '"]');
+      if (badge) {
+        badge.style.display = 'inline';
+      }
+    });
+  }
+
+  // Clear badge when clicking on a peer
+  document.querySelectorAll('.peerrow').forEach(row => {
+    const peerID = row.getAttribute('data-peer-id');
+    row.addEventListener('click', () => {
+      unreadPeers.delete(peerID);
+      const badge = document.querySelector('[data-unread-badge="' + peerID + '"]');
+      if (badge) {
+        badge.style.display = 'none';
+      }
+    });
+  });
+})();
+</script>
 {{end}}
 {{end}}
