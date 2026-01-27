@@ -33,6 +33,11 @@ type Server struct {
 	// simple in-memory peer view for the web page
 	peers map[string]peerRow
 
+	// log buffer for web UI
+	logMu   sync.Mutex
+	logs    []string
+	maxLogs int
+
 	tmpl  *template.Template
 	style []byte
 }
@@ -93,17 +98,23 @@ func New(addr string) *Server {
 		addr:    addr,
 		clients: map[chan []byte]struct{}{},
 		peers:   map[string]peerRow{},
+		logs:    make([]string, 0, 500),
+		maxLogs: 500,
 		tmpl:    tmpl,
 		style:   css,
 	}
 }
 
 func (s *Server) Start(ctx context.Context) error {
+	// Start peer cleanup goroutine
+	go s.cleanupStalePeers(ctx)
+
 	mux := http.NewServeMux()
 
 	// Human + machine endpoints
 	mux.HandleFunc("/", s.handleIndex)
 	mux.HandleFunc("/peers.json", s.handlePeersJSON)
+	mux.HandleFunc("/logs.json", s.handleLogsJSON)
 
 	// Static (embedded) CSS
 	mux.HandleFunc("/assets/style.css", s.handleStyle)
@@ -190,6 +201,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 		// update peer snapshot for / and /peers.json
 		s.upsertPeer(pm)
+		s.addLog(fmt.Sprintf("Received %s from %s: %q", pm.Type, pm.PeerID, pm.Content))
 
 		b, _ := json.Marshal(pm)
 		s.broadcast(b)
@@ -261,6 +273,13 @@ func (s *Server) upsertPeer(pm proto.PresenceMsg) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// If peer sends offline, remove them immediately
+	if pm.Type == proto.TypeOffline {
+		delete(s.peers, pm.PeerID)
+		s.addLog(fmt.Sprintf("Peer went offline and removed: %s", pm.PeerID))
+		return
+	}
+
 	s.peers[pm.PeerID] = peerRow{
 		PeerID:   pm.PeerID,
 		Type:     pm.Type,
@@ -303,6 +322,31 @@ func (s *Server) snapshotPeers() []peerRow {
 	return out
 }
 
+// cleanupStalePeers removes peers that haven't been seen in 30+ seconds
+func (s *Server) cleanupStalePeers(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.mu.Lock()
+			now := time.Now().UnixMilli()
+			staleThreshold := now - (30 * 1000) // 30 seconds
+
+			for peerID, peer := range s.peers {
+				if peer.LastSeen < staleThreshold {
+					delete(s.peers, peerID)
+					s.addLog(fmt.Sprintf("Removed stale peer: %s (last seen: %v)", peerID, time.UnixMilli(peer.LastSeen).Format("15:04:05")))
+				}
+			}
+			s.mu.Unlock()
+		}
+	}
+}
+
 func (s *Server) handleStyle(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -319,6 +363,36 @@ func (s *Server) handlePeersJSON(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("content-type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(s.snapshotPeers())
+}
+
+func (s *Server) handleLogsJSON(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	s.logMu.Lock()
+	logs := make([]string, len(s.logs))
+	copy(logs, s.logs)
+	s.logMu.Unlock()
+
+	w.Header().Set("content-type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(logs)
+}
+
+func (s *Server) addLog(msg string) {
+	s.logMu.Lock()
+	defer s.logMu.Unlock()
+
+	timestamp := time.Now().Format("15:04:05")
+	logLine := fmt.Sprintf("[%s] %s", timestamp, msg)
+
+	s.logs = append(s.logs, logLine)
+	if len(s.logs) > s.maxLogs {
+		s.logs = s.logs[len(s.logs)-s.maxLogs:]
+	}
+
+	// Also log to console
+	log.Println(msg)
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {

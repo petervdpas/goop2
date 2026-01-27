@@ -1,0 +1,73 @@
+# Caddyfile example for Goop² Rendezvous Server
+# Put this in /etc/caddy/Caddyfile or run with: caddy run --config Caddyfile
+
+# Option 1: Simple subdomain with automatic HTTPS
+rendezvous.yourdomain.com {
+	reverse_proxy localhost:8787
+	
+	# Optional: Add rate limiting
+	rate_limit {
+		zone rendezvous {
+			key {remote_host}
+			events 100
+			window 1m
+		}
+	}
+	
+	# Optional: Add logging
+	log {
+		output file /var/log/caddy/rendezvous.log
+		format json
+	}
+}
+
+# Option 2: Path-based routing
+yourdomain.com {
+	# Main site
+	reverse_proxy localhost:3000
+	
+	# Rendezvous at /rendezvous
+	handle_path /rendezvous* {
+		reverse_proxy localhost:8787
+	}
+}
+
+# Option 3: Development/Local setup (HTTP only)
+:8080 {
+	reverse_proxy localhost:8787
+}
+
+# Option 4: With authentication (basic auth)
+secure-rendezvous.yourdomain.com {
+	reverse_proxy localhost:8787
+	
+	# Protect web UI but allow public /publish endpoint
+	@ui {
+		not path /publish /healthz
+	}
+	
+	basicauth @ui {
+		# Generated with: caddy hash-password
+		admin $2a$14$YOUR_BCRYPT_HASH_HERE
+	}
+}
+
+# Option 5: Multiple rendezvous servers (load balancing)
+rendezvous-cluster.yourdomain.com {
+	reverse_proxy localhost:8787 localhost:8788 localhost:8789 {
+		lb_policy round_robin
+		health_uri /healthz
+		health_interval 10s
+	}
+}
+
+# Option 6: With CORS for web clients
+api.yourdomain.com {
+	reverse_proxy localhost:8787
+	
+	header {
+		Access-Control-Allow-Origin *
+		Access-Control-Allow-Methods "GET, POST, OPTIONS"
+		Access-Control-Allow-Headers "Content-Type"
+	}
+}

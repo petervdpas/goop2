@@ -22,7 +22,8 @@ import (
 )
 
 type App struct {
-	ctx context.Context
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	mu sync.RWMutex
 
@@ -103,7 +104,8 @@ p {
 func NewApp() *App { return &App{} }
 
 func (a *App) startup(ctx context.Context) {
-	a.ctx = ctx
+	// Create cancellable context for peer lifecycle
+	a.ctx, a.cancel = context.WithCancel(ctx)
 
 	// Ensure ui.json exists with a default theme
 	if _, err := a.GetTheme(); err != nil {
@@ -113,6 +115,20 @@ func (a *App) startup(ctx context.Context) {
 	// Start bridge so the internal viewer (http://127...) can notify Wails about theme changes.
 	if err := a.startBridge(); err != nil {
 		log.Printf("bridge start: %v", err)
+	}
+}
+
+func (a *App) shutdown(ctx context.Context) {
+	// Cancel the peer context to trigger cleanup and offline messages
+	if a.cancel != nil {
+		log.Println("========================================")
+		log.Println("SHUTDOWN: Cancelling peer context...")
+		log.Println("========================================")
+		a.cancel()
+
+		// Give the peer time to send offline message
+		time.Sleep(500 * time.Millisecond)
+		log.Println("SHUTDOWN: Complete")
 	}
 }
 

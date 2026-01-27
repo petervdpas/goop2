@@ -21,9 +21,9 @@
     "rendezvous_only": false
   },
   "profile": {
-    "label": "Peer-B"
+    "label": "peer-C"
   },
   "viewer": {
-    "http_addr": ":7778"
+    "http_addr": ""
   }
 }

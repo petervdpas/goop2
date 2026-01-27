@@ -8,77 +8,219 @@
   <link rel="stylesheet" href="/assets/style.css" />
 </head>
 <body>
-  <div class="wrap">
-    <div class="top">
-      <div>
-        <h1>{{.Title}}</h1>
-        <div class="muted small">Local debug page for presence messages. Auto-refreshes.</div>
+  <div class="container">
+    <header class="header">
+      <div class="header-left">
+        <div class="logo">📡</div>
+        <div>
+          <h1>Goop² Rendezvous Monitor</h1>
+          <p class="subtitle">Live peer tracking dashboard · ephemeral web</p>
+        </div>
       </div>
-      <div class="controls">
-        <input id="q" class="search" placeholder="Filter by peer id / label..." />
-        <a class="btn" href="/peers.json" target="_blank" rel="noopener">peers.json</a>
-        <a class="btn" href="/healthz" target="_blank" rel="noopener">healthz</a>
+      <div class="header-right">
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+          <span class="theme-icon">🌙</span>
+        </button>
+        <a class="api-link" href="/peers.json" target="_blank">📄 API</a>
+        <a class="api-link" href="/healthz" target="_blank">✓ Health</a>
+      </div>
+    </header>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Server Endpoint</div>
+        <div class="stat-value">{{.Endpoint}}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Connected Peers</div>
+        <div class="stat-value" id="count">{{.PeerCount}}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Last Updated</div>
+        <div class="stat-value small-text">{{.Now}}</div>
       </div>
     </div>
 
-    <div class="card">
-      <div class="row">
-        <div class="pill"><span class="dot up"></span><span>Endpoint:</span> <code>{{.Endpoint}}</code></div>
-        <div class="pill"><span class="dot"></span><span>Peers tracked:</span> <b id="count">{{.PeerCount}}</b></div>
-        <div class="pill muted">Updated: <span class="mono">{{.Now}}</span></div>
-      </div>
+    <div class="search-bar">
+      <span class="search-icon">🔍</span>
+      <input id="q" class="search-input" placeholder="Filter by peer ID or label..." />
+    </div>
 
-      <table id="tbl" aria-label="peers">
-        <thead>
-          <tr>
-            <th>Status</th>
-            <th>PeerID</th>
-            <th>Label / Content</th>
-            <th class="right">Last seen</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{if eq (len .Peers) 0}}
-            <tr>
-              <td colspan="4" class="empty">
-                No peers yet. Once a peer POSTs to <code>/publish</code>, they appear here.
-              </td>
-            </tr>
-          {{else}}
+    <div class="tabs">
+      <button class="tab-button active" data-tab="peers">📡 Active Peers</button>
+      <button class="tab-button" data-tab="logs">📋 Server Logs</button>
+    </div>
+
+    <div class="tab-content active" id="peers-tab">
+      <div class="peers-section">
+        <h2 class="section-title">Active Peers</h2>
+        
+        {{if eq (len .Peers) 0}}
+          <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            <p>No peers connected yet</p>
+            <p class="empty-hint">Peers will appear here once they connect to the rendezvous server</p>
+          </div>
+        {{else}}
+          <div class="peer-grid" id="peer-grid">
             {{range .Peers}}
-              <tr class="peer-row">
-                <td>
-                  <span class="dot {{statusClass .Type}}" title="{{.Type}}"></span>
-                  <span class="muted small">{{.Type}}</span>
-                </td>
-                <td><code>{{.PeerID}}</code></td>
-                <td>{{.Content}}</td>
-                <td class="right"><span class="muted small">{{fmtMillis .LastSeen}}</span></td>
-              </tr>
+              <div class="peer-card peer-row" data-status="{{statusClass .Type}}">
+                <div class="peer-header">
+                  <span class="status-badge {{statusClass .Type}}">{{.Type}}</span>
+                  <span class="peer-time">{{fmtMillis .LastSeen}}</span>
+                </div>
+                <div class="peer-label">{{.Content}}</div>
+                <div class="peer-id">{{.PeerID}}</div>
+              </div>
             {{end}}
-          {{end}}
-        </tbody>
-      </table>
+          </div>
+        {{end}}
+      </div>
+    </div>
+
+    <div class="tab-content" id="logs-tab">
+      <div class="logs-section">
+        <h2 class="section-title">Server Logs</h2>
+        <div class="logs-container" id="logs-container">
+          <div class="log-entry">Loading logs...</div>
+        </div>
+      </div>
     </div>
 
     <script>
+      // Theme toggle
+      (function(){
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = themeToggle.querySelector('.theme-icon');
+        const html = document.documentElement;
+        
+        // Load saved theme
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        html.setAttribute('data-theme', savedTheme);
+        themeIcon.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+        
+        themeToggle.addEventListener('click', function() {
+          const currentTheme = html.getAttribute('data-theme');
+          const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+          html.setAttribute('data-theme', newTheme);
+          localStorage.setItem('theme', newTheme);
+          themeIcon.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+        });
+      })();
+      
+      // Tab switching
+      (function(){
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        tabButtons.forEach(button => {
+          button.addEventListener('click', function() {
+            const targetTab = this.getAttribute('data-tab');
+            
+            // Update buttons
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Update content
+            tabContents.forEach(content => {
+              content.classList.remove('active');
+            });
+            document.getElementById(`${targetTab}-tab`).classList.add('active');
+            
+            // If switching to logs, refresh immediately
+            if (targetTab === 'logs') {
+              updateLogs();
+            }
+          });
+        });
+      })();
+      
+      // Auto-refresh via AJAX (no page flash)
       (function(){
         var REFRESH_MS = 2000;
 
-        setInterval(function(){
+        async function updatePeers() {
           if (document.hidden) return;
           var q = document.getElementById('q');
           if (q && q === document.activeElement) return;
-          location.reload();
-        }, REFRESH_MS);
+          
+          try {
+            const response = await fetch('/peers.json');
+            const data = await response.json();
+            
+            // Update peer count
+            const countEl = document.getElementById('count');
+            if (countEl) countEl.textContent = data.length;
+            
+            // Update peer grid
+            const peerGrid = document.getElementById('peer-grid');
+            if (!peerGrid) return;
+            
+            if (data.length === 0) {
+              peerGrid.innerHTML = '';
+              return;
+            }
+            
+            // Build new peer cards HTML
+            const html = data.map(peer => {
+              const statusClass = peer.type === 'online' ? 'on' : (peer.type === 'offline' ? 'off' : 'up');
+              const lastSeen = peer.last_seen ? new Date(peer.last_seen).toLocaleString() : '';
+              return `
+                <div class="peer-card peer-row" data-status="${statusClass}">
+                  <div class="peer-header">
+                    <span class="status-badge ${statusClass}">${peer.type}</span>
+                    <span class="peer-time">${lastSeen}</span>
+                  </div>
+                  <div class="peer-label">${peer.content || 'Unknown'}</div>
+                  <div class="peer-id">${peer.peer_id}</div>
+                </div>
+              `;
+            }).join('');
+            
+            peerGrid.innerHTML = html;
+            
+            // Reapply filter
+            applyFilter();
+          } catch (err) {
+            console.error('Failed to update peers:', err);
+          }
+        }
+
+        setInterval(updatePeers, REFRESH_MS);
+
+        async function updateLogs() {
+          try {
+            const response = await fetch('/logs.json');
+            const logs = await response.json();
+            
+            const logsContainer = document.getElementById('logs-container');
+            if (!logsContainer) return;
+            
+            if (logs.length === 0) {
+              logsContainer.innerHTML = '<div class="log-entry empty">No logs yet</div>';
+              return;
+            }
+            
+            const html = logs.map(log => `<div class="log-entry">${log}</div>`).join('');
+            logsContainer.innerHTML = html;
+            
+            // Auto-scroll to bottom
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+          } catch (err) {
+            console.error('Failed to fetch logs:', err);
+          }
+        }
+
+        setInterval(updateLogs, REFRESH_MS);
+        updateLogs(); // Initial load
 
         var q = document.getElementById('q');
-        var tbl = document.getElementById('tbl');
+        var tbl = document.getElementById('peer-grid');
         if (!q || !tbl) return;
 
-        function apply(){
+        function applyFilter(){
           var v = (q.value || '').toLowerCase().trim();
-          var rows = tbl.querySelectorAll('tbody tr.peer-row');
+          var rows = tbl.querySelectorAll('.peer-row');
           var shown = 0;
           rows.forEach(function(tr){
             var t = tr.textContent.toLowerCase();
@@ -88,8 +230,10 @@
           });
           document.getElementById('count').textContent = shown;
         }
-        q.addEventListener('input', apply);
-        apply();
+        
+        window.applyFilter = applyFilter;
+        q.addEventListener('input', applyFilter);
+        applyFilter();
       })();
     </script>
   </div>

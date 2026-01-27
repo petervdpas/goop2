@@ -125,6 +125,32 @@ A peer can:
 * Join one or more WAN rendezvous meshes
 * Run in **rendezvous-only** mode (no peer node)
 
+#### Standalone Rendezvous Server
+
+The rendezvous server can be run as a standalone service for production deployments:
+
+```bash
+# Build standalone server
+go build -o rendezvous ./cmd/rendezvous
+
+# Run with options
+./rendezvous -addr 127.0.0.1:8787
+```
+
+The standalone server provides:
+
+* Real-time web monitoring UI showing connected peers
+* REST API endpoints (`/peers.json`, `/healthz`)
+* SSE event stream for live updates
+* Designed to run behind reverse proxy (Caddy, Nginx)
+
+See [docs/RENDEZVOUS_DEPLOYMENT.md](docs/RENDEZVOUS_DEPLOYMENT.md) for full deployment guide including:
+
+* Systemd service configuration
+* Caddy/Nginx reverse proxy setup
+* Security hardening
+* Load balancing for high-availability
+
 ---
 
 ### 3. Content Store (`internal/content`)
@@ -275,6 +301,95 @@ Typical lifecycle:
    * Starts the viewer (if enabled)
 
 Multiple peers can run simultaneously on one machine.
+
+---
+
+## Deployment Options
+
+### Desktop Application (Wails)
+
+Build and run the full desktop application with GUI:
+
+```bash
+# Development
+wails dev
+
+# Production build
+wails build
+
+# Run the built app (from build/bin/)
+./build/bin/goop2
+```
+
+The desktop app provides a visual interface for managing multiple peers, creating new peers, and controlling them from a unified UI.
+
+**Note:** The desktop UI requires building with `wails build` or `wails dev`. A binary built with plain `go build` can only run CLI commands (peer/rendezvous modes).
+
+---
+
+### CLI Peer Mode
+
+Run a peer from the command line:
+
+```bash
+# Build CLI-capable binary
+go build -o goop2
+
+# Run a peer in CLI mode
+./goop2 peer ./peers/mysite
+
+# Run a peer configured as rendezvous server
+./goop2 rendezvous ./peers/server
+```
+
+**Use cases:**
+* Server deployments (systemd services)
+* Headless environments
+* Automation and scripting
+* Docker containers
+* Lower resource usage (no GUI overhead)
+
+**What it does:**
+* Loads configuration from `<dir>/goop.json`
+* Serves static site from `<dir>/site/`
+* Joins P2P network and announces presence
+* Starts local viewer (if configured)
+* Optionally hosts rendezvous server (if configured)
+
+See [docs/CLI_TOOLS.md](docs/CLI_TOOLS.md) for systemd service examples, production deployment patterns, and container configurations.
+
+---
+
+### Rendezvous Server Mode
+
+Run as a dedicated rendezvous server using the same executable:
+
+```bash
+# Build (same executable)
+go build -o goop2
+
+# Run in rendezvous mode
+./goop2 -rendezvous -addr 127.0.0.1:8787
+```
+
+**Production Deployment:**
+
+* Systemd service for automatic restart and daemon management
+* Reverse proxy (Caddy/Nginx) for HTTPS and security
+* Web UI for real-time peer monitoring
+* Load balancing support for high availability
+
+See [docs/RENDEZVOUS_DEPLOYMENT.md](docs/RENDEZVOUS_DEPLOYMENT.md) for complete deployment guide.
+
+**Example Caddy Configuration:**
+
+```caddyfile
+rendezvous.yourdomain.com {
+    reverse_proxy localhost:8787
+}
+```
+
+See [docs/Caddyfile.example](docs/Caddyfile.example) for more configurations.
 
 ---
 

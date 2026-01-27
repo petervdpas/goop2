@@ -181,18 +181,13 @@ func validateWANRendezvous(raw string) error {
 	}
 
 	// Must be a remote/WAN destination, never bind/loopback.
+	// Allow loopback for local testing/development
 	if host == "0.0.0.0" {
 		return errors.New("host must not be 0.0.0.0")
-	}
-	if strings.EqualFold(host, "localhost") {
-		return errors.New("host must not be localhost")
 	}
 	if ip := net.ParseIP(host); ip != nil {
 		if ip.IsUnspecified() {
 			return errors.New("host must not be unspecified")
-		}
-		if ip.IsLoopback() {
-			return errors.New("host must not be loopback")
 		}
 	}
 

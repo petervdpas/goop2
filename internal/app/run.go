@@ -62,7 +62,10 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		if err := rv.Start(ctx); err != nil {
 			return err
 		}
-		log.Printf("rendezvous server: %s", rv.URL())
+		log.Println("────────────────────────────────────────────────────────")
+		log.Printf("🌐 Rendezvous Server: %s", rv.URL())
+		log.Printf("📊 Monitor connected peers: %s", rv.URL())
+		log.Println("────────────────────────────────────────────────────────")
 	}
 
 	if cfg.Presence.RendezvousOnly {
@@ -184,7 +187,11 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	}()
 
 	<-ctx.Done()
+	log.Println("========================================")
+	log.Println("PEER: Context cancelled, sending offline message...")
+	log.Println("========================================")
 	publish(context.Background(), proto.TypeOffline)
+	log.Println("PEER: Offline message sent")
 	_ = rv
 	return nil
 }
