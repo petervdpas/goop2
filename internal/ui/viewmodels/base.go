@@ -10,4 +10,5 @@ type BaseVM struct {
 	ContentTmpl string
 	BaseURL     string
 	Debug       bool
+	Theme       string
 }

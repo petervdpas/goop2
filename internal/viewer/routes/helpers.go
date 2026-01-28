@@ -16,11 +16,18 @@ import (
 
 func baseVM(title, active, contentTmpl string, d Deps) viewmodels.BaseVM {
 	debug := false
-	switch cfg := d.Cfg.(type) {
-	case *config.Config:
-		debug = cfg.Viewer.Debug
-	case config.Config:
-		debug = cfg.Viewer.Debug
+	theme := "dark"
+
+	// Reload config from disk to get latest theme/debug settings
+	if d.CfgPath != "" {
+		if cfg, err := config.Load(d.CfgPath); err == nil {
+			debug = cfg.Viewer.Debug
+			theme = cfg.Viewer.Theme
+		}
+	}
+
+	if theme != "light" && theme != "dark" {
+		theme = "dark"
 	}
 	return viewmodels.BaseVM{
 		Title:       title,
@@ -30,6 +37,7 @@ func baseVM(title, active, contentTmpl string, d Deps) viewmodels.BaseVM {
 		SelfID:      d.Node.ID(),
 		BaseURL:     d.BaseURL,
 		Debug:       debug,
+		Theme:       theme,
 	}
 }
 

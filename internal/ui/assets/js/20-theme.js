@@ -34,6 +34,16 @@
     }
   }
 
+  async function saveThemeToConfig(theme) {
+    try {
+      await fetch("/api/theme?theme=" + encodeURIComponent(theme), {
+        method: "POST",
+      });
+    } catch {
+      // ignore: best-effort
+    }
+  }
+
   function get() {
     // Layout.html already sets data-theme very early. Respect that first.
     const dom = document.documentElement.getAttribute("data-theme");
@@ -54,6 +64,9 @@
 
     // Sync back to Wails/shared ui.json (cross-origin) via bridge
     postBridgeTheme(t);
+
+    // Save to config file
+    saveThemeToConfig(t);
   }
 
   function initToggle() {

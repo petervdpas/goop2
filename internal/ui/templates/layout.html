@@ -1,26 +1,11 @@
 <!-- internal/ui/templates/layout.html -->
 {{define "layout"}}
 <!DOCTYPE html>
-<html data-theme="dark">
+<html data-theme="{{.Theme}}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{.Title}}</title>
-
-    <script>
-      (function () {
-        try {
-          var qp = new URLSearchParams(location.search);
-          var t = qp.get("theme");
-          if (t !== "light" && t !== "dark") {
-            t = localStorage.getItem("goop.theme");
-          }
-          if (t !== "light" && t !== "dark") t = "dark";
-          document.documentElement.setAttribute("data-theme", t);
-          try { localStorage.setItem("goop.theme", t); } catch (e) {}
-        } catch (e) {}
-      })();
-    </script>
 
     <link rel="stylesheet" href="/assets/vendor/codemirror/codemirror.css" />
     <link rel="stylesheet" href="/assets/vendor/codemirror/theme/xq-dark.css" />

@@ -65,6 +65,14 @@
       </div>
     </div>
 
+    <div class="field" style="max-width: 200px;">
+      <label>Theme</label>
+      <select name="viewer_theme">
+        <option value="dark" {{if eq .Cfg.Viewer.Theme "dark"}}selected{{end}}>Dark</option>
+        <option value="light" {{if eq .Cfg.Viewer.Theme "light"}}selected{{end}}>Light</option>
+      </select>
+    </div>
+
     <div class="grid2">
       <div class="field">
         <label>P2P listen port</label>

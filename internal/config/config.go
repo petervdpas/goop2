@@ -65,6 +65,7 @@ type Profile struct {
 type Viewer struct {
 	HTTPAddr string `json:"http_addr"`
 	Debug    bool   `json:"debug"`
+	Theme    string `json:"theme"`
 }
 
 func Default() Config {
@@ -96,6 +97,7 @@ func Default() Config {
 		Viewer: Viewer{
 			HTTPAddr: "",
 			Debug:    false,
+			Theme:    "dark",
 		},
 	}
 }
