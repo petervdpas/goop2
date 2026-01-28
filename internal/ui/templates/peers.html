@@ -54,6 +54,7 @@
 <script>
 (function() {
   const selfID = '{{.SelfID}}';
+  const selfName = '{{.SelfName}}';
   const peersList = document.getElementById('peers-list');
   const peerCount = document.getElementById('peer-count');
   const messagesDiv = document.getElementById('broadcast-messages');
@@ -62,6 +63,16 @@
 
   // Track unread direct messages per peer
   const unreadPeers = new Set();
+
+  // Map of peer ID -> friendly label
+  const peerLabels = {
+    [selfID]: selfName || 'Me'
+  };
+
+  // Initialize labels from server-rendered peers
+  {{range .Peers}}
+  peerLabels['{{.ID}}'] = '{{.Content}}' || '{{shortID .ID}}';
+  {{end}}
 
   // =====================
   // Peers List Auto-Refresh
@@ -95,6 +106,11 @@
       peerCount.textContent = '(0)';
       return;
     }
+
+    // Update peer labels map
+    peers.forEach(peer => {
+      peerLabels[peer.ID] = peer.Content || peer.ID.substring(0, 8) + '...';
+    });
 
     peerCount.textContent = '(' + peers.length + ')';
     peersList.innerHTML = '<ul class="peers">' + peers.map(renderPeerRow).join('') + '</ul>';
@@ -161,10 +177,10 @@
       const time = new Date(msg.timestamp).toLocaleString();
       const isOutgoing = msg.from === selfID;
       const className = isOutgoing ? 'msg-out' : 'msg-in';
-      const shortFrom = msg.from.substring(0, 8) + '...';
+      const senderName = peerLabels[msg.from] || msg.from.substring(0, 8) + '...';
 
       return `<div class="chat-msg ${className}">
-        <div class="msg-sender">${escapeHtml(shortFrom)}</div>
+        <div class="msg-sender">${escapeHtml(senderName)}</div>
         <div class="msg-content">${escapeHtml(msg.content)}</div>
         <div class="msg-time">${time}</div>
       </div>`;

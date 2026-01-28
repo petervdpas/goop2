@@ -408,6 +408,31 @@ h1 {
   border: 1px solid var(--border);
 }
 
+.peer-stats {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.stat-item {
+  font-size: 13px;
+  font-family: 'Courier New', monospace;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-item:first-child {
+  color: var(--accent-green);
+}
+
+.stat-item:last-child {
+  color: var(--accent-blue);
+}
+
 /* Empty State */
 .empty-state {
   text-align: center;

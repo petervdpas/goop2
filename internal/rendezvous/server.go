@@ -43,11 +43,13 @@ type Server struct {
 }
 
 type peerRow struct {
-	PeerID   string `json:"peer_id"`
-	Type     string `json:"type"`
-	Content  string `json:"content"`
-	TS       int64  `json:"ts"`
-	LastSeen int64  `json:"last_seen"`
+	PeerID        string `json:"peer_id"`
+	Type          string `json:"type"`
+	Content       string `json:"content"`
+	TS            int64  `json:"ts"`
+	LastSeen      int64  `json:"last_seen"`
+	BytesSent     int64  `json:"bytes_sent"`
+	BytesReceived int64  `json:"bytes_received"`
 }
 
 type indexVM struct {
@@ -77,6 +79,16 @@ func New(addr string) *Server {
 				return ""
 			}
 			return time.UnixMilli(ms).Format("2006-01-02 15:04:05")
+		},
+		"fmtBytes": func(b int64) string {
+			if b < 1024 {
+				return fmt.Sprintf("%d B", b)
+			} else if b < 1024*1024 {
+				return fmt.Sprintf("%.1f KB", float64(b)/1024)
+			} else if b < 1024*1024*1024 {
+				return fmt.Sprintf("%.1f MB", float64(b)/(1024*1024))
+			}
+			return fmt.Sprintf("%.1f GB", float64(b)/(1024*1024*1024))
 		},
 	}
 
@@ -194,16 +206,19 @@ func (s *Server) Start(ctx context.Context) error {
 			return
 		}
 
-		// normalize timestamp if caller didn’t set it
+		// normalize timestamp if caller didn't set it
 		if pm.TS == 0 {
 			pm.TS = proto.NowMillis()
 		}
 
+		// Calculate message size for tracking
+		b, _ := json.Marshal(pm)
+		msgSize := int64(len(b))
+
 		// update peer snapshot for / and /peers.json
-		s.upsertPeer(pm)
+		s.upsertPeer(pm, msgSize)
 		s.addLog(fmt.Sprintf("Received %s from %s: %q", pm.Type, pm.PeerID, pm.Content))
 
-		b, _ := json.Marshal(pm)
 		s.broadcast(b)
 
 		w.WriteHeader(http.StatusNoContent)
@@ -258,6 +273,14 @@ func (s *Server) broadcast(b []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	msgSize := int64(len(b))
+
+	// Attribute received bytes to all online peers
+	for peerID, peer := range s.peers {
+		peer.BytesReceived += msgSize
+		s.peers[peerID] = peer
+	}
+
 	for ch := range s.clients {
 		select {
 		case ch <- b:
@@ -267,7 +290,7 @@ func (s *Server) broadcast(b []byte) {
 	}
 }
 
-func (s *Server) upsertPeer(pm proto.PresenceMsg) {
+func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64) {
 	now := time.Now().UnixMilli()
 
 	s.mu.Lock()
@@ -280,12 +303,23 @@ func (s *Server) upsertPeer(pm proto.PresenceMsg) {
 		return
 	}
 
+	// Preserve existing byte counts
+	existing, exists := s.peers[pm.PeerID]
+	bytesSent := msgSize
+	bytesReceived := int64(0)
+	if exists {
+		bytesSent += existing.BytesSent
+		bytesReceived = existing.BytesReceived
+	}
+
 	s.peers[pm.PeerID] = peerRow{
-		PeerID:   pm.PeerID,
-		Type:     pm.Type,
-		Content:  pm.Content,
-		TS:       pm.TS,
-		LastSeen: now,
+		PeerID:        pm.PeerID,
+		Type:          pm.Type,
+		Content:       pm.Content,
+		TS:            pm.TS,
+		LastSeen:      now,
+		BytesSent:     bytesSent,
+		BytesReceived: bytesReceived,
 	}
 }
 

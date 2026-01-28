@@ -71,6 +71,10 @@
                 </div>
                 <div class="peer-label">{{.Content}}</div>
                 <div class="peer-id">{{.PeerID}}</div>
+                <div class="peer-stats">
+                  <span class="stat-item" title="Data sent by peer">↑ {{fmtBytes .BytesSent}}</span>
+                  <span class="stat-item" title="Data received by peer">↓ {{fmtBytes .BytesReceived}}</span>
+                </div>
               </div>
             {{end}}
           </div>
@@ -88,6 +92,14 @@
     </div>
 
     <script>
+      // Format bytes helper
+      function formatBytes(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+      }
+
       // Theme toggle
       (function(){
         const themeToggle = document.getElementById('themeToggle');
@@ -165,6 +177,8 @@
             const html = data.map(peer => {
               const statusClass = peer.type === 'online' ? 'on' : (peer.type === 'offline' ? 'off' : 'up');
               const lastSeen = peer.last_seen ? new Date(peer.last_seen).toLocaleString() : '';
+              const bytesSent = formatBytes(peer.bytes_sent || 0);
+              const bytesRecv = formatBytes(peer.bytes_received || 0);
               return `
                 <div class="peer-card peer-row" data-status="${statusClass}">
                   <div class="peer-header">
@@ -173,6 +187,10 @@
                   </div>
                   <div class="peer-label">${peer.content || 'Unknown'}</div>
                   <div class="peer-id">${peer.peer_id}</div>
+                  <div class="peer-stats">
+                    <span class="stat-item" title="Data sent by peer">↑ ${bytesSent}</span>
+                    <span class="stat-item" title="Data received by peer">↓ ${bytesRecv}</span>
+                  </div>
                 </div>
               `;
             }).join('');
