@@ -21,7 +21,7 @@
     "rendezvous_only": false
   },
   "profile": {
-    "label": "peerD"
+    "label": "peer-D"
   },
   "viewer": {
     "http_addr": "",

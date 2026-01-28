@@ -54,31 +54,33 @@
     <div class="tab-content active" id="peers-tab">
       <div class="peers-section">
         <h2 class="section-title">Active Peers</h2>
-        
-        {{if eq (len .Peers) 0}}
-          <div class="empty-state">
-            <div class="empty-icon">📭</div>
-            <p>No peers connected yet</p>
-            <p class="empty-hint">Peers will appear here once they connect to the rendezvous server</p>
-          </div>
-        {{else}}
-          <div class="peer-grid" id="peer-grid">
-            {{range .Peers}}
-              <div class="peer-card peer-row" data-status="{{statusClass .Type}}">
-                <div class="peer-header">
-                  <span class="status-badge {{statusClass .Type}}">{{.Type}}</span>
-                  <span class="peer-time">{{fmtMillis .LastSeen}}</span>
+
+        <div id="peers-container">
+          {{if eq (len .Peers) 0}}
+            <div class="empty-state" id="empty-state">
+              <div class="empty-icon">📭</div>
+              <p>No peers connected yet</p>
+              <p class="empty-hint">Peers will appear here once they connect to the rendezvous server</p>
+            </div>
+          {{else}}
+            <div class="peer-grid" id="peer-grid">
+              {{range .Peers}}
+                <div class="peer-card peer-row" data-status="{{statusClass .Type}}">
+                  <div class="peer-header">
+                    <span class="status-badge {{statusClass .Type}}">{{.Type}}</span>
+                    <span class="peer-time">{{fmtMillis .LastSeen}}</span>
+                  </div>
+                  <div class="peer-label">{{.Content}}</div>
+                  <div class="peer-id">{{.PeerID}}</div>
+                  <div class="peer-stats">
+                    <span class="stat-item" title="Data sent by peer">↑ {{fmtBytes .BytesSent}}</span>
+                    <span class="stat-item" title="Data received by peer">↓ {{fmtBytes .BytesReceived}}</span>
+                  </div>
                 </div>
-                <div class="peer-label">{{.Content}}</div>
-                <div class="peer-id">{{.PeerID}}</div>
-                <div class="peer-stats">
-                  <span class="stat-item" title="Data sent by peer">↑ {{fmtBytes .BytesSent}}</span>
-                  <span class="stat-item" title="Data received by peer">↓ {{fmtBytes .BytesReceived}}</span>
-                </div>
-              </div>
-            {{end}}
-          </div>
-        {{end}}
+              {{end}}
+            </div>
+          {{end}}
+        </div>
       </div>
     </div>
 
@@ -155,24 +157,31 @@
           if (document.hidden) return;
           var q = document.getElementById('q');
           if (q && q === document.activeElement) return;
-          
+
           try {
             const response = await fetch('/peers.json');
             const data = await response.json();
-            
+
             // Update peer count
             const countEl = document.getElementById('count');
             if (countEl) countEl.textContent = data.length;
-            
-            // Update peer grid
-            const peerGrid = document.getElementById('peer-grid');
-            if (!peerGrid) return;
-            
+
+            // Get the container (always exists)
+            const container = document.getElementById('peers-container');
+            if (!container) return;
+
             if (data.length === 0) {
-              peerGrid.innerHTML = '';
+              // Show empty state
+              container.innerHTML = `
+                <div class="empty-state" id="empty-state">
+                  <div class="empty-icon">📭</div>
+                  <p>No peers connected yet</p>
+                  <p class="empty-hint">Peers will appear here once they connect to the rendezvous server</p>
+                </div>
+              `;
               return;
             }
-            
+
             // Build new peer cards HTML
             const html = data.map(peer => {
               const statusClass = peer.type === 'online' ? 'on' : (peer.type === 'offline' ? 'off' : 'up');
@@ -194,9 +203,10 @@
                 </div>
               `;
             }).join('');
-            
-            peerGrid.innerHTML = html;
-            
+
+            // Wrap in peer-grid div
+            container.innerHTML = '<div class="peer-grid" id="peer-grid">' + html + '</div>';
+
             // Reapply filter
             applyFilter();
           } catch (err) {
@@ -210,15 +220,15 @@
           try {
             const response = await fetch('/logs.json');
             const logs = await response.json();
-            
+
             const logsContainer = document.getElementById('logs-container');
             if (!logsContainer) return;
-            
+
             if (logs.length === 0) {
               logsContainer.innerHTML = '<div class="log-entry empty">No logs yet</div>';
               return;
             }
-            
+
             // Reverse to show newest first (descending order)
             const html = logs.reverse().map(log => `<div class="log-entry">${log}</div>`).join('');
             logsContainer.innerHTML = html;
@@ -231,12 +241,12 @@
         updateLogs(); // Initial load
 
         var q = document.getElementById('q');
-        var tbl = document.getElementById('peer-grid');
-        if (!q || !tbl) return;
 
         function applyFilter(){
           var v = (q.value || '').toLowerCase().trim();
-          var rows = tbl.querySelectorAll('.peer-row');
+          var container = document.getElementById('peers-container');
+          if (!container) return;
+          var rows = container.querySelectorAll('.peer-row');
           var shown = 0;
           rows.forEach(function(tr){
             var t = tr.textContent.toLowerCase();
