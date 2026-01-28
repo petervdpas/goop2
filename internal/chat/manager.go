@@ -81,6 +81,55 @@ func (m *Manager) SendDirect(ctx context.Context, toPeerID, content string) erro
 	return nil
 }
 
+// SendBroadcast sends a message to all connected peers
+func (m *Manager) SendBroadcast(ctx context.Context, content string) error {
+	msg := NewBroadcast(m.localPeerID, content)
+
+	// Get all connected peers
+	peers := m.host.Network().Peers()
+	if len(peers) == 0 {
+		// Still store locally even if no peers
+		m.addMessage(msg)
+		log.Printf("CHAT: Broadcast message stored (no peers connected)")
+		return nil
+	}
+
+	var lastErr error
+	sentCount := 0
+
+	for _, peerID := range peers {
+		// Open stream to peer
+		stream, err := m.host.NewStream(ctx, peerID, protocol.ID(ChatProtocolID))
+		if err != nil {
+			lastErr = err
+			log.Printf("CHAT: Failed to open stream to %s for broadcast: %v", peerID, err)
+			continue
+		}
+
+		// Send message as JSON
+		if err := json.NewEncoder(stream).Encode(msg); err != nil {
+			stream.Close()
+			lastErr = err
+			log.Printf("CHAT: Failed to send broadcast to %s: %v", peerID, err)
+			continue
+		}
+
+		stream.Close()
+		sentCount++
+	}
+
+	// Store in local buffer (outgoing)
+	m.addMessage(msg)
+
+	log.Printf("CHAT: Broadcast sent to %d/%d peers", sentCount, len(peers))
+
+	if sentCount == 0 && lastErr != nil {
+		return fmt.Errorf("failed to send to any peer: %w", lastErr)
+	}
+
+	return nil
+}
+
 // GetMessages returns all messages in the buffer
 func (m *Manager) GetMessages() []*Message {
 	m.mu.RLock()
@@ -106,6 +155,25 @@ func (m *Manager) GetConversation(peerID string) []*Message {
 		}
 	}
 	return conversation
+}
+
+// GetBroadcasts returns all broadcast messages
+func (m *Manager) GetBroadcasts() []*Message {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	broadcasts := make([]*Message, 0)
+	for _, msg := range m.messages {
+		if msg.Type == MessageTypeBroadcast {
+			broadcasts = append(broadcasts, msg)
+		}
+	}
+	return broadcasts
+}
+
+// LocalPeerID returns the local peer ID
+func (m *Manager) LocalPeerID() string {
+	return m.localPeerID
 }
 
 // Subscribe returns a channel that receives new messages

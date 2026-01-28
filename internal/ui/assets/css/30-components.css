@@ -280,3 +280,50 @@ button:focus-visible{
   padding: 10px 20px;
   white-space: nowrap;
 }
+
+.msg-sender {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 2px;
+  padding: 0 6px;
+}
+
+.msg-out .msg-sender {
+  text-align: right;
+}
+
+.msg-in .msg-sender {
+  text-align: left;
+}
+
+/* -----------------------------
+   Peers Page Layout
+------------------------------ */
+.peers-page {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.peers-section {
+  flex: 0 0 auto;
+}
+
+.broadcast-section {
+  flex: 1 1 auto;
+}
+
+.broadcast-section .chat-container {
+  margin-top: 8px;
+}
+
+.broadcast-section .chat-messages {
+  min-height: 200px;
+  max-height: 350px;
+}
+
+.peer-count {
+  font-weight: 400;
+  font-size: 0.8em;
+}

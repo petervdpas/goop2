@@ -51,6 +51,55 @@ func RegisterChat(mux *http.ServeMux, chatMgr *chat.Manager) {
 		})
 	})
 
+	// Send a broadcast message
+	mux.HandleFunc("/api/chat/broadcast", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req struct {
+			Content string `json:"content"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+
+		if req.Content == "" {
+			http.Error(w, "Missing content", http.StatusBadRequest)
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := chatMgr.SendBroadcast(ctx, req.Content); err != nil {
+			log.Printf("Failed to send broadcast: %v", err)
+			http.Error(w, fmt.Sprintf("Failed to broadcast: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "sent",
+			"type":   "broadcast",
+		})
+	})
+
+	// Get broadcast messages
+	mux.HandleFunc("/api/chat/broadcasts", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		messages := chatMgr.GetBroadcasts()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(messages)
+	})
+
 	// Get all messages
 	mux.HandleFunc("/api/chat/messages", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {

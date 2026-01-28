@@ -1,75 +1,238 @@
 <!-- internal/ui/templates/peers.html -->
 {{define "page.peers"}}
-<h1>Peers</h1>
+<div class="peers-page">
+  <div class="peers-section">
+    <h1>Peers <span class="peer-count muted" id="peer-count">({{len .Peers}})</span></h1>
 
-{{if not .Peers}}
-  <p class="muted"><i>No peers yet</i></p>
-{{else}}
-<ul class="peers">
-  {{range .Peers}}
-  <li class="peerrow" data-peer-id="{{.ID}}">
-    <div class="peerleft">
-      <a class="peerid" href="/peer/{{.ID}}">
-        <span class="peer-badge" data-unread-badge="{{.ID}}" style="display:none;">●</span>
-        {{shortID .ID}}
-      </a>
-      <span class="peercontent"><code>{{.Content}}</code></span>
+    <div id="peers-list">
+    {{if not .Peers}}
+      <p class="muted"><i>No peers yet</i></p>
+    {{else}}
+    <ul class="peers">
+      {{range .Peers}}
+      <li class="peerrow" data-peer-id="{{.ID}}">
+        <div class="peerleft">
+          <a class="peerid" href="/peer/{{.ID}}">
+            <span class="peer-badge" data-unread-badge="{{.ID}}" style="display:none;">●</span>
+            {{shortID .ID}}
+          </a>
+          <span class="peercontent"><code>{{.Content}}</code></span>
+        </div>
+
+        <div class="peerright">
+          <span class="seen muted">seen {{rfc3339 .LastSeen}}</span>
+
+          <a class="btn"
+             href="/open?url={{printf "%s/p/%s/" $.BaseURL .ID | urlquery}}"
+             rel="noopener">
+            Open in Browser
+          </a>
+        </div>
+      </li>
+      {{end}}
+    </ul>
+    {{end}}
     </div>
+  </div>
 
-    <div class="peerright">
-      <span class="seen muted">seen {{rfc3339 .LastSeen}}</span>
+  <div class="broadcast-section">
+    <h2>📢 Broadcast Chat</h2>
+    <p class="muted small">Messages sent here are visible to all connected peers</p>
 
-      <a class="btn"
-         href="/open?url={{printf "%s/p/%s/" $.BaseURL .ID | urlquery}}"
-         rel="noopener">
-        Open in Browser
-      </a>
+    <div class="chat-container">
+      <div class="chat-messages" id="broadcast-messages">
+        <p class="muted"><i>Loading messages...</i></p>
+      </div>
+      <form class="chat-input" id="broadcast-form">
+        <input type="text" id="broadcast-input" placeholder="Broadcast to all peers..." autocomplete="off" required>
+        <button type="submit">Send</button>
+      </form>
     </div>
-  </li>
-  {{end}}
-</ul>
+  </div>
+</div>
 
 <script>
 (function() {
-  // Track unread messages per peer
+  const selfID = '{{.SelfID}}';
+  const peersList = document.getElementById('peers-list');
+  const peerCount = document.getElementById('peer-count');
+  const messagesDiv = document.getElementById('broadcast-messages');
+  const form = document.getElementById('broadcast-form');
+  const input = document.getElementById('broadcast-input');
+
+  // Track unread direct messages per peer
   const unreadPeers = new Set();
 
-  // Listen for incoming messages
-  const eventSource = new EventSource('/api/chat/events');
-  eventSource.addEventListener('message', (e) => {
+  // =====================
+  // Peers List Auto-Refresh
+  // =====================
+
+  function renderPeerRow(peer) {
+    const shortId = peer.ID.substring(0, 8) + '...';
+    const lastSeen = new Date(peer.LastSeen).toISOString();
+    const hasUnread = unreadPeers.has(peer.ID);
+
+    return `<li class="peerrow" data-peer-id="${escapeHtml(peer.ID)}">
+      <div class="peerleft">
+        <a class="peerid" href="/peer/${escapeHtml(peer.ID)}">
+          <span class="peer-badge" data-unread-badge="${escapeHtml(peer.ID)}" style="display:${hasUnread ? 'inline' : 'none'};">●</span>
+          ${escapeHtml(shortId)}
+        </a>
+        <span class="peercontent"><code>${escapeHtml(peer.Content || '')}</code></span>
+      </div>
+      <div class="peerright">
+        <span class="seen muted">seen ${escapeHtml(lastSeen)}</span>
+        <a class="btn" href="/open?url=${encodeURIComponent('{{.BaseURL}}/p/' + peer.ID + '/')}" rel="noopener">
+          Open in Browser
+        </a>
+      </div>
+    </li>`;
+  }
+
+  function renderPeersList(peers) {
+    if (!peers || peers.length === 0) {
+      peersList.innerHTML = '<p class="muted"><i>No peers yet</i></p>';
+      peerCount.textContent = '(0)';
+      return;
+    }
+
+    peerCount.textContent = '(' + peers.length + ')';
+    peersList.innerHTML = '<ul class="peers">' + peers.map(renderPeerRow).join('') + '</ul>';
+
+    // Re-attach click handlers for clearing badges
+    document.querySelectorAll('.peerrow').forEach(row => {
+      const peerID = row.getAttribute('data-peer-id');
+      row.addEventListener('click', () => {
+        unreadPeers.delete(peerID);
+        const badge = document.querySelector('[data-unread-badge="' + peerID + '"]');
+        if (badge) badge.style.display = 'none';
+      });
+    });
+  }
+
+  // Connect to peers SSE
+  const peersSSE = new EventSource('/api/peers/events');
+
+  peersSSE.addEventListener('snapshot', (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      if (data.peers) renderPeersList(data.peers);
+    } catch (err) {
+      console.error('Failed to parse peers snapshot:', err);
+    }
+  });
+
+  peersSSE.addEventListener('update', (e) => {
+    // Peer added or updated - refresh list via API for simplicity
+    fetch('/api/peers').then(r => r.json()).then(renderPeersList).catch(console.error);
+  });
+
+  peersSSE.addEventListener('remove', (e) => {
+    // Peer removed - refresh list via API for simplicity
+    fetch('/api/peers').then(r => r.json()).then(renderPeersList).catch(console.error);
+  });
+
+  peersSSE.onerror = () => {
+    console.error('Peers SSE connection lost');
+  };
+
+  // =====================
+  // Broadcast Chat
+  // =====================
+
+  async function loadBroadcasts() {
+    try {
+      const res = await fetch('/api/chat/broadcasts');
+      const messages = await res.json();
+      renderBroadcasts(messages);
+    } catch (err) {
+      console.error('Failed to load broadcasts:', err);
+      messagesDiv.innerHTML = '<p class="error">Failed to load messages</p>';
+    }
+  }
+
+  function renderBroadcasts(messages) {
+    if (!messages || messages.length === 0) {
+      messagesDiv.innerHTML = '<p class="muted"><i>No broadcast messages yet. Say hello!</i></p>';
+      return;
+    }
+
+    messagesDiv.innerHTML = messages.map(msg => {
+      const time = new Date(msg.timestamp).toLocaleString();
+      const isOutgoing = msg.from === selfID;
+      const className = isOutgoing ? 'msg-out' : 'msg-in';
+      const shortFrom = msg.from.substring(0, 8) + '...';
+
+      return `<div class="chat-msg ${className}">
+        <div class="msg-sender">${escapeHtml(shortFrom)}</div>
+        <div class="msg-content">${escapeHtml(msg.content)}</div>
+        <div class="msg-time">${time}</div>
+      </div>`;
+    }).join('');
+
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  }
+
+  // Send broadcast
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const content = input.value.trim();
+    if (!content) return;
+
+    try {
+      const res = await fetch('/api/chat/broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content })
+      });
+
+      if (res.ok) {
+        input.value = '';
+        loadBroadcasts();
+      } else {
+        alert('Failed to send broadcast');
+      }
+    } catch (err) {
+      console.error('Failed to send:', err);
+      alert('Failed to send broadcast');
+    }
+  });
+
+  // Listen for new messages via SSE (both direct and broadcast)
+  const chatSSE = new EventSource('/api/chat/events');
+
+  chatSSE.addEventListener('message', (e) => {
     try {
       const msg = JSON.parse(e.data);
-      if (msg.from) {
-        // Mark peer as having unread messages
+      const msgType = msg.type || 'direct';
+
+      if (msgType === 'broadcast') {
+        // Reload broadcasts
+        loadBroadcasts();
+      } else if (msgType === 'direct' && msg.from && msg.from !== selfID) {
+        // Mark peer as having unread direct messages
         unreadPeers.add(msg.from);
-        updateBadges();
+        const badge = document.querySelector('[data-unread-badge="' + msg.from + '"]');
+        if (badge) badge.style.display = 'inline';
       }
     } catch (err) {
       console.error('Failed to parse message:', err);
     }
   });
 
-  function updateBadges() {
-    unreadPeers.forEach(peerID => {
-      const badge = document.querySelector('[data-unread-badge="' + peerID + '"]');
-      if (badge) {
-        badge.style.display = 'inline';
-      }
-    });
+  chatSSE.onerror = () => {
+    console.error('Chat SSE connection lost');
+  };
+
+  function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
-  // Clear badge when clicking on a peer
-  document.querySelectorAll('.peerrow').forEach(row => {
-    const peerID = row.getAttribute('data-peer-id');
-    row.addEventListener('click', () => {
-      unreadPeers.delete(peerID);
-      const badge = document.querySelector('[data-unread-badge="' + peerID + '"]');
-      if (badge) {
-        badge.style.display = 'none';
-      }
-    });
-  });
+  // Initial load
+  loadBroadcasts();
 })();
 </script>
-{{end}}
 {{end}}
