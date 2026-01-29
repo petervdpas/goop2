@@ -16,6 +16,7 @@ import (
 	"goop/internal/proto"
 	"goop/internal/rendezvous"
 	"goop/internal/state"
+	"goop/internal/storage"
 	"goop/internal/util"
 	"goop/internal/viewer"
 )
@@ -147,6 +148,13 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		if err != nil {
 			return err
 		}
+
+		// Initialize SQLite database for peer data
+		db, err := storage.Open(o.PeerDir)
+		if err != nil {
+			return fmt.Errorf("open database: %w", err)
+		}
+
 		go viewer.Start(addr, viewer.Viewer{
 			Node:      node,
 			SelfLabel: selfContent,
@@ -156,6 +164,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			Logs:      o.Logs,
 			Content:   store,
 			Chat:      chatMgr,
+			DB:        db,
 			BaseURL:   url,
 		})
 	}

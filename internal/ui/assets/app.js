@@ -10,6 +10,7 @@
     "40-rendezvous.js",
     "50-editor.js",
     "60-codemirror.js",
+    "70-database.js",
     "99-dialogs.js",
     "99-toast.js",
   ];

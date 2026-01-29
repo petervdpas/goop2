@@ -8,6 +8,7 @@ import (
 	"goop/internal/content"
 	"goop/internal/p2p"
 	"goop/internal/state"
+	"goop/internal/storage"
 	viewerassets "goop/internal/ui/assets"
 	"goop/internal/ui/render"
 	"goop/internal/viewer/routes"
@@ -23,6 +24,7 @@ type Viewer struct {
 	Logs    *LogBuffer
 	Content *content.Store
 	Chat    *chat.Manager
+	DB      *storage.DB // SQLite database for peer data
 
 	// NEW: canonical base URL for templates (e.g. http://127.0.0.1:7777)
 	BaseURL string
@@ -55,11 +57,17 @@ func Start(addr string, v Viewer) error {
 		Logs:      v.Logs,
 		Content:   v.Content,
 		BaseURL:   baseURL,
+		DB:        v.DB,
 	})
 
 	// Register chat endpoints if chat manager is available
 	if v.Chat != nil {
 		routes.RegisterChat(mux, v.Chat)
+	}
+
+	// Register data/storage endpoints if DB is available
+	if v.DB != nil {
+		routes.RegisterData(mux, v.DB, v.Node.ID())
 	}
 
 	return http.ListenAndServe(addr, mux)

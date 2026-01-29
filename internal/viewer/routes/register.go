@@ -7,6 +7,7 @@ import (
 	"goop/internal/content"
 	"goop/internal/p2p"
 	"goop/internal/state"
+	"goop/internal/storage"
 )
 
 type Logs interface {
@@ -24,6 +25,7 @@ type Deps struct {
 	Logs    Logs
 	Content *content.Store
 	BaseURL string
+	DB      *storage.DB
 }
 
 func Register(mux *http.ServeMux, d Deps) {
@@ -39,5 +41,6 @@ func Register(mux *http.ServeMux, d Deps) {
 	registerEditorRoutes(mux, d, csrf)
 	registerSettingsRoutes(mux, d, csrf)
 	registerLogsUIRoutes(mux, d)
+	registerDatabaseRoutes(mux, d)
 	registerOfflineRoutes(mux, d)
 }

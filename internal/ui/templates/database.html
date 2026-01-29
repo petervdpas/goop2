@@ -1,0 +1,41 @@
+<!-- internal/ui/templates/database.html -->
+{{define "page.database"}}
+<h1>Database</h1>
+<p class="muted small">Manage your local SQLite database tables and data.</p>
+
+<div id="db-page" class="db-page">
+  <!-- Sidebar: table list -->
+  <div class="db-sidebar panel">
+    <div class="db-sidebar-head">
+      <span class="db-sidebar-title">Tables</span>
+      <button id="db-btn-new-table" class="db-sidebar-btn">+ New</button>
+    </div>
+    <ul id="db-table-list" class="db-table-list">
+      <!-- populated by JS -->
+    </ul>
+  </div>
+
+  <!-- Main content area -->
+  <div class="db-content panel">
+    <div class="db-content-head">
+      <span id="db-table-title" class="db-table-title">Select a table</span>
+      <div id="db-content-actions" class="db-content-actions hidden">
+        <button id="db-btn-insert" class="db-action-btn">+ Row</button>
+        <button id="db-btn-refresh" class="db-action-btn">Refresh</button>
+        <button id="db-btn-delete-table" class="db-action-btn db-btn-danger">Drop Table</button>
+      </div>
+    </div>
+
+    <!-- Create table form (hidden, populated by JS) -->
+    <div id="db-create-form" class="db-create-form hidden"></div>
+
+    <!-- Insert row form (hidden, populated by JS) -->
+    <div id="db-insert-form" class="db-insert-form hidden"></div>
+
+    <!-- Data grid -->
+    <div id="db-grid" class="db-grid">
+      <p class="db-empty">Select a table from the sidebar to view its data.</p>
+    </div>
+  </div>
+</div>
+{{end}}
