@@ -17,15 +17,15 @@
     "heartbeat_seconds": 5,
     "rendezvous_host": false,
     "rendezvous_port": 8787,
-    "rendezvous_wan": "http://127.0.0.1:8787",
+    "rendezvous_wan": "",
     "rendezvous_only": false
   },
   "profile": {
-    "label": "peer-D"
+    "label": "hello"
   },
   "viewer": {
     "http_addr": "",
     "debug": false,
-    "theme": "light"
+    "theme": "dark"
   }
 }

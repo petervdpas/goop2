@@ -1,53 +1,61 @@
 <!-- internal/ui/templates/peers.html -->
 {{define "page.peers"}}
 <div class="peers-page">
-  <div class="peers-section">
-    <h1>Peers <span class="peer-count muted" id="peer-count">({{len .Peers}})</span></h1>
+  <div class="peers-panel">
+    <div class="peers-section">
+      <h1>Peers <span class="peer-count muted" id="peer-count">({{len .Peers}})</span></h1>
 
-    <div id="peers-list">
-    {{if not .Peers}}
-      <p class="muted"><i>No peers yet</i></p>
-    {{else}}
-    <ul class="peers">
-      {{range .Peers}}
-      <li class="peerrow" data-peer-id="{{.ID}}">
-        <div class="peerleft">
-          <a class="peerid" href="/peer/{{.ID}}">
-            <span class="peer-badge" data-unread-badge="{{.ID}}" style="display:none;">●</span>
-            {{shortID .ID}}
-          </a>
-          <span class="peercontent"><code>{{.Content}}</code></span>
-        </div>
+      <input type="text" id="peer-search" class="peer-search" placeholder="Search peers..." autocomplete="off">
 
-        <div class="peerright">
-          <span class="seen muted">seen {{rfc3339 .LastSeen}}</span>
+      <div id="peers-list" class="peers-list-scroll">
+      {{if not .Peers}}
+        <p class="muted"><i>No peers yet</i></p>
+      {{else}}
+      <ul class="peers">
+        {{range .Peers}}
+        <li class="peerrow" data-peer-id="{{.ID}}">
+          <div class="peerleft">
+            <a class="peerid" href="/peer/{{.ID}}">
+              <span class="peer-badge" data-unread-badge="{{.ID}}" style="display:none;">●</span>
+              {{shortID .ID}}
+            </a>
+            <span class="peercontent"><code>{{.Content}}</code></span>
+          </div>
 
-          <a class="btn"
-             href="/open?url={{printf "%s/p/%s/" $.BaseURL .ID | urlquery}}"
-             rel="noopener">
-            Open in Browser
-          </a>
-        </div>
-      </li>
+          <div class="peerright">
+            <span class="seen muted">seen {{rfc3339 .LastSeen}}</span>
+
+            <a class="btn"
+               href="/open?url={{printf "%s/p/%s/" $.BaseURL .ID | urlquery}}"
+               rel="noopener">
+              Open in Browser
+            </a>
+          </div>
+        </li>
+        {{end}}
+      </ul>
       {{end}}
-    </ul>
-    {{end}}
+      </div>
+    </div>
+
+    <div class="broadcast-section">
+      <h2>📢 Broadcast Chat</h2>
+      <p class="muted small">Messages sent here are visible to all connected peers</p>
+
+      <div class="chat-container">
+        <div class="chat-messages" id="broadcast-messages">
+          <p class="muted"><i>Loading messages...</i></p>
+        </div>
+        <form class="chat-input" id="broadcast-form">
+          <input type="text" id="broadcast-input" placeholder="Broadcast to all peers..." autocomplete="off" required>
+          <button type="submit">Send</button>
+        </form>
+      </div>
     </div>
   </div>
 
-  <div class="broadcast-section">
-    <h2>📢 Broadcast Chat</h2>
-    <p class="muted small">Messages sent here are visible to all connected peers</p>
-
-    <div class="chat-container">
-      <div class="chat-messages" id="broadcast-messages">
-        <p class="muted"><i>Loading messages...</i></p>
-      </div>
-      <form class="chat-input" id="broadcast-form">
-        <input type="text" id="broadcast-input" placeholder="Broadcast to all peers..." autocomplete="off" required>
-        <button type="submit">Send</button>
-      </form>
-    </div>
+  <div class="peers-splash">
+    <img src="/assets/images/goop2-splash.png" alt="Goop²">
   </div>
 </div>
 
@@ -57,12 +65,16 @@
   const selfName = '{{.SelfName}}';
   const peersList = document.getElementById('peers-list');
   const peerCount = document.getElementById('peer-count');
+  const peerSearch = document.getElementById('peer-search');
   const messagesDiv = document.getElementById('broadcast-messages');
   const form = document.getElementById('broadcast-form');
   const input = document.getElementById('broadcast-input');
 
   // Track unread direct messages per peer
   const unreadPeers = new Set();
+
+  // Current peers data for search filtering
+  let currentPeers = [];
 
   // Map of peer ID -> friendly label
   const peerLabels = {
@@ -101,19 +113,36 @@
   }
 
   function renderPeersList(peers) {
-    if (!peers || peers.length === 0) {
-      peersList.innerHTML = '<p class="muted"><i>No peers yet</i></p>';
-      peerCount.textContent = '(0)';
+    if (peers) {
+      currentPeers = peers;
+      // Update peer labels map
+      peers.forEach(peer => {
+        peerLabels[peer.ID] = peer.Content || peer.ID.substring(0, 8) + '...';
+      });
+      peerCount.textContent = '(' + peers.length + ')';
+    }
+
+    // Apply search filter
+    const query = (peerSearch.value || '').trim().toLowerCase();
+    let filtered = currentPeers;
+    if (query) {
+      filtered = currentPeers.filter(peer => {
+        const name = (peer.Content || '').toLowerCase();
+        const id = peer.ID.toLowerCase();
+        return name.includes(query) || id.includes(query);
+      });
+    }
+
+    if (!filtered || filtered.length === 0) {
+      if (query && currentPeers.length > 0) {
+        peersList.innerHTML = '<p class="muted"><i>No peers match "' + escapeHtml(query) + '"</i></p>';
+      } else {
+        peersList.innerHTML = '<p class="muted"><i>No peers yet</i></p>';
+      }
       return;
     }
 
-    // Update peer labels map
-    peers.forEach(peer => {
-      peerLabels[peer.ID] = peer.Content || peer.ID.substring(0, 8) + '...';
-    });
-
-    peerCount.textContent = '(' + peers.length + ')';
-    peersList.innerHTML = '<ul class="peers">' + peers.map(renderPeerRow).join('') + '</ul>';
+    peersList.innerHTML = '<ul class="peers">' + filtered.map(renderPeerRow).join('') + '</ul>';
 
     // Re-attach click handlers for clearing badges
     document.querySelectorAll('.peerrow').forEach(row => {
@@ -125,6 +154,11 @@
       });
     });
   }
+
+  // Wire up search
+  peerSearch.addEventListener('input', () => {
+    renderPeersList(null);
+  });
 
   // Connect to peers SSE
   const peersSSE = new EventSource('/api/peers/events');
