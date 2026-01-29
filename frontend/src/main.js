@@ -1,6 +1,7 @@
 // frontend/src/main.js
 import "./style.css";
-import { 
+import splashUrl from "./assets/images/goop2-splash.png";
+import {
   clear, div, btn, input, h1, h2, p,
   normalizeTheme, applyTheme, normalizeBase
 } from "./utils.js";
@@ -88,16 +89,44 @@ async function goViewer(viewerURL, path) {
 
 async function renderLauncher(host) {
   clear(host);
+  host.classList.add("launcher-host");
 
-  const shell = div("shell");
+  const launcher = div("launcher");
+
+  // Left: splash image
+  const splash = div("launcher-splash");
+  const img = document.createElement("img");
+  img.src = splashUrl;
+  img.alt = "Goop²";
+  splash.appendChild(img);
+  launcher.appendChild(splash);
+
+  // Right: panel
+  const panel = div("launcher-panel");
+
   const top = div("top");
   top.appendChild(h1("Goop² - Launcher"));
   top.appendChild(p("Pick a peer, or create a new one."));
-  shell.appendChild(top);
+  panel.appendChild(top);
 
-  const grid = div("grid");
+  // Create new peer card
+  const createCard = div("card");
+  const createHead = div("cardHead");
+  createHead.appendChild(p("Create new peer"));
+  createCard.appendChild(createHead);
 
-  const peersCard = div("card");
+  const createBody = div("cardBody");
+  const row = div("row");
+  const name = input("peerC");
+  const create = btn("Create", "secondary");
+  row.appendChild(name);
+  row.appendChild(create);
+  createBody.appendChild(row);
+  createCard.appendChild(createBody);
+  panel.appendChild(createCard);
+
+  // Peers card
+  const peersCard = div("card peersCard");
   const peersHead = div("cardHead");
   peersHead.appendChild(p("Peers"));
   peersCard.appendChild(peersHead);
@@ -123,25 +152,9 @@ async function renderLauncher(host) {
   foot.appendChild(err);
   peersCard.appendChild(foot);
 
-  const createCard = div("card");
-  const createHead = div("cardHead");
-  createHead.appendChild(p("Create new peer"));
-  createCard.appendChild(createHead);
-
-  const createBody = div("cardBody");
-  const row = div("row");
-  const name = input("peerC");
-  const create = btn("Create", "secondary");
-  row.appendChild(name);
-  row.appendChild(create);
-  createBody.appendChild(row);
-  createCard.appendChild(createBody);
-
-  grid.appendChild(peersCard);
-  grid.appendChild(createCard);
-  shell.appendChild(grid);
-
-  host.appendChild(shell);
+  panel.appendChild(peersCard);
+  launcher.appendChild(panel);
+  host.appendChild(launcher);
 
   let peers = await window.go.main.App.ListPeers();
   let selected = "";
