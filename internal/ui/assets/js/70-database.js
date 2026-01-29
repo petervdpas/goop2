@@ -131,9 +131,28 @@
       return;
     }
 
+    // Build colgroup for smart column widths
+    function buildColgroup() {
+      var cg = '<colgroup>';
+      columns.forEach(function(col) {
+        if (col.name === '_id') {
+          cg += '<col style="width:50px">';
+        } else if (col.name === '_owner') {
+          cg += '<col style="width:120px">';
+        } else if (col.name === '_created_at') {
+          cg += '<col style="width:170px">';
+        } else {
+          cg += '<col>';
+        }
+      });
+      cg += '<col style="width:40px">';
+      cg += '</colgroup>';
+      return cg;
+    }
+
     if (!rows || rows.length === 0) {
       // Show header-only table
-      let html = '<table><thead><tr>';
+      let html = '<table>' + buildColgroup() + '<thead><tr>';
       columns.forEach(function(col) {
         html += '<th>' + escapeHtml(col.name) + '</th>';
       });
@@ -143,7 +162,7 @@
       return;
     }
 
-    let html = '<table><thead><tr>';
+    let html = '<table>' + buildColgroup() + '<thead><tr>';
     columns.forEach(function(col) {
       html += '<th>' + escapeHtml(col.name) + '</th>';
     });
@@ -159,7 +178,11 @@
 
         if (isSystem) {
           html += '<td class="db-cell-system">';
-          html += isNull ? '<span class="db-cell-null">NULL</span>' : escapeHtml(val);
+          if (isNull) {
+            html += '<span class="db-cell-null">NULL</span>';
+          } else {
+            html += '<span class="db-cell-truncate" title="' + escapeHtml(val) + '">' + escapeHtml(val) + '</span>';
+          }
           html += '</td>';
         } else {
           html += '<td class="db-cell-editable" data-col="' + escapeHtml(col.name) + '" data-row-id="' + rowId + '">';

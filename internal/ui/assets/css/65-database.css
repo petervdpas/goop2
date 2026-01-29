@@ -323,6 +323,7 @@ select.db-input{
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  table-layout: fixed;
 }
 
 .db-grid th{
@@ -357,6 +358,13 @@ select.db-input{
 .db-cell-system{
   color: var(--muted);
   font-size: 12px;
+}
+
+.db-cell-truncate{
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* NULL values */
