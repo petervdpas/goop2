@@ -35,9 +35,8 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string) {
 		}
 
 		var req struct {
-			Name       string              `json:"name"`
-			Columns    []storage.ColumnDef `json:"columns"`
-			Visibility string              `json:"visibility"`
+			Name    string             `json:"name"`
+			Columns []storage.ColumnDef `json:"columns"`
 		}
 
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -55,11 +54,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string) {
 			return
 		}
 
-		if req.Visibility == "" {
-			req.Visibility = "private"
-		}
-
-		if err := db.CreateTable(req.Name, req.Columns, req.Visibility); err != nil {
+		if err := db.CreateTable(req.Name, req.Columns); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -278,6 +273,102 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
 			"status": "deleted",
+		})
+	})
+
+	// Add a column to a table
+	mux.HandleFunc("/api/data/tables/add-column", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req struct {
+			Table  string            `json:"table"`
+			Column storage.ColumnDef `json:"column"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid json: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if req.Table == "" || req.Column.Name == "" {
+			http.Error(w, "table and column name required", http.StatusBadRequest)
+			return
+		}
+
+		if err := db.AddColumn(req.Table, req.Column); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "added"})
+	})
+
+	// Drop a column from a table
+	mux.HandleFunc("/api/data/tables/drop-column", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req struct {
+			Table  string `json:"table"`
+			Column string `json:"column"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid json: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if req.Table == "" || req.Column == "" {
+			http.Error(w, "table and column name required", http.StatusBadRequest)
+			return
+		}
+
+		if err := db.DropColumn(req.Table, req.Column); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "dropped"})
+	})
+
+	// Rename a table
+	mux.HandleFunc("/api/data/tables/rename", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req struct {
+			OldName string `json:"old_name"`
+			NewName string `json:"new_name"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid json: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if req.OldName == "" || req.NewName == "" {
+			http.Error(w, "old and new name required", http.StatusBadRequest)
+			return
+		}
+
+		if err := db.RenameTable(req.OldName, req.NewName); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"status":   "renamed",
+			"new_name": req.NewName,
 		})
 	})
 }

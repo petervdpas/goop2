@@ -66,7 +66,6 @@ func Open(configDir string) (*DB, error) {
 		CREATE TABLE IF NOT EXISTS _tables (
 			name        TEXT PRIMARY KEY,
 			schema      TEXT NOT NULL,
-			visibility  TEXT DEFAULT 'private',
 			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
 	`); err != nil {
@@ -109,7 +108,7 @@ func (d *DB) QueryRow(query string, args ...interface{}) *sql.Row {
 }
 
 // CreateTable creates a new user table with automatic owner tracking
-func (d *DB) CreateTable(name string, columns []ColumnDef, visibility string) error {
+func (d *DB) CreateTable(name string, columns []ColumnDef) error {
 	if !validIdent(name) {
 		return fmt.Errorf("invalid table name: %s", name)
 	}
@@ -151,8 +150,8 @@ func (d *DB) CreateTable(name string, columns []ColumnDef, visibility string) er
 
 	// Register in tables registry
 	if _, err := d.db.Exec(`
-		INSERT OR REPLACE INTO _tables (name, schema, visibility) VALUES (?, ?, ?)
-	`, name, createSQL, visibility); err != nil {
+		INSERT OR REPLACE INTO _tables (name, schema) VALUES (?, ?)
+	`, name, createSQL); err != nil {
 		return fmt.Errorf("register table: %w", err)
 	}
 
@@ -164,7 +163,7 @@ func (d *DB) ListTables() ([]TableInfo, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	rows, err := d.db.Query(`SELECT name, visibility, created_at FROM _tables ORDER BY name`)
+	rows, err := d.db.Query(`SELECT name, created_at FROM _tables ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +172,7 @@ func (d *DB) ListTables() ([]TableInfo, error) {
 	var tables []TableInfo
 	for rows.Next() {
 		var t TableInfo
-		if err := rows.Scan(&t.Name, &t.Visibility, &t.CreatedAt); err != nil {
+		if err := rows.Scan(&t.Name, &t.CreatedAt); err != nil {
 			return nil, err
 		}
 		tables = append(tables, t)
@@ -281,6 +280,64 @@ func (d *DB) DeleteRow(table string, rowID int64) error {
 	return err
 }
 
+// AddColumn adds a column to an existing table
+func (d *DB) AddColumn(table string, col ColumnDef) error {
+	if !validIdent(table) {
+		return fmt.Errorf("invalid table name: %s", table)
+	}
+	if !validIdent(col.Name) {
+		return fmt.Errorf("invalid column name: %s", col.Name)
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	stmt := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, col.Name, col.Type)
+	if col.NotNull {
+		stmt += " NOT NULL DEFAULT ''"
+	}
+	if col.Default != "" {
+		stmt += " DEFAULT " + col.Default
+	}
+
+	_, err := d.db.Exec(stmt)
+	return err
+}
+
+// DropColumn removes a column from an existing table
+func (d *DB) DropColumn(table, column string) error {
+	if !validIdent(table) {
+		return fmt.Errorf("invalid table name: %s", table)
+	}
+	if !validIdent(column) {
+		return fmt.Errorf("invalid column name: %s", column)
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	_, err := d.db.Exec(fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", table, column))
+	return err
+}
+
+// RenameTable renames a table and updates the registry
+func (d *DB) RenameTable(oldName, newName string) error {
+	if !validIdent(oldName) {
+		return fmt.Errorf("invalid table name: %s", oldName)
+	}
+	if !validIdent(newName) {
+		return fmt.Errorf("invalid table name: %s", newName)
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if _, err := d.db.Exec(fmt.Sprintf("ALTER TABLE %s RENAME TO %s", oldName, newName)); err != nil {
+		return fmt.Errorf("rename table: %w", err)
+	}
+	if _, err := d.db.Exec("UPDATE _tables SET name = ? WHERE name = ?", newName, oldName); err != nil {
+		return fmt.Errorf("update registry: %w", err)
+	}
+	return nil
+}
+
 // DeleteTable drops a table and removes it from the registry
 func (d *DB) DeleteTable(table string) error {
 	if !validIdent(table) {
@@ -378,7 +435,6 @@ type ColumnInfo struct {
 
 // TableInfo contains table metadata
 type TableInfo struct {
-	Name       string `json:"name"`
-	Visibility string `json:"visibility"` // private, public, peers:id1,id2
-	CreatedAt  string `json:"created_at"`
+	Name      string `json:"name"`
+	CreatedAt string `json:"created_at"`
 }

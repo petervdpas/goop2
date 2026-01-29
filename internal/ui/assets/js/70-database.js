@@ -12,16 +12,23 @@
   const tableTitleEl  = qs("#db-table-title");
   const actionsEl     = qs("#db-content-actions");
   const createFormEl  = qs("#db-create-form");
+  const alterFormEl   = qs("#db-alter-form");
   const insertFormEl  = qs("#db-insert-form");
   const gridEl        = qs("#db-grid");
   const btnNew        = qs("#db-btn-new-table");
   const btnInsert     = qs("#db-btn-insert");
+  const btnAlter      = qs("#db-btn-alter");
   const btnRefresh    = qs("#db-btn-refresh");
   const btnDrop       = qs("#db-btn-delete-table");
+  const searchBarEl    = qs("#db-search-bar");
+  const searchColEl    = qs("#db-search-col");
+  const searchInputEl  = qs("#db-search-input");
+  const searchClearEl  = qs("#db-search-clear");
 
   // State
   let currentTable = null;
   let columns = [];      // ColumnInfo[] from describe
+  let allRows = [];      // all rows for current table (for client-side filter)
   let systemCols = ["_id", "_owner", "_created_at"];
 
   // -------- API helper --------
@@ -88,9 +95,7 @@
       const li = document.createElement("li");
       li.className = "db-table-item";
       li.dataset.table = t.name;
-      li.innerHTML =
-        '<span class="db-table-name">' + escapeHtml(t.name) + '</span>' +
-        '<span class="db-table-vis">' + escapeHtml(t.visibility) + '</span>';
+      li.innerHTML = '<span class="db-table-name">' + escapeHtml(t.name) + '</span>';
       on(li, "click", function() { selectTable(t.name); });
       tableListEl.appendChild(li);
     });
@@ -118,10 +123,51 @@
         api("/api/data/query", { table: name }),
       ]);
       columns = cols || [];
-      renderDataGrid(rows || []);
+      allRows = rows || [];
+      populateSearchBar();
+      renderDataGrid(allRows);
     } catch (err) {
       gridEl.innerHTML = '<p class="db-empty">Error loading table: ' + escapeHtml(err.message) + '</p>';
     }
+  }
+
+  // -------- Search / filter --------
+  function populateSearchBar() {
+    if (columns.length === 0) {
+      setHidden(searchBarEl, true);
+      return;
+    }
+    setHidden(searchBarEl, false);
+    searchColEl.innerHTML = '<option value="*">All columns</option>';
+    columns.forEach(function(col) {
+      searchColEl.innerHTML += '<option value="' + escapeHtml(col.name) + '">' + escapeHtml(col.name) + '</option>';
+    });
+    searchInputEl.value = "";
+  }
+
+  function applyFilter() {
+    var query = (searchInputEl.value || "").trim().toLowerCase();
+    var col = searchColEl.value;
+
+    if (!query) {
+      renderDataGrid(allRows);
+      return;
+    }
+
+    var filtered = allRows.filter(function(row) {
+      if (col === "*") {
+        // Search across all columns
+        return columns.some(function(c) {
+          var val = row[c.name];
+          return val !== null && val !== undefined && String(val).toLowerCase().indexOf(query) !== -1;
+        });
+      } else {
+        var val = row[col];
+        return val !== null && val !== undefined && String(val).toLowerCase().indexOf(query) !== -1;
+      }
+    });
+
+    renderDataGrid(filtered);
   }
 
   // -------- Data grid --------
@@ -339,13 +385,6 @@
         '<input type="text" id="db-new-name" class="db-input" placeholder="my_table" />' +
       '</div>' +
       '<div class="db-form-group">' +
-        '<label>Visibility</label>' +
-        '<select id="db-new-vis" class="db-input">' +
-          '<option value="private">Private</option>' +
-          '<option value="public">Public</option>' +
-        '</select>' +
-      '</div>' +
-      '<div class="db-form-group">' +
         '<label>Columns</label>' +
         '<div id="db-col-defs">' +
           colRowHtml() +
@@ -404,7 +443,6 @@
 
   async function submitCreateTable() {
     var name = (qs("#db-new-name").value || "").trim();
-    var vis = qs("#db-new-vis").value;
 
     if (!name) { toast("Table name required", true); return; }
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
@@ -425,7 +463,7 @@
     if (cols.length === 0) { toast("Add at least one column", true); return; }
 
     try {
-      await api("/api/data/tables/create", { name: name, columns: cols, visibility: vis });
+      await api("/api/data/tables/create", { name: name, columns: cols });
       setHidden(createFormEl, true);
       toast("Table " + name + " created");
       await loadTables(name);
@@ -461,6 +499,7 @@
       currentTable = null;
       tableTitleEl.textContent = "Select a table";
       setHidden(actionsEl, true);
+      setHidden(searchBarEl, true);
       gridEl.innerHTML = '<p class="db-empty">Select a table from the sidebar to view its data.</p>';
       await loadTables();
     } catch (err) {
@@ -520,11 +559,151 @@
     }
   }
 
+  // -------- Alter table --------
+  function showAlterForm() {
+    if (!currentTable || columns.length === 0) return;
+
+    setHidden(alterFormEl, false);
+    setHidden(createFormEl, true);
+    setHidden(insertFormEl, true);
+
+    var userCols = columns.filter(function(c) { return systemCols.indexOf(c.name) === -1; });
+
+    var html = '<h3>Alter Table: ' + escapeHtml(currentTable) + '</h3>';
+
+    // Rename section
+    html += '<div class="db-form-group">' +
+      '<label>Rename Table</label>' +
+      '<div style="display:flex;gap:8px">' +
+        '<input type="text" id="db-rename-input" class="db-input" value="' + escapeHtml(currentTable) + '" style="flex:1" />' +
+        '<button id="db-rename-btn" class="db-action-btn">Rename</button>' +
+      '</div>' +
+    '</div>';
+
+    // Existing columns
+    html += '<div class="db-form-group">' +
+      '<label>Columns</label>';
+    userCols.forEach(function(col) {
+      html += '<div class="db-alter-col">' +
+        '<span class="db-alter-col-name">' + escapeHtml(col.name) + '</span>' +
+        '<span class="db-alter-col-type muted">' + escapeHtml(col.type) + '</span>' +
+        '<button class="db-col-remove db-drop-col-btn" data-col="' + escapeHtml(col.name) + '">Drop</button>' +
+      '</div>';
+    });
+    if (userCols.length === 0) {
+      html += '<div class="db-alter-col muted" style="font-style:italic">No user columns</div>';
+    }
+    html += '</div>';
+
+    // Add column section
+    html += '<div class="db-form-group">' +
+      '<label>Add Column</label>' +
+      '<div class="db-col-row">' +
+        '<input type="text" class="db-input db-col-name" id="db-addcol-name" placeholder="column name" />' +
+        '<select class="db-input db-col-type" id="db-addcol-type">' +
+          '<option value="TEXT">TEXT</option>' +
+          '<option value="INTEGER">INTEGER</option>' +
+          '<option value="REAL">REAL</option>' +
+          '<option value="BLOB">BLOB</option>' +
+        '</select>' +
+        '<button id="db-addcol-btn" class="db-action-btn">Add</button>' +
+      '</div>' +
+    '</div>';
+
+    html += '<div class="db-form-actions">' +
+      '<button id="db-alter-close" class="db-action-btn">Close</button>' +
+    '</div>';
+
+    alterFormEl.innerHTML = html;
+
+    // Bind rename
+    on(qs("#db-rename-btn"), "click", async function() {
+      var newName = (qs("#db-rename-input").value || "").trim();
+      if (!newName || newName === currentTable) return;
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(newName)) {
+        toast("Invalid table name", true);
+        return;
+      }
+      try {
+        await api("/api/data/tables/rename", { old_name: currentTable, new_name: newName });
+        toast("Table renamed to " + newName);
+        currentTable = newName;
+        await loadTables(newName);
+      } catch (err) {
+        toast("Rename failed: " + err.message, true);
+      }
+    });
+
+    // Bind drop column buttons
+    qsa(".db-drop-col-btn", alterFormEl).forEach(function(btn) {
+      on(btn, "click", async function() {
+        var colName = btn.dataset.col;
+        if (!window.Goop || !window.Goop.dialogs) {
+          if (!confirm("Drop column " + colName + "?")) return;
+        } else {
+          var answer = await window.Goop.dialogs.dlgAsk({
+            title: "Drop Column",
+            message: 'Type "' + colName + '" to confirm dropping this column and its data.',
+            placeholder: colName,
+            okText: "Drop",
+            dangerOk: true,
+          });
+          if (answer !== colName) {
+            if (answer !== null) toast("Type the column name to confirm", true);
+            return;
+          }
+        }
+        try {
+          await api("/api/data/tables/drop-column", { table: currentTable, column: colName });
+          toast("Column " + colName + " dropped");
+          await selectTable(currentTable);
+          showAlterForm(); // Re-render alter form with updated schema
+        } catch (err) {
+          toast("Drop column failed: " + err.message, true);
+        }
+      });
+    });
+
+    // Bind add column
+    on(qs("#db-addcol-btn"), "click", async function() {
+      var colName = (qs("#db-addcol-name").value || "").trim();
+      var colType = qs("#db-addcol-type").value;
+      if (!colName) { toast("Column name required", true); return; }
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(colName)) {
+        toast("Invalid column name", true);
+        return;
+      }
+      try {
+        await api("/api/data/tables/add-column", {
+          table: currentTable,
+          column: { name: colName, type: colType }
+        });
+        toast("Column " + colName + " added");
+        await selectTable(currentTable);
+        showAlterForm(); // Re-render with updated schema
+      } catch (err) {
+        toast("Add column failed: " + err.message, true);
+      }
+    });
+
+    // Bind close
+    on(qs("#db-alter-close"), "click", function() { setHidden(alterFormEl, true); });
+  }
+
   // -------- Event bindings --------
   on(btnNew, "click", showCreateForm);
   on(btnInsert, "click", showInsertForm);
+  on(btnAlter, "click", showAlterForm);
   on(btnRefresh, "click", function() { if (currentTable) selectTable(currentTable); });
   on(btnDrop, "click", dropTable);
+
+  // Search bindings
+  on(searchInputEl, "input", applyFilter);
+  on(searchColEl, "change", applyFilter);
+  on(searchClearEl, "click", function() {
+    searchInputEl.value = "";
+    applyFilter();
+  });
 
   // -------- Init --------
   loadTables();

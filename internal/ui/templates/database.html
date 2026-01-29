@@ -22,6 +22,7 @@
       <div id="db-content-actions" class="db-content-actions hidden">
         <button id="db-btn-insert" class="db-action-btn">+ Row</button>
         <button id="db-btn-refresh" class="db-action-btn">Refresh</button>
+        <button id="db-btn-alter" class="db-action-btn db-btn-warning">Alter Table</button>
         <button id="db-btn-delete-table" class="db-action-btn db-btn-danger">Drop Table</button>
       </div>
     </div>
@@ -29,8 +30,18 @@
     <!-- Create table form (hidden, populated by JS) -->
     <div id="db-create-form" class="db-create-form hidden"></div>
 
+    <!-- Alter table form (hidden, populated by JS) -->
+    <div id="db-alter-form" class="db-create-form hidden"></div>
+
     <!-- Insert row form (hidden, populated by JS) -->
     <div id="db-insert-form" class="db-insert-form hidden"></div>
+
+    <!-- Search bar (hidden until table selected) -->
+    <div id="db-search-bar" class="db-search-bar hidden">
+      <select id="db-search-col"></select>
+      <input type="text" id="db-search-input" placeholder="Search..." />
+      <button id="db-search-clear" class="db-action-btn">Clear</button>
+    </div>
 
     <!-- Data grid -->
     <div id="db-grid" class="db-grid">

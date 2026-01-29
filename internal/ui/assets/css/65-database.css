@@ -85,11 +85,6 @@
   font-weight: 600;
 }
 
-.db-table-vis{
-  flex: 0 0 auto;
-  font-size: 11px;
-  color: var(--muted);
-}
 
 .db-table-empty{
   padding: 7px 10px;
@@ -141,6 +136,16 @@
   font-size: 13px;
 }
 
+.db-btn-warning{
+  color: #e90;
+  border-color: color-mix(in srgb, #e90 38%, transparent);
+  background: color-mix(in srgb, #e90 10%, transparent);
+}
+
+.db-btn-warning:hover{
+  background: color-mix(in srgb, #e90 18%, transparent);
+}
+
 .db-btn-danger{
   color: #e55;
   border-color: color-mix(in srgb, #e55 38%, transparent);
@@ -160,7 +165,9 @@
   border-radius: var(--radius);
   padding: 16px;
   margin-bottom: 12px;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  max-height: 40%;
+  overflow-y: auto;
 }
 
 .db-create-form h3{
@@ -269,7 +276,9 @@ select.db-input{
   border-radius: var(--radius);
   padding: 14px;
   margin-bottom: 12px;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  max-height: 40%;
+  overflow-y: auto;
 }
 
 .db-insert-form h4{
@@ -308,6 +317,65 @@ select.db-input{
 .db-insert-field input:focus{
   border-color: color-mix(in srgb, var(--accent) 60%, transparent);
   box-shadow: var(--ring);
+}
+
+/* -----------------------------
+   Search / filter bar
+------------------------------ */
+.db-search-bar{
+  display:flex;
+  gap: 8px;
+  align-items:center;
+  margin-bottom: 10px;
+  flex: 0 0 auto;
+}
+
+.db-search-bar select{
+  flex: 0 0 auto;
+  min-width: 120px;
+  padding: 7px 32px 7px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--field-bg);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239aa3b2' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  cursor: pointer;
+  transition: border-color var(--ease), box-shadow var(--ease);
+}
+
+.db-search-bar select:focus{
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: var(--ring);
+}
+
+.db-search-bar input{
+  flex: 1;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--field-bg);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  transition: border-color var(--ease), box-shadow var(--ease);
+}
+
+.db-search-bar input:focus{
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: var(--ring);
+}
+
+.db-search-bar button{
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 /* -----------------------------
@@ -435,6 +503,34 @@ select.db-input{
   padding: 24px;
   text-align: center;
   font-size: 13px;
+}
+
+/* -----------------------------
+   Alter table form columns
+------------------------------ */
+.db-alter-col{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--field-bg);
+}
+
+.db-alter-col-name{
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-alter-col-type{
+  flex: 0 0 auto;
+  font-size: 12px;
 }
 
 /* -----------------------------
