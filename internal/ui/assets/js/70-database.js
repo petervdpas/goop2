@@ -28,8 +28,8 @@
   // State
   let currentTable = null;
   let columns = [];      // ColumnInfo[] from describe
-  let allRows = [];      // all rows for current table (for client-side filter)
   let systemCols = ["_id", "_owner", "_created_at"];
+  let searchTimer = null;
 
   // -------- API helper --------
   async function api(url, body) {
@@ -123,9 +123,8 @@
         api("/api/data/query", { table: name }),
       ]);
       columns = cols || [];
-      allRows = rows || [];
       populateSearchBar();
-      renderDataGrid(allRows);
+      renderDataGrid(rows || []);
     } catch (err) {
       gridEl.innerHTML = '<p class="db-empty">Error loading table: ' + escapeHtml(err.message) + '</p>';
     }
@@ -146,28 +145,42 @@
   }
 
   function applyFilter() {
-    var query = (searchInputEl.value || "").trim().toLowerCase();
+    if (searchTimer) clearTimeout(searchTimer);
+    searchTimer = setTimeout(executeSearch, 250);
+  }
+
+  async function executeSearch() {
+    if (!currentTable) return;
+
+    var query = (searchInputEl.value || "").trim();
     var col = searchColEl.value;
 
-    if (!query) {
-      renderDataGrid(allRows);
-      return;
+    var reqBody = { table: currentTable };
+
+    if (query) {
+      var pattern = "%" + query + "%";
+      if (col === "*") {
+        // Build OR across all columns using CAST for non-text types
+        var clauses = [];
+        var args = [];
+        columns.forEach(function(c) {
+          clauses.push("CAST(" + c.name + " AS TEXT) LIKE ?");
+          args.push(pattern);
+        });
+        reqBody.where = clauses.join(" OR ");
+        reqBody.args = args;
+      } else {
+        reqBody.where = "CAST(" + col + " AS TEXT) LIKE ?";
+        reqBody.args = [pattern];
+      }
     }
 
-    var filtered = allRows.filter(function(row) {
-      if (col === "*") {
-        // Search across all columns
-        return columns.some(function(c) {
-          var val = row[c.name];
-          return val !== null && val !== undefined && String(val).toLowerCase().indexOf(query) !== -1;
-        });
-      } else {
-        var val = row[col];
-        return val !== null && val !== undefined && String(val).toLowerCase().indexOf(query) !== -1;
-      }
-    });
-
-    renderDataGrid(filtered);
+    try {
+      var rows = await api("/api/data/query", reqBody);
+      renderDataGrid(rows || []);
+    } catch (err) {
+      gridEl.innerHTML = '<p class="db-empty">Search error: ' + escapeHtml(err.message) + '</p>';
+    }
   }
 
   // -------- Data grid --------
@@ -699,10 +712,10 @@
 
   // Search bindings
   on(searchInputEl, "input", applyFilter);
-  on(searchColEl, "change", applyFilter);
+  on(searchColEl, "change", executeSearch);
   on(searchClearEl, "click", function() {
     searchInputEl.value = "";
-    applyFilter();
+    executeSearch();
   });
 
   // -------- Init --------
