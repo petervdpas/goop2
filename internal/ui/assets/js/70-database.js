@@ -30,6 +30,10 @@
   let columns = [];      // ColumnInfo[] from describe
   let systemCols = ["_id", "_owner", "_created_at"];
   let searchTimer = null;
+  let pageSize = 50;
+  let currentOffset = 0;
+  let hasMore = true;
+  let loadingMore = false;
 
   // -------- API helper --------
   async function api(url, body) {
@@ -117,14 +121,16 @@
     setHidden(insertFormEl, true);
 
     try {
-      // Fetch schema and data in parallel
+      // Fetch schema and first page in parallel
       const [cols, rows] = await Promise.all([
         api("/api/data/tables/describe", { table: name }),
-        api("/api/data/query", { table: name }),
+        api("/api/data/query", { table: name, limit: pageSize, offset: 0 }),
       ]);
       columns = cols || [];
+      currentOffset = 0;
+      hasMore = (rows || []).length >= pageSize;
       populateSearchBar();
-      renderDataGrid(rows || []);
+      renderDataGrid(rows || [], false);
     } catch (err) {
       gridEl.innerHTML = '<p class="db-empty">Error loading table: ' + escapeHtml(err.message) + '</p>';
     }
@@ -149,18 +155,15 @@
     searchTimer = setTimeout(executeSearch, 250);
   }
 
-  async function executeSearch() {
-    if (!currentTable) return;
-
+  function buildSearchBody(offset) {
     var query = (searchInputEl.value || "").trim();
     var col = searchColEl.value;
 
-    var reqBody = { table: currentTable };
+    var reqBody = { table: currentTable, limit: pageSize, offset: offset };
 
     if (query) {
       var pattern = "%" + query + "%";
       if (col === "*") {
-        // Build OR across all columns using CAST for non-text types
         var clauses = [];
         var args = [];
         columns.forEach(function(c) {
@@ -175,43 +178,127 @@
       }
     }
 
+    return reqBody;
+  }
+
+  async function executeSearch() {
+    if (!currentTable) return;
+
+    currentOffset = 0;
     try {
-      var rows = await api("/api/data/query", reqBody);
-      renderDataGrid(rows || []);
+      var rows = await api("/api/data/query", buildSearchBody(0));
+      hasMore = (rows || []).length >= pageSize;
+      renderDataGrid(rows || [], false);
     } catch (err) {
       gridEl.innerHTML = '<p class="db-empty">Search error: ' + escapeHtml(err.message) + '</p>';
     }
   }
 
+  async function loadMore() {
+    if (!currentTable || !hasMore || loadingMore) return;
+    loadingMore = true;
+
+    var nextOffset = currentOffset + pageSize;
+    try {
+      var rows = await api("/api/data/query", buildSearchBody(nextOffset));
+      if (!rows || rows.length === 0) {
+        hasMore = false;
+      } else {
+        currentOffset = nextOffset;
+        hasMore = rows.length >= pageSize;
+        renderDataGrid(rows, true);
+      }
+    } catch (err) {
+      toast("Load failed: " + err.message, true);
+    }
+    loadingMore = false;
+  }
+
   // -------- Data grid --------
-  function renderDataGrid(rows) {
+  function buildColgroup() {
+    var cg = '<colgroup>';
+    columns.forEach(function(col) {
+      if (col.name === '_id') {
+        cg += '<col style="width:50px">';
+      } else if (col.name === '_owner') {
+        cg += '<col style="width:120px">';
+      } else if (col.name === '_created_at') {
+        cg += '<col style="width:170px">';
+      } else {
+        cg += '<col>';
+      }
+    });
+    cg += '<col style="width:40px">';
+    cg += '</colgroup>';
+    return cg;
+  }
+
+  function buildRowHtml(row) {
+    var rowId = row._id;
+    var html = '<tr data-row-id="' + rowId + '">';
+    columns.forEach(function(col) {
+      var val = row[col.name];
+      var isSystem = systemCols.indexOf(col.name) !== -1;
+      var isNull = val === null || val === undefined;
+
+      if (isSystem) {
+        html += '<td class="db-cell-system">';
+        if (isNull) {
+          html += '<span class="db-cell-null">NULL</span>';
+        } else {
+          html += '<span class="db-cell-truncate" title="' + escapeHtml(val) + '">' + escapeHtml(val) + '</span>';
+        }
+        html += '</td>';
+      } else {
+        html += '<td class="db-cell-editable" data-col="' + escapeHtml(col.name) + '" data-row-id="' + rowId + '">';
+        html += isNull ? '<span class="db-cell-null">NULL</span>' : escapeHtml(val);
+        html += '</td>';
+      }
+    });
+    html += '<td class="db-row-actions"><button class="db-row-delete" data-row-id="' + rowId + '" title="Delete row">x</button></td>';
+    html += '</tr>';
+    return html;
+  }
+
+  function bindRowEvents(container) {
+    qsa(".db-cell-editable:not([data-bound])", container).forEach(function(td) {
+      td.dataset.bound = "1";
+      on(td, "click", function() { startEdit(td); });
+    });
+    qsa(".db-row-delete:not([data-bound])", container).forEach(function(btn) {
+      btn.dataset.bound = "1";
+      on(btn, "click", function(e) {
+        e.stopPropagation();
+        deleteRow(parseInt(btn.dataset.rowId, 10));
+      });
+    });
+  }
+
+  function renderDataGrid(rows, append) {
     if (columns.length === 0) {
       gridEl.innerHTML = '<p class="db-empty">No columns found.</p>';
       return;
     }
 
-    // Build colgroup for smart column widths
-    function buildColgroup() {
-      var cg = '<colgroup>';
-      columns.forEach(function(col) {
-        if (col.name === '_id') {
-          cg += '<col style="width:50px">';
-        } else if (col.name === '_owner') {
-          cg += '<col style="width:120px">';
-        } else if (col.name === '_created_at') {
-          cg += '<col style="width:170px">';
-        } else {
-          cg += '<col>';
+    // Append rows to existing tbody
+    if (append) {
+      var tbody = qs("tbody", gridEl);
+      if (tbody && rows && rows.length > 0) {
+        var fragment = document.createElement("tbody");
+        var html = "";
+        rows.forEach(function(row) { html += buildRowHtml(row); });
+        fragment.innerHTML = html;
+        while (fragment.firstChild) {
+          tbody.appendChild(fragment.firstChild);
         }
-      });
-      cg += '<col style="width:40px">';
-      cg += '</colgroup>';
-      return cg;
+        bindRowEvents(tbody);
+      }
+      return;
     }
 
+    // Full render
     if (!rows || rows.length === 0) {
-      // Show header-only table
-      let html = '<table>' + buildColgroup() + '<thead><tr>';
+      var html = '<table>' + buildColgroup() + '<thead><tr>';
       columns.forEach(function(col) {
         html += '<th>' + escapeHtml(col.name) + '</th>';
       });
@@ -221,55 +308,15 @@
       return;
     }
 
-    let html = '<table>' + buildColgroup() + '<thead><tr>';
+    var html = '<table>' + buildColgroup() + '<thead><tr>';
     columns.forEach(function(col) {
       html += '<th>' + escapeHtml(col.name) + '</th>';
     });
     html += '<th></th></tr></thead><tbody>';
-
-    rows.forEach(function(row) {
-      const rowId = row._id;
-      html += '<tr data-row-id="' + rowId + '">';
-      columns.forEach(function(col) {
-        const val = row[col.name];
-        const isSystem = systemCols.indexOf(col.name) !== -1;
-        const isNull = val === null || val === undefined;
-
-        if (isSystem) {
-          html += '<td class="db-cell-system">';
-          if (isNull) {
-            html += '<span class="db-cell-null">NULL</span>';
-          } else {
-            html += '<span class="db-cell-truncate" title="' + escapeHtml(val) + '">' + escapeHtml(val) + '</span>';
-          }
-          html += '</td>';
-        } else {
-          html += '<td class="db-cell-editable" data-col="' + escapeHtml(col.name) + '" data-row-id="' + rowId + '">';
-          html += isNull ? '<span class="db-cell-null">NULL</span>' : escapeHtml(val);
-          html += '</td>';
-        }
-      });
-      html += '<td class="db-row-actions"><button class="db-row-delete" data-row-id="' + rowId + '" title="Delete row">x</button></td>';
-      html += '</tr>';
-    });
-
+    rows.forEach(function(row) { html += buildRowHtml(row); });
     html += '</tbody></table>';
     gridEl.innerHTML = html;
-
-    // Bind inline edit on click
-    qsa(".db-cell-editable", gridEl).forEach(function(td) {
-      on(td, "click", function() {
-        startEdit(td);
-      });
-    });
-
-    // Bind delete row
-    qsa(".db-row-delete", gridEl).forEach(function(btn) {
-      on(btn, "click", function(e) {
-        e.stopPropagation();
-        deleteRow(parseInt(btn.dataset.rowId, 10));
-      });
-    });
+    bindRowEvents(gridEl);
   }
 
   // -------- Inline editing --------
@@ -707,7 +754,10 @@
   on(btnNew, "click", showCreateForm);
   on(btnInsert, "click", showInsertForm);
   on(btnAlter, "click", showAlterForm);
-  on(btnRefresh, "click", function() { if (currentTable) selectTable(currentTable); });
+  on(btnRefresh, "click", function() {
+    setHidden(alterFormEl, true);
+    if (currentTable) selectTable(currentTable);
+  });
   on(btnDrop, "click", dropTable);
 
   // Search bindings
@@ -716,6 +766,15 @@
   on(searchClearEl, "click", function() {
     searchInputEl.value = "";
     executeSearch();
+  });
+
+  // Infinite scroll
+  on(gridEl, "scroll", function() {
+    if (!hasMore || loadingMore) return;
+    var threshold = 100;
+    if (gridEl.scrollTop + gridEl.clientHeight >= gridEl.scrollHeight - threshold) {
+      loadMore();
+    }
   });
 
   // -------- Init --------

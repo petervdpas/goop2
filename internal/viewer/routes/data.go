@@ -113,6 +113,8 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string) {
 			Columns []string      `json:"columns"`
 			Where   string        `json:"where"`
 			Args    []interface{} `json:"args"`
+			Limit   int           `json:"limit"`
+			Offset  int           `json:"offset"`
 		}
 
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -125,7 +127,14 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string) {
 			return
 		}
 
-		rows, err := db.Select(req.Table, req.Columns, req.Where, req.Args...)
+		rows, err := db.SelectPaged(storage.SelectOpts{
+			Table:   req.Table,
+			Columns: req.Columns,
+			Where:   req.Where,
+			Args:    req.Args,
+			Limit:   req.Limit,
+			Offset:  req.Offset,
+		})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

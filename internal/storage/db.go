@@ -355,15 +355,35 @@ func (d *DB) DeleteTable(table string) error {
 	return nil
 }
 
+// SelectOpts holds optional query parameters for Select
+type SelectOpts struct {
+	Table   string
+	Columns []string
+	Where   string
+	Args    []interface{}
+	Limit   int
+	Offset  int
+}
+
 // Select queries rows from a table
 func (d *DB) Select(table string, columns []string, where string, args ...interface{}) ([]map[string]interface{}, error) {
+	return d.SelectPaged(SelectOpts{
+		Table:   table,
+		Columns: columns,
+		Where:   where,
+		Args:    args,
+	})
+}
+
+// SelectPaged queries rows with optional LIMIT/OFFSET
+func (d *DB) SelectPaged(opts SelectOpts) ([]map[string]interface{}, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
 	colStr := "*"
-	if len(columns) > 0 {
+	if len(opts.Columns) > 0 {
 		colStr = ""
-		for i, c := range columns {
+		for i, c := range opts.Columns {
 			if i > 0 {
 				colStr += ", "
 			}
@@ -371,12 +391,18 @@ func (d *DB) Select(table string, columns []string, where string, args ...interf
 		}
 	}
 
-	query := fmt.Sprintf("SELECT %s FROM %s", colStr, table)
-	if where != "" {
-		query += " WHERE " + where
+	query := fmt.Sprintf("SELECT %s FROM %s", colStr, opts.Table)
+	if opts.Where != "" {
+		query += " WHERE " + opts.Where
+	}
+	if opts.Limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", opts.Limit)
+		if opts.Offset > 0 {
+			query += fmt.Sprintf(" OFFSET %d", opts.Offset)
+		}
 	}
 
-	rows, err := d.db.Query(query, args...)
+	rows, err := d.db.Query(query, opts.Args...)
 	if err != nil {
 		return nil, err
 	}
