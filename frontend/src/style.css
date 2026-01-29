@@ -343,6 +343,11 @@ input[type="text"]:focus{
   box-shadow: var(--shadow-md);
 }
 
+html[data-theme="light"] .launcher-splash img{
+  opacity: 0.95;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.28);
+}
+
 .launcher-panel{
   padding: 28px 32px;
   display: flex;
