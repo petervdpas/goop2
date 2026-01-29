@@ -344,7 +344,13 @@ func (d *DB) Select(table string, columns []string, where string, args ...interf
 
 		row := make(map[string]interface{})
 		for i, col := range colNames {
-			row[col] = values[i]
+			// Convert []byte to string so JSON encoding works correctly
+			// (otherwise []byte becomes base64-encoded)
+			if b, ok := values[i].([]byte); ok {
+				row[col] = string(b)
+			} else {
+				row[col] = values[i]
+			}
 		}
 		results = append(results, row)
 	}

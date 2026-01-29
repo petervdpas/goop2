@@ -368,12 +368,14 @@ select.db-input{
 
 /* Editable cells */
 .db-cell-editable{
-  cursor: text;
+  cursor: pointer;
   position: relative;
+  border-bottom: 1px dashed color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 .db-cell-editable:hover{
-  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-bottom-color: var(--accent);
 }
 
 /* Inline editing input */

@@ -174,9 +174,9 @@
     html += '</tbody></table>';
     gridEl.innerHTML = html;
 
-    // Bind inline edit on double-click
+    // Bind inline edit on click
     qsa(".db-cell-editable", gridEl).forEach(function(td) {
-      on(td, "dblclick", function() {
+      on(td, "click", function() {
         startEdit(td);
       });
     });
