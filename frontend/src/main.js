@@ -1,6 +1,7 @@
 // frontend/src/main.js
 import "./style.css";
 import splashUrl from "./assets/images/goop2-splash.png";
+import iconUrl from "./assets/images/goop2.png";
 import {
   clear, div, btn, input, h1, h2, p,
   normalizeTheme, applyTheme, normalizeBase
@@ -307,6 +308,9 @@ async function renderLauncher(host) {
 // ----------------------
 
 async function boot() {
+  const brandIcon = document.querySelector(".brand-icon");
+  if (brandIcon) brandIcon.src = iconUrl;
+
   await wireThemeToggle();
 
   // If a peer is already started, immediately replace with viewer.

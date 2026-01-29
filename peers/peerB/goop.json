@@ -26,6 +26,6 @@
   "viewer": {
     "http_addr": ":7778",
     "debug": false,
-    "theme": "light"
+    "theme": "dark"
   }
 }

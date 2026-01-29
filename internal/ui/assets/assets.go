@@ -12,7 +12,7 @@ import (
 // - app.css is now a manifest that @imports ./css/*.css
 // - so we must embed css/** as well, otherwise those imports 404.
 //
-//go:embed app.css app.js css/** js/** vendor/**
+//go:embed app.css app.js css/** js/** vendor/** images/**
 var fs embed.FS
 
 func Handler() http.Handler {

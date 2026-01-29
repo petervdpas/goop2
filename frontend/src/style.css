@@ -123,8 +123,12 @@ h1{
 .brand{
   display:flex;
   gap:10px;
-  align-items: baseline;
+  align-items: center;
   flex: 0 0 auto;
+}
+
+.brand-icon{
+  display: none;
 }
 
 .logo{ font-weight: 750; letter-spacing: 0.6px; }
