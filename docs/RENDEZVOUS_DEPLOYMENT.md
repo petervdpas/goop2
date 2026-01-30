@@ -9,6 +9,7 @@ The rendezvous server provides:
 - **Web Monitoring UI**: Real-time view of connected peers via web interface
 - **SSE Events**: Server-Sent Events stream for live peer updates
 - **REST API**: JSON endpoints for programmatic access
+- **Minimal Settings Viewer**: When running in rendezvous-only mode, a lightweight admin UI for configuration and log monitoring
 
 ## Quick Start
 
@@ -31,6 +32,49 @@ go build -ldflags="-s -w" -o goop2
 ```
 
 Visit http://localhost:8787 to see the monitoring UI.
+
+### Rendezvous-Only Mode with Settings Viewer
+
+When a peer is configured with `rendezvous_only: true` in its `goop.json`, it runs only the rendezvous server — no libp2p P2P node is started. Alongside the rendezvous server, a **minimal settings viewer** is automatically started on the configured viewer port.
+
+The minimal viewer provides:
+- **Settings page** (`/self`) — edit peer label, email, and all config fields
+- **Logs page** (`/logs`) — live log monitoring with SSE tail
+- **Rendezvous dashboard link** — quick access to the rendezvous server's web UI
+
+The navigation is reduced to only Settings and Logs (no peer list, editor, or site proxy since there is no P2P node).
+
+**Example `goop.json` for rendezvous-only mode:**
+```json
+{
+  "profile": {
+    "label": "My Rendezvous Server",
+    "email": "admin@example.com"
+  },
+  "presence": {
+    "rendezvousOnly": true,
+    "rendezvousHost": true,
+    "rendezvousPort": 8787
+  },
+  "viewer": {
+    "httpAddr": "127.0.0.1:9090"
+  }
+}
+```
+
+In this configuration:
+- The rendezvous server runs on port `8787`
+- The settings viewer runs on port `9090`
+- No P2P node or libp2p networking is started
+
+### Desktop Launcher Integration
+
+The desktop launcher (Wails) automatically detects rendezvous-only peers:
+- Rendezvous peers display a **"Rendezvous"** badge in the peer list
+- The Start button changes to **"Configure"** for rendezvous peers
+- Starting a rendezvous peer opens the Settings page (`/self`) instead of the peer list (`/peers`)
+
+This allows managing rendezvous server configuration through the same desktop UI used for regular peers.
 
 ### 3. Production Deployment
 

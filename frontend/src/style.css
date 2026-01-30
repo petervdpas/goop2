@@ -464,8 +464,29 @@ html[data-theme="light"] .launcher-splash img{
 
 .tileLeft{ display:flex; gap: 12px; align-items:flex-start; }
 .tileMeta{ display:flex; flex-direction:column; gap: 6px; min-width:0; }
+.tileNameRow{ display:flex; align-items:center; gap: 8px; }
 .tileName{ font-weight: 800; }
 .tilePath{ color: var(--muted); font-size: 12px; }
+
+.rv-badge{
+  display:inline-flex;
+  align-items:center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  background: color-mix(in srgb, #f59e0b 18%, transparent);
+  color: #f59e0b;
+  border: 1px solid color-mix(in srgb, #f59e0b 30%, transparent);
+}
+
+html[data-theme="light"] .rv-badge{
+  background: color-mix(in srgb, #d97706 12%, transparent);
+  color: #b45309;
+  border-color: color-mix(in srgb, #d97706 28%, transparent);
+}
 
 .empty{
   padding: 12px 14px;

@@ -29,15 +29,22 @@ func baseVM(title, active, contentTmpl string, d Deps) viewmodels.BaseVM {
 	if theme != "light" && theme != "dark" {
 		theme = "dark"
 	}
+	selfID := ""
+	if d.Node != nil {
+		selfID = d.Node.ID()
+	}
+
 	return viewmodels.BaseVM{
-		Title:       title,
-		Active:      active,
-		ContentTmpl: contentTmpl,
-		SelfName:    safeCall(d.SelfLabel),
-		SelfID:      d.Node.ID(),
-		BaseURL:     d.BaseURL,
-		Debug:       debug,
-		Theme:       theme,
+		Title:          title,
+		Active:         active,
+		ContentTmpl:    contentTmpl,
+		SelfName:       safeCall(d.SelfLabel),
+		SelfID:         selfID,
+		BaseURL:        d.BaseURL,
+		Debug:          debug,
+		Theme:          theme,
+		RendezvousOnly: d.RendezvousOnly,
+		RendezvousURL:  d.RendezvousURL,
 	}
 }
 

@@ -79,6 +79,14 @@ goop2 rendezvous <peer-directory>
 
 **Note:** The peer's `goop.json` should have `rendezvousHost: true` configured.
 
+**What it does:**
+- Starts the rendezvous HTTP server for peer discovery
+- Starts a **minimal settings viewer** alongside the rendezvous server
+- The minimal viewer provides Settings (`/self`) and Logs (`/logs`) pages only — no peer list, editor, or site proxy
+- No libp2p P2P node is started
+
+This means rendezvous servers can be configured through the same web UI used for regular peers, without running a full P2P node.
+
 See [RENDEZVOUS_DEPLOYMENT.md](./RENDEZVOUS_DEPLOYMENT.md) for full production deployment guide.
 
 ---

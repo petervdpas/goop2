@@ -21,10 +21,12 @@
     "rendezvous_only": true
   },
   "profile": {
-    "label": "Peer-A"
+    "label": "Peer-A",
+    "email": "peter.vdpas@superflux.nl"
   },
   "viewer": {
     "http_addr": ":7777",
-    "debug": true
+    "debug": true,
+    "theme": "light"
   }
 }

@@ -71,6 +71,7 @@
                     <span class="peer-time">{{fmtMillis .LastSeen}}</span>
                   </div>
                   <div class="peer-label">{{.Content}}</div>
+                  {{if .Email}}<div class="peer-email">{{.Email}}</div>{{end}}
                   <div class="peer-id">{{.PeerID}}</div>
                   <div class="peer-stats">
                     <span class="stat-item" title="Data sent by peer">↑ {{fmtBytes .BytesSent}}</span>
@@ -195,6 +196,7 @@
                     <span class="peer-time">${lastSeen}</span>
                   </div>
                   <div class="peer-label">${peer.content || 'Unknown'}</div>
+                  ${peer.email ? '<div class="peer-email">' + peer.email + '</div>' : ''}
                   <div class="peer-id">${peer.peer_id}</div>
                   <div class="peer-stats">
                     <span class="stat-item" title="Data sent by peer">↑ ${bytesSent}</span>

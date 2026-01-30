@@ -1,22 +1,37 @@
 <!-- internal/ui/templates/self.html -->
 {{define "page.self"}}
 <div class="page page-self">
-  <h1>Me</h1>
+  {{if .RendezvousOnly}}
+    <h1>Rendezvous Server</h1>
+    <div class="banner ok" style="margin-bottom: 14px;">Running in rendezvous-only mode</div>
+  {{else}}
+    <h1>Me</h1>
+  {{end}}
 
   <div class="card">
     <p>
       <b>Label:</b> {{.SelfName}}<br>
-      <b>Email:</b> {{if .Cfg.Profile.Email}}{{.Cfg.Profile.Email}}{{else}}<span class="muted">not set</span>{{end}}<br>
-      <b>PeerID:</b> <code>{{.SelfID}}</code>
+      <b>Email:</b> {{if .Cfg.Profile.Email}}{{.Cfg.Profile.Email}}{{else}}<span class="muted">not set</span>{{end}}{{if .SelfID}}<br>
+      <b>PeerID:</b> <code>{{.SelfID}}</code>{{end}}
     </p>
   </div>
 
   <div class="actions" style="margin: 12px 0 18px 0;">
-    <a class="btn"
-       href="/open?url={{printf "%s/p/%s/" .BaseURL .SelfID | urlquery}}"
-       rel="noopener">
-      Open my site
-    </a>
+    {{if .RendezvousOnly}}
+      {{if .RendezvousURL}}
+      <a class="btn"
+         href="/open?url={{.RendezvousURL | urlquery}}"
+         rel="noopener">
+        Open rendezvous dashboard
+      </a>
+      {{end}}
+    {{else}}
+      <a class="btn"
+         href="/open?url={{printf "%s/p/%s/" .BaseURL .SelfID | urlquery}}"
+         rel="noopener">
+        Open my site
+      </a>
+    {{end}}
   </div>
 
   <h1 id="settings" style="margin-top: 18px;">Settings</h1>

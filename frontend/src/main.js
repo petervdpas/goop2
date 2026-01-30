@@ -85,6 +85,20 @@ async function goViewer(viewerURL, path) {
 }
 
 // ----------------------
+// Helpers
+// ----------------------
+
+// Find a peer info object by name in the peers array.
+function findPeer(peers, name) {
+  return peers.find(p => p.name === name);
+}
+
+// Check if a peer name exists in the peers array.
+function peerExists(peers, name) {
+  return peers.some(p => p.name === name);
+}
+
+// ----------------------
 // Launcher UI (peer picker)
 // ----------------------
 
@@ -157,15 +171,29 @@ async function renderLauncher(host) {
   launcher.appendChild(panel);
   host.appendChild(launcher);
 
+  // peers is now [{name, rendezvous_only}, ...]
   let peers = await window.go.main.App.ListPeers();
-  let selected = "";
+  let selected = ""; // selected peer name
 
   function setSelected(v) {
     selected = v;
     start.disabled = !selected;
     del.disabled = !selected;
     err.textContent = "";
-    status.textContent = selected ? `Selected: ${selected}` : "";
+
+    if (selected) {
+      const info = findPeer(peers, selected);
+      if (info && info.rendezvous_only) {
+        start.textContent = "Configure";
+        status.textContent = `Selected: ${selected} (rendezvous)`;
+      } else {
+        start.textContent = "Start";
+        status.textContent = `Selected: ${selected}`;
+      }
+    } else {
+      start.textContent = "Start";
+      status.textContent = "";
+    }
   }
 
   function renderList() {
@@ -186,16 +214,27 @@ async function renderLauncher(host) {
       const radio = document.createElement("input");
       radio.type = "radio";
       radio.name = "peer";
-      radio.checked = peer === selected;
-      radio.addEventListener("change", () => setSelected(peer));
+      radio.checked = peer.name === selected;
+      radio.addEventListener("change", () => setSelected(peer.name));
 
       const meta = div("tileMeta");
-      const nm = div("tileName");
-      nm.textContent = peer;
-      const path = div("tilePath");
-      path.textContent = `./peers/${peer}/goop.json`;
+      const nmRow = div("tileNameRow");
+      const nm = document.createElement("span");
+      nm.className = "tileName";
+      nm.textContent = peer.name;
+      nmRow.appendChild(nm);
 
-      meta.appendChild(nm);
+      if (peer.rendezvous_only) {
+        const badge = document.createElement("span");
+        badge.className = "rv-badge";
+        badge.textContent = "Rendezvous";
+        nmRow.appendChild(badge);
+      }
+
+      const path = div("tilePath");
+      path.textContent = `./peers/${peer.name}/goop.json`;
+
+      meta.appendChild(nmRow);
       meta.appendChild(path);
 
       left.appendChild(radio);
@@ -204,7 +243,7 @@ async function renderLauncher(host) {
       tile.addEventListener("click", (e) => {
         if (e.target === radio) return;
         radio.checked = true;
-        setSelected(peer);
+        setSelected(peer.name);
       });
 
       tile.appendChild(left);
@@ -214,18 +253,21 @@ async function renderLauncher(host) {
 
   async function refreshPeers(selectName) {
     peers = await window.go.main.App.ListPeers();
-    if (selectName && peers.includes(selectName)) setSelected(selectName);
-    else if (!peers.includes(selected)) setSelected("");
+    if (selectName && peerExists(peers, selectName)) setSelected(selectName);
+    else if (!peerExists(peers, selected)) setSelected("");
     renderList();
   }
 
   start.addEventListener("click", async () => {
     if (!selected) return;
 
+    const info = findPeer(peers, selected);
+    const isRV = info && info.rendezvous_only;
+
     start.disabled = true;
     del.disabled = true;
     err.textContent = "";
-    status.textContent = "Starting…";
+    status.textContent = isRV ? "Configuring…" : "Starting…";
 
     try {
       await window.go.main.App.StartPeer(selected);
@@ -233,7 +275,9 @@ async function renderLauncher(host) {
 
       if (!st || !st.viewerURL)
         throw new Error("Started but viewerURL missing from status.");
-      await goViewer(st.viewerURL, "/peers");
+
+      // Rendezvous-only peers open settings; regular peers open peer list
+      await goViewer(st.viewerURL, isRV ? "/self" : "/peers");
     } catch (e) {
       err.textContent = String(e);
       status.textContent = "";
@@ -298,7 +342,7 @@ async function renderLauncher(host) {
   setSelected("");
 
   if (peers && peers.length > 0) {
-    setSelected(peers[0]);
+    setSelected(peers[0].name);
     renderList();
   }
 }
@@ -316,7 +360,8 @@ async function boot() {
   // If a peer is already started, immediately replace with viewer.
   const st = await window.go.main.App.GetStatus();
   if (st && st.started === "true" && st.viewerURL) {
-    await goViewer(st.viewerURL, "/peers");
+    const path = st.rendezvousOnly === "true" ? "/self" : "/peers";
+    await goViewer(st.viewerURL, path);
     return;
   }
 

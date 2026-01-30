@@ -113,6 +113,28 @@
               <span class="me-id"><code>{{.SelfID}}</code></span>
             </div>
           </div>
+        {{else if .RendezvousOnly}}
+          {{/* Rendezvous-only chrome: limited nav */}}
+          <nav class="topnav">
+            <a class="navitem {{if isActive .Active "self"}}active{{end}}" href="{{.BaseURL}}/self">Settings</a>
+            <a class="navitem {{if isActive .Active "logs"}}active{{end}}" href="{{.BaseURL}}/logs">Logs</a>
+          </nav>
+
+          <div class="topright">
+            <div class="theme">
+              <span class="theme-label small muted">Theme</span>
+              <label class="switch" title="Toggle light/dark">
+                <input id="themeToggle" type="checkbox" aria-label="Toggle theme" />
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            {{if .SelfName}}
+            <div class="me">
+              <span class="me-label">{{.SelfName}}</span>
+            </div>
+            {{end}}
+          </div>
         {{else}}
           {{/* Launcher-only chrome: just theme toggle (optional) */}}
           <div class="topright">

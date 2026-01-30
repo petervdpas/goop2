@@ -123,7 +123,7 @@ A peer can:
 
 * Host a rendezvous server
 * Join one or more WAN rendezvous meshes
-* Run in **rendezvous-only** mode (no peer node)
+* Run in **rendezvous-only** mode (no peer node, with a minimal settings viewer)
 
 #### Standalone Rendezvous Server
 
@@ -189,6 +189,8 @@ It provides:
 * Live logs
 * Settings UI
 
+**Minimal viewer** — Rendezvous-only peers run a lightweight variant of the viewer with only Settings and Logs routes. This allows configuring a rendezvous server through the same UI without starting a full P2P node.
+
 Security properties:
 
 * Viewer binds to localhost only
@@ -230,6 +232,7 @@ The desktop launcher provides:
 * Peer management (create, delete, start)
 * Embedded frontend assets
 * Theme synchronization
+* Rendezvous peer differentiation — rendezvous-only peers are marked with a badge and open directly to the Settings page instead of the peer list
 * A bridge between:
 
   * Desktop launcher
@@ -279,6 +282,7 @@ Key sections:
 
   * TTL / heartbeat
   * Rendezvous options
+  * `rendezvous_only` — run as a dedicated rendezvous server without a P2P node
 * **viewer**
 
   * Local HTTP bind address
@@ -371,6 +375,14 @@ go build -o goop2
 # Run in rendezvous mode
 ./goop2 -rendezvous -addr 127.0.0.1:8787
 ```
+
+When a peer is configured with `rendezvous_only: true`, it runs only the rendezvous server (no P2P node). A **minimal settings viewer** is started alongside the rendezvous server, providing:
+
+* Settings page for configuring the peer label, email, and rendezvous options
+* Logs page for monitoring rendezvous activity
+* Link to the rendezvous dashboard
+
+In the desktop launcher, rendezvous-only peers display a "Rendezvous" badge. Starting one opens the Settings page directly.
 
 **Production Deployment:**
 

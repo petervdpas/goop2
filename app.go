@@ -29,15 +29,22 @@ type App struct {
 
 	mu sync.RWMutex
 
-	peerDir   string
-	cfgPath   string
-	peerName  string
-	started   bool
-	viewerURL string
+	peerDir          string
+	cfgPath          string
+	peerName         string
+	started          bool
+	viewerURL        string
+	isRendezvousOnly bool
 
 	// UI / Theme (shared between launcher + internal viewer)
 	uiMu      sync.Mutex
 	bridgeURL string
+}
+
+// PeerInfo is returned by ListPeers to the Wails frontend.
+type PeerInfo struct {
+	Name           string `json:"name"`
+	RendezvousOnly bool   `json:"rendezvous_only"`
 }
 
 type uiState struct {
@@ -175,8 +182,8 @@ func (a *App) OpenInBrowser(url string) {
 // Frontend API (peers)
 // -------------------------
 
-func (a *App) ListPeers() ([]string, error) {
-	return listPeerDirs("./peers")
+func (a *App) ListPeers() ([]PeerInfo, error) {
+	return listPeerInfos("./peers")
 }
 
 func (a *App) CreatePeer(name string) (string, error) {
@@ -255,6 +262,7 @@ func (a *App) StartPeer(peerName string) error {
 	a.peerName = peerName
 	a.started = true
 	a.viewerURL = "http://" + cfg.Viewer.HTTPAddr
+	a.isRendezvousOnly = cfg.Presence.RendezvousOnly
 
 	go func() {
 		if err := goopapp.Run(a.ctx, goopapp.Options{
@@ -285,9 +293,10 @@ func (a *App) GetStatus() map[string]string {
 	defer a.mu.RUnlock()
 
 	return map[string]string{
-		"started":   fmt.Sprintf("%v", a.started),
-		"peerName":  a.peerName,
-		"viewerURL": a.viewerURL,
+		"started":        fmt.Sprintf("%v", a.started),
+		"peerName":       a.peerName,
+		"viewerURL":      a.viewerURL,
+		"rendezvousOnly": fmt.Sprintf("%v", a.isRendezvousOnly),
 	}
 }
 
@@ -446,25 +455,35 @@ func ensureDefaultPeerSite(peerDir string) error {
 	return nil
 }
 
-func listPeerDirs(root string) ([]string, error) {
+func listPeerInfos(root string) ([]PeerInfo, error) {
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []string{}, nil
+			return []PeerInfo{}, nil
 		}
 		return nil, err
 	}
 
-	var peers []string
+	var peers []PeerInfo
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
 		}
-		if _, err := os.Stat(filepath.Join(root, e.Name(), "goop.json")); err == nil {
-			peers = append(peers, e.Name())
+		cfgPath := filepath.Join(root, e.Name(), "goop.json")
+		if _, err := os.Stat(cfgPath); err != nil {
+			continue
 		}
+
+		info := PeerInfo{Name: e.Name()}
+
+		// Read config to check rendezvous_only flag
+		if cfg, err := config.Load(cfgPath); err == nil {
+			info.RendezvousOnly = cfg.Presence.RendezvousOnly
+		}
+
+		peers = append(peers, info)
 	}
 
-	sort.Strings(peers)
+	sort.Slice(peers, func(i, j int) bool { return peers[i].Name < peers[j].Name })
 	return peers, nil
 }

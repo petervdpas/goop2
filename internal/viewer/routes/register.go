@@ -27,6 +27,10 @@ type Deps struct {
 	Content *content.Store
 	BaseURL string
 	DB      *storage.DB
+
+	// Rendezvous-only mode (no p2p node, limited routes)
+	RendezvousOnly bool
+	RendezvousURL  string
 }
 
 func Register(mux *http.ServeMux, d Deps) {
@@ -46,4 +50,30 @@ func Register(mux *http.ServeMux, d Deps) {
 	registerOfflineRoutes(mux, d)
 	registerSiteAPIRoutes(mux, d)
 	registerTemplateRoutes(mux, d, csrf)
+}
+
+// RegisterMinimal registers only the routes that work without a p2p node.
+// Used for rendezvous-only mode.
+func RegisterMinimal(mux *http.ServeMux, d Deps) {
+	csrf := newToken(32)
+
+	// Redirect / to /self (settings page)
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		http.Redirect(w, r, "/self", http.StatusFound)
+	})
+
+	RegisterOpenRoute(mux)
+	registerAPILogRoutes(mux, d)
+	registerSelfRoutes(mux, d, csrf)
+	registerSettingsRoutes(mux, d, csrf)
+	registerLogsUIRoutes(mux, d)
+
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, _ = w.Write([]byte("ok"))
+	})
 }

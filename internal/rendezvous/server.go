@@ -46,6 +46,7 @@ type peerRow struct {
 	PeerID        string `json:"peer_id"`
 	Type          string `json:"type"`
 	Content       string `json:"content"`
+	Email         string `json:"email,omitempty"`
 	TS            int64  `json:"ts"`
 	LastSeen      int64  `json:"last_seen"`
 	BytesSent     int64  `json:"bytes_sent"`
@@ -316,6 +317,7 @@ func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64) {
 		PeerID:        pm.PeerID,
 		Type:          pm.Type,
 		Content:       pm.Content,
+		Email:         pm.Email,
 		TS:            pm.TS,
 		LastSeen:      now,
 		BytesSent:     bytesSent,
@@ -471,6 +473,9 @@ func validatePresence(pm proto.PresenceMsg) error {
 	}
 	if len(pm.Content) > 4096 {
 		return fmt.Errorf("content too long")
+	}
+	if len(pm.Email) > 320 {
+		return fmt.Errorf("email too long")
 	}
 
 	return nil

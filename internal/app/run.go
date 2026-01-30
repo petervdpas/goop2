@@ -70,8 +70,39 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		log.Println("────────────────────────────────────────────────────────")
 	}
 
+	selfContent := func() string {
+		if cfg.Profile.Label != "" {
+			return cfg.Profile.Label
+		}
+		return "hello"
+	}
+
+	selfEmail := func() string {
+		return cfg.Profile.Email
+	}
+
 	if cfg.Presence.RendezvousOnly {
 		log.Printf("mode: rendezvous-only")
+
+		// Start minimal viewer for settings access
+		if cfg.Viewer.HTTPAddr != "" {
+			addr, url, _ := NormalizeLocalViewer(cfg.Viewer.HTTPAddr)
+			rvURL := ""
+			if rv != nil {
+				rvURL = rv.URL()
+			}
+			go viewer.StartMinimal(addr, viewer.MinimalViewer{
+				SelfLabel:      selfContent,
+				SelfEmail:      selfEmail,
+				CfgPath:        o.CfgPath,
+				Cfg:            cfg,
+				Logs:           o.Logs,
+				BaseURL:        url,
+				RendezvousURL:  rvURL,
+			})
+			log.Printf("📋 Settings viewer: %s", url)
+		}
+
 		<-ctx.Done()
 		return nil
 	}
@@ -88,17 +119,6 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	}
 
 	peers := state.NewPeerTable()
-
-	selfContent := func() string {
-		if cfg.Profile.Label != "" {
-			return cfg.Profile.Label
-		}
-		return "hello"
-	}
-
-	selfEmail := func() string {
-		return cfg.Profile.Email
-	}
 
 	node, err := p2p.New(ctx, cfg.P2P.ListenPort, peers, selfContent, selfEmail)
 	if err != nil {

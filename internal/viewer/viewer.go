@@ -74,3 +74,46 @@ func Start(addr string, v Viewer) error {
 
 	return http.ListenAndServe(addr, mux)
 }
+
+// MinimalViewer holds the config needed for a rendezvous-only settings viewer.
+type MinimalViewer struct {
+	SelfLabel     func() string
+	SelfEmail     func() string
+	CfgPath       string
+	Cfg           interface{}
+	Logs          *LogBuffer
+	BaseURL       string
+	RendezvousURL string
+}
+
+// StartMinimal starts a lightweight viewer with only self/settings and logs.
+// Used for rendezvous-only mode where there is no p2p node.
+func StartMinimal(addr string, v MinimalViewer) error {
+	if err := render.InitTemplates(); err != nil {
+		return err
+	}
+
+	mux := http.NewServeMux()
+
+	mux.Handle("/assets/", http.StripPrefix("/assets/",
+		noCache(viewerassets.Handler()),
+	))
+
+	baseURL := v.BaseURL
+	if baseURL == "" {
+		baseURL = "http://" + addr
+	}
+
+	routes.RegisterMinimal(mux, routes.Deps{
+		SelfLabel:      v.SelfLabel,
+		SelfEmail:      v.SelfEmail,
+		CfgPath:        v.CfgPath,
+		Cfg:            v.Cfg,
+		Logs:           v.Logs,
+		BaseURL:        baseURL,
+		RendezvousOnly: true,
+		RendezvousURL:  v.RendezvousURL,
+	})
+
+	return http.ListenAndServe(addr, mux)
+}
