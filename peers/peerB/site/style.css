@@ -1,43 +1,53 @@
+/* peerB — warm sunset / retro vibe */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&display=swap');
+
 :root {
-  --bg: #0f1115;
-  --panel: #151924;
-  --text: #e6e9ef;
-  --muted: #9aa3b2;
-  --accent: #7aa2ff;
-  --border: #1e2433;
-  --radius: 14px;
+  --bg: #1a1017;
+  --panel: #261a22;
+  --text: #f2dece;
+  --muted: #a08070;
+  --accent: #ff9a5c;
+  --accent2: #ff6b8a;
+  --border: #3a2a30;
+  --radius: 10px;
 }
 
 html, body {
   margin: 0;
   padding: 0;
-  background: radial-gradient(1200px 700px at 65% 18%, rgba(122,162,255,0.14), transparent 55%),
-              radial-gradient(900px 600px at 30% 35%, rgba(160,120,255,0.10), transparent 60%),
+  background: radial-gradient(900px 500px at 20% 30%, rgba(255,107,138,0.12), transparent 60%),
+              radial-gradient(700px 400px at 75% 60%, rgba(255,154,92,0.10), transparent 55%),
               var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Noto Sans", Arial, sans-serif;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
 }
 
 main {
-  max-width: 860px;
+  max-width: 720px;
   margin: 0 auto;
-  padding: 2rem 1.25rem;
+  padding: 2.5rem 1.5rem;
 }
 
 h1 {
-  margin: 0 0 0.5rem 0;
-  color: var(--accent);
-  letter-spacing: -0.02em;
+  margin: 0 0 0.3rem 0;
+  font-size: 2rem;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 h2 {
   margin: 0 0 0.75rem 0;
-  font-size: 1.1rem;
-  color: var(--text);
+  font-size: 1rem;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
 }
 
 p { margin: 0; }
-code { font-size: 0.9em; color: var(--accent); }
+code { font-size: 0.85em; color: var(--accent); background: rgba(255,154,92,0.1); padding: 0.1em 0.35em; border-radius: 4px; }
 
 .muted { color: var(--muted); }
 .error { color: #f87171; }
@@ -46,9 +56,10 @@ code { font-size: 0.9em; color: var(--accent); }
 /* cards */
 .card {
   background: var(--panel);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1.25rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
 }
 
 /* peer list */
@@ -59,7 +70,7 @@ code { font-size: 0.9em; color: var(--accent); }
 }
 
 .peer-list li {
-  padding: 0.4rem 0;
+  padding: 0.45rem 0;
   border-bottom: 1px solid var(--border);
   font-size: 0.9rem;
 }
@@ -68,35 +79,34 @@ code { font-size: 0.9em; color: var(--accent); }
 
 /* chat */
 .chat-box {
-  max-height: 220px;
+  max-height: 200px;
   overflow-y: auto;
   margin-bottom: 0.75rem;
-  padding: 0.5rem;
-  background: var(--bg);
+  padding: 0.6rem;
+  background: rgba(0,0,0,0.25);
   border-radius: 8px;
+  border: 1px solid var(--border);
 }
 
 .msg {
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.35rem;
   font-size: 0.9rem;
 }
 
 .msg-who {
   font-weight: 600;
-  color: var(--accent);
+  color: var(--accent2);
 }
 
 .msg-out .msg-who {
-  color: #a78bfa;
+  color: var(--accent);
 }
 
-.msg-text {
-  color: var(--text);
-}
+.msg-text { color: var(--text); }
 
 .msg-time {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   margin-left: 0.4rem;
 }
 
@@ -107,19 +117,24 @@ code { font-size: 0.9em; color: var(--accent); }
 
 .chat-form input {
   flex: 1;
-  padding: 0.45rem 0.65rem;
+  padding: 0.5rem 0.7rem;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--bg);
+  background: rgba(0,0,0,0.3);
   color: var(--text);
   font: inherit;
 }
 
+.chat-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 .chat-form button {
-  padding: 0.45rem 1rem;
+  padding: 0.5rem 1.2rem;
   border: none;
   border-radius: 8px;
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
   color: var(--bg);
   font: inherit;
   font-weight: 600;
@@ -135,8 +150,8 @@ code { font-size: 0.9em; color: var(--accent); }
 
 .file-list li {
   padding: 0.35rem 0;
-  font-size: 0.9rem;
-  font-family: monospace;
+  font-size: 0.85rem;
+  font-family: 'Courier New', monospace;
   color: var(--text);
 }
 
@@ -145,8 +160,7 @@ code { font-size: 0.9em; color: var(--accent); }
   width: 1.2rem;
   text-align: center;
   margin-right: 0.3rem;
-  color: var(--muted);
 }
 
-.file-icon.dir::before { content: "/"; color: var(--accent); }
-.file-icon.file::before { content: "-"; }
+.file-icon.dir::before { content: "/"; color: var(--accent2); font-weight: 600; }
+.file-icon.file::before { content: "~"; color: var(--muted); }
