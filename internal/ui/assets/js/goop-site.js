@@ -15,6 +15,12 @@
 //   // read as raw response (for binary, images, etc.)
 //   const res = await Goop.site.fetch("photo.jpg");
 //
+//   // upload a file (owner only — writes to content store)
+//   await Goop.site.upload("images/photo.jpg", fileObj);
+//
+//   // delete a file (owner only)
+//   await Goop.site.remove("images/photo.jpg");
+//
 (() => {
   window.Goop = window.Goop || {};
 
@@ -46,6 +52,42 @@
     async fetch(path) {
       const url = await resolvePath(path);
       return fetch(url);
+    },
+
+    /**
+     * Upload a file to the site content store.
+     * @param {string} path - destination path (e.g., "images/photo.jpg")
+     * @param {File|Blob} file - the file to upload
+     * @returns {Promise<{status, path, etag}>}
+     */
+    async upload(path, file) {
+      const fd = new FormData();
+      fd.append("path", path);
+      fd.append("file", file);
+      const res = await fetch("/api/site/upload", { method: "POST", body: fd });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || res.statusText);
+      }
+      return res.json();
+    },
+
+    /**
+     * Delete a file from the site content store.
+     * @param {string} path - file path to delete
+     * @returns {Promise<{status}>}
+     */
+    async remove(path) {
+      const res = await fetch("/api/site/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: path }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || res.statusText);
+      }
+      return res.json();
     },
   };
 
