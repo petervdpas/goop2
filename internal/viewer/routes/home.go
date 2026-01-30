@@ -91,4 +91,17 @@ func registerHomeRoutes(mux *http.ServeMux, d Deps) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(viewmodels.BuildPeerRows(d.Peers.Snapshot()))
 	})
+
+	// JSON endpoint for self identity
+	mux.HandleFunc("/api/self", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"id":    d.Node.ID(),
+			"label": safeCall(d.SelfLabel),
+		})
+	})
 }

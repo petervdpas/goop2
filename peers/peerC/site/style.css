@@ -4,6 +4,7 @@
   --text: #e6e9ef;
   --muted: #9aa3b2;
   --accent: #7aa2ff;
+  --border: #1e2433;
   --radius: 14px;
 }
 
@@ -29,7 +30,53 @@ h1 {
   letter-spacing: -0.02em;
 }
 
+h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  color: var(--text);
+}
+
 p {
   margin: 0;
   color: var(--muted);
+}
+
+a { color: var(--accent); }
+
+.muted { color: var(--muted); }
+.error { color: #f87171; }
+
+/* data sections */
+.data-table {
+  margin-top: 1.5rem;
+  background: var(--panel);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+
+/* tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+thead th {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+tbody td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
 }

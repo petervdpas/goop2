@@ -43,4 +43,5 @@ func Register(mux *http.ServeMux, d Deps) {
 	registerLogsUIRoutes(mux, d)
 	registerDatabaseRoutes(mux, d)
 	registerOfflineRoutes(mux, d)
+	registerSiteAPIRoutes(mux, d)
 }

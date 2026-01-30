@@ -4,6 +4,7 @@
   --text: #e6e9ef;
   --muted: #9aa3b2;
   --accent: #7aa2ff;
+  --border: #1e2433;
   --radius: 14px;
 }
 
@@ -20,16 +21,132 @@ html, body {
 main {
   max-width: 860px;
   margin: 0 auto;
-  padding: 3rem 1.25rem;
+  padding: 2rem 1.25rem;
 }
 
 h1 {
-  margin: 0 0 0.75rem 0;
+  margin: 0 0 0.5rem 0;
   color: var(--accent);
   letter-spacing: -0.02em;
 }
 
-p {
+h2 {
+  margin: 0 0 0.75rem 0;
+  font-size: 1.1rem;
+  color: var(--text);
+}
+
+p { margin: 0; }
+code { font-size: 0.9em; color: var(--accent); }
+
+.muted { color: var(--muted); }
+.error { color: #f87171; }
+.label { color: var(--muted); font-size: 0.85rem; }
+
+/* cards */
+.card {
+  background: var(--panel);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+/* peer list */
+.peer-list {
+  list-style: none;
   margin: 0;
+  padding: 0;
+}
+
+.peer-list li {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.peer-list li:last-child { border-bottom: none; }
+
+/* chat */
+.chat-box {
+  max-height: 220px;
+  overflow-y: auto;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem;
+  background: var(--bg);
+  border-radius: 8px;
+}
+
+.msg {
+  margin-bottom: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.msg-who {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.msg-out .msg-who {
+  color: #a78bfa;
+}
+
+.msg-text {
+  color: var(--text);
+}
+
+.msg-time {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin-left: 0.4rem;
+}
+
+.chat-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.chat-form input {
+  flex: 1;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.chat-form button {
+  padding: 0.45rem 1rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--bg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* file list */
+.file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.file-list li {
+  padding: 0.35rem 0;
+  font-size: 0.9rem;
+  font-family: monospace;
+  color: var(--text);
+}
+
+.file-icon {
+  display: inline-block;
+  width: 1.2rem;
+  text-align: center;
+  margin-right: 0.3rem;
   color: var(--muted);
 }
+
+.file-icon.dir::before { content: "/"; color: var(--accent); }
+.file-icon.file::before { content: "-"; }
