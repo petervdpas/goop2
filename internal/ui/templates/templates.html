@@ -1,0 +1,79 @@
+<!-- internal/ui/templates/templates.html -->
+{{define "page.templates"}}
+<div class="page page-templates">
+  <div class="create-tabs">
+    <a class="create-tab" href="/edit">Editor</a>
+    <a class="create-tab active" href="/templates">Templates</a>
+  </div>
+
+  <h2 class="tpl-heading">Choose a template</h2>
+  <p class="muted small tpl-sub">Applying a template will replace your entire site and database.</p>
+
+  <div class="tpl-grid">
+    {{range .Templates}}
+    <div class="tpl-card" data-dir="{{.Dir}}">
+      <div class="tpl-card-icon">{{.Icon}}</div>
+      <div class="tpl-card-body">
+        <div class="tpl-card-name">{{.Name}}</div>
+        <div class="tpl-card-cat muted small">{{.Category}}</div>
+        <div class="tpl-card-desc small">{{.Description}}</div>
+      </div>
+      <button type="button" class="tpl-card-apply" data-dir="{{.Dir}}" data-name="{{.Name}}">
+        Apply
+      </button>
+    </div>
+    {{else}}
+    <div class="muted">No templates available.</div>
+    {{end}}
+  </div>
+</div>
+
+<script>
+(function() {
+  var csrf = {{.CSRF}};
+
+  document.querySelectorAll('.tpl-card-apply').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var dir  = btn.getAttribute('data-dir');
+      var name = btn.getAttribute('data-name');
+
+      var msg = 'Apply "' + name + '"?\n\nThis will DELETE all your current site files and database tables and replace them with the template. This cannot be undone.';
+
+      if (window.Goop && window.Goop.ui && window.Goop.ui.confirm) {
+        Goop.ui.confirm(msg, 'Apply Template').then(function(ok) {
+          if (ok) applyTemplate(dir, name);
+        });
+      } else if (confirm(msg)) {
+        applyTemplate(dir, name);
+      }
+    });
+  });
+
+  function applyTemplate(dir, name) {
+    fetch('/api/templates/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ template: dir, csrf: csrf })
+    })
+    .then(function(res) {
+      if (!res.ok) return res.text().then(function(t) { throw new Error(t); });
+      return res.json();
+    })
+    .then(function() {
+      if (window.Goop && window.Goop.ui) {
+        Goop.ui.toast({ title: 'Template Applied', message: '"' + name + '" is now active. Redirecting to editor...', duration: 3000 });
+      }
+      setTimeout(function() { window.location.href = '/edit'; }, 1500);
+    })
+    .catch(function(err) {
+      var errMsg = err.message || 'Unknown error';
+      if (window.Goop && window.Goop.ui) {
+        Goop.ui.toast({ title: 'Error', message: errMsg, duration: 6000 });
+      } else {
+        alert('Failed to apply template: ' + errMsg);
+      }
+    });
+  }
+})();
+</script>
+{{end}}

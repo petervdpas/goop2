@@ -13,6 +13,11 @@ import (
 )
 
 func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {
+	// /create → redirect to /templates
+	mux.HandleFunc("/create", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/templates", http.StatusFound)
+	})
+
 	// GET /edit?path=...
 	mux.HandleFunc("/edit", func(w http.ResponseWriter, r *http.Request) {
 		if !requireContentStore(w, d.Content) {
@@ -66,7 +71,7 @@ func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 
 		vm := viewmodels.EditorVM{
-			BaseVM:  baseVM("Editor", "editor", "page.editor", d),
+			BaseVM:  baseVM("Create", "create", "page.editor", d),
 			CSRF:    csrf,
 			Path:    rel,
 			Dir:     dir,

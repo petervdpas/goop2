@@ -1,7 +1,10 @@
 <!-- internal/ui/templates/editor.html -->
 {{define "page.editor"}}
 <div class="page page-editor">
-  <h1>Editor</h1>
+  <div class="create-tabs">
+    <a class="create-tab active" href="/edit">Editor</a>
+    <a class="create-tab" href="/templates">Templates</a>
+  </div>
 
   {{if .Error}}
     <div class="banner err">{{.Error}}</div>

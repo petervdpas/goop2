@@ -1,0 +1,208 @@
+/* Corkboard — skeuomorphic community board */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background:
+    repeating-conic-gradient(#b5884a22 0% 25%, transparent 0% 50%) 0 0 / 6px 6px,
+    linear-gradient(160deg, #c4956a, #a87d52 40%, #8b6540 70%, #7a5836);
+  min-height: 100vh;
+  color: #3a2818;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 2rem;
+  background: rgba(90, 55, 30, 0.85);
+  border-bottom: 3px solid #3a200c;
+  color: #f5e6d0;
+}
+
+h1 {
+  font-size: 1.6rem;
+  letter-spacing: 0.02em;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.4);
+}
+
+h2 {
+  font-size: 1.1rem;
+  margin-bottom: 0.75rem;
+  color: #3a2818;
+}
+
+.add-btn {
+  padding: 0.55rem 1.2rem;
+  border: none;
+  border-radius: 6px;
+  background: #e8c84a;
+  color: #3a2818;
+  font: 600 0.95rem/1 inherit;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.add-btn:hover { background: #f0d55a; }
+
+/* board grid */
+.board {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.5rem;
+  padding: 2rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.loading { grid-column: 1 / -1; text-align: center; color: #f5e6d0; font-style: italic; }
+
+/* note card */
+.note {
+  position: relative;
+  padding: 1.4rem 1rem 1rem;
+  border-radius: 3px;
+  box-shadow: 2px 3px 8px rgba(0,0,0,0.3);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  min-height: 120px;
+}
+
+.note .pin {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #ff4444, #aa1111);
+  border: 2px solid #880808;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+}
+
+.note-title {
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: 0.35rem;
+}
+
+.note-desc {
+  color: #4a3525;
+  margin-bottom: 0.5rem;
+}
+
+.note-contact {
+  font-size: 0.8rem;
+  color: #6a5040;
+  border-top: 1px dashed rgba(0,0,0,0.15);
+  padding-top: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.note-cat {
+  display: inline-block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 3px;
+  background: rgba(0,0,0,0.08);
+  margin-bottom: 0.3rem;
+}
+
+.note-delete {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  opacity: 0;
+  transition: opacity 0.15s;
+  color: #884444;
+}
+
+.note:hover .note-delete { opacity: 1; }
+
+/* category colors */
+.note.selling   { background: #fff9c4; transform: rotate(-1.2deg); }
+.note.looking   { background: #bbdefb; transform: rotate(0.8deg); }
+.note.offering  { background: #c8e6c9; transform: rotate(-0.5deg); }
+.note.event     { background: #f8bbd0; transform: rotate(1.5deg); }
+.note.general   { background: #fff3e0; transform: rotate(-0.3deg); }
+
+/* form overlay */
+.form-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.form-overlay.hidden { display: none; }
+
+.form-card {
+  background: #faf3e8;
+  border-radius: 8px;
+  padding: 1.5rem;
+  width: 360px;
+  max-width: 90vw;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.form-card label {
+  display: block;
+  margin-bottom: 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #5a4030;
+}
+
+.form-card input,
+.form-card textarea,
+.form-card select {
+  display: block;
+  width: 100%;
+  margin-top: 0.2rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #c8b8a0;
+  border-radius: 5px;
+  background: #fff;
+  font: inherit;
+  color: #3a2818;
+}
+
+.form-btns {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
+}
+
+.btn-cancel {
+  padding: 0.45rem 1rem;
+  border: 1px solid #c8b8a0;
+  border-radius: 6px;
+  background: #f0e6d6;
+  cursor: pointer;
+  font: inherit;
+  color: #5a4030;
+}
+
+.btn-submit {
+  padding: 0.45rem 1rem;
+  border: none;
+  border-radius: 6px;
+  background: #e8c84a;
+  color: #3a2818;
+  font: 600 inherit;
+  cursor: pointer;
+}
+
+.btn-submit:hover { background: #f0d55a; }

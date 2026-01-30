@@ -44,4 +44,5 @@ func Register(mux *http.ServeMux, d Deps) {
 	registerDatabaseRoutes(mux, d)
 	registerOfflineRoutes(mux, d)
 	registerSiteAPIRoutes(mux, d)
+	registerTemplateRoutes(mux, d, csrf)
 }

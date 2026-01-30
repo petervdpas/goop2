@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Corkboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+  <script src="/assets/js/goop-data.js"></script>
+  <script src="/assets/js/goop-ui.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Corkboard</h1>
+    <button id="btn-add" class="add-btn">+ Pin a Note</button>
+  </header>
+
+  <div id="board" class="board">
+    <p class="loading">Loading notes...</p>
+  </div>
+
+  <!-- add note form (hidden) -->
+  <div id="add-form" class="form-overlay hidden">
+    <div class="form-card">
+      <h2>Pin a Note</h2>
+      <label>Title <input type="text" id="f-title" required></label>
+      <label>Description <textarea id="f-desc" rows="3"></textarea></label>
+      <label>Category
+        <select id="f-cat">
+          <option value="selling">Selling</option>
+          <option value="looking">Looking for</option>
+          <option value="offering">Offering</option>
+          <option value="event">Event</option>
+          <option value="general" selected>General</option>
+        </select>
+      </label>
+      <label>Contact info <input type="text" id="f-contact" placeholder="optional"></label>
+      <div class="form-btns">
+        <button id="btn-cancel" class="btn-cancel">Cancel</button>
+        <button id="btn-submit" class="btn-submit">Pin it!</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
