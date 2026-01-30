@@ -17,6 +17,7 @@ import (
 type Viewer struct {
 	Node      *p2p.Node
 	SelfLabel func() string
+	SelfEmail func() string
 	Peers     *state.PeerTable
 
 	CfgPath string
@@ -51,6 +52,7 @@ func Start(addr string, v Viewer) error {
 	routes.Register(mux, routes.Deps{
 		Node:      v.Node,
 		SelfLabel: v.SelfLabel,
+		SelfEmail: v.SelfEmail,
 		Peers:     v.Peers,
 		CfgPath:   v.CfgPath,
 		Cfg:       v.Cfg,

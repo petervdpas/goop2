@@ -59,6 +59,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 
 		cfg.Profile.Label = getTrimmedPostFormValue(r.PostForm, "profile_label")
+		cfg.Profile.Email = getTrimmedPostFormValue(r.PostForm, "profile_email")
 		cfg.Viewer.HTTPAddr = getTrimmedPostFormValue(r.PostForm, "viewer_http_addr")
 
 		// Handle debug checkbox

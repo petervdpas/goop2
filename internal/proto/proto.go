@@ -25,6 +25,7 @@ type PresenceMsg struct {
 	Type    string `json:"type"` // online|update|offline
 	PeerID  string `json:"peerId"`
 	Content string `json:"content,omitempty"`
+	Email   string `json:"email,omitempty"`
 	TS      int64  `json:"ts"`
 }
 

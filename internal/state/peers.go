@@ -9,6 +9,7 @@ import (
 
 type SeenPeer struct {
 	Content  string
+	Email    string
 	LastSeen time.Time
 }
 
@@ -33,10 +34,10 @@ func NewPeerTable() *PeerTable {
 	}
 }
 
-func (t *PeerTable) Upsert(id, content string) {
+func (t *PeerTable) Upsert(id, content, email string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	peer := SeenPeer{Content: content, LastSeen: time.Now()}
+	peer := SeenPeer{Content: content, Email: email, LastSeen: time.Now()}
 	t.peers[id] = peer
 	t.notifyListeners(PeerEvent{Type: "update", PeerID: id, Peer: &peer})
 }

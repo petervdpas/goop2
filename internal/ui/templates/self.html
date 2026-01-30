@@ -6,6 +6,7 @@
   <div class="card">
     <p>
       <b>Label:</b> {{.SelfName}}<br>
+      <b>Email:</b> {{if .Cfg.Profile.Email}}{{.Cfg.Profile.Email}}{{else}}<span class="muted">not set</span>{{end}}<br>
       <b>PeerID:</b> <code>{{.SelfID}}</code>
     </p>
   </div>
@@ -40,6 +41,17 @@
       <input name="profile_label"
              value="{{.Cfg.Profile.Label}}"
              placeholder="Peer-A">
+    </div>
+
+    <div class="field">
+      <label>Email</label>
+      <input name="profile_email"
+             type="email"
+             value="{{.Cfg.Profile.Email}}"
+             placeholder="you@example.com">
+      <div class="hint">
+        Your email is shared with other peers as part of your identity.
+      </div>
     </div>
 
     <div class="field">

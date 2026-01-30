@@ -96,7 +96,11 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		return "hello"
 	}
 
-	node, err := p2p.New(ctx, cfg.P2P.ListenPort, peers, selfContent)
+	selfEmail := func() string {
+		return cfg.Profile.Email
+	}
+
+	node, err := p2p.New(ctx, cfg.P2P.ListenPort, peers, selfContent, selfEmail)
 	if err != nil {
 		return err
 	}
@@ -117,7 +121,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			}
 			switch pm.Type {
 			case proto.TypeOnline, proto.TypeUpdate:
-				peers.Upsert(pm.PeerID, pm.Content)
+				peers.Upsert(pm.PeerID, pm.Content, pm.Email)
 			case proto.TypeOffline:
 				peers.Remove(pm.PeerID)
 			}
@@ -158,6 +162,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		go viewer.Start(addr, viewer.Viewer{
 			Node:      node,
 			SelfLabel: selfContent,
+			SelfEmail: selfEmail,
 			Peers:     peers,
 			CfgPath:   o.CfgPath,
 			Cfg:       cfg, // always *config.Config

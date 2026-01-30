@@ -102,6 +102,7 @@ func registerHomeRoutes(mux *http.ServeMux, d Deps) {
 		json.NewEncoder(w).Encode(map[string]string{
 			"id":    d.Node.ID(),
 			"label": safeCall(d.SelfLabel),
+			"email": safeCall(d.SelfEmail),
 		})
 	})
 }

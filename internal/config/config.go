@@ -60,6 +60,7 @@ type Presence struct {
 
 type Profile struct {
 	Label string `json:"label"`
+	Email string `json:"email"`
 }
 
 type Viewer struct {

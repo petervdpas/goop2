@@ -12,6 +12,7 @@ import (
 type PeerRow struct {
 	ID       string
 	Content  string
+	Email    string
 	LastSeen time.Time
 }
 
@@ -26,6 +27,7 @@ func BuildPeerRows(m map[string]state.SeenPeer) []PeerRow {
 		rows = append(rows, PeerRow{
 			ID:       id,
 			Content:  sp.Content,
+			Email:    sp.Email,
 			LastSeen: sp.LastSeen,
 		})
 	}

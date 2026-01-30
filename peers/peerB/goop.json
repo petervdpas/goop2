@@ -21,7 +21,8 @@
     "rendezvous_only": false
   },
   "profile": {
-    "label": "Peer-B"
+    "label": "Peer-B",
+    "email": "me@example.com"
   },
   "viewer": {
     "http_addr": ":7778",

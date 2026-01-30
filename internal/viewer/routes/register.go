@@ -18,6 +18,7 @@ type Logs interface {
 type Deps struct {
 	Node      *p2p.Node
 	SelfLabel func() string
+	SelfEmail func() string
 	Peers     *state.PeerTable
 
 	CfgPath string

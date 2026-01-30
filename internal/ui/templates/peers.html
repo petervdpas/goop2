@@ -20,6 +20,7 @@
               {{shortID .ID}}
             </a>
             <span class="peercontent"><code>{{.Content}}</code></span>
+            {{if .Email}}<span class="peeremail muted small">{{.Email}}</span>{{end}}
           </div>
 
           <div class="peerright">
@@ -102,6 +103,7 @@
           ${escapeHtml(shortId)}
         </a>
         <span class="peercontent"><code>${escapeHtml(peer.Content || '')}</code></span>
+        ${peer.Email ? '<span class="peeremail muted small">' + escapeHtml(peer.Email) + '</span>' : ''}
       </div>
       <div class="peerright">
         <span class="seen muted">seen ${escapeHtml(lastSeen)}</span>

@@ -7,11 +7,12 @@
 //
 //   // get your peer info
 //   const me = await Goop.identity.get();
-//   // => {id: "12D3Koo...", label: "peer-C"}
+//   // => {id: "12D3Koo...", label: "peer-C", email: "you@example.com"}
 //
 //   // shorthand helpers
 //   const id    = await Goop.identity.id();
 //   const label = await Goop.identity.label();
+//   const email = await Goop.identity.email();
 //
 (() => {
   window.Goop = window.Goop || {};
@@ -27,7 +28,7 @@
   }
 
   window.Goop.identity = {
-    /** Fetch full identity object {id, label} */
+    /** Fetch full identity object {id, label, email} */
     get() {
       return load();
     },
@@ -42,6 +43,12 @@
     async label() {
       const me = await load();
       return me.label;
+    },
+
+    /** Get just the peer email string */
+    async email() {
+      const me = await load();
+      return me.email;
     },
 
     /** Clear cached identity (forces re-fetch on next call) */

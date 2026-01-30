@@ -30,6 +30,7 @@ type Node struct {
 	sub   *pubsub.Subscription
 
 	selfContent func() string
+	selfEmail   func() string
 	peers       *state.PeerTable
 
 	// Set by EnableSite in site.go
@@ -46,7 +47,7 @@ func (n *mdnsNotifee) HandlePeerFound(pi peer.AddrInfo) {
 	_ = n.h.Connect(ctx, pi)
 }
 
-func New(ctx context.Context, listenPort int, peers *state.PeerTable, selfContent func() string) (*Node, error) {
+func New(ctx context.Context, listenPort int, peers *state.PeerTable, selfContent, selfEmail func() string) (*Node, error) {
 	priv, _, err := crypto.GenerateEd25519Key(nil)
 	if err != nil {
 		return nil, err
@@ -99,6 +100,7 @@ func New(ctx context.Context, listenPort int, peers *state.PeerTable, selfConten
 		topic:       topic,
 		sub:         sub,
 		selfContent: selfContent,
+		selfEmail:   selfEmail,
 		peers:       peers,
 	}
 
@@ -122,6 +124,7 @@ func (n *Node) Publish(ctx context.Context, typ string) {
 	}
 	if typ == proto.TypeOnline || typ == proto.TypeUpdate {
 		msg.Content = n.selfContent()
+		msg.Email = n.selfEmail()
 	}
 
 	b, _ := json.Marshal(msg)
@@ -149,7 +152,7 @@ func (n *Node) RunPresenceLoop(ctx context.Context, onEvent func(msg proto.Prese
 
 			switch pm.Type {
 			case proto.TypeOnline, proto.TypeUpdate:
-				n.peers.Upsert(pm.PeerID, pm.Content)
+				n.peers.Upsert(pm.PeerID, pm.Content, pm.Email)
 			case proto.TypeOffline:
 				n.peers.Remove(pm.PeerID)
 			}
