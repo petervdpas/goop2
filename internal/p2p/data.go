@@ -236,16 +236,38 @@ func (n *Node) dataOpInsert(callerID string, req DataRequest) DataResponse {
 		return DataResponse{Error: "table name required"}
 	}
 
+	isLocal := callerID == n.ID()
+
 	// _owner is the caller's peer ID (cryptographically authenticated by libp2p)
 	ownerEmail := ""
-	if callerID == n.ID() && n.selfEmail != nil {
+	if isLocal && n.selfEmail != nil {
 		// Local peer: use own email from config
 		ownerEmail = n.selfEmail()
 	} else if sp, ok := n.peers.Get(callerID); ok {
 		ownerEmail = sp.Email
 	}
 
-	log.Printf("[data] insert into %s by %s (%s)", req.Table, callerID, ownerEmail)
+	// Enforce per-table insert policy
+	policy, _ := n.db.GetTableInsertPolicy(req.Table)
+	switch policy {
+	case "owner":
+		if !isLocal {
+			return DataResponse{Error: "insert not allowed: this table only accepts data from the site owner"}
+		}
+	case "email":
+		if !isLocal && ownerEmail == "" {
+			return DataResponse{Error: "insert not allowed: your peer must have an email address configured"}
+		}
+	case "open":
+		// anyone can insert
+	default:
+		// unknown policy — default to owner-only for safety
+		if !isLocal {
+			return DataResponse{Error: "insert not allowed: unknown table policy"}
+		}
+	}
+
+	log.Printf("[data] insert into %s by %s (%s) [policy=%s]", req.Table, callerID, ownerEmail, policy)
 
 	id, err := n.db.Insert(req.Table, callerID, ownerEmail, req.Data)
 	if err != nil {

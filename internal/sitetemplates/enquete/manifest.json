@@ -2,5 +2,8 @@
   "name": "Enquete",
   "description": "A simple survey \u2014 peers answer 3 questions. Responses are stored per-peer.",
   "category": "community",
-  "icon": "\ud83d\udccb"
+  "icon": "\ud83d\udccb",
+  "tables": {
+    "responses": { "insert_policy": "email" }
+  }
 }

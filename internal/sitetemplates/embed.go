@@ -13,13 +13,19 @@ import (
 //go:embed all:corkboard all:blog all:photobook all:enquete
 var templateFS embed.FS
 
+// TablePolicy holds per-table configuration from a template manifest.
+type TablePolicy struct {
+	InsertPolicy string `json:"insert_policy"` // "owner", "email", "open"
+}
+
 // TemplateMeta holds template metadata from manifest.json
 type TemplateMeta struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Category    string `json:"category"`
-	Icon        string `json:"icon"`
-	Dir         string `json:"dir"` // directory name (e.g. "corkboard")
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Category    string                 `json:"category"`
+	Icon        string                 `json:"icon"`
+	Dir         string                 `json:"dir"`    // directory name (e.g. "corkboard")
+	Tables      map[string]TablePolicy `json:"tables"` // table name → policy
 }
 
 // List returns metadata for all available templates.
@@ -76,6 +82,11 @@ func SiteFiles(dir string) (map[string][]byte, error) {
 	})
 
 	return out, err
+}
+
+// GetMeta returns the manifest metadata for a specific template directory.
+func GetMeta(dir string) (TemplateMeta, error) {
+	return readManifest(dir)
 }
 
 func readManifest(dir string) (TemplateMeta, error) {

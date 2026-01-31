@@ -588,6 +588,52 @@ select.db-input{
 }
 
 /* -----------------------------
+   Insert policy badges
+------------------------------ */
+.db-policy-badge{
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  vertical-align: middle;
+  line-height: 1.4;
+  text-transform: uppercase;
+  white-space: nowrap;
+  margin-left: 6px;
+}
+
+.db-policy-owner{
+  color: var(--muted);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+}
+
+.db-policy-email{
+  color: #d9a520;
+  background: color-mix(in srgb, #d9a520 12%, transparent);
+  border: 1px solid color-mix(in srgb, #d9a520 28%, transparent);
+}
+
+.db-policy-open{
+  color: #4caf50;
+  background: color-mix(in srgb, #4caf50 12%, transparent);
+  border: 1px solid color-mix(in srgb, #4caf50 28%, transparent);
+}
+
+/* Badge inside table title */
+.db-table-title .db-policy-badge{
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+/* Badge inside sidebar items */
+.db-table-item .db-policy-badge{
+  flex: 0 0 auto;
+}
+
+/* -----------------------------
    Responsive
 ------------------------------ */
 @media (max-width: 980px){

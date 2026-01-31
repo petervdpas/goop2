@@ -2,5 +2,8 @@
   "name": "Blog",
   "description": "A personal blog. Only you can write posts — visitors see a read-only feed.",
   "category": "content",
-  "icon": "📝"
+  "icon": "📝",
+  "tables": {
+    "posts": { "insert_policy": "owner" }
+  }
 }

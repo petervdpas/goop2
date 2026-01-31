@@ -29,6 +29,8 @@
 
   // State
   let currentTable = null;
+  let currentPolicy = "owner"; // insert_policy of current table
+  let tablesMeta = {};   // name -> { insert_policy }
   let columns = [];      // ColumnInfo[] from describe
   let systemCols = ["_id", "_owner", "_owner_email", "_created_at", "_updated_at"];
   let defaultHidden = ["_owner", "_owner_email", "_created_at", "_updated_at"];  // hidden by default in grid
@@ -100,6 +102,9 @@
   async function loadTables(selectName) {
     try {
       const tables = await api("/api/data/tables") || [];
+      // Cache table metadata
+      tablesMeta = {};
+      tables.forEach(function(t) { tablesMeta[t.name] = { insert_policy: t.insert_policy || "owner" }; });
       renderTableList(tables);
       // Auto-select
       if (selectName) {
@@ -115,6 +120,8 @@
     }
   }
 
+  var policyLabels = { owner: "owner", email: "email", open: "open" };
+
   function renderTableList(tables) {
     if (!tables || tables.length === 0) {
       tableListEl.innerHTML = '<li class="db-table-empty">No tables yet</li>';
@@ -122,10 +129,12 @@
     }
     tableListEl.innerHTML = "";
     tables.forEach(function(t) {
+      var policy = t.insert_policy || "owner";
       const li = document.createElement("li");
       li.className = "db-table-item";
       li.dataset.table = t.name;
-      li.innerHTML = '<span class="db-table-name">' + escapeHtml(t.name) + '</span>';
+      li.innerHTML = '<span class="db-table-name">' + escapeHtml(t.name) + '</span>' +
+        '<span class="db-policy-badge db-policy-' + policy + '" title="Insert policy: ' + policy + '">' + (policyLabels[policy] || policy) + '</span>';
       on(li, "click", function() { selectTable(t.name); });
       tableListEl.appendChild(li);
     });
@@ -140,9 +149,11 @@
   // -------- Select table --------
   async function selectTable(name) {
     currentTable = name;
+    currentPolicy = (tablesMeta[name] && tablesMeta[name].insert_policy) || "owner";
     hiddenCols = loadHiddenCols(name);
     highlightActive(name);
-    tableTitleEl.textContent = name;
+    tableTitleEl.innerHTML = escapeHtml(name) +
+      ' <span class="db-policy-badge db-policy-' + currentPolicy + '">' + (policyLabels[currentPolicy] || currentPolicy) + '</span>';
     setHidden(actionsEl, false);
     setHidden(createFormEl, true);
     setHidden(insertFormEl, true);
@@ -524,6 +535,15 @@
         '<input type="text" id="db-new-name" class="db-input" placeholder="my_table" />' +
       '</div>' +
       '<div class="db-form-group">' +
+        '<label>Insert Policy</label>' +
+        '<select id="db-new-policy" class="db-input">' +
+          '<option value="owner">owner &mdash; only site owner</option>' +
+          '<option value="email">email &mdash; peers with email</option>' +
+          '<option value="open">open &mdash; anyone</option>' +
+        '</select>' +
+        '<div class="hint">Controls who can insert rows into this table via P2P.</div>' +
+      '</div>' +
+      '<div class="db-form-group">' +
         '<label>Columns</label>' +
         '<div id="db-col-defs">' +
           colRowHtml() +
@@ -601,8 +621,14 @@
 
     if (cols.length === 0) { toast("Add at least one column", true); return; }
 
+    var policy = qs("#db-new-policy").value || "owner";
+
     try {
       await api("/api/data/tables/create", { name: name, columns: cols });
+      // Set the insert policy if not the default
+      if (policy !== "owner") {
+        await api("/api/data/tables/set-policy", { table: name, policy: policy });
+      }
       setHidden(createFormEl, true);
       toast("Table " + name + " created");
       await loadTables(name);
@@ -710,6 +736,20 @@
 
     var html = '<h3>Alter Table: ' + escapeHtml(currentTable) + '</h3>';
 
+    // Insert policy section
+    html += '<div class="db-form-group">' +
+      '<label>Insert Policy</label>' +
+      '<div style="display:flex;gap:8px;align-items:center">' +
+        '<select id="db-policy-select" class="db-input" style="flex:1">' +
+          '<option value="owner"' + (currentPolicy === "owner" ? " selected" : "") + '>owner &mdash; only site owner</option>' +
+          '<option value="email"' + (currentPolicy === "email" ? " selected" : "") + '>email &mdash; peers with email</option>' +
+          '<option value="open"' + (currentPolicy === "open" ? " selected" : "") + '>open &mdash; anyone</option>' +
+        '</select>' +
+        '<button id="db-policy-btn" class="db-action-btn">Save</button>' +
+      '</div>' +
+      '<div class="hint">Controls who can insert rows into this table via P2P.</div>' +
+    '</div>';
+
     // Rename section
     html += '<div class="db-form-group">' +
       '<label>Rename Table</label>' +
@@ -754,6 +794,25 @@
     '</div>';
 
     alterFormEl.innerHTML = html;
+
+    // Bind policy save
+    on(qs("#db-policy-btn"), "click", async function() {
+      var newPolicy = qs("#db-policy-select").value;
+      try {
+        await api("/api/data/tables/set-policy", { table: currentTable, policy: newPolicy });
+        currentPolicy = newPolicy;
+        tablesMeta[currentTable] = { insert_policy: newPolicy };
+        toast("Insert policy set to " + newPolicy);
+        // Update header badge
+        tableTitleEl.innerHTML = escapeHtml(currentTable) +
+          ' <span class="db-policy-badge db-policy-' + newPolicy + '">' + (policyLabels[newPolicy] || newPolicy) + '</span>';
+        // Update sidebar badge
+        await loadTables();
+        highlightActive(currentTable);
+      } catch (err) {
+        toast("Failed to set policy: " + err.message, true);
+      }
+    });
 
     // Bind rename
     on(qs("#db-rename-btn"), "click", async function() {

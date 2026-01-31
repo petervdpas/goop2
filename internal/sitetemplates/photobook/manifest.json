@@ -2,5 +2,8 @@
   "name": "Photobook",
   "description": "A personal photo gallery. Upload images, add captions — visitors see a read-only gallery with lightbox.",
   "category": "content",
-  "icon": "📷"
+  "icon": "📷",
+  "tables": {
+    "photos": { "insert_policy": "owner" }
+  }
 }

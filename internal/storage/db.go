@@ -64,14 +64,18 @@ func Open(configDir string) (*DB, error) {
 	// Create tables registry
 	if _, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS _tables (
-			name        TEXT PRIMARY KEY,
-			schema      TEXT NOT NULL,
-			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+			name           TEXT PRIMARY KEY,
+			schema         TEXT NOT NULL,
+			insert_policy  TEXT DEFAULT 'owner',
+			created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
 	`); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("create tables registry: %w", err)
 	}
+
+	// Migration: add insert_policy column if missing (existing databases)
+	db.Exec(`ALTER TABLE _tables ADD COLUMN insert_policy TEXT DEFAULT 'owner'`)
 
 	// Create groups table
 	if _, err := db.Exec(`
@@ -195,7 +199,7 @@ func (d *DB) ListTables() ([]TableInfo, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	rows, err := d.db.Query(`SELECT name, created_at FROM _tables ORDER BY name`)
+	rows, err := d.db.Query(`SELECT name, COALESCE(insert_policy, 'owner'), created_at FROM _tables ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -204,12 +208,35 @@ func (d *DB) ListTables() ([]TableInfo, error) {
 	var tables []TableInfo
 	for rows.Next() {
 		var t TableInfo
-		if err := rows.Scan(&t.Name, &t.CreatedAt); err != nil {
+		if err := rows.Scan(&t.Name, &t.InsertPolicy, &t.CreatedAt); err != nil {
 			return nil, err
 		}
 		tables = append(tables, t)
 	}
 	return tables, rows.Err()
+}
+
+// GetTableInsertPolicy returns the insert_policy for a table.
+// Returns "owner" as default if the table is not found.
+func (d *DB) GetTableInsertPolicy(table string) (string, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	var policy string
+	err := d.db.QueryRow(`SELECT COALESCE(insert_policy, 'owner') FROM _tables WHERE name = ?`, table).Scan(&policy)
+	if err != nil {
+		return "owner", err
+	}
+	return policy, nil
+}
+
+// SetTableInsertPolicy updates the insert_policy for a table.
+func (d *DB) SetTableInsertPolicy(table, policy string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	_, err := d.db.Exec(`UPDATE _tables SET insert_policy = ? WHERE name = ?`, policy, table)
+	return err
 }
 
 // DescribeTable returns column metadata for a table using PRAGMA table_info
@@ -538,6 +565,7 @@ type ColumnInfo struct {
 
 // TableInfo contains table metadata
 type TableInfo struct {
-	Name      string `json:"name"`
-	CreatedAt string `json:"created_at"`
+	Name         string `json:"name"`
+	InsertPolicy string `json:"insert_policy"`
+	CreatedAt    string `json:"created_at"`
 }

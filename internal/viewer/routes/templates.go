@@ -118,6 +118,16 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 					d.DB.Exec("INSERT OR REPLACE INTO _tables (name, schema) VALUES (?, ?)", name, schema)
 				}
 			}
+
+			// 5. Apply per-table insert policies from manifest
+			meta, err := sitetemplates.GetMeta(req.Template)
+			if err == nil && len(meta.Tables) > 0 {
+				for tableName, tp := range meta.Tables {
+					if tp.InsertPolicy != "" {
+						d.DB.SetTableInsertPolicy(tableName, tp.InsertPolicy)
+					}
+				}
+			}
 		}
 
 		w.Header().Set("Content-Type", "application/json")

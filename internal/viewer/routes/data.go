@@ -351,6 +351,48 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 		json.NewEncoder(w).Encode(map[string]string{"status": "dropped"})
 	})
 
+	// Set insert policy for a table
+	mux.HandleFunc("/api/data/tables/set-policy", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req struct {
+			Table  string `json:"table"`
+			Policy string `json:"policy"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid json: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if req.Table == "" {
+			http.Error(w, "table name required", http.StatusBadRequest)
+			return
+		}
+
+		switch req.Policy {
+		case "owner", "email", "open":
+			// valid
+		default:
+			http.Error(w, "policy must be owner, email, or open", http.StatusBadRequest)
+			return
+		}
+
+		if err := db.SetTableInsertPolicy(req.Table, req.Policy); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"status": "updated",
+			"policy": req.Policy,
+		})
+	})
+
 	// Rename a table
 	mux.HandleFunc("/api/data/tables/rename", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
