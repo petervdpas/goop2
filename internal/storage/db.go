@@ -265,6 +265,37 @@ func (d *DB) UpdateRow(table string, rowID int64, data map[string]interface{}) e
 	return err
 }
 
+// UpdateRowOwner updates a row only if it belongs to the given owner.
+func (d *DB) UpdateRowOwner(table string, rowID int64, ownerID string, data map[string]interface{}) error {
+	if !validIdent(table) {
+		return fmt.Errorf("invalid table name: %s", table)
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	setClauses := "_updated_at = CURRENT_TIMESTAMP"
+	args := []interface{}{}
+	for col, val := range data {
+		if !validIdent(col) {
+			return fmt.Errorf("invalid column name: %s", col)
+		}
+		setClauses += fmt.Sprintf(", %s = ?", col)
+		args = append(args, val)
+	}
+	args = append(args, rowID, ownerID)
+
+	query := fmt.Sprintf("UPDATE %s SET %s WHERE _id = ? AND _owner = ?", table, setClauses)
+	res, err := d.db.Exec(query, args...)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("row not found or not owned by caller")
+	}
+	return nil
+}
+
 // DeleteRow deletes a row by _id
 func (d *DB) DeleteRow(table string, rowID int64) error {
 	if !validIdent(table) {
@@ -275,6 +306,25 @@ func (d *DB) DeleteRow(table string, rowID int64) error {
 
 	_, err := d.db.Exec(fmt.Sprintf("DELETE FROM %s WHERE _id = ?", table), rowID)
 	return err
+}
+
+// DeleteRowOwner deletes a row only if it belongs to the given owner.
+func (d *DB) DeleteRowOwner(table string, rowID int64, ownerID string) error {
+	if !validIdent(table) {
+		return fmt.Errorf("invalid table name: %s", table)
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	res, err := d.db.Exec(fmt.Sprintf("DELETE FROM %s WHERE _id = ? AND _owner = ?", table), rowID, ownerID)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("row not found or not owned by caller")
+	}
+	return nil
 }
 
 // AddColumn adds a column to an existing table

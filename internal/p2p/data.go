@@ -81,29 +81,35 @@ func (n *Node) dispatchDataOp(callerID string, req DataRequest) DataResponse {
 		return DataResponse{Error: "database not available"}
 	}
 
+	isLocal := callerID == n.ID()
+
 	switch req.Op {
 	case "tables":
 		return n.dataOpTables()
 	case "describe":
 		return n.dataOpDescribe(req)
 	case "query":
-		return n.dataOpQuery(req)
+		if isLocal {
+			return n.dataOpQueryLocal(req)
+		}
+		return n.dataOpQuery(callerID, req)
 	case "insert":
 		return n.dataOpInsert(callerID, req)
 	case "update":
-		return n.dataOpUpdate(req)
+		if isLocal {
+			return n.dataOpUpdateLocal(req)
+		}
+		return n.dataOpUpdate(callerID, req)
 	case "delete":
-		return n.dataOpDelete(req)
-	case "create-table":
-		return n.dataOpCreateTable(req)
-	case "add-column":
-		return n.dataOpAddColumn(req)
-	case "drop-column":
-		return n.dataOpDropColumn(req)
-	case "rename-table":
-		return n.dataOpRenameTable(req)
-	case "delete-table":
-		return n.dataOpDeleteTable(req)
+		if isLocal {
+			return n.dataOpDeleteLocal(req)
+		}
+		return n.dataOpDelete(callerID, req)
+	case "create-table", "add-column", "drop-column", "rename-table", "delete-table":
+		if !isLocal {
+			return DataResponse{Error: "schema operations not allowed for remote peers"}
+		}
+		return n.dispatchSchemaOp(req)
 	default:
 		return DataResponse{Error: fmt.Sprintf("unknown op: %s", req.Op)}
 	}
@@ -132,7 +138,8 @@ func (n *Node) dataOpDescribe(req DataRequest) DataResponse {
 	return DataResponse{OK: true, Data: cols}
 }
 
-func (n *Node) dataOpQuery(req DataRequest) DataResponse {
+// dataOpQueryLocal is the unrestricted local variant — no _owner scoping.
+func (n *Node) dataOpQueryLocal(req DataRequest) DataResponse {
 	if req.Table == "" {
 		return DataResponse{Error: "table name required"}
 	}
@@ -141,6 +148,80 @@ func (n *Node) dataOpQuery(req DataRequest) DataResponse {
 		Columns: req.Columns,
 		Where:   req.Where,
 		Args:    req.Args,
+		Limit:   req.Limit,
+		Offset:  req.Offset,
+	})
+	if err != nil {
+		return DataResponse{Error: err.Error()}
+	}
+	return DataResponse{OK: true, Data: rows}
+}
+
+// dataOpUpdateLocal is the unrestricted local variant — no _owner check.
+func (n *Node) dataOpUpdateLocal(req DataRequest) DataResponse {
+	if req.Table == "" {
+		return DataResponse{Error: "table name required"}
+	}
+	if req.ID <= 0 {
+		return DataResponse{Error: "valid row id required"}
+	}
+	if err := n.db.UpdateRow(req.Table, req.ID, req.Data); err != nil {
+		return DataResponse{Error: err.Error()}
+	}
+	return DataResponse{OK: true, Data: map[string]string{"status": "updated"}}
+}
+
+// dataOpDeleteLocal is the unrestricted local variant — no _owner check.
+func (n *Node) dataOpDeleteLocal(req DataRequest) DataResponse {
+	if req.Table == "" {
+		return DataResponse{Error: "table name required"}
+	}
+	if req.ID <= 0 {
+		return DataResponse{Error: "valid row id required"}
+	}
+	if err := n.db.DeleteRow(req.Table, req.ID); err != nil {
+		return DataResponse{Error: err.Error()}
+	}
+	return DataResponse{OK: true, Data: map[string]string{"status": "deleted"}}
+}
+
+// dispatchSchemaOp routes schema-mutating operations (local only).
+func (n *Node) dispatchSchemaOp(req DataRequest) DataResponse {
+	switch req.Op {
+	case "create-table":
+		return n.dataOpCreateTable(req)
+	case "add-column":
+		return n.dataOpAddColumn(req)
+	case "drop-column":
+		return n.dataOpDropColumn(req)
+	case "rename-table":
+		return n.dataOpRenameTable(req)
+	case "delete-table":
+		return n.dataOpDeleteTable(req)
+	default:
+		return DataResponse{Error: fmt.Sprintf("unknown schema op: %s", req.Op)}
+	}
+}
+
+// dataOpQuery scopes the query to the caller's own rows.
+func (n *Node) dataOpQuery(callerID string, req DataRequest) DataResponse {
+	if req.Table == "" {
+		return DataResponse{Error: "table name required"}
+	}
+
+	// Scope query to caller's own rows: inject _owner = ? condition
+	where := "_owner = ?"
+	args := []interface{}{callerID}
+	if req.Where != "" {
+		where = "(" + req.Where + ") AND _owner = ?"
+		args = append(req.Args, callerID)
+	}
+
+	rows, err := n.db.SelectPaged(storage.SelectOpts{
+		Table:   req.Table,
+		Columns: req.Columns,
+		Where:   where,
+		Args:    args,
 		Limit:   req.Limit,
 		Offset:  req.Offset,
 	})
@@ -173,27 +254,29 @@ func (n *Node) dataOpInsert(callerID string, req DataRequest) DataResponse {
 	}}
 }
 
-func (n *Node) dataOpUpdate(req DataRequest) DataResponse {
+func (n *Node) dataOpUpdate(callerID string, req DataRequest) DataResponse {
 	if req.Table == "" {
 		return DataResponse{Error: "table name required"}
 	}
 	if req.ID <= 0 {
 		return DataResponse{Error: "valid row id required"}
 	}
-	if err := n.db.UpdateRow(req.Table, req.ID, req.Data); err != nil {
+	// Only allow updating rows owned by the caller
+	if err := n.db.UpdateRowOwner(req.Table, req.ID, callerID, req.Data); err != nil {
 		return DataResponse{Error: err.Error()}
 	}
 	return DataResponse{OK: true, Data: map[string]string{"status": "updated"}}
 }
 
-func (n *Node) dataOpDelete(req DataRequest) DataResponse {
+func (n *Node) dataOpDelete(callerID string, req DataRequest) DataResponse {
 	if req.Table == "" {
 		return DataResponse{Error: "table name required"}
 	}
 	if req.ID <= 0 {
 		return DataResponse{Error: "valid row id required"}
 	}
-	if err := n.db.DeleteRow(req.Table, req.ID); err != nil {
+	// Only allow deleting rows owned by the caller
+	if err := n.db.DeleteRowOwner(req.Table, req.ID, callerID); err != nil {
 		return DataResponse{Error: err.Error()}
 	}
 	return DataResponse{OK: true, Data: map[string]string{"status": "deleted"}}
