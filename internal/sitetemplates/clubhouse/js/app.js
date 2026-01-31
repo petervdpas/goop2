@@ -159,6 +159,9 @@
     lobby.classList.add("hidden");
     chatView.classList.remove("hidden");
 
+    // Clean up any stale connection from a previous session
+    try { await Goop.group.leave(); } catch (_) {}
+
     // Subscribe to SSE first
     Goop.group.subscribe(handleGroupEvent);
 
