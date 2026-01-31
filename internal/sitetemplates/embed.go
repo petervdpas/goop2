@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-//go:embed all:corkboard all:blog all:photobook
+//go:embed all:corkboard all:blog all:photobook all:enquete
 var templateFS embed.FS
 
 // TemplateMeta holds template metadata from manifest.json

@@ -89,5 +89,10 @@
     dropTable(table) {
       return post("/api/data/tables/delete", { table });
     },
+
+    /** Add a column to an existing table */
+    addColumn(table, column) {
+      return post("/api/data/tables/add-column", { table, column });
+    },
   };
 })();
