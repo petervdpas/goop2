@@ -99,10 +99,15 @@ func registerHomeRoutes(mux *http.ServeMux, d Deps) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
+		avatarHash := ""
+		if d.AvatarStore != nil {
+			avatarHash = d.AvatarStore.Hash()
+		}
 		json.NewEncoder(w).Encode(map[string]string{
-			"id":    d.Node.ID(),
-			"label": safeCall(d.SelfLabel),
-			"email": safeCall(d.SelfEmail),
+			"id":          d.Node.ID(),
+			"label":       safeCall(d.SelfLabel),
+			"email":       safeCall(d.SelfEmail),
+			"avatar_hash": avatarHash,
 		})
 	})
 }

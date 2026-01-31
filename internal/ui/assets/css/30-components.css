@@ -35,9 +35,9 @@
 
 .peerrow{
   display:flex;
-  justify-content:space-between;
+  align-items:center;
   gap: 12px;
-  padding: 12px 14px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--line);
   background: linear-gradient(180deg, color-mix(in srgb, var(--chip) 90%, transparent), color-mix(in srgb, var(--chip) 55%, transparent));
   transition: background var(--ease);
@@ -52,11 +52,19 @@
 .peerleft{
   display:flex;
   flex-direction:column;
-  gap: 6px;
+  gap: 2px;
   min-width:0;
+  flex: 1;
 }
 
-.peerid{ 
+.peer-name-row{
+  display:flex;
+  align-items:baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.peerid{
   font-weight: 750;
   position: relative;
 }

@@ -6,8 +6,9 @@ import "goop/internal/config"
 
 type SettingsVM struct {
 	BaseVM
-	CfgPath string
-	CSRF    string
+	CfgPath    string
+	CSRF       string
+	AvatarHash string
 
 	Saved bool
 	Error string

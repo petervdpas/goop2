@@ -22,6 +22,9 @@ const (
 
 	// libp2p stream protocol ID for group invitations
 	GroupInviteProtoID = "/goop/group-invite/1.0.0"
+
+	// libp2p stream protocol ID for fetching peer avatars
+	AvatarProtoID = "/goop/avatar/1.0.0"
 )
 
 const (
@@ -31,11 +34,12 @@ const (
 )
 
 type PresenceMsg struct {
-	Type    string `json:"type"` // online|update|offline
-	PeerID  string `json:"peerId"`
-	Content string `json:"content,omitempty"`
-	Email   string `json:"email,omitempty"`
-	TS      int64  `json:"ts"`
+	Type       string `json:"type"` // online|update|offline
+	PeerID     string `json:"peerId"`
+	Content    string `json:"content,omitempty"`
+	Email      string `json:"email,omitempty"`
+	AvatarHash string `json:"avatarHash,omitempty"`
+	TS         int64  `json:"ts"`
 }
 
 func NowMillis() int64 { return time.Now().UnixMilli() }

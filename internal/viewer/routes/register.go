@@ -4,6 +4,7 @@ package routes
 import (
 	"net/http"
 
+	"goop/internal/avatar"
 	"goop/internal/content"
 	"goop/internal/p2p"
 	"goop/internal/state"
@@ -28,6 +29,9 @@ type Deps struct {
 	BaseURL string
 	DB      *storage.DB
 
+	AvatarStore *avatar.Store
+	AvatarCache *avatar.Cache
+
 	// Rendezvous-only mode (no p2p node, limited routes)
 	RendezvousOnly bool
 	RendezvousURL  string
@@ -51,6 +55,7 @@ func Register(mux *http.ServeMux, d Deps) {
 	registerSiteAPIRoutes(mux, d)
 	registerTemplateRoutes(mux, d, csrf)
 	registerGroupsUIRoutes(mux, d)
+	registerAvatarRoutes(mux, d)
 }
 
 // RegisterMinimal registers only the routes that work without a p2p node.

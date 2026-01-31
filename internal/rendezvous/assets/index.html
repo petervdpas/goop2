@@ -78,7 +78,7 @@
           {{else}}
             <div class="peer-grid" id="peer-grid">
               {{range .Peers}}
-                <div class="peer-card peer-row" data-status="{{statusClass .Type}}">
+                <div class="peer-card peer-row" data-status="{{statusClass .Type}}" data-label="{{.Content}}" data-email="{{.Email}}">
                   <div class="peer-header">
                     <span class="status-badge {{statusClass .Type}}">{{.Type}}</span>
                     <span class="peer-time">{{fmtMillis .LastSeen}}</span>
@@ -114,6 +114,39 @@
         if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
         if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
         return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+      }
+
+      // Initials-based avatar SVG generation
+      var avatarPalette = [
+        '#e74c3c','#e67e22','#f1c40f','#2ecc71','#1abc9c',
+        '#3498db','#9b59b6','#e91e63','#00bcd4','#ff5722',
+        '#607d8b','#795548','#8bc34a','#673ab7'
+      ];
+
+      function simpleHash(str) {
+        var h = 0;
+        for (var i = 0; i < str.length; i++) {
+          h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+        }
+        return Math.abs(h);
+      }
+
+      function getInitials(label) {
+        label = (label || '').trim();
+        if (!label) return '?';
+        var parts = label.split(/\s+/);
+        if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+        return label.substring(0, Math.min(2, label.length)).toUpperCase();
+      }
+
+      function avatarSVGDataURI(label, email) {
+        var initials = getInitials(label);
+        var color = avatarPalette[simpleHash((label || '') + (email || '')) % avatarPalette.length];
+        var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">' +
+          '<rect width="48" height="48" rx="24" fill="' + color + '"/>' +
+          '<text x="24" y="24" dy=".35em" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="600" fill="#fff">' + initials + '</text>' +
+          '</svg>';
+        return 'data:image/svg+xml;base64,' + btoa(svg);
       }
 
       // Theme toggle
@@ -202,9 +235,11 @@
               const lastSeen = peer.last_seen ? new Date(peer.last_seen).toLocaleString() : '';
               const bytesSent = formatBytes(peer.bytes_sent || 0);
               const bytesRecv = formatBytes(peer.bytes_received || 0);
+              const avatarURI = avatarSVGDataURI(peer.content || '', peer.email || '');
               return `
-                <div class="peer-card peer-row" data-status="${statusClass}">
+                <div class="peer-card peer-row" data-status="${statusClass}" data-label="${peer.content || ''}" data-email="${peer.email || ''}">
                   <div class="peer-header">
+                    <img class="peer-avatar" src="${avatarURI}" width="32" height="32" style="border-radius:50%;vertical-align:middle;margin-right:6px;">
                     <span class="status-badge ${statusClass}">${peer.type}</span>
                     <span class="peer-time">${lastSeen}</span>
                   </div>
@@ -275,6 +310,21 @@
         window.applyFilter = applyFilter;
         q.addEventListener('input', applyFilter);
         applyFilter();
+
+        // Inject avatars into server-rendered peer cards
+        document.querySelectorAll('.peer-card[data-label]').forEach(function(card) {
+          var header = card.querySelector('.peer-header');
+          if (!header || header.querySelector('.peer-avatar')) return;
+          var label = card.getAttribute('data-label') || '';
+          var email = card.getAttribute('data-email') || '';
+          var img = document.createElement('img');
+          img.className = 'peer-avatar';
+          img.src = avatarSVGDataURI(label, email);
+          img.width = 32;
+          img.height = 32;
+          img.style.cssText = 'border-radius:50%;vertical-align:middle;margin-right:6px;';
+          header.insertBefore(img, header.firstChild);
+        });
       })();
     </script>
   </div>

@@ -1,0 +1,75 @@
+/* Avatar styles */
+
+.avatar {
+  display: inline-block;
+  border-radius: 50%;
+  object-fit: cover;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.avatar-xs { width: 24px; height: 24px; }
+.avatar-sm { width: 32px; height: 32px; }
+.avatar-md { width: 48px; height: 48px; }
+.avatar-lg { width: 64px; height: 64px; }
+
+.avatar-file-input {
+  display: none;
+}
+
+/* Settings page: compact identity card */
+.identity-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  position: relative;
+}
+
+.identity-site-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 0.8em;
+  padding: 3px 10px;
+}
+
+.identity-avatar {
+  border: 2px solid var(--border);
+}
+
+.identity-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.identity-name {
+  font-weight: 600;
+  font-size: 1.1em;
+}
+
+.identity-meta {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.identity-meta code {
+  font-size: 0.85em;
+}
+
+.identity-actions {
+  margin-top: 6px;
+  display: flex;
+  gap: 6px;
+}
+
+.identity-actions .btn {
+  font-size: 0.8em;
+  padding: 3px 10px;
+}
+
+/* Peer row avatar */
+.peerrow > .avatar {
+  flex-shrink: 0;
+}

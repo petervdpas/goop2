@@ -4,6 +4,7 @@ package viewer
 import (
 	"net/http"
 
+	"goop/internal/avatar"
 	"goop/internal/chat"
 	"goop/internal/content"
 	"goop/internal/group"
@@ -29,6 +30,9 @@ type Viewer struct {
 	Groups  *group.Manager
 	DB      *storage.DB // SQLite database for peer data
 
+	AvatarStore *avatar.Store
+	AvatarCache *avatar.Cache
+
 	// NEW: canonical base URL for templates (e.g. http://127.0.0.1:7777)
 	BaseURL string
 }
@@ -52,16 +56,18 @@ func Start(addr string, v Viewer) error {
 	}
 
 	routes.Register(mux, routes.Deps{
-		Node:      v.Node,
-		SelfLabel: v.SelfLabel,
-		SelfEmail: v.SelfEmail,
-		Peers:     v.Peers,
-		CfgPath:   v.CfgPath,
-		Cfg:       v.Cfg,
-		Logs:      v.Logs,
-		Content:   v.Content,
-		BaseURL:   baseURL,
-		DB:        v.DB,
+		Node:        v.Node,
+		SelfLabel:   v.SelfLabel,
+		SelfEmail:   v.SelfEmail,
+		Peers:       v.Peers,
+		CfgPath:     v.CfgPath,
+		Cfg:         v.Cfg,
+		Logs:        v.Logs,
+		Content:     v.Content,
+		BaseURL:     baseURL,
+		DB:          v.DB,
+		AvatarStore: v.AvatarStore,
+		AvatarCache: v.AvatarCache,
 	})
 
 	// Register chat endpoints if chat manager is available

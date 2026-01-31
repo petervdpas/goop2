@@ -14,22 +14,22 @@
       <ul class="peers">
         {{range .Peers}}
         <li class="peerrow" data-peer-id="{{.ID}}">
+          <img class="avatar avatar-md" src="/api/avatar/peer/{{.ID}}" alt="">
           <div class="peerleft">
-            <a class="peerid" href="/peer/{{.ID}}">
-              <span class="peer-badge" data-unread-badge="{{.ID}}" style="display:none;">●</span>
-              {{shortID .ID}}
-            </a>
-            <span class="peercontent"><code>{{.Content}}</code></span>
-            {{if .Email}}<span class="peeremail muted small">{{.Email}}</span>{{end}}
+            <div class="peer-name-row">
+              <a class="peerid" href="/peer/{{.ID}}">
+                <span class="peer-badge" data-unread-badge="{{.ID}}" style="display:none;">●</span>
+                {{if .Content}}{{.Content}}{{else}}{{shortID .ID}}{{end}}
+              </a>
+              {{if .Email}}<span class="peeremail muted small">{{.Email}}</span>{{end}}
+            </div>
+            <span class="peercontent muted small"><code>{{shortID .ID}}</code> &middot; seen {{rfc3339 .LastSeen}}</span>
           </div>
-
           <div class="peerright">
-            <span class="seen muted">seen {{rfc3339 .LastSeen}}</span>
-
             <a class="btn"
                href="/open?url={{printf "%s/p/%s/" $.BaseURL .ID | urlquery}}"
                rel="noopener">
-              Open in Browser
+              Open
             </a>
           </div>
         </li>
@@ -96,19 +96,26 @@
     const lastSeen = new Date(peer.LastSeen).toISOString();
     const hasUnread = unreadPeers.has(peer.ID);
 
+    var avatarSrc = '/api/avatar/peer/' + encodeURIComponent(peer.ID);
+    if (peer.AvatarHash) avatarSrc += '?v=' + encodeURIComponent(peer.AvatarHash);
+
+    var peerName = peer.Content || shortId;
+
     return `<li class="peerrow" data-peer-id="${escapeHtml(peer.ID)}">
+      <img class="avatar avatar-md" src="${avatarSrc}" alt="">
       <div class="peerleft">
-        <a class="peerid" href="/peer/${escapeHtml(peer.ID)}">
-          <span class="peer-badge" data-unread-badge="${escapeHtml(peer.ID)}" style="display:${hasUnread ? 'inline' : 'none'};">●</span>
-          ${escapeHtml(shortId)}
-        </a>
-        <span class="peercontent"><code>${escapeHtml(peer.Content || '')}</code></span>
-        ${peer.Email ? '<span class="peeremail muted small">' + escapeHtml(peer.Email) + '</span>' : ''}
+        <div class="peer-name-row">
+          <a class="peerid" href="/peer/${escapeHtml(peer.ID)}">
+            <span class="peer-badge" data-unread-badge="${escapeHtml(peer.ID)}" style="display:${hasUnread ? 'inline' : 'none'};">●</span>
+            ${escapeHtml(peerName)}
+          </a>
+          ${peer.Email ? '<span class="peeremail muted small">' + escapeHtml(peer.Email) + '</span>' : ''}
+        </div>
+        <span class="peercontent muted small"><code>${escapeHtml(shortId)}</code> &middot; seen ${escapeHtml(lastSeen)}</span>
       </div>
       <div class="peerright">
-        <span class="seen muted">seen ${escapeHtml(lastSeen)}</span>
         <a class="btn" href="/open?url=${encodeURIComponent('{{.BaseURL}}/p/' + peer.ID + '/')}" rel="noopener">
-          Open in Browser
+          Open
         </a>
       </div>
     </li>`;

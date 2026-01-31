@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"goop/internal/avatar"
 	"goop/internal/chat"
 	"goop/internal/config"
 	"goop/internal/content"
@@ -130,6 +131,11 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 
 	node.EnableSite(filepath.Join(o.PeerDir, "site"))
 
+	// ── Avatar store
+	avatarStore := avatar.NewStore(o.PeerDir)
+	avatarCache := avatar.NewCache(o.PeerDir)
+	node.EnableAvatar(avatarStore)
+
 	// Initialize SQLite database for peer data (unconditionally — needed for P2P data protocol)
 	db, err := storage.Open(o.PeerDir)
 	if err != nil {
@@ -155,7 +161,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			}
 			switch pm.Type {
 			case proto.TypeOnline, proto.TypeUpdate:
-				peers.Upsert(pm.PeerID, pm.Content, pm.Email)
+				peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash)
 			case proto.TypeOffline:
 				peers.Remove(pm.PeerID)
 			}
@@ -170,11 +176,12 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 				ctx2, cancel := context.WithTimeout(pctx, util.ShortTimeout)
 				defer cancel()
 				_ = cc.Publish(ctx2, proto.PresenceMsg{
-					Type:    typ,
-					PeerID:  node.ID(),
-					Content: selfContent(),
-					Email:   selfEmail(),
-					TS:      proto.NowMillis(),
+					Type:       typ,
+					PeerID:     node.ID(),
+					Content:    selfContent(),
+					Email:      selfEmail(),
+					AvatarHash: avatarStore.Hash(),
+					TS:         proto.NowMillis(),
 				})
 			}()
 		}
@@ -189,18 +196,20 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		}
 
 		go viewer.Start(addr, viewer.Viewer{
-			Node:      node,
-			SelfLabel: selfContent,
-			SelfEmail: selfEmail,
-			Peers:     peers,
-			CfgPath:   o.CfgPath,
-			Cfg:       cfg, // always *config.Config
-			Logs:      o.Logs,
-			Content:   store,
-			Chat:      chatMgr,
-			Groups:    grpMgr,
-			DB:        db,
-			BaseURL:   url,
+			Node:        node,
+			SelfLabel:   selfContent,
+			SelfEmail:   selfEmail,
+			Peers:       peers,
+			CfgPath:     o.CfgPath,
+			Cfg:         cfg, // always *config.Config
+			Logs:        o.Logs,
+			Content:     store,
+			Chat:        chatMgr,
+			Groups:      grpMgr,
+			DB:          db,
+			BaseURL:     url,
+			AvatarStore: avatarStore,
+			AvatarCache: avatarCache,
 		})
 	}
 

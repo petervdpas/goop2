@@ -369,7 +369,8 @@
     membersListEl.innerHTML = members.map(function (peerId) {
       var name = displayName(peerId);
       var cls = peerId === myId ? ' class="member-you"' : '';
-      return '<li><span class="member-dot"></span><span' + cls + '>' + esc(name) + '</span></li>';
+      var avatarUrl = '/api/avatar/peer/' + encodeURIComponent(peerId);
+      return '<li><img class="avatar avatar-xs" src="' + esc(avatarUrl) + '" alt="" style="border-radius:50%;width:24px;height:24px;vertical-align:middle;margin-right:6px;"><span class="member-dot"></span><span' + cls + '>' + esc(name) + '</span></li>';
     }).join("");
   }
 

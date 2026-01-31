@@ -15,29 +15,32 @@
     <h1>Me</h1>
   {{end}}
 
-  <div class="card">
-    <p>
-      <b>Label:</b> {{.SelfName}}<br>
-      <b>Email:</b> {{if .Cfg.Profile.Email}}{{.Cfg.Profile.Email}}{{else}}<span class="muted">not set</span>{{end}}{{if .SelfID}}<br>
-      <b>PeerID:</b> <code>{{.SelfID}}</code>{{end}}
-    </p>
-  </div>
-
-  <div class="actions" style="margin: 12px 0 18px 0;">
+  <div class="card identity-card">
+    <img id="avatar-preview" class="avatar avatar-lg identity-avatar"
+         src="{{if .AvatarHash}}/api/avatar?v={{.AvatarHash}}{{else}}/api/avatar{{end}}"
+         alt="Avatar">
+    <div class="identity-info">
+      <div class="identity-name">{{.SelfName}}</div>
+      <div class="identity-meta muted small">
+        {{if .Cfg.Profile.Email}}{{.Cfg.Profile.Email}}{{else}}no email set{{end}}{{if .SelfID}}
+        &middot; <code>{{.SelfID}}</code>{{end}}
+      </div>
+      <div class="identity-actions">
+        <button type="button" class="btn secondary" id="avatar-choose-btn">Change avatar</button>
+        {{if .AvatarHash}}<button type="button" class="btn secondary" id="avatar-remove-btn">Remove</button>{{end}}
+        <input type="file" id="avatar-file-input" class="avatar-file-input" accept="image/*">
+      </div>
+    </div>
     {{if .RendezvousOnly}}
       {{if .RendezvousURL}}
-      <a class="btn"
+      <a class="btn identity-site-btn"
          href="/open?url={{.RendezvousURL | urlquery}}"
-         rel="noopener">
-        Open rendezvous dashboard
-      </a>
+         rel="noopener">Open dashboard</a>
       {{end}}
     {{else}}
-      <a class="btn"
+      <a class="btn identity-site-btn"
          href="/open?url={{printf "%s/p/%s/" .BaseURL .SelfID | urlquery}}"
-         rel="noopener">
-        Open my site
-      </a>
+         rel="noopener">Open my site</a>
     {{end}}
   </div>
 
@@ -202,4 +205,81 @@
     Note: Changing networking or viewer settings may require restarting this peer.
   </p>
 </div>
+
+<script>
+(function() {
+  var fileInput = document.getElementById('avatar-file-input');
+  var chooseBtn = document.getElementById('avatar-choose-btn');
+  var removeBtn = document.getElementById('avatar-remove-btn');
+  var preview = document.getElementById('avatar-preview');
+
+  if (chooseBtn) {
+    chooseBtn.addEventListener('click', function() {
+      fileInput.click();
+    });
+  }
+
+  if (fileInput) {
+    fileInput.addEventListener('change', function() {
+      var file = fileInput.files[0];
+      if (!file) return;
+
+      var img = new Image();
+      img.onload = function() {
+        var canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        var ctx = canvas.getContext('2d');
+
+        // Center-crop to square, then draw at 256x256
+        var size = Math.min(img.width, img.height);
+        var sx = (img.width - size) / 2;
+        var sy = (img.height - size) / 2;
+        ctx.drawImage(img, sx, sy, size, size, 0, 0, 256, 256);
+
+        canvas.toBlob(function(blob) {
+          if (!blob) return;
+          if (blob.size > 256 * 1024) {
+            alert('Resized image still too large. Try a smaller image.');
+            return;
+          }
+
+          var fd = new FormData();
+          fd.append('avatar', blob, 'avatar.png');
+
+          fetch('/api/avatar/upload', { method: 'POST', body: fd })
+            .then(function(r) {
+              if (!r.ok) throw new Error('Upload failed');
+              return r.json();
+            })
+            .then(function(data) {
+              preview.src = '/api/avatar?v=' + data.hash;
+              if (!removeBtn) {
+                // Reload to show the remove button
+                window.location.reload();
+              }
+            })
+            .catch(function(err) {
+              alert('Upload failed: ' + err.message);
+            });
+        }, 'image/png');
+      };
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  if (removeBtn) {
+    removeBtn.addEventListener('click', function() {
+      fetch('/api/avatar/delete', { method: 'POST' })
+        .then(function(r) {
+          if (!r.ok) throw new Error('Delete failed');
+          window.location.reload();
+        })
+        .catch(function(err) {
+          alert('Delete failed: ' + err.message);
+        });
+    });
+  }
+})();
+</script>
 {{end}}

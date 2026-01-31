@@ -47,6 +47,7 @@ type peerRow struct {
 	Type          string `json:"type"`
 	Content       string `json:"content"`
 	Email         string `json:"email,omitempty"`
+	AvatarHash    string `json:"avatar_hash,omitempty"`
 	TS            int64  `json:"ts"`
 	LastSeen      int64  `json:"last_seen"`
 	BytesSent     int64  `json:"bytes_sent"`
@@ -367,6 +368,7 @@ func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64) {
 		Type:          pm.Type,
 		Content:       pm.Content,
 		Email:         pm.Email,
+		AvatarHash:    pm.AvatarHash,
 		TS:            pm.TS,
 		LastSeen:      now,
 		BytesSent:     bytesSent,

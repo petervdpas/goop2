@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"goop/internal/avatar"
 	"goop/internal/proto"
 	"goop/internal/state"
 	"goop/internal/storage"
@@ -42,6 +43,9 @@ type Node struct {
 
 	// Set by EnableData in data.go
 	db *storage.DB
+
+	// Set by EnableAvatar in avatar.go
+	avatarStore *avatar.Store
 }
 
 type mdnsNotifee struct {
@@ -172,6 +176,7 @@ func (n *Node) Publish(ctx context.Context, typ string) {
 	if typ == proto.TypeOnline || typ == proto.TypeUpdate {
 		msg.Content = n.selfContent()
 		msg.Email = n.selfEmail()
+		msg.AvatarHash = n.AvatarHash()
 	}
 
 	b, _ := json.Marshal(msg)
@@ -199,7 +204,7 @@ func (n *Node) RunPresenceLoop(ctx context.Context, onEvent func(msg proto.Prese
 
 			switch pm.Type {
 			case proto.TypeOnline, proto.TypeUpdate:
-				n.peers.Upsert(pm.PeerID, pm.Content, pm.Email)
+				n.peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash)
 			case proto.TypeOffline:
 				n.peers.Remove(pm.PeerID)
 			}
