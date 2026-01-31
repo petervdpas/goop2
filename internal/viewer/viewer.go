@@ -72,6 +72,11 @@ func Start(addr string, v Viewer) error {
 		routes.RegisterData(mux, v.DB, v.Node.ID(), v.SelfEmail)
 	}
 
+	// Register data proxy for remote peer data operations
+	if v.Node != nil {
+		routes.RegisterDataProxy(mux, v.Node)
+	}
+
 	return http.ListenAndServe(addr, mux)
 }
 

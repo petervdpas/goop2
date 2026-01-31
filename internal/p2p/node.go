@@ -11,6 +11,7 @@ import (
 
 	"goop/internal/proto"
 	"goop/internal/state"
+	"goop/internal/storage"
 	"goop/internal/util"
 
 	libp2p "github.com/libp2p/go-libp2p"
@@ -35,6 +36,9 @@ type Node struct {
 
 	// Set by EnableSite in site.go
 	siteRoot string
+
+	// Set by EnableData in data.go
+	db *storage.DB
 }
 
 type mdnsNotifee struct {

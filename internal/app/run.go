@@ -127,6 +127,14 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	defer node.Close()
 
 	node.EnableSite(filepath.Join(o.PeerDir, "site"))
+
+	// Initialize SQLite database for peer data (unconditionally — needed for P2P data protocol)
+	db, err := storage.Open(o.PeerDir)
+	if err != nil {
+		return fmt.Errorf("open database: %w", err)
+	}
+
+	node.EnableData(db)
 	log.Printf("peer id: %s", node.ID())
 
 	// ── Chat manager
@@ -171,12 +179,6 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		store, err := content.NewStore(o.PeerDir, "site")
 		if err != nil {
 			return err
-		}
-
-		// Initialize SQLite database for peer data
-		db, err := storage.Open(o.PeerDir)
-		if err != nil {
-			return fmt.Errorf("open database: %w", err)
 		}
 
 		go viewer.Start(addr, viewer.Viewer{

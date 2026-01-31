@@ -13,6 +13,9 @@ const (
 
 	// libp2p stream protocol ID used to fetch files from a peer's site folder
 	SiteProtoID = "/goop/site/1.0.0"
+
+	// libp2p stream protocol ID for remote data operations
+	DataProtoID = "/goop/data/1.0.0"
 )
 
 const (

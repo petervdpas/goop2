@@ -1,0 +1,215 @@
+/* Enquete template — clean, approachable survey style */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  --bg: #f4f6f9;
+  --text: #2c3040;
+  --muted: #7a8194;
+  --accent: #5b6abf;
+  --border: #d8dce6;
+  --panel: #ffffff;
+  --sans: 'Inter', system-ui, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.enquete {
+  max-width: 580px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 4rem;
+}
+
+/* -- Header -- */
+.eq-header {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.eq-title {
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.eq-subtitle {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+/* -- Form card -- */
+.eq-form {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.75rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+/* -- Loading -- */
+.loading {
+  color: var(--muted);
+  font-style: italic;
+  text-align: center;
+}
+
+/* -- goop-form base layout (CSP blocks JS-injected <style>) -- */
+.gform-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.gform-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.gform-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.gform-input,
+.gform-textarea,
+.gform-select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.95rem;
+}
+
+.gform-textarea {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+.gform-select {
+  appearance: auto;
+}
+
+.gform-input:focus,
+.gform-textarea:focus,
+.gform-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(91, 106, 191, 0.15);
+}
+
+.gform-radio-group,
+.gform-checkbox-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.gform-radio-group label,
+.gform-checkbox-wrap label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.gform-radio-group input[type=radio],
+.gform-checkbox-wrap input[type=checkbox] {
+  accent-color: var(--accent);
+}
+
+.gform-btns {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.gform-btns button {
+  padding: 0.5rem 1.2rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.gform-btns button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  padding: 0.55rem 1.6rem;
+}
+
+.gform-btns button.primary:hover {
+  opacity: 0.9;
+}
+
+.gform-status {
+  font-size: 0.85rem;
+  text-align: center;
+  color: var(--muted);
+  margin-top: 0.25rem;
+}
+
+/* -- goop-ui overrides -- */
+.goop-toast {
+  background: var(--panel);
+  color: var(--text);
+  border-color: var(--border);
+  font-family: var(--sans);
+}
+
+.goop-toast-title { font-weight: 600; }
+
+.goop-dlg-bg {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.goop-dlg {
+  background: var(--panel);
+  color: var(--text);
+  border-color: var(--border);
+  font-family: var(--sans);
+}
+
+.goop-dlg h3 { font-weight: 600; }
+.goop-dlg p { color: var(--muted); }
+
+.goop-dlg input {
+  background: var(--bg);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.goop-dlg-btns button {
+  background: transparent;
+  color: var(--muted);
+  border-color: var(--border);
+}
+
+.goop-dlg-btns button.primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}

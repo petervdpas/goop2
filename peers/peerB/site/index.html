@@ -2,51 +2,26 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>peer-B</title>
+  <title>Enquete</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="/assets/js/goop-data.js"></script>
   <script src="/assets/js/goop-identity.js"></script>
-  <script src="/assets/js/goop-peers.js"></script>
-  <script src="/assets/js/goop-chat.js"></script>
   <script src="/assets/js/goop-ui.js"></script>
-  <script src="/assets/js/goop-site.js"></script>
+  <script src="/assets/js/goop-form.js"></script>
 </head>
 <body>
-  <main>
-    <!-- identity section -->
-    <section class="card" id="identity">
-      <h1>peer-B</h1>
-      <p class="muted">Loading identity...</p>
-    </section>
+  <div class="enquete">
+    <header class="eq-header">
+      <h1 class="eq-title">Enquete</h1>
+      <p class="eq-subtitle">We'd love to hear from you &mdash; answer a few quick questions.</p>
+    </header>
 
-    <!-- peers section -->
-    <section class="card">
-      <h2>Online Peers <span class="muted" id="peer-count"></span></h2>
-      <ul class="peer-list" id="peer-list">
-        <li class="muted">Connecting...</li>
-      </ul>
-    </section>
+    <main id="enquete-form" class="eq-form">
+      <p class="loading">Loading form&hellip;</p>
+    </main>
+  </div>
 
-    <!-- chat section -->
-    <section class="card">
-      <h2>Broadcast Chat</h2>
-      <div class="chat-box" id="chat-messages">
-        <p class="muted">Loading messages...</p>
-      </div>
-      <form class="chat-form" id="chat-form">
-        <input type="text" id="chat-input" placeholder="Say something..." autocomplete="off" required>
-        <button type="submit">Send</button>
-      </form>
-    </section>
-
-    <!-- site files section -->
-    <section class="card">
-      <h2>My Site Files</h2>
-      <ul class="file-list" id="file-list">
-        <li class="muted">Loading...</li>
-      </ul>
-    </section>
-  </main>
-  <script src="app.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>

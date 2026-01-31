@@ -32,6 +32,13 @@
 (() => {
   window.Goop = window.Goop || {};
 
+  // Detect remote peer context from URL path: /p/<peerID>/...
+  var apiBase = "/api/data";
+  var m = window.location.pathname.match(/^\/p\/([^/]+)\//);
+  if (m) {
+    apiBase = "/api/p/" + m[1] + "/data";
+  }
+
   async function request(url, opts) {
     const res = await fetch(url, opts);
     if (!res.ok) {
@@ -52,47 +59,47 @@
   window.Goop.data = {
     /** List all tables. Returns [{name, created_at}] */
     tables() {
-      return request("/api/data/tables");
+      return request(apiBase + "/tables");
     },
 
     /** Describe a table's columns. Returns [{cid, name, type, not_null, default, pk}] */
     describe(table) {
-      return post("/api/data/tables/describe", { table });
+      return post(apiBase + "/tables/describe", { table });
     },
 
     /** Query rows from a table. Options: {columns, where, args, limit, offset} */
     query(table, opts) {
-      return post("/api/data/query", Object.assign({ table }, opts || {}));
+      return post(apiBase + "/query", Object.assign({ table }, opts || {}));
     },
 
     /** Insert a row. data is {col: value, ...}. Returns {status, id} */
     insert(table, data) {
-      return post("/api/data/insert", { table, data });
+      return post(apiBase + "/insert", { table, data });
     },
 
     /** Update a row by _id. data is {col: value, ...}. Returns {status} */
     update(table, id, data) {
-      return post("/api/data/update", { table, id, data });
+      return post(apiBase + "/update", { table, id, data });
     },
 
     /** Delete a row by _id. Returns {status} */
     remove(table, id) {
-      return post("/api/data/delete", { table, id });
+      return post(apiBase + "/delete", { table, id });
     },
 
     /** Create a new table. columns is [{name, type, not_null, default}] */
     createTable(name, columns) {
-      return post("/api/data/tables/create", { name, columns });
+      return post(apiBase + "/tables/create", { name, columns });
     },
 
     /** Drop a table entirely */
     dropTable(table) {
-      return post("/api/data/tables/delete", { table });
+      return post(apiBase + "/tables/delete", { table });
     },
 
     /** Add a column to an existing table */
     addColumn(table, column) {
-      return post("/api/data/tables/add-column", { table, column });
+      return post(apiBase + "/tables/add-column", { table, column });
     },
   };
 })();

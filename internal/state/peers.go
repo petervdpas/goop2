@@ -60,6 +60,13 @@ func (t *PeerTable) Remove(id string) {
 	t.notifyListeners(PeerEvent{Type: "remove", PeerID: id})
 }
 
+func (t *PeerTable) Get(id string) (SeenPeer, bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	sp, ok := t.peers[id]
+	return sp, ok
+}
+
 func (t *PeerTable) Snapshot() map[string]SeenPeer {
 	t.mu.Lock()
 	defer t.mu.Unlock()
