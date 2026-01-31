@@ -68,7 +68,7 @@
       .map(function (p, idx) {
         var html = '<div class="photo-card" data-idx="' + idx + '">';
         html +=
-          '<img src="images/' +
+          '<img src="images/photobook/' +
           esc(p.filename) +
           '" alt="' +
           esc(p.caption || p.filename) +
@@ -142,7 +142,7 @@
           if (Goop.ui) ok = await Goop.ui.confirm("Delete this photo?");
           if (!ok) return;
           try {
-            await site.remove("images/" + filename);
+            await site.remove("images/photobook/" + filename);
           } catch (_) {} // file may already be gone
           await db.remove("photos", id);
           loadPhotos();
@@ -164,7 +164,7 @@
   function updateLightbox() {
     var p = photos[lbIndex];
     if (!p) return;
-    document.getElementById("lb-img").src = "images/" + p.filename;
+    document.getElementById("lb-img").src = "images/photobook/" + p.filename;
     document.getElementById("lb-caption").textContent = p.caption || "";
   }
 
@@ -236,7 +236,7 @@
         ext;
 
       try {
-        await site.upload("images/" + safeName, file);
+        await site.upload("images/photobook/" + safeName, file);
         await db.insert("photos", { filename: safeName, caption: caption });
         uploadOverlay.classList.add("hidden");
         if (Goop.ui) Goop.ui.toast("Photo uploaded!");

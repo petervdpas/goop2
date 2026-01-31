@@ -2,39 +2,49 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Blog</title>
+  <title>Photobook</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="css/style.css">
   <script src="/assets/js/goop-data.js"></script>
+  <script src="/assets/js/goop-site.js"></script>
   <script src="/assets/js/goop-identity.js"></script>
   <script src="/assets/js/goop-ui.js"></script>
 </head>
 <body>
-  <div class="blog">
-    <header class="blog-header">
-      <h1 class="blog-title">My Blog</h1>
-      <p class="blog-subtitle" id="blog-subtitle">Thoughts, stories & notes</p>
-      <button id="btn-new" class="btn-new hidden">+ New Post</button>
+  <div class="photobook">
+    <header class="pb-header">
+      <h1 class="pb-title">Photobook</h1>
+      <p class="pb-subtitle">A collection of moments</p>
+      <button id="btn-upload" class="btn-upload hidden">+ Upload Photo</button>
     </header>
 
-    <main id="posts" class="posts">
-      <p class="loading">Loading posts&hellip;</p>
+    <main id="gallery" class="gallery">
+      <p class="loading">Loading photos&hellip;</p>
     </main>
   </div>
 
-  <!-- write / edit overlay (owner only) -->
-  <div id="editor-overlay" class="editor-overlay hidden">
-    <div class="editor-card">
-      <h2 id="editor-heading">New Post</h2>
-      <label>Title <input type="text" id="f-title" required></label>
-      <label>Body <textarea id="f-body" rows="10"></textarea></label>
-      <div class="editor-btns">
-        <button id="btn-cancel" class="btn-cancel">Cancel</button>
-        <button id="btn-save" class="btn-save">Publish</button>
+  <!-- upload overlay (owner only) -->
+  <div id="upload-overlay" class="overlay hidden">
+    <div class="overlay-card">
+      <h2>Upload Photo</h2>
+      <label>Image <input type="file" id="f-file" accept="image/*"></label>
+      <label>Caption <input type="text" id="f-caption" placeholder="optional"></label>
+      <div class="overlay-btns">
+        <button id="btn-cancel-upload" class="btn-cancel">Cancel</button>
+        <button id="btn-submit-upload" class="btn-save">Upload</button>
       </div>
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <!-- lightbox -->
+  <div id="lightbox" class="lightbox hidden">
+    <button class="lb-close" id="lb-close">&times;</button>
+    <button class="lb-prev" id="lb-prev">&lsaquo;</button>
+    <button class="lb-next" id="lb-next">&rsaquo;</button>
+    <img id="lb-img" class="lb-img" src="" alt="">
+    <div id="lb-caption" class="lb-caption"></div>
+  </div>
+
+  <script src="js/app.js"></script>
 </body>
 </html>

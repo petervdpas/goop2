@@ -115,14 +115,25 @@ h2 {
 .note-delete {
   position: absolute;
   top: 0.4rem;
-  right: 0.5rem;
-  background: none;
-  border: none;
+  right: 0.4rem;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(136, 68, 68, 0.15);
+  border: 1px solid rgba(136, 68, 68, 0.25);
+  border-radius: 50%;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.85rem;
+  line-height: 1;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, background 0.15s;
   color: #884444;
+}
+
+.note-delete:hover {
+  background: rgba(136, 68, 68, 0.35);
 }
 
 .note:hover .note-delete { opacity: 1; }
@@ -206,3 +217,86 @@ h2 {
 }
 
 .btn-submit:hover { background: #f0d55a; }
+
+/* ── goop-ui dialog & toast (CSP blocks inline injection) ── */
+
+.goop-toast-wrap {
+  position: fixed; top: 1rem; right: 1rem; z-index: 99999;
+  display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none;
+}
+
+.goop-toast {
+  pointer-events: auto;
+  background: #3a2818;
+  color: #f5e6d0;
+  border: 1px solid #5a4030;
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  font: 14px/1.4 system-ui, sans-serif;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  animation: goop-fade-in 0.2s ease;
+}
+
+.goop-toast.exit { opacity: 0; transition: opacity 0.25s; }
+.goop-toast-title { font-weight: 600; margin-bottom: 0.15rem; }
+
+@keyframes goop-fade-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.goop-dlg-bg {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 99998;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.goop-dlg {
+  background: #faf3e8;
+  color: #3a2818;
+  border: 1px solid #c8b8a0;
+  border-radius: 12px;
+  padding: 1.25rem;
+  min-width: 300px;
+  max-width: 420px;
+  font: 14px/1.5 system-ui, sans-serif;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.goop-dlg h3 { margin: 0 0 0.5rem; font-size: 1rem; color: #3a2818; }
+.goop-dlg p  { margin: 0 0 0.75rem; color: #5a4030; }
+
+.goop-dlg input {
+  width: 100%; box-sizing: border-box;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #c8b8a0;
+  border-radius: 6px;
+  background: #fff;
+  color: #3a2818;
+  font: inherit;
+  margin-bottom: 0.75rem;
+}
+
+.goop-dlg-btns {
+  display: flex; gap: 0.5rem; justify-content: flex-end;
+}
+
+.goop-dlg-btns button {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid #c8b8a0;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  background: #f0e6d6;
+  color: #3a2818;
+}
+
+.goop-dlg-btns button.primary {
+  background: #e8c84a;
+  color: #3a2818;
+  border-color: #d4b43a;
+  font-weight: 600;
+}
+
+.goop-dlg-btns button.primary:hover { background: #f0d55a; }
