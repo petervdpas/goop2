@@ -67,6 +67,16 @@
       });
     },
 
+    /** Join a group you host (owner entering own room) */
+    joinOwn(groupId) {
+      return post("/api/groups/join-own", { group_id: groupId });
+    },
+
+    /** Leave a group you host (owner leaving own room) */
+    leaveOwn(groupId) {
+      return post("/api/groups/leave-own", { group_id: groupId });
+    },
+
     /** Close/delete a hosted group */
     close(groupId) {
       return post("/api/groups/close", { group_id: groupId });

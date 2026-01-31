@@ -1,0 +1,9 @@
+{
+  "name": "Clubhouse",
+  "description": "A cozy real-time chat room. Create rooms, invite peers, chat live.",
+  "category": "community",
+  "icon": "\ud83c\udfe0",
+  "tables": {
+    "rooms": { "insert_policy": "owner" }
+  }
+}

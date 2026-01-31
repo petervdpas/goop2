@@ -203,18 +203,29 @@ func (n *Node) dispatchSchemaOp(req DataRequest) DataResponse {
 	}
 }
 
-// dataOpQuery scopes the query to the caller's own rows.
+// dataOpQuery handles remote read queries. For "owner" policy tables the data
+// belongs exclusively to the site owner and is publicly readable, so no
+// _owner scoping is applied. For other policies each caller sees only their
+// own rows.
 func (n *Node) dataOpQuery(callerID string, req DataRequest) DataResponse {
 	if req.Table == "" {
 		return DataResponse{Error: "table name required"}
 	}
 
-	// Scope query to caller's own rows: inject _owner = ? condition
-	where := "_owner = ?"
-	args := []interface{}{callerID}
-	if req.Where != "" {
-		where = "(" + req.Where + ") AND _owner = ?"
-		args = append(req.Args, callerID)
+	where := req.Where
+	args := req.Args
+
+	// Owner-only tables are public reads — skip _owner scoping.
+	policy, _ := n.db.GetTableInsertPolicy(req.Table)
+	if policy != "owner" {
+		// Scope query to caller's own rows: inject _owner = ? condition
+		if where != "" {
+			where = "(" + where + ") AND _owner = ?"
+			args = append(args, callerID)
+		} else {
+			where = "_owner = ?"
+			args = []interface{}{callerID}
+		}
 	}
 
 	rows, err := n.db.SelectPaged(storage.SelectOpts{

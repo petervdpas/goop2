@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-//go:embed all:corkboard all:blog all:photobook all:enquete
+//go:embed all:corkboard all:blog all:photobook all:enquete all:clubhouse
 var templateFS embed.FS
 
 // TablePolicy holds per-table configuration from a template manifest.

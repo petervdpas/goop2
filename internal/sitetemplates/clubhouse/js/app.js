@@ -165,8 +165,12 @@
     try {
       if (isOwner) {
         await Goop.group.joinOwn(room.group_id);
+        // Owner knows own label already
+        labelMap[myId] = myLabel;
       } else {
         await Goop.group.join(hostPeerId, room.group_id);
+        // Announce our label so other members see a friendly name
+        Goop.group.send({ type: "presence", label: myLabel }).catch(function () {});
       }
       appendSystem("You joined the room.");
     } catch (err) {
@@ -289,13 +293,20 @@
         break;
 
       case "msg":
-        if (evt.payload && evt.payload.type === "chat") {
-          // Track labels from incoming messages
-          if (evt.from && evt.payload.label) {
-            labelMap[evt.from] = evt.payload.label;
-            renderMembers();
-          }
+        if (!evt.payload) break;
 
+        // Track labels from any message that carries one
+        if (evt.from && evt.payload.label) {
+          labelMap[evt.from] = evt.payload.label;
+          renderMembers();
+        }
+
+        if (evt.payload.type === "presence") {
+          // Presence is label-only, no visible message
+          break;
+        }
+
+        if (evt.payload.type === "chat") {
           var isSelf = evt.from === myId;
           // Visitors already appended their own messages locally
           if (!isOwner && isSelf) break;
