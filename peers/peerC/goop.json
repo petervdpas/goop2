@@ -21,10 +21,12 @@
     "rendezvous_only": false
   },
   "profile": {
-    "label": "peer-C"
+    "label": "peer-C",
+    "email": "peer-c@example.com"
   },
   "viewer": {
-    "http_addr": ":7779",
-    "debug": true
+    "http_addr": "",
+    "debug": false,
+    "theme": "light"
   }
 }

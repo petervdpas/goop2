@@ -22,11 +22,11 @@
   },
   "profile": {
     "label": "Peer-B",
-    "email": "me@example.com"
+    "email": "peerB@example.com"
   },
   "viewer": {
-    "http_addr": ":7778",
+    "http_addr": "",
     "debug": false,
-    "theme": "light"
+    "theme": "dark"
   }
 }

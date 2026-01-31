@@ -198,6 +198,76 @@ h1 {
   font-size: 18px;
 }
 
+/* Connect Box */
+.connect-box {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+}
+
+.connect-label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.connect-hint {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.connect-url {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  margin-top: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.connect-url:hover {
+  border-color: var(--accent-blue);
+  background: color-mix(in srgb, var(--accent-blue) 6%, var(--bg));
+}
+
+.connect-url.copied {
+  border-color: #4c4;
+}
+
+.connect-url code {
+  font-size: 18px;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.connect-url .copy-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.connect-url.copied .copy-hint {
+  color: #4c4;
+}
+
+.connect-url.copied .copy-hint::after {
+  content: ' \2713 copied!';
+}
+
 /* Search Bar */
 .search-bar {
   position: relative;

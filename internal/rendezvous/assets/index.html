@@ -41,6 +41,19 @@
       </div>
     </div>
 
+    {{if .ConnectURLs}}
+    <div class="connect-box">
+      <div class="connect-label">Peer Connect URL</div>
+      <div class="connect-hint">Paste into a peer's <strong>WAN rendezvous</strong> setting to join this server</div>
+      {{range .ConnectURLs}}
+      <div class="connect-url" onclick="navigator.clipboard.writeText('{{.}}').then(()=>{this.classList.add('copied');setTimeout(()=>this.classList.remove('copied'),1200)})">
+        <code>{{.}}</code>
+        <span class="copy-hint">click to copy</span>
+      </div>
+      {{end}}
+    </div>
+    {{end}}
+
     <div class="search-bar">
       <span class="search-icon">🔍</span>
       <input id="q" class="search-input" placeholder="Filter by peer ID or label..." />

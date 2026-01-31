@@ -54,11 +54,12 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 				groups = []storage.GroupRow{}
 			}
 
-			// Enrich with member counts
+			// Enrich with member counts and host-in-group status
 			type groupWithMembers struct {
 				storage.GroupRow
 				MemberCount int                `json:"member_count"`
 				Members     []group.MemberInfo `json:"members"`
+				HostInGroup bool               `json:"host_in_group"`
 			}
 			result := make([]groupWithMembers, len(groups))
 			for i, g := range groups {
@@ -70,6 +71,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 					GroupRow:    g,
 					MemberCount: len(members),
 					Members:     members,
+					HostInGroup: grpMgr.HostInGroup(g.ID),
 				}
 			}
 
@@ -79,6 +81,56 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
+	})
+
+	// Host joins own group
+	mux.HandleFunc("/api/groups/join-own", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			GroupID string `json:"group_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+		if req.GroupID == "" {
+			http.Error(w, "Missing group_id", http.StatusBadRequest)
+			return
+		}
+		if err := grpMgr.JoinOwnGroup(req.GroupID); err != nil {
+			http.Error(w, fmt.Sprintf("Failed: %v", err), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "joined"})
+	})
+
+	// Host leaves own group
+	mux.HandleFunc("/api/groups/leave-own", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			GroupID string `json:"group_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+		if req.GroupID == "" {
+			http.Error(w, "Missing group_id", http.StatusBadRequest)
+			return
+		}
+		if err := grpMgr.LeaveOwnGroup(req.GroupID); err != nil {
+			http.Error(w, fmt.Sprintf("Failed: %v", err), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "left"})
 	})
 
 	// Close/delete a hosted group
@@ -193,6 +245,65 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "invited"})
+	})
+
+	// Rejoin a subscription (reconnect to a previously joined group)
+	mux.HandleFunc("/api/groups/rejoin", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			HostPeerID string `json:"host_peer_id"`
+			GroupID    string `json:"group_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+		if req.HostPeerID == "" || req.GroupID == "" {
+			http.Error(w, "Missing host_peer_id or group_id", http.StatusBadRequest)
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := grpMgr.RejoinSubscription(ctx, req.HostPeerID, req.GroupID); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to rejoin: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "rejoined"})
+	})
+
+	// Remove a stale subscription
+	mux.HandleFunc("/api/groups/subscriptions/remove", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			HostPeerID string `json:"host_peer_id"`
+			GroupID    string `json:"group_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+		if req.HostPeerID == "" || req.GroupID == "" {
+			http.Error(w, "Missing host_peer_id or group_id", http.StatusBadRequest)
+			return
+		}
+
+		if err := grpMgr.RemoveSubscription(req.HostPeerID, req.GroupID); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to remove subscription: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "removed"})
 	})
 
 	// Leave current group

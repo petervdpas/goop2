@@ -43,9 +43,11 @@ type Manager struct {
 }
 
 type hostedGroup struct {
-	info    storage.GroupRow
-	members map[string]*memberConn // peerID -> connection
-	mu      sync.RWMutex
+	info         storage.GroupRow
+	members      map[string]*memberConn // peerID -> connection
+	hostJoined   bool
+	hostJoinedAt int64
+	mu           sync.RWMutex
 }
 
 type memberConn struct {
@@ -86,6 +88,10 @@ func New(h host.Host, db *storage.DB) *Manager {
 
 	h.SetStreamHandler(protocol.ID(proto.GroupProtoID), m.handleIncomingStream)
 	h.SetStreamHandler(protocol.ID(proto.GroupInviteProtoID), m.handleInviteStream)
+
+	// Auto-reconnect to subscribed groups in the background
+	go m.reconnectSubscriptions()
+
 	return m
 }
 
@@ -140,7 +146,7 @@ func (m *Manager) handleIncomingStream(s network.Stream) {
 		cancel:   cancel,
 	}
 	hg.members[remotePeer] = mc
-	memberList := hg.memberList()
+	memberList := hg.memberList(m.selfID)
 	hg.mu.Unlock()
 
 	log.Printf("GROUP: %s joined group %s", remotePeer, groupID)
@@ -173,7 +179,7 @@ func (m *Manager) handleIncomingStream(s network.Stream) {
 	cancel()
 	hg.mu.Lock()
 	delete(hg.members, remotePeer)
-	updatedMembers := hg.memberList()
+	updatedMembers := hg.memberList(m.selfID)
 	hg.mu.Unlock()
 
 	s.Close()
@@ -293,7 +299,84 @@ func (m *Manager) HostedGroupMembers(groupID string) []MemberInfo {
 
 	hg.mu.RLock()
 	defer hg.mu.RUnlock()
-	return hg.memberList()
+	return hg.memberList(m.selfID)
+}
+
+// JoinOwnGroup adds the host as a member of their own hosted group.
+func (m *Manager) JoinOwnGroup(groupID string) error {
+	m.mu.RLock()
+	hg, exists := m.groups[groupID]
+	m.mu.RUnlock()
+	if !exists {
+		return fmt.Errorf("group not found: %s", groupID)
+	}
+
+	hg.mu.Lock()
+	if hg.hostJoined {
+		hg.mu.Unlock()
+		return fmt.Errorf("host already in group")
+	}
+	hg.hostJoined = true
+	hg.hostJoinedAt = nowMillis()
+	memberList := hg.memberList(m.selfID)
+	hg.mu.Unlock()
+
+	// Broadcast updated member list to all connected peers
+	hg.broadcast(Message{
+		Type:    TypeMembers,
+		Group:   groupID,
+		Payload: MembersPayload{Members: memberList},
+	}, "")
+
+	m.notifyListeners(&Event{Type: TypeMembers, Group: groupID, Payload: MembersPayload{Members: memberList}})
+
+	log.Printf("GROUP: Host joined own group %s", groupID)
+	return nil
+}
+
+// LeaveOwnGroup removes the host from their own hosted group.
+func (m *Manager) LeaveOwnGroup(groupID string) error {
+	m.mu.RLock()
+	hg, exists := m.groups[groupID]
+	m.mu.RUnlock()
+	if !exists {
+		return fmt.Errorf("group not found: %s", groupID)
+	}
+
+	hg.mu.Lock()
+	if !hg.hostJoined {
+		hg.mu.Unlock()
+		return fmt.Errorf("host not in group")
+	}
+	hg.hostJoined = false
+	hg.hostJoinedAt = 0
+	memberList := hg.memberList(m.selfID)
+	hg.mu.Unlock()
+
+	// Broadcast updated member list
+	hg.broadcast(Message{
+		Type:    TypeMembers,
+		Group:   groupID,
+		Payload: MembersPayload{Members: memberList},
+	}, "")
+
+	m.notifyListeners(&Event{Type: TypeMembers, Group: groupID, Payload: MembersPayload{Members: memberList}})
+
+	log.Printf("GROUP: Host left own group %s", groupID)
+	return nil
+}
+
+// HostInGroup returns whether the host has joined the given hosted group.
+func (m *Manager) HostInGroup(groupID string) bool {
+	m.mu.RLock()
+	hg, exists := m.groups[groupID]
+	m.mu.RUnlock()
+	if !exists {
+		return false
+	}
+	hg.mu.RLock()
+	defer hg.mu.RUnlock()
+	return hg.hostJoined
 }
 
 // ─── Client-side: connecting to remote groups ────────────────────────────────
@@ -511,10 +594,66 @@ func (m *Manager) ListSubscriptions() ([]storage.SubscriptionRow, error) {
 	return m.db.ListSubscriptions()
 }
 
+// RejoinSubscription attempts to reconnect to a previously subscribed group.
+func (m *Manager) RejoinSubscription(ctx context.Context, hostPeerID, groupID string) error {
+	// Best-effort connect first (peer might be discovered via mDNS)
+	pid, err := peer.Decode(hostPeerID)
+	if err != nil {
+		return fmt.Errorf("invalid host peer ID: %w", err)
+	}
+	_ = m.host.Connect(ctx, peer.AddrInfo{ID: pid})
+
+	return m.JoinRemoteGroup(ctx, hostPeerID, groupID)
+}
+
+// RemoveSubscription removes a stale subscription from the database.
+func (m *Manager) RemoveSubscription(hostPeerID, groupID string) error {
+	return m.db.RemoveSubscription(hostPeerID, groupID)
+}
+
+// reconnectSubscriptions attempts to rejoin subscribed groups on startup.
+// Waits for peer discovery before attempting connections.
+func (m *Manager) reconnectSubscriptions() {
+	// Wait for mDNS / rendezvous peer discovery
+	time.Sleep(6 * time.Second)
+
+	subs, err := m.db.ListSubscriptions()
+	if err != nil || len(subs) == 0 {
+		return
+	}
+
+	for _, sub := range subs {
+		// Only one active connection at a time
+		m.mu.RLock()
+		hasActive := m.activeConn != nil
+		m.mu.RUnlock()
+		if hasActive {
+			break
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		err := m.RejoinSubscription(ctx, sub.HostPeerID, sub.GroupID)
+		cancel()
+
+		if err != nil {
+			log.Printf("GROUP: Auto-reconnect to %s failed: %v", sub.GroupID, err)
+		} else {
+			log.Printf("GROUP: Auto-reconnected to group %s on host %s", sub.GroupID, sub.HostPeerID)
+			break
+		}
+	}
+}
+
 // ─── Hosted group helpers ────────────────────────────────────────────────────
 
-func (g *hostedGroup) memberList() []MemberInfo {
-	members := make([]MemberInfo, 0, len(g.members))
+func (g *hostedGroup) memberList(hostID string) []MemberInfo {
+	members := make([]MemberInfo, 0, len(g.members)+1)
+	if g.hostJoined {
+		members = append(members, MemberInfo{
+			PeerID:   hostID,
+			JoinedAt: g.hostJoinedAt,
+		})
+	}
 	for _, mc := range g.members {
 		members = append(members, MemberInfo{
 			PeerID:   mc.peerID,

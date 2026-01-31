@@ -54,11 +54,12 @@ type peerRow struct {
 }
 
 type indexVM struct {
-	Title     string
-	Endpoint  string
-	PeerCount int
-	Peers     []peerRow
-	Now       string
+	Title       string
+	Endpoint    string
+	ConnectURLs []string
+	PeerCount   int
+	Peers       []peerRow
+	Now         string
 }
 
 func New(addr string) *Server {
@@ -257,6 +258,54 @@ func (s *Server) URL() string {
 	return "http://" + s.addr
 }
 
+// connectURLs returns HTTP URLs that remote peers can use to reach this
+// rendezvous server. It discovers non-loopback IPv4 addresses and pairs
+// them with the server's listen port.
+func (s *Server) connectURLs() []string {
+	_, port, _ := net.SplitHostPort(s.addr)
+	if port == "" {
+		port = "8787"
+	}
+
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil
+	}
+
+	var urls []string
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		// Skip Docker, veth, and other virtual bridge interfaces
+		name := strings.ToLower(iface.Name)
+		if strings.HasPrefix(name, "docker") ||
+			strings.HasPrefix(name, "veth") ||
+			strings.HasPrefix(name, "br-") ||
+			strings.HasPrefix(name, "virbr") {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, a := range addrs {
+			var ip net.IP
+			switch v := a.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip == nil || ip.IsLoopback() || ip.To4() == nil {
+				continue
+			}
+			urls = append(urls, fmt.Sprintf("http://%s:%s", ip.String(), port))
+		}
+	}
+	return urls
+}
+
 func (s *Server) addClient(ch chan []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -445,11 +494,12 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("content-type", "text/html; charset=utf-8")
 	_ = s.tmpl.Execute(w, indexVM{
-		Title:     "Goop² Rendezvous",
-		Endpoint:  s.URL(),
-		PeerCount: len(peers),
-		Peers:     peers,
-		Now:       time.Now().Format("2006-01-02 15:04:05"),
+		Title:       "Goop² Rendezvous",
+		Endpoint:    s.URL(),
+		ConnectURLs: s.connectURLs(),
+		PeerCount:   len(peers),
+		Peers:       peers,
+		Now:         time.Now().Format("2006-01-02 15:04:05"),
 	})
 }
 

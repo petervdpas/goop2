@@ -176,9 +176,14 @@
         }
         var html = "";
         groups.forEach(function(g) {
+          var joinBtn = g.host_in_group
+            ? '<button class="groups-action-btn groups-btn-danger groups-leaveown-btn" data-id="' + escapeHtml(g.id) + '">Leave</button>'
+            : '<button class="groups-action-btn groups-btn-primary groups-joinown-btn" data-id="' + escapeHtml(g.id) + '">Join</button>';
           html += '<div class="groups-card">' +
             '<div class="groups-card-info">' +
-              '<div class="groups-card-name">' + escapeHtml(g.name) + '</div>' +
+              '<div class="groups-card-name">' + escapeHtml(g.name) +
+                (g.host_in_group ? ' <span class="groups-status-connected">joined</span>' : '') +
+              '</div>' +
               '<div class="groups-card-meta"><code>' + escapeHtml(shortId(g.id)) + '</code>' +
                 (g.app_type ? ' &middot; ' + escapeHtml(g.app_type) : '') +
                 (g.max_members > 0 ? ' &middot; max ' + g.max_members : '') +
@@ -186,12 +191,37 @@
             '</div>' +
             '<div class="groups-card-members">' + memberLabel(g.member_count) + '</div>' +
             '<div class="groups-card-actions">' +
+              joinBtn +
               '<button class="groups-action-btn groups-invite-btn" data-id="' + escapeHtml(g.id) + '">Invite</button>' +
               '<button class="groups-action-btn groups-btn-danger groups-close-btn" data-id="' + escapeHtml(g.id) + '">Close</button>' +
             '</div>' +
           '</div>';
         });
         hostedListEl.innerHTML = html;
+
+        // Bind join-own buttons
+        hostedListEl.querySelectorAll(".groups-joinown-btn").forEach(function(btn) {
+          on(btn, "click", function() {
+            api("/api/groups/join-own", { group_id: btn.getAttribute("data-id") }).then(function() {
+              toast("Joined group");
+              loadHostedGroups();
+            }).catch(function(err) {
+              toast("Failed to join: " + err.message, true);
+            });
+          });
+        });
+
+        // Bind leave-own buttons
+        hostedListEl.querySelectorAll(".groups-leaveown-btn").forEach(function(btn) {
+          on(btn, "click", function() {
+            api("/api/groups/leave-own", { group_id: btn.getAttribute("data-id") }).then(function() {
+              toast("Left group");
+              loadHostedGroups();
+            }).catch(function(err) {
+              toast("Failed to leave: " + err.message, true);
+            });
+          });
+        });
 
         // Bind invite buttons
         hostedListEl.querySelectorAll(".groups-invite-btn").forEach(function(btn) {
@@ -246,20 +276,62 @@
           subListEl.innerHTML = '<p class="groups-empty">No subscriptions. Use Goop.group.join() from a peer\'s site to join a group.</p>';
           return;
         }
+        var activeGroupId = (data.active && data.active.connected) ? data.active.group_id : null;
         var html = "";
         subs.forEach(function(s) {
           var displayName = s.group_name || s.group_id;
+          var isActive = activeGroupId && s.group_id === activeGroupId;
           html += '<div class="groups-card">' +
             '<div class="groups-card-info">' +
-              '<div class="groups-card-name">' + escapeHtml(displayName) + '</div>' +
+              '<div class="groups-card-name">' + escapeHtml(displayName) +
+                (isActive ? ' <span class="groups-status-connected">connected</span>' : '') +
+              '</div>' +
               '<div class="groups-card-meta">Host: <code>' + escapeHtml(shortId(s.host_peer_id)) + '</code>' +
                 (s.app_type ? ' &middot; ' + escapeHtml(s.app_type) : '') +
                 (s.role ? ' &middot; ' + escapeHtml(s.role) : '') +
               '</div>' +
             '</div>' +
+            '<div class="groups-card-actions">' +
+              (!isActive ? '<button class="groups-action-btn groups-btn-primary groups-rejoin-btn" data-host="' + escapeHtml(s.host_peer_id) + '" data-group="' + escapeHtml(s.group_id) + '">Rejoin</button>' : '') +
+              '<button class="groups-action-btn groups-btn-danger groups-remove-sub-btn" data-host="' + escapeHtml(s.host_peer_id) + '" data-group="' + escapeHtml(s.group_id) + '">Remove</button>' +
+            '</div>' +
           '</div>';
         });
         subListEl.innerHTML = html;
+
+        // Bind rejoin buttons
+        subListEl.querySelectorAll(".groups-rejoin-btn").forEach(function(btn) {
+          on(btn, "click", function() {
+            btn.textContent = "Joining...";
+            btn.disabled = true;
+            api("/api/groups/rejoin", {
+              host_peer_id: btn.getAttribute("data-host"),
+              group_id: btn.getAttribute("data-group")
+            }).then(function() {
+              toast("Rejoined group");
+              loadSubscriptions();
+            }).catch(function(err) {
+              toast("Failed to rejoin: " + err.message, true);
+              btn.textContent = "Rejoin";
+              btn.disabled = false;
+            });
+          });
+        });
+
+        // Bind remove buttons
+        subListEl.querySelectorAll(".groups-remove-sub-btn").forEach(function(btn) {
+          on(btn, "click", function() {
+            api("/api/groups/subscriptions/remove", {
+              host_peer_id: btn.getAttribute("data-host"),
+              group_id: btn.getAttribute("data-group")
+            }).then(function() {
+              toast("Subscription removed");
+              loadSubscriptions();
+            }).catch(function(err) {
+              toast("Failed to remove: " + err.message, true);
+            });
+          });
+        });
       }).catch(function(err) {
         subListEl.innerHTML = '<p class="groups-empty">Failed to load: ' + escapeHtml(err.message) + '</p>';
       });
@@ -347,9 +419,14 @@
         }
         var html = "";
         groups.forEach(function(g) {
+          var joinBtn = g.host_in_group
+            ? '<button class="groups-action-btn groups-btn-danger cg-leaveown-btn" data-id="' + escapeHtml(g.id) + '">Leave</button>'
+            : '<button class="groups-action-btn groups-btn-primary cg-joinown-btn" data-id="' + escapeHtml(g.id) + '">Join</button>';
           html += '<div class="groups-card">' +
             '<div class="groups-card-info">' +
-              '<div class="groups-card-name">' + escapeHtml(g.name) + '</div>' +
+              '<div class="groups-card-name">' + escapeHtml(g.name) +
+                (g.host_in_group ? ' <span class="groups-status-connected">joined</span>' : '') +
+              '</div>' +
               '<div class="groups-card-meta">ID: <code>' + escapeHtml(shortId(g.id)) + '</code>' +
                 (g.app_type ? ' &middot; ' + escapeHtml(g.app_type) : '') +
                 (g.max_members > 0 ? ' &middot; max: ' + g.max_members : '') +
@@ -357,12 +434,37 @@
             '</div>' +
             '<div class="groups-card-members">' + memberLabel(g.member_count) + '</div>' +
             '<div class="groups-card-actions">' +
+              joinBtn +
               '<button class="groups-action-btn cg-invite-btn" data-id="' + escapeHtml(g.id) + '">Invite</button>' +
               '<button class="groups-action-btn groups-btn-danger cg-close-btn" data-id="' + escapeHtml(g.id) + '">Close</button>' +
             '</div>' +
           '</div>';
         });
         hostedListEl.innerHTML = html;
+
+        // Bind join-own buttons
+        hostedListEl.querySelectorAll(".cg-joinown-btn").forEach(function(btn) {
+          on(btn, "click", function() {
+            api("/api/groups/join-own", { group_id: btn.getAttribute("data-id") }).then(function() {
+              toast("Joined group");
+              loadHostedList();
+            }).catch(function(err) {
+              toast("Failed to join: " + err.message, true);
+            });
+          });
+        });
+
+        // Bind leave-own buttons
+        hostedListEl.querySelectorAll(".cg-leaveown-btn").forEach(function(btn) {
+          on(btn, "click", function() {
+            api("/api/groups/leave-own", { group_id: btn.getAttribute("data-id") }).then(function() {
+              toast("Left group");
+              loadHostedList();
+            }).catch(function(err) {
+              toast("Failed to leave: " + err.message, true);
+            });
+          });
+        });
 
         // Bind invite buttons
         hostedListEl.querySelectorAll(".cg-invite-btn").forEach(function(btn) {

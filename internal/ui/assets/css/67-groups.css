@@ -122,6 +122,20 @@
   margin-right: 8px;
 }
 
+.groups-status-connected{
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  color: #4c4;
+  background: color-mix(in srgb, #4c4 12%, transparent);
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-left: 6px;
+  vertical-align: middle;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
 .groups-card-actions{
   display:flex;
   gap: 6px;
