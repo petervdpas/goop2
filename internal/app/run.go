@@ -173,6 +173,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 					Type:    typ,
 					PeerID:  node.ID(),
 					Content: selfContent(),
+					Email:   selfEmail(),
 					TS:      proto.NowMillis(),
 				})
 			}()
