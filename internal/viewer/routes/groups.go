@@ -2,6 +2,8 @@ package routes
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -19,7 +21,6 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 		switch r.Method {
 		case http.MethodPost:
 			var req struct {
-				ID         string `json:"id"`
 				Name       string `json:"name"`
 				AppType    string `json:"app_type"`
 				MaxMembers int    `json:"max_members"`
@@ -28,18 +29,19 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 				http.Error(w, "Invalid request", http.StatusBadRequest)
 				return
 			}
-			if req.ID == "" || req.Name == "" {
-				http.Error(w, "Missing id or name", http.StatusBadRequest)
+			if req.Name == "" {
+				http.Error(w, "Missing name", http.StatusBadRequest)
 				return
 			}
-			if err := grpMgr.CreateGroup(req.ID, req.Name, req.AppType, req.MaxMembers); err != nil {
+			id := generateGroupID()
+			if err := grpMgr.CreateGroup(id, req.Name, req.AppType, req.MaxMembers); err != nil {
 				http.Error(w, fmt.Sprintf("Failed to create group: %v", err), http.StatusInternalServerError)
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"status": "created",
-				"id":     req.ID,
+				"id":     id,
 			})
 
 		case http.MethodGet:
@@ -162,6 +164,37 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 		json.NewEncoder(w).Encode(map[string]string{"status": "joined"})
 	})
 
+	// Invite a peer to a hosted group
+	mux.HandleFunc("/api/groups/invite", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			GroupID string `json:"group_id"`
+			PeerID  string `json:"peer_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+		if req.GroupID == "" || req.PeerID == "" {
+			http.Error(w, "Missing group_id or peer_id", http.StatusBadRequest)
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := grpMgr.InvitePeer(ctx, req.PeerID, req.GroupID); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to invite peer: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "invited"})
+	})
+
 	// Leave current group
 	mux.HandleFunc("/api/groups/leave", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -251,4 +284,11 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 			}
 		}
 	})
+}
+
+// generateGroupID returns a random 8-byte hex string (16 chars).
+func generateGroupID() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }

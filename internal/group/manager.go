@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	"goop/internal/proto"
 	"goop/internal/storage"
@@ -84,6 +85,7 @@ func New(h host.Host, db *storage.DB) *Manager {
 	}
 
 	h.SetStreamHandler(protocol.ID(proto.GroupProtoID), m.handleIncomingStream)
+	h.SetStreamHandler(protocol.ID(proto.GroupInviteProtoID), m.handleInviteStream)
 	return m
 }
 
@@ -145,9 +147,13 @@ func (m *Manager) handleIncomingStream(s network.Stream) {
 
 	// Send welcome to the new member
 	enc.Encode(Message{
-		Type:    TypeWelcome,
-		Group:   groupID,
-		Payload: WelcomePayload{Members: memberList},
+		Type:  TypeWelcome,
+		Group: groupID,
+		Payload: WelcomePayload{
+			GroupName: hg.info.Name,
+			AppType:   hg.info.AppType,
+			Members:   memberList,
+		},
 	})
 
 	// Broadcast updated member list to all other members
@@ -350,8 +356,20 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 	m.activeConn = cc
 	m.mu.Unlock()
 
+	// Extract group name from welcome payload for subscription storage
+	groupName := ""
+	appType := ""
+	if wp, ok := welcome.Payload.(map[string]interface{}); ok {
+		if n, ok := wp["group_name"].(string); ok {
+			groupName = n
+		}
+		if a, ok := wp["app_type"].(string); ok {
+			appType = a
+		}
+	}
+
 	// Store subscription
-	m.db.AddSubscription(hostPeerID, groupID, "", "", "member")
+	m.db.AddSubscription(hostPeerID, groupID, groupName, appType, "member")
 
 	m.notifyListeners(&Event{Type: TypeWelcome, Group: groupID, Payload: welcome.Payload})
 
@@ -517,6 +535,76 @@ func (g *hostedGroup) broadcast(msg Message, excludePeerID string) {
 			log.Printf("GROUP: Failed to send to %s: %v", pid, err)
 		}
 	}
+}
+
+// ─── Invitations ─────────────────────────────────────────────────────────────
+
+// inviteMsg is the wire format for a group invitation.
+type inviteMsg struct {
+	GroupID    string `json:"group_id"`
+	GroupName  string `json:"group_name"`
+	HostPeerID string `json:"host_peer_id"`
+}
+
+// InvitePeer sends a group invitation to a remote peer.
+// The peer's invite handler will auto-join the group.
+func (m *Manager) InvitePeer(ctx context.Context, peerID, groupID string) error {
+	m.mu.RLock()
+	hg, exists := m.groups[groupID]
+	m.mu.RUnlock()
+	if !exists {
+		return fmt.Errorf("group not found: %s", groupID)
+	}
+
+	pid, err := peer.Decode(peerID)
+	if err != nil {
+		return fmt.Errorf("invalid peer ID: %w", err)
+	}
+
+	// Best-effort connect
+	_ = m.host.Connect(ctx, peer.AddrInfo{ID: pid})
+
+	s, err := m.host.NewStream(ctx, pid, protocol.ID(proto.GroupInviteProtoID))
+	if err != nil {
+		return fmt.Errorf("failed to open invite stream: %w", err)
+	}
+	defer s.Close()
+
+	inv := inviteMsg{
+		GroupID:    groupID,
+		GroupName:  hg.info.Name,
+		HostPeerID: m.selfID,
+	}
+	if err := json.NewEncoder(s).Encode(inv); err != nil {
+		return fmt.Errorf("failed to send invite: %w", err)
+	}
+
+	log.Printf("GROUP: Sent invite for group %s to peer %s", groupID, peerID)
+	return nil
+}
+
+// handleInviteStream processes incoming group invitations from a host.
+// It auto-joins the group by opening a group stream back to the host.
+func (m *Manager) handleInviteStream(s network.Stream) {
+	defer s.Close()
+
+	var inv inviteMsg
+	if err := json.NewDecoder(s).Decode(&inv); err != nil {
+		log.Printf("GROUP: Failed to decode invite: %v", err)
+		return
+	}
+
+	log.Printf("GROUP: Received invite for group %s from host %s", inv.GroupID, inv.HostPeerID)
+
+	// Auto-join in a goroutine so we don't block the stream handler
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := m.JoinRemoteGroup(ctx, inv.HostPeerID, inv.GroupID); err != nil {
+			log.Printf("GROUP: Auto-join after invite failed: %v", err)
+		}
+	}()
 }
 
 // ─── Shutdown ────────────────────────────────────────────────────────────────

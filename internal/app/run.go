@@ -121,7 +121,8 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 
 	peers := state.NewPeerTable()
 
-	node, err := p2p.New(ctx, cfg.P2P.ListenPort, peers, selfContent, selfEmail)
+	keyPath := filepath.Join(o.PeerDir, cfg.Identity.KeyFile)
+	node, err := p2p.New(ctx, cfg.P2P.ListenPort, keyPath, peers, selfContent, selfEmail)
 	if err != nil {
 		return err
 	}

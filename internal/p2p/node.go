@@ -7,6 +7,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"goop/internal/proto"
@@ -51,10 +54,50 @@ func (n *mdnsNotifee) HandlePeerFound(pi peer.AddrInfo) {
 	_ = n.h.Connect(ctx, pi)
 }
 
-func New(ctx context.Context, listenPort int, peers *state.PeerTable, selfContent, selfEmail func() string) (*Node, error) {
+// loadOrCreateKey loads a persistent identity key from disk,
+// or generates a new Ed25519 key and saves it on first run.
+func loadOrCreateKey(keyFile string) (crypto.PrivKey, bool, error) {
+	data, err := os.ReadFile(keyFile)
+	if err == nil {
+		priv, err := crypto.UnmarshalPrivateKey(data)
+		if err == nil {
+			return priv, false, nil
+		}
+		log.Printf("WARNING: corrupt identity key at %s: %v (generating new key)", keyFile, err)
+	}
+
 	priv, _, err := crypto.GenerateEd25519Key(nil)
 	if err != nil {
+		return nil, false, err
+	}
+
+	raw, err := crypto.MarshalPrivateKey(priv)
+	if err != nil {
+		return nil, false, fmt.Errorf("marshal identity key: %w", err)
+	}
+
+	if dir := filepath.Dir(keyFile); dir != "" {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			return nil, false, fmt.Errorf("create key directory: %w", err)
+		}
+	}
+
+	if err := os.WriteFile(keyFile, raw, 0600); err != nil {
+		return nil, false, fmt.Errorf("save identity key: %w", err)
+	}
+
+	return priv, true, nil
+}
+
+func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerTable, selfContent, selfEmail func() string) (*Node, error) {
+	priv, isNew, err := loadOrCreateKey(keyFile)
+	if err != nil {
 		return nil, err
+	}
+	if isNew {
+		log.Printf("Generated new identity key: %s", keyFile)
+	} else {
+		log.Printf("Loaded identity key: %s", keyFile)
 	}
 
 	h, err := libp2p.New(

@@ -58,10 +58,9 @@
       return post("/api/groups/leave", {});
     },
 
-    /** Create a hosted group */
-    create(id, name, appType, maxMembers) {
+    /** Create a hosted group (ID is auto-generated server-side) */
+    create(name, appType, maxMembers) {
       return post("/api/groups", {
-        id: id,
         name: name,
         app_type: appType || "",
         max_members: maxMembers || 0,

@@ -25,8 +25,10 @@ type Message struct {
 
 // WelcomePayload is sent to a new member after joining.
 type WelcomePayload struct {
-	Members []MemberInfo           `json:"members"`
-	State   map[string]interface{} `json:"state,omitempty"`
+	GroupName string                 `json:"group_name,omitempty"`
+	AppType   string                 `json:"app_type,omitempty"`
+	Members   []MemberInfo           `json:"members"`
+	State     map[string]interface{} `json:"state,omitempty"`
 }
 
 // MembersPayload is broadcast when membership changes.

@@ -37,7 +37,30 @@
 
   function shortId(id) {
     if (!id || id.length <= 12) return id || "";
-    return id.substring(0, 8) + "...";
+    return id.substring(0, 8) + "\u2026";
+  }
+
+  function memberLabel(n) {
+    return n === 1 ? "1 member" : (n || 0) + " members";
+  }
+
+  // Format event payload for human-readable display
+  function formatEventPayload(evt) {
+    var p = evt.payload;
+    if (!p) return "";
+    if (evt.type === "members" && p.members) {
+      return p.members.length + " member" + (p.members.length !== 1 ? "s" : "") + " in group";
+    }
+    if (evt.type === "welcome" && p.group_name) {
+      return "Joined " + p.group_name + " (" + (p.members ? p.members.length : 0) + " members)";
+    }
+    if (evt.type === "msg") {
+      try {
+        var s = typeof p === "string" ? p : JSON.stringify(p);
+        return s.length > 120 ? s.substring(0, 120) + "\u2026" : s;
+      } catch (_) {}
+    }
+    return "";
   }
 
   function api(url, body) {
@@ -51,6 +74,64 @@
       if (ct.indexOf("application/json") !== -1) return resp.json();
       return null;
     });
+  }
+
+  // -------- Invite peer to group --------
+  function showInvitePopup(groupId, btnEl) {
+    // Remove any existing popup
+    var existing = document.querySelector(".groups-invite-popup");
+    if (existing) existing.remove();
+
+    var popup = document.createElement("div");
+    popup.className = "groups-invite-popup";
+    popup.innerHTML = '<div class="groups-invite-loading">Loading peers...</div>';
+
+    // Position relative to button
+    btnEl.parentNode.style.position = "relative";
+    btnEl.parentNode.appendChild(popup);
+
+    // Fetch peer list
+    api("/api/peers").then(function(peers) {
+      if (!peers || peers.length === 0) {
+        popup.innerHTML = '<div class="groups-invite-empty">No peers online</div>';
+        return;
+      }
+      var html = '<div class="groups-invite-title">Invite peer</div>';
+      peers.forEach(function(p) {
+        var label = p.Content || shortId(p.ID);
+        html += '<button class="groups-invite-peer" data-peer="' + escapeHtml(p.ID) + '">' +
+          '<span class="groups-invite-peer-name">' + escapeHtml(label) + '</span>' +
+          (p.Email ? '<span class="groups-invite-peer-email">' + escapeHtml(p.Email) + '</span>' : '') +
+        '</button>';
+      });
+      popup.innerHTML = html;
+
+      popup.querySelectorAll(".groups-invite-peer").forEach(function(peerBtn) {
+        on(peerBtn, "click", function() {
+          var peerId = peerBtn.getAttribute("data-peer");
+          peerBtn.textContent = "Inviting...";
+          peerBtn.disabled = true;
+          api("/api/groups/invite", { group_id: groupId, peer_id: peerId }).then(function() {
+            toast("Invite sent to " + shortId(peerId));
+            popup.remove();
+          }).catch(function(err) {
+            toast("Invite failed: " + err.message, true);
+            popup.remove();
+          });
+        });
+      });
+    }).catch(function(err) {
+      popup.innerHTML = '<div class="groups-invite-empty">Failed: ' + escapeHtml(err.message) + '</div>';
+    });
+
+    // Close on outside click
+    function closePopup(e) {
+      if (!popup.contains(e.target) && e.target !== btnEl) {
+        popup.remove();
+        document.removeEventListener("click", closePopup);
+      }
+    }
+    setTimeout(function() { document.addEventListener("click", closePopup); }, 0);
   }
 
   // -------- Groups page logic --------
@@ -98,18 +179,27 @@
           html += '<div class="groups-card">' +
             '<div class="groups-card-info">' +
               '<div class="groups-card-name">' + escapeHtml(g.name) + '</div>' +
-              '<div class="groups-card-meta">ID: <code>' + escapeHtml(g.id) + '</code>' +
+              '<div class="groups-card-meta"><code>' + escapeHtml(shortId(g.id)) + '</code>' +
                 (g.app_type ? ' &middot; ' + escapeHtml(g.app_type) : '') +
-                (g.max_members > 0 ? ' &middot; max: ' + g.max_members : '') +
+                (g.max_members > 0 ? ' &middot; max ' + g.max_members : '') +
               '</div>' +
             '</div>' +
-            '<div class="groups-card-members">' + (g.member_count || 0) + ' members</div>' +
+            '<div class="groups-card-members">' + memberLabel(g.member_count) + '</div>' +
             '<div class="groups-card-actions">' +
+              '<button class="groups-action-btn groups-invite-btn" data-id="' + escapeHtml(g.id) + '">Invite</button>' +
               '<button class="groups-action-btn groups-btn-danger groups-close-btn" data-id="' + escapeHtml(g.id) + '">Close</button>' +
             '</div>' +
           '</div>';
         });
         hostedListEl.innerHTML = html;
+
+        // Bind invite buttons
+        hostedListEl.querySelectorAll(".groups-invite-btn").forEach(function(btn) {
+          on(btn, "click", function(e) {
+            e.stopPropagation();
+            showInvitePopup(btn.getAttribute("data-id"), btn);
+          });
+        });
 
         // Bind close buttons
         var closeBtns = hostedListEl.querySelectorAll(".groups-close-btn");
@@ -158,10 +248,12 @@
         }
         var html = "";
         subs.forEach(function(s) {
+          var displayName = s.group_name || s.group_id;
           html += '<div class="groups-card">' +
             '<div class="groups-card-info">' +
-              '<div class="groups-card-name">' + escapeHtml(s.group_id) + '</div>' +
+              '<div class="groups-card-name">' + escapeHtml(displayName) + '</div>' +
               '<div class="groups-card-meta">Host: <code>' + escapeHtml(shortId(s.host_peer_id)) + '</code>' +
+                (s.app_type ? ' &middot; ' + escapeHtml(s.app_type) : '') +
                 (s.role ? ' &middot; ' + escapeHtml(s.role) : '') +
               '</div>' +
             '</div>' +
@@ -197,15 +289,18 @@
       div.className = "groups-event-item";
 
       var time = new Date().toLocaleTimeString();
-      var payload = "";
-      try {
-        payload = typeof evt.payload === "string" ? evt.payload : JSON.stringify(evt.payload);
-      } catch (_) {}
+      var payload = formatEventPayload(evt);
+      if (!payload) {
+        try {
+          payload = typeof evt.payload === "string" ? evt.payload : JSON.stringify(evt.payload);
+          if (payload && payload.length > 120) payload = payload.substring(0, 120) + "\u2026";
+        } catch (_) {}
+      }
 
       div.innerHTML = '<span class="evt-time">' + escapeHtml(time) + '</span>' +
         '<span class="evt-type">' + escapeHtml(evt.type) + '</span>' +
         (evt.from ? '<span class="evt-from">' + escapeHtml(shortId(evt.from)) + '</span>' : '') +
-        (payload ? '<span>' + escapeHtml(payload).substring(0, 200) + '</span>' : '');
+        (payload ? '<span>' + escapeHtml(payload) + '</span>' : '');
 
       eventsEl.insertBefore(div, eventsEl.firstChild);
 
@@ -218,7 +313,6 @@
 
   // -------- Create Groups page logic --------
   function initCreateGroupsPage() {
-    var idInput = qs("#cg-id");
     var nameInput = qs("#cg-name");
     var appTypeInput = qs("#cg-apptype");
     var maxMembersInput = qs("#cg-maxmembers");
@@ -228,17 +322,14 @@
     loadHostedList();
 
     on(createBtn, "click", function() {
-      var id = (idInput.value || "").trim();
       var name = (nameInput.value || "").trim();
       var appType = (appTypeInput.value || "").trim();
       var maxMembers = parseInt(maxMembersInput.value, 10) || 0;
 
-      if (!id) { toast("Group ID is required", true); return; }
       if (!name) { toast("Group name is required", true); return; }
 
-      api("/api/groups", { id: id, name: name, app_type: appType, max_members: maxMembers }).then(function() {
+      api("/api/groups", { name: name, app_type: appType, max_members: maxMembers }).then(function() {
         toast("Group created: " + name);
-        idInput.value = "";
         nameInput.value = "";
         appTypeInput.value = "";
         maxMembersInput.value = "0";
@@ -259,18 +350,27 @@
           html += '<div class="groups-card">' +
             '<div class="groups-card-info">' +
               '<div class="groups-card-name">' + escapeHtml(g.name) + '</div>' +
-              '<div class="groups-card-meta">ID: <code>' + escapeHtml(g.id) + '</code>' +
+              '<div class="groups-card-meta">ID: <code>' + escapeHtml(shortId(g.id)) + '</code>' +
                 (g.app_type ? ' &middot; ' + escapeHtml(g.app_type) : '') +
                 (g.max_members > 0 ? ' &middot; max: ' + g.max_members : '') +
               '</div>' +
             '</div>' +
-            '<div class="groups-card-members">' + (g.member_count || 0) + ' members</div>' +
+            '<div class="groups-card-members">' + memberLabel(g.member_count) + '</div>' +
             '<div class="groups-card-actions">' +
+              '<button class="groups-action-btn cg-invite-btn" data-id="' + escapeHtml(g.id) + '">Invite</button>' +
               '<button class="groups-action-btn groups-btn-danger cg-close-btn" data-id="' + escapeHtml(g.id) + '">Close</button>' +
             '</div>' +
           '</div>';
         });
         hostedListEl.innerHTML = html;
+
+        // Bind invite buttons
+        hostedListEl.querySelectorAll(".cg-invite-btn").forEach(function(btn) {
+          on(btn, "click", function(e) {
+            e.stopPropagation();
+            showInvitePopup(btn.getAttribute("data-id"), btn);
+          });
+        });
 
         // Bind close buttons
         var closeBtns = hostedListEl.querySelectorAll(".cg-close-btn");
