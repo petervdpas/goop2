@@ -238,7 +238,10 @@ func (n *Node) dataOpInsert(callerID string, req DataRequest) DataResponse {
 
 	// _owner is the caller's peer ID (cryptographically authenticated by libp2p)
 	ownerEmail := ""
-	if sp, ok := n.peers.Get(callerID); ok {
+	if callerID == n.ID() && n.selfEmail != nil {
+		// Local peer: use own email from config
+		ownerEmail = n.selfEmail()
+	} else if sp, ok := n.peers.Get(callerID); ok {
 		ownerEmail = sp.Email
 	}
 
