@@ -49,7 +49,7 @@
   }
 
   // columns to skip in forms
-  const SKIP = new Set(["_id", "_owner", "_created_at"]);
+  const SKIP = new Set(["_id", "_owner", "_owner_email", "_created_at", "_updated_at"]);
 
   /**
    * Render a full CRUD interface for a table.

@@ -24,16 +24,42 @@
   const searchColEl    = qs("#db-search-col");
   const searchInputEl  = qs("#db-search-input");
   const searchClearEl  = qs("#db-search-clear");
+  const colPickerBtn   = qs("#db-btn-columns");
+  const colPickerEl    = qs("#db-col-picker");
 
   // State
   let currentTable = null;
   let columns = [];      // ColumnInfo[] from describe
-  let systemCols = ["_id", "_owner", "_created_at"];
+  let systemCols = ["_id", "_owner", "_owner_email", "_created_at", "_updated_at"];
+  let defaultHidden = ["_owner", "_owner_email", "_created_at", "_updated_at"];  // hidden by default in grid
+  let hiddenCols = new Set();
   let searchTimer = null;
   let pageSize = 50;
   let currentOffset = 0;
   let hasMore = true;
   let loadingMore = false;
+  let lastRows = [];      // cached rows for column toggle re-render
+
+  // Column visibility persistence
+  function colVisKey(table) { return "db-hidden-cols:" + table; }
+
+  function loadHiddenCols(table) {
+    try {
+      var raw = localStorage.getItem(colVisKey(table));
+      if (raw) return new Set(JSON.parse(raw));
+    } catch (e) { /* ignore */ }
+    return new Set(defaultHidden);
+  }
+
+  function saveHiddenCols(table) {
+    try {
+      localStorage.setItem(colVisKey(table), JSON.stringify(Array.from(hiddenCols)));
+    } catch (e) { /* ignore */ }
+  }
+
+  function visibleCols() {
+    return columns.filter(function(c) { return !hiddenCols.has(c.name); });
+  }
 
   // -------- API helper --------
   async function api(url, body) {
@@ -114,6 +140,7 @@
   // -------- Select table --------
   async function selectTable(name) {
     currentTable = name;
+    hiddenCols = loadHiddenCols(name);
     highlightActive(name);
     tableTitleEl.textContent = name;
     setHidden(actionsEl, false);
@@ -130,6 +157,7 @@
       currentOffset = 0;
       hasMore = (rows || []).length >= pageSize;
       populateSearchBar();
+      renderColPicker();
       renderDataGrid(rows || [], false);
     } catch (err) {
       gridEl.innerHTML = '<p class="db-empty">Error loading table: ' + escapeHtml(err.message) + '</p>';
@@ -149,6 +177,47 @@
     });
     searchInputEl.value = "";
   }
+
+  // -------- Column picker --------
+  function renderColPicker() {
+    if (columns.length === 0) return;
+    var html = "";
+    columns.forEach(function(col) {
+      var checked = !hiddenCols.has(col.name) ? " checked" : "";
+      var isSys = systemCols.indexOf(col.name) !== -1;
+      var cls = isSys ? "db-colpick-name db-colpick-sys" : "db-colpick-name";
+      html += '<label><input type="checkbox" value="' + escapeHtml(col.name) + '"' + checked + ' />' +
+        '<span class="' + cls + '">' + escapeHtml(col.name) + '</span></label>';
+    });
+    colPickerEl.innerHTML = html;
+
+    // Bind change events
+    qsa("input[type=checkbox]", colPickerEl).forEach(function(cb) {
+      on(cb, "change", function() {
+        if (cb.checked) {
+          hiddenCols.delete(cb.value);
+        } else {
+          hiddenCols.add(cb.value);
+        }
+        saveHiddenCols(currentTable);
+        // Re-render grid from cached rows (no server round-trip)
+        renderDataGrid(lastRows, false);
+      });
+    });
+  }
+
+  function toggleColPicker() {
+    colPickerEl.classList.toggle("hidden");
+  }
+
+  // Close picker on outside click
+  document.addEventListener("click", function(e) {
+    if (!colPickerEl.classList.contains("hidden") &&
+        !colPickerEl.contains(e.target) &&
+        e.target !== colPickerBtn) {
+      colPickerEl.classList.add("hidden");
+    }
+  });
 
   function applyFilter() {
     if (searchTimer) clearTimeout(searchTimer);
@@ -216,14 +285,15 @@
 
   // -------- Data grid --------
   function buildColgroup() {
+    var vc = visibleCols();
     var cg = '<colgroup>';
-    columns.forEach(function(col) {
+    vc.forEach(function(col) {
       if (col.name === '_id') {
         cg += '<col style="width:50px">';
-      } else if (col.name === '_owner') {
-        cg += '<col style="width:120px">';
-      } else if (col.name === '_created_at') {
+      } else if (col.name === '_created_at' || col.name === '_updated_at') {
         cg += '<col style="width:170px">';
+      } else if (col.name === '_owner' || col.name === '_owner_email') {
+        cg += '<col style="width:140px">';
       } else {
         cg += '<col>';
       }
@@ -234,9 +304,10 @@
   }
 
   function buildRowHtml(row) {
+    var vc = visibleCols();
     var rowId = row._id;
     var html = '<tr data-row-id="' + rowId + '">';
-    columns.forEach(function(col) {
+    vc.forEach(function(col) {
       var val = row[col.name];
       var isSystem = systemCols.indexOf(col.name) !== -1;
       var isNull = val === null || val === undefined;
@@ -280,6 +351,13 @@
       return;
     }
 
+    // Cache rows for column toggle re-render
+    if (!append) {
+      lastRows = rows || [];
+    } else if (rows && rows.length > 0) {
+      lastRows = lastRows.concat(rows);
+    }
+
     // Append rows to existing tbody
     if (append) {
       var tbody = qs("tbody", gridEl);
@@ -297,19 +375,20 @@
     }
 
     // Full render
+    var vc = visibleCols();
     if (!rows || rows.length === 0) {
       var html = '<table>' + buildColgroup() + '<thead><tr>';
-      columns.forEach(function(col) {
+      vc.forEach(function(col) {
         html += '<th>' + escapeHtml(col.name) + '</th>';
       });
       html += '<th></th></tr></thead>';
-      html += '<tbody><tr><td colspan="' + (columns.length + 1) + '" class="db-empty">No rows. Click "+ Row" to add data.</td></tr></tbody></table>';
+      html += '<tbody><tr><td colspan="' + (vc.length + 1) + '" class="db-empty">No rows. Click "+ Row" to add data.</td></tr></tbody></table>';
       gridEl.innerHTML = html;
       return;
     }
 
     var html = '<table>' + buildColgroup() + '<thead><tr>';
-    columns.forEach(function(col) {
+    vc.forEach(function(col) {
       html += '<th>' + escapeHtml(col.name) + '</th>';
     });
     html += '<th></th></tr></thead><tbody>';
@@ -766,6 +845,12 @@
   on(searchClearEl, "click", function() {
     searchInputEl.value = "";
     executeSearch();
+  });
+
+  // Column picker
+  on(colPickerBtn, "click", function(e) {
+    e.stopPropagation();
+    toggleColPicker();
   });
 
   // Infinite scroll

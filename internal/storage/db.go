@@ -139,7 +139,9 @@ func (d *DB) CreateTable(name string, columns []ColumnDef) error {
 		CREATE TABLE IF NOT EXISTS %s (
 			_id INTEGER PRIMARY KEY AUTOINCREMENT,
 			_owner TEXT NOT NULL,
+			_owner_email TEXT DEFAULT '',
 			_created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			%s
 		)
 	`, name, colSQL)
@@ -210,7 +212,7 @@ func (d *DB) DescribeTable(table string) ([]ColumnInfo, error) {
 }
 
 // Insert inserts a row into a table
-func (d *DB) Insert(table string, ownerID string, data map[string]interface{}) (int64, error) {
+func (d *DB) Insert(table string, ownerID string, ownerEmail string, data map[string]interface{}) (int64, error) {
 	if !validIdent(table) {
 		return 0, fmt.Errorf("invalid table name: %s", table)
 	}
@@ -218,9 +220,9 @@ func (d *DB) Insert(table string, ownerID string, data map[string]interface{}) (
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	cols := "_owner"
-	placeholders := "?"
-	args := []interface{}{ownerID}
+	cols := "_owner, _owner_email"
+	placeholders := "?, ?"
+	args := []interface{}{ownerID, ownerEmail}
 
 	for col, val := range data {
 		if !validIdent(col) {
@@ -247,19 +249,14 @@ func (d *DB) UpdateRow(table string, rowID int64, data map[string]interface{}) e
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	setClauses := ""
+	setClauses := "_updated_at = CURRENT_TIMESTAMP"
 	args := []interface{}{}
-	i := 0
 	for col, val := range data {
 		if !validIdent(col) {
 			return fmt.Errorf("invalid column name: %s", col)
 		}
-		if i > 0 {
-			setClauses += ", "
-		}
-		setClauses += fmt.Sprintf("%s = ?", col)
+		setClauses += fmt.Sprintf(", %s = ?", col)
 		args = append(args, val)
-		i++
 	}
 	args = append(args, rowID)
 

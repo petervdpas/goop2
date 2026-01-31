@@ -497,6 +497,60 @@ select.db-input{
   border-color: color-mix(in srgb, #e55 30%, transparent);
 }
 
+/* Column picker */
+.db-col-picker-wrap{
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.db-col-picker{
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 180px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  padding: 6px 0;
+  z-index: 10;
+}
+
+.db-col-picker label{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transition: background 0.1s;
+}
+
+.db-col-picker label:hover{
+  background: var(--glass);
+}
+
+.db-col-picker input[type="checkbox"]{
+  margin: 0;
+  cursor: pointer;
+}
+
+.db-col-picker .db-colpick-name{
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.db-col-picker .db-colpick-sys{
+  color: var(--muted);
+  font-style: italic;
+}
+
 /* Empty state */
 .db-empty{
   color: var(--muted);

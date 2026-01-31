@@ -9,7 +9,7 @@ import (
 )
 
 // RegisterData adds data/storage API endpoints
-func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string) {
+func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail func() string) {
 	// List all tables
 	mux.HandleFunc("/api/data/tables", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -88,7 +88,11 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string) {
 			return
 		}
 
-		id, err := db.Insert(req.Table, selfID, req.Data)
+		email := ""
+		if selfEmail != nil {
+			email = selfEmail()
+		}
+		id, err := db.Insert(req.Table, selfID, email, req.Data)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

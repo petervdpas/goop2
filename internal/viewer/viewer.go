@@ -69,7 +69,7 @@ func Start(addr string, v Viewer) error {
 
 	// Register data/storage endpoints if DB is available
 	if v.DB != nil {
-		routes.RegisterData(mux, v.DB, v.Node.ID())
+		routes.RegisterData(mux, v.DB, v.Node.ID(), v.SelfEmail)
 	}
 
 	return http.ListenAndServe(addr, mux)
