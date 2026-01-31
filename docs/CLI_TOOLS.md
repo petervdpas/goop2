@@ -42,8 +42,10 @@ goop2 peer <peer-directory>
 
 **What it does:**
 - Loads `goop.json` from the peer directory
+- Opens or creates `data.db` SQLite database
 - Serves static site from `site/` subdirectory
 - Joins P2P network (mDNS + libp2p)
+- Accepts remote data operations from visiting peers via `/goop/data/1.0.0`
 - Announces presence to other peers
 - Starts local viewer HTTP server (if configured)
 - Optionally hosts rendezvous server (if configured)
@@ -52,6 +54,7 @@ goop2 peer <peer-directory>
 ```
 peers/mysite/
 ├── goop.json          # Configuration
+├── data.db            # SQLite database (auto-created)
 └── site/              # Your static site
     ├── index.html
     └── assets/

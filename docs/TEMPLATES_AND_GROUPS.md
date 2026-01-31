@@ -6,6 +6,17 @@ Goop² is infrastructure. But infrastructure without applications is an empty ro
 
 Every template is just HTML + JS + a SQLite schema. The peer serves the UI, the database stores the data, and the mesh handles communication. No cloud, no backend, no deployment pipeline. Pick a template, start your peer, you're live.
 
+### Remote Data: How Visitors Interact
+
+When PeerB visits PeerA's template site (at `/p/<peerA>/`), all data operations are automatically routed to **PeerA's database** via the P2P data protocol (`/goop/data/1.0.0`). The JavaScript client (`goop-data.js`) detects the remote context from the URL and transparently proxies API calls through the local server to the remote peer.
+
+This means:
+- A visitor filling out an enquete form writes to the **site owner's** database
+- The `_owner` field is set to the **visitor's** peer ID (cryptographically authenticated by libp2p)
+- The `_owner_email` is resolved from the site owner's peer table (from presence messages)
+- Templates need **zero changes** to work in both local and remote contexts
+- Single-response checks (e.g. "has this user already submitted?") work because the query runs against the site owner's DB with the visitor's `_owner` ID
+
 ---
 
 ## Template Library
@@ -17,7 +28,9 @@ Every template is just HTML + JS + a SQLite schema. The peer serves the UI, the 
 The digital reincarnation of the supermarket advertisement board. Full skeuomorphic design — cork texture, pinned cards with pushpins, slightly rotated notes, handwritten-style fonts, torn paper edges.
 
 - Pin a note: title, description, optional category, optional "contact me" info
-- Notes are visible to all peers in the community
+- Notes are visible to all peers visiting the corkboard
+- Visiting peers pin notes to the **corkboard owner's** database via P2P
+- Each note is tagged with the visitor's peer ID (`_owner`) — no login required
 - Cards appear scattered on the board, each with a random slight rotation
 - Color-coded by category: selling (yellow), looking for (blue), offering (green), event (pink)
 - Tear-off tabs at the bottom of cards for contact info — click to copy
@@ -28,13 +41,14 @@ This is the template that explains Goop² to anyone over 30 in five seconds.
 #### Blog
 
 - Markdown posts with title, date, tags
-- Comments from other peers (stored in the blog owner's database)
+- Comments from visiting peers are written to the **blog owner's database** via P2P — each comment tagged with the commenter's peer ID
 - RSS-like feed aggregation across peers in the community
 - Simple, clean design — content first
 
 #### Guestbook
 
-- Visitors leave messages on your peer's page
+- Visitors leave messages on your peer's page — entries stored in the **host's database** via P2P
+- Each entry is signed with the visitor's cryptographic peer identity
 - Classic web nostalgia — visitor counter, timestamps, optional avatar
 - The digital equivalent of signing someone's yearbook
 
@@ -51,7 +65,8 @@ This is the template that explains Goop² to anyone over 30 in five seconds.
 #### Quiz / Exam
 
 - Teacher creates questions (multiple choice, open answer, true/false)
-- Students connect and answer in real-time
+- Students visit the teacher's quiz page and answer — responses write to **teacher's database** via P2P
+- Each student's response is tagged with their peer ID (`_owner`) — no accounts needed
 - Results stored in teacher's database — instant grading
 - Timer per question or per quiz
 - Leaderboard displayed after completion
@@ -250,16 +265,15 @@ Templates are the UI layer. Groups are the communication layer. Together they cr
 
 ### Example: Quiz Flow
 
-1. Teacher selects the "Quiz" template and creates questions
-2. Teacher creates an **open, ephemeral group** named "History Quiz - Chapter 5"
-3. Group appears on the community's peers page
-4. Students click "Join" — they're added to the group
-5. Teacher starts the quiz — questions are broadcast via the **group channel**
-6. Students submit answers — sent to the teacher's peer via **group messages**
-7. Teacher's peer grades answers, stores results in **SQLite**
-8. Leaderboard is shared via **group state sync**
-9. Quiz ends — group auto-dissolves
-10. Results persist in the teacher's database for grading
+1. Teacher selects the "Quiz" template and creates questions (stored in teacher's local DB)
+2. Teacher shares their site URL or creates an **open, ephemeral group** named "History Quiz - Chapter 5"
+3. Students visit the teacher's quiz page at `/p/<teacher>/`
+4. `goop-data.js` detects the remote context — all API calls route to teacher's DB via P2P
+5. Students submit answers — each response is written to **teacher's database** with `_owner = student's peer ID`
+6. Teacher's peer grades answers directly from its own SQLite
+7. Students can revisit to see results — queries return their own rows (matched by `_owner`)
+8. Optionally, a group channel provides real-time coordination (timer, leaderboard sync)
+9. Results persist in the teacher's database for grading
 
 ### Example: Chess Match
 
@@ -296,6 +310,15 @@ templates/
     app.js            -- Client-side logic
     manifest.json     -- Template metadata (name, description, icon, group requirements)
 ```
+
+### Transparent Local/Remote Data Routing
+
+Templates include `goop-data.js`, which provides a unified data API (`Goop.data`). On load, the script checks `window.location.pathname`:
+
+- **Local context** (e.g. `/site/index.html`) — API calls go to `/api/data/*` (direct local database)
+- **Remote context** (e.g. `/p/<peerID>/index.html`) — API calls go to `/api/p/<peerID>/data/*` (proxied to remote peer via P2P)
+
+This detection is fully transparent. Templates use the same `Goop.data.insert()`, `Goop.data.query()`, etc. regardless of context. No template code changes are needed to support remote visitors.
 
 ### manifest.json
 

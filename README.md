@@ -33,11 +33,12 @@ When the peer goes offline, the site disappears.
 A **peer** is the fundamental unit in Goop².
 
 * One peer = one folder + one config + one cryptographic identity
-* A peer owns a strict filesystem boundary (`site/`)
+* A peer owns a strict filesystem boundary (`site/`) and a local SQLite database (`data.db`)
 * A peer may:
 
   * Publish presence on the network
   * Serve a static site
+  * Accept data operations from visiting peers
   * Run a local viewer and editor
   * Optionally host or connect to a rendezvous server
 
@@ -88,6 +89,7 @@ Each peer:
 * Publishes presence
 * Maintains a live peer table
 * Serves its site over libp2p streams
+* Accepts remote data operations from other peers
 * Optionally exposes a **local-only** HTTP viewer/editor
 
 ---
@@ -103,9 +105,22 @@ Each peer:
 
   * `/goop/content/1.0.0` — lightweight peer metadata
   * `/goop/site/1.0.0` — static site file transfer
+  * `/goop/data/1.0.0` — remote database operations
 
-Peers fetch content **directly from each other**.
+Peers fetch content and operate on each other's data **directly**.
 No HTTP is required between peers.
+
+#### Remote Data Operations
+
+When PeerB visits PeerA's site (via `/p/<peerA>/`), all data operations (insert, query, update, delete) are routed to **PeerA's database** through the P2P data protocol. The flow:
+
+1. PeerA's HTML/JS is fetched via the existing site protocol
+2. `goop-data.js` detects the remote context from the URL
+3. API calls are routed through a local HTTP proxy (`/api/p/<peerID>/data/*`)
+4. The proxy relays each operation to PeerA over a `/goop/data/1.0.0` stream
+5. PeerA executes the operation and returns the result
+
+The `_owner` field is set to the **caller's** peer ID (cryptographically authenticated by libp2p), and `_owner_email` is resolved from PeerA's peer table. This means visitors' data is stored on the site owner's database, tagged with the visitor's verified identity — no tokens or auth cookies needed.
 
 ---
 
@@ -185,6 +200,7 @@ It provides:
 * Peer list
 * Peer content inspection
 * Static site proxy (`/p/<peerID>/…`)
+* Data API (`/api/data/*`) and remote data proxy (`/api/p/<peerID>/data/*`)
 * Live editor
 * Live logs
 * Settings UI
@@ -249,11 +265,13 @@ The launcher does not own system logic; it controls it.
 peers/
   peerA/
     goop.json
+    data.db          # SQLite database (auto-created)
     site/
       index.html
       assets/
   peerB/
     goop.json
+    data.db
     site/
 data/
   identity.key

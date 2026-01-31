@@ -123,6 +123,7 @@ The parallels to the traditional web are not accidental:
 | Browsers | Goop² viewer |
 | Databases | SQLite per peer |
 | HTTP/HTTPS | libp2p protocols |
+| REST APIs | `/goop/data/1.0.0` P2P data protocol |
 | Domain names | Verified email + peer ID |
 | Web hosting | Hub hosting (premium tier) |
 | Search engines | Super hub directories |
@@ -132,7 +133,7 @@ But there is a fundamental difference.
 
 In the traditional web, content lives on someone else's server and persists because a corporation pays the hosting bill. Your data is the product. Your identity is rented.
 
-In the ephemeral web, data lives with the user. Identity is self-sovereign. The network exists because people choose to participate — and it vanishes when they leave. Nothing persists without consent. Nothing is owned without agency.
+In the ephemeral web, data lives with the user. When a visitor interacts with a peer's site — filling out a form, posting a note, submitting a quiz answer — that data is stored in the **site owner's** database, with the visitor's cryptographic peer ID as the `_owner`. No tokens, no cookies, no OAuth. Identity is proven by the libp2p handshake itself. The network exists because people choose to participate — and it vanishes when they leave. Nothing persists without consent. Nothing is owned without agency.
 
 **The web was supposed to be ours. Goop² makes it ours again.**
 
@@ -162,7 +163,7 @@ Because every peer is a web server with a database, Goop² is a foundation for a
 - **IoT mesh networks** — devices as peers, communicating without cloud services
 - **Offline-first applications** — everything works locally, syncs when connected
 
-The SQLite-per-peer model means every user has a programmable data store. The ephemeral web UI means every user has a customizable interface. The libp2p mesh means every user is connected to every other user who chooses to be found.
+The SQLite-per-peer model means every user has a programmable data store. The P2P data protocol (`/goop/data/1.0.0`) means any peer can read from and write to another peer's database — with the caller's identity cryptographically stamped on every row. The ephemeral web UI means every user has a customizable interface. The libp2p mesh means every user is connected to every other user who chooses to be found.
 
 This is not a chat app with a database viewer. This is infrastructure for a new kind of internet.
 
