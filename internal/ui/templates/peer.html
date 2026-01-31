@@ -1,24 +1,25 @@
 <!-- internal/ui/templates/peer.html -->
 {{define "page.peer"}}
 <p>
-  <a class="back" href="/peers">← back</a>
+  <a class="back" href="/peers">&larr; back</a>
 </p>
 
-<h1>{{.PeerID}}</h1>
-
-<p class="actions">
-  <a class="btn"
+<div class="card peer-detail-card">
+  <img class="avatar avatar-lg"
+       src="/api/avatar/peer/{{.PeerID}}{{if .AvatarHash}}?v={{.AvatarHash}}{{end}}"
+       alt="">
+  <div class="peer-detail-info">
+    <div class="peer-detail-name">{{if .Content}}{{.Content}}{{else}}{{.PeerID}}{{end}}</div>
+    <div class="muted small">
+      {{if .PeerEmail}}{{.PeerEmail}} &middot; {{end}}<code>{{.PeerID}}</code>
+    </div>
+  </div>
+  <a class="btn identity-site-btn"
      href="/open?url={{printf "%s/p/%s/" .BaseURL .PeerID | urlquery}}"
-     rel="noopener">
-    Open in Browser
-  </a>
-</p>
+     rel="noopener">Open site</a>
+</div>
 
-<pre class="content">{{.Content}}</pre>
-
-<hr>
-
-<h2>💬 Chat</h2>
+<h2 style="margin-top:18px;">Chat</h2>
 <div class="chat-container">
   <div class="chat-messages" id="chat-messages">
     <p class="muted"><i>Loading messages...</i></p>

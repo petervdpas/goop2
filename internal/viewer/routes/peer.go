@@ -29,10 +29,21 @@ func registerPeerRoutes(mux *http.ServeMux, d Deps) {
 			return
 		}
 
+		peerEmail := ""
+		avatarHash := ""
+		if d.Peers != nil {
+			if sp, ok := d.Peers.Get(peerID); ok {
+				peerEmail = sp.Email
+				avatarHash = sp.AvatarHash
+			}
+		}
+
 		vm := viewmodels.PeerContentVM{
-			BaseVM:  baseVM("Peer", "peers", "page.peer", d),
-			PeerID:  peerID,
-			Content: txt,
+			BaseVM:     baseVM("Peer", "peers", "page.peer", d),
+			PeerID:     peerID,
+			Content:    txt,
+			PeerEmail:  peerEmail,
+			AvatarHash: avatarHash,
 		}
 		render.Render(w, vm)
 	})
