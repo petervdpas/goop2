@@ -185,6 +185,128 @@ The JS client would use a WebSocket or SSE connection to the local viewer, which
 
 ---
 
+## Frontend / UI Design
+
+The protocol sections above cover the backend plumbing. This section describes where groups surface in the viewer UI.
+
+### Navigation Changes
+
+The current top-level navigation is:
+
+```
+Peers | Me | Create | Database | Logs
+```
+
+Two changes:
+
+1. **Create tab gets sub-tabs**: `[Editor] [Templates] [Groups]` -- group creation lives here alongside site editing and template selection, since groups are part of what a host "publishes."
+2. **New top-level Groups tab**: shows all groups the peer is subscribed to.
+
+Updated navigation:
+
+```
+Peers | Me | Create | Groups | Database | Logs
+                       ▲
+                       new
+```
+
+Inside the Create tab:
+
+```
+[Editor]  [Templates]  [Groups]
+```
+
+### Create > Groups (Host-side)
+
+This is where a host creates and manages the groups they offer. The UI provides:
+
+- **Create Group** form: name, app type (chess, quiz, chat, ...), max members
+- **My Hosted Groups** list: all groups in the local `_groups` table, with member count and status
+- Actions per group: edit settings, close group, delete group
+
+When a host creates a group they are automatically subscribed to it as the group admin (see below).
+
+Templates may also auto-create groups. For example, applying the chess template could insert a default group into `_groups`. The Create > Groups sub-tab shows these alongside manually created groups.
+
+### Groups Tab (Top-level, Subscriber-side)
+
+This is the peer's single view of **all groups they are subscribed to**, regardless of which host owns them. The list is divided into two blocks:
+
+#### My Groups (Admin)
+
+Groups hosted by this peer. These stand out visually (different background, admin badge, or separate block at the top). The host is always subscribed to their own groups so they appear here automatically.
+
+For each group:
+- Group name, app type, member count
+- **Admin** badge
+- Click to open the group's app UI
+
+#### Joined Groups
+
+Groups on other peers that this peer has previously joined. **Only groups whose host is currently online are shown** -- if the host is offline, the group is unreachable (host-relayed model) and is hidden or shown greyed-out with an "offline" indicator.
+
+For each group:
+- Group name, app type, host peer name
+- Online/offline status of the host
+- Click to open (rejoins via the group protocol)
+
+### Subscriptions
+
+Because there is no persistent server-side subscription (groups only exist while the host is online), subscriptions are tracked **locally** on the subscriber's side:
+
+```sql
+-- Local table, NOT synced to any host
+CREATE TABLE _group_subscriptions (
+    host_peer_id  TEXT NOT NULL,
+    group_id      TEXT NOT NULL,
+    group_name    TEXT,
+    app_type      TEXT,
+    role          TEXT DEFAULT 'member',  -- 'admin' for own groups
+    subscribed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (host_peer_id, group_id)
+);
+```
+
+- When a peer joins a group, a subscription record is created locally.
+- When a peer leaves a group, the record is removed.
+- When the host creates a group, a subscription with `role = 'admin'` is created for themselves.
+- The Groups tab queries this table and cross-references with the online peer list to determine which groups are reachable.
+
+### Discovery
+
+How does a peer find groups to join?
+
+1. **Via the host's site UI** -- the host's site pages (served via `/goop/site/1.0.0`) can list available groups and offer join buttons. This is the primary discovery path.
+2. **Via direct chat** -- a host shares a group link in a 1:1 chat message.
+3. **Via presence metadata** -- groups could optionally be announced in GossipSub presence, letting peers browse available groups from the Peers tab.
+
+Once subscribed, the group appears in the top-level Groups tab for easy access.
+
+### Data Flow: UI Perspective
+
+```
+Host creates group:
+  Create > Groups > "New Group" form
+  -> POST /api/groups (creates row in _groups)
+  -> Auto-subscribes host as admin (row in _group_subscriptions with role=admin)
+  -> Group appears in Groups tab under "My Groups (Admin)"
+
+Visitor discovers group:
+  Visits host's site, sees "Join Chess Game" button
+  -> JS calls Goop.group.join("chess-42")
+  -> Local viewer opens /goop/group/1.0.0 stream to host
+  -> On successful welcome, local subscription record created
+  -> Group appears in visitor's Groups tab under "Joined Groups"
+
+Visitor opens Groups tab later:
+  -> Tab loads _group_subscriptions
+  -> Cross-references with online peer list
+  -> Shows reachable groups (host online), hides or greys out unreachable ones
+  -> Click on a reachable group reopens the stream and loads the app UI
+```
+
+---
+
 ## Data Flow Example: Chess Game
 
 ```
@@ -214,9 +336,9 @@ PeerC (spectator) joins:
 
 1. **Reconnection** -- if a member's stream drops, should they auto-rejoin? The host could hold state for a grace period.
 2. **Persistence** -- should group chat history be stored? Game state likely yes (via data protocol), chat maybe optional.
-3. **Permissions** -- should the host be able to define roles (player vs spectator)? The `welcome` message could include a role field.
-4. **Discovery** -- how do peers find groups? Currently via the site UI. Could also be announced via presence metadata.
-5. **WebSocket vs SSE** -- the browser needs a persistent connection to the local viewer. WebSocket is bidirectional (natural fit), SSE is simpler but requires a separate POST endpoint for sending.
+3. **Permissions** -- should the host be able to define roles (player vs spectator vs admin)? The `welcome` message could include a role field. The subscription table already tracks role locally.
+4. **WebSocket vs SSE** -- the browser needs a persistent connection to the local viewer. WebSocket is bidirectional (natural fit), SSE is simpler but requires a separate POST endpoint for sending.
+5. **Offline group display** -- should groups from offline hosts be shown greyed-out (so the user remembers them) or hidden entirely? Greyed-out is more informative but adds visual noise.
 
 ---
 
