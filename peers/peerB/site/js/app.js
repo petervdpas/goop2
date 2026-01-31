@@ -49,6 +49,24 @@
     return shortId(peerId);
   }
 
+  // Fetch known peer labels from the local peer store
+  function fetchPeerLabels() {
+    fetch("/api/peers").then(function (r) {
+      if (!r.ok) return;
+      return r.json();
+    }).then(function (peers) {
+      if (!Array.isArray(peers)) return;
+      var changed = false;
+      peers.forEach(function (p) {
+        if (p.ID && p.Content && !labelMap[p.ID]) {
+          labelMap[p.ID] = p.Content;
+          changed = true;
+        }
+      });
+      if (changed) renderMembers();
+    }).catch(function () {});
+  }
+
   // ── Owner detection ──
   try {
     var me = await Goop.identity.get();
@@ -159,20 +177,25 @@
     lobby.classList.add("hidden");
     chatView.classList.remove("hidden");
 
+    // Clean up any stale connection from a previous session
+    try { await Goop.group.leave(); } catch (_) {}
+
     // Subscribe to SSE first
     Goop.group.subscribe(handleGroupEvent);
 
     try {
       if (isOwner) {
         await Goop.group.joinOwn(room.group_id);
-        // Owner knows own label already
         labelMap[myId] = myLabel;
+        // Announce label to members already in the room
+        Goop.group.send({ type: "presence", label: myLabel }, room.group_id).catch(function () {});
       } else {
         await Goop.group.join(hostPeerId, room.group_id);
         // Announce our label so other members see a friendly name
         Goop.group.send({ type: "presence", label: myLabel }).catch(function () {});
       }
       appendSystem("You joined the room.");
+      startLabelRefresh();
     } catch (err) {
       appendSystem("Failed to join: " + err.message);
     }
@@ -193,6 +216,7 @@
     } catch (_) {}
 
     Goop.group.unsubscribe();
+    stopLabelRefresh();
     currentRoom = null;
     members = [];
 
@@ -218,6 +242,7 @@
     }
 
     Goop.group.unsubscribe();
+    stopLabelRefresh();
     currentRoom = null;
     members = [];
     chatView.classList.add("hidden");
@@ -276,6 +301,7 @@
         if (evt.payload) {
           members = extractMemberIds(evt.payload);
           renderMembers();
+          fetchPeerLabels();
         }
         break;
 
@@ -284,6 +310,7 @@
           var oldCount = members.length;
           members = extractMemberIds(evt.payload);
           renderMembers();
+          fetchPeerLabels();
           if (members.length > oldCount) {
             appendSystem("A new member joined.");
           } else if (members.length < oldCount) {
@@ -318,6 +345,7 @@
         appendSystem("Room was closed by the host.");
         setTimeout(function () {
           Goop.group.unsubscribe();
+          stopLabelRefresh();
           currentRoom = null;
           members = [];
           chatView.classList.add("hidden");
@@ -371,6 +399,39 @@
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
+
+  // ── Periodic peer label refresh ──
+  var labelInterval = null;
+  function startLabelRefresh() {
+    stopLabelRefresh();
+    labelInterval = setInterval(fetchPeerLabels, 5000);
+  }
+  function stopLabelRefresh() {
+    if (labelInterval) { clearInterval(labelInterval); labelInterval = null; }
+  }
+
+  // ── Clean leave on page/tab close ──
+  function doQuickLeave() {
+    if (!currentRoom) return;
+    var url = isOwner
+      ? "/api/groups/leave-own"
+      : "/api/groups/leave";
+    var body = isOwner
+      ? JSON.stringify({ group_id: currentRoom.group_id })
+      : "{}";
+    // Use sendBeacon for reliability during unload
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(url, new Blob([body], { type: "application/json" }));
+    } else {
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", url, false); // sync
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.send(body);
+    }
+  }
+
+  window.addEventListener("beforeunload", doQuickLeave);
+  window.addEventListener("pagehide", doQuickLeave);
 
   // ── Init ──
   loadRooms();

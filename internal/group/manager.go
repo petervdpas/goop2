@@ -383,12 +383,16 @@ func (m *Manager) HostInGroup(groupID string) bool {
 
 // JoinRemoteGroup opens a stream to a remote host and joins a group.
 func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID string) error {
+	// Auto-leave any previous connection
 	m.mu.Lock()
-	if m.activeConn != nil {
-		m.mu.Unlock()
-		return fmt.Errorf("already connected to a group; leave first")
-	}
+	old := m.activeConn
+	m.activeConn = nil
 	m.mu.Unlock()
+	if old != nil {
+		old.encoder.Encode(Message{Type: TypeLeave, Group: old.groupID})
+		old.cancel()
+		old.stream.Close()
+	}
 
 	pid, err := peer.Decode(hostPeerID)
 	if err != nil {
