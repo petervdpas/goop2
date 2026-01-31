@@ -1,0 +1,241 @@
+/* internal/ui/assets/css/67-groups.css */
+
+/* -----------------------------
+   Groups page layout
+------------------------------ */
+.groups-page{
+  display:flex;
+  flex-direction:column;
+  gap: 18px;
+}
+
+/* -----------------------------
+   Section blocks
+------------------------------ */
+.groups-section{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
+
+.groups-section-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 10px;
+}
+
+.groups-section-title{
+  font-weight: 750;
+}
+
+/* -----------------------------
+   Action buttons
+------------------------------ */
+.groups-action-btn{
+  padding: 6px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.groups-btn-primary{
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.groups-btn-primary:hover{
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+.groups-btn-danger{
+  color: #e55;
+  border-color: color-mix(in srgb, #e55 38%, transparent);
+  background: color-mix(in srgb, #e55 10%, transparent);
+}
+
+.groups-btn-danger:hover{
+  background: color-mix(in srgb, #e55 18%, transparent);
+}
+
+/* -----------------------------
+   Groups list
+------------------------------ */
+.groups-list{
+  min-height: 0;
+}
+
+.groups-empty{
+  color: var(--muted);
+  padding: 16px;
+  text-align: center;
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* -----------------------------
+   Group card
+------------------------------ */
+.groups-card{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 6px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--field-bg);
+  transition: background var(--ease);
+}
+
+.groups-card:hover{
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.groups-card-info{
+  flex: 1;
+  min-width: 0;
+}
+
+.groups-card-name{
+  font-weight: 650;
+  margin-bottom: 2px;
+}
+
+.groups-card-meta{
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.groups-card-meta code{
+  font-size: 11px;
+}
+
+.groups-card-members{
+  font-size: 12px;
+  color: var(--muted);
+  flex: 0 0 auto;
+  margin-right: 8px;
+}
+
+.groups-card-actions{
+  display:flex;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+/* -----------------------------
+   Active connection banner
+------------------------------ */
+.groups-active-conn{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.groups-active-label{
+  font-size: 13px;
+}
+
+.groups-active-label code{
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* -----------------------------
+   Create form
+------------------------------ */
+.groups-create-form{
+  max-width: 500px;
+  margin-bottom: 24px;
+}
+
+.groups-form-group{
+  margin-bottom: 12px;
+}
+
+.groups-form-group > label{
+  display:block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+  letter-spacing: 0.2px;
+}
+
+.groups-input{
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--field-bg);
+  color: var(--text);
+  outline:none;
+  font-size: 13px;
+  transition: border-color var(--ease), box-shadow var(--ease), background var(--ease);
+  box-sizing: border-box;
+}
+
+.groups-input:focus{
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: var(--ring);
+  background: var(--field-bg-2);
+}
+
+.groups-form-actions{
+  display:flex;
+  gap: 8px;
+  justify-content:flex-end;
+  margin-top: 14px;
+}
+
+/* -----------------------------
+   Events log
+------------------------------ */
+.groups-events{
+  max-height: 300px;
+  overflow-y: auto;
+  font-size: 13px;
+}
+
+.groups-event-item{
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--line);
+  font-family: monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.groups-event-item .evt-type{
+  font-weight: 700;
+  margin-right: 6px;
+}
+
+.groups-event-item .evt-from{
+  color: var(--accent);
+  margin-right: 6px;
+}
+
+.groups-event-item .evt-time{
+  color: var(--muted);
+  font-size: 11px;
+  float: right;
+}
+
+/* -----------------------------
+   Responsive
+------------------------------ */
+@media (max-width: 980px){
+  .groups-create-form{
+    max-width: 100%;
+  }
+}

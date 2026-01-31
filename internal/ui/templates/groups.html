@@ -1,0 +1,52 @@
+<!-- internal/ui/templates/groups.html -->
+{{define "page.groups"}}
+<div class="page page-groups">
+  <div class="create-tabs">
+    <a class="create-tab" href="/self">My Settings</a>
+    <a class="create-tab active" href="/self/groups">Groups</a>
+  </div>
+
+<h2>Groups</h2>
+<p class="muted small">View and manage your group connections.</p>
+
+<div id="groups-page" class="groups-page">
+  <!-- My Hosted Groups -->
+  <div class="groups-section panel">
+    <div class="groups-section-head">
+      <span class="groups-section-title">My Groups (Host)</span>
+      <button id="groups-refresh" class="groups-action-btn">Refresh</button>
+    </div>
+    <div id="groups-hosted-list" class="groups-list">
+      <p class="groups-empty">Loading...</p>
+    </div>
+  </div>
+
+  <!-- Joined Groups -->
+  <div class="groups-section panel">
+    <div class="groups-section-head">
+      <span class="groups-section-title">Joined Groups</span>
+    </div>
+    <div id="groups-active-conn" class="groups-active-conn" style="display:none">
+      <div class="groups-active-label">
+        Connected to: <code id="groups-active-group"></code> on <code id="groups-active-host"></code>
+      </div>
+      <button id="groups-leave-btn" class="groups-action-btn groups-btn-danger">Leave</button>
+    </div>
+    <div id="groups-sub-list" class="groups-list">
+      <p class="groups-empty">No subscriptions.</p>
+    </div>
+  </div>
+
+  <!-- Live Events -->
+  <div class="groups-section panel">
+    <div class="groups-section-head">
+      <span class="groups-section-title">Live Events</span>
+      <button id="groups-clear-events" class="groups-action-btn">Clear</button>
+    </div>
+    <div id="groups-events" class="groups-events">
+      <p class="groups-empty">Waiting for events...</p>
+    </div>
+  </div>
+  </div>
+</div>
+{{end}}

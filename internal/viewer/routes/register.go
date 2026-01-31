@@ -50,6 +50,7 @@ func Register(mux *http.ServeMux, d Deps) {
 	registerOfflineRoutes(mux, d)
 	registerSiteAPIRoutes(mux, d)
 	registerTemplateRoutes(mux, d, csrf)
+	registerGroupsUIRoutes(mux, d)
 }
 
 // RegisterMinimal registers only the routes that work without a p2p node.

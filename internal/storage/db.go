@@ -73,6 +73,36 @@ func Open(configDir string) (*DB, error) {
 		return nil, fmt.Errorf("create tables registry: %w", err)
 	}
 
+	// Create groups table
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS _groups (
+			id          TEXT PRIMARY KEY,
+			name        TEXT NOT NULL,
+			app_type    TEXT DEFAULT '',
+			max_members INTEGER DEFAULT 0,
+			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+	`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("create groups table: %w", err)
+	}
+
+	// Create group subscriptions table
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS _group_subscriptions (
+			host_peer_id  TEXT NOT NULL,
+			group_id      TEXT NOT NULL,
+			group_name    TEXT DEFAULT '',
+			app_type      TEXT DEFAULT '',
+			role          TEXT DEFAULT 'member',
+			subscribed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (host_peer_id, group_id)
+		);
+	`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("create group subscriptions table: %w", err)
+	}
+
 	return &DB{db: db, path: dbPath}, nil
 }
 

@@ -1,6 +1,13 @@
 <!-- internal/ui/templates/self.html -->
 {{define "page.self"}}
 <div class="page page-self">
+  {{if not .RendezvousOnly}}
+  <div class="create-tabs">
+    <a class="create-tab active" href="/self">My Settings</a>
+    <a class="create-tab" href="/self/groups">Groups</a>
+  </div>
+  {{end}}
+
   {{if .RendezvousOnly}}
     <h1>Rendezvous Server</h1>
     <div class="banner ok" style="margin-bottom: 14px;">Running in rendezvous-only mode</div>

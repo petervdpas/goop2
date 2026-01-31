@@ -16,6 +16,9 @@ const (
 
 	// libp2p stream protocol ID for remote data operations
 	DataProtoID = "/goop/data/1.0.0"
+
+	// libp2p stream protocol ID for host-relayed groups
+	GroupProtoID = "/goop/group/1.0.0"
 )
 
 const (

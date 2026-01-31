@@ -6,6 +6,7 @@ import (
 
 	"goop/internal/chat"
 	"goop/internal/content"
+	"goop/internal/group"
 	"goop/internal/p2p"
 	"goop/internal/state"
 	"goop/internal/storage"
@@ -25,6 +26,7 @@ type Viewer struct {
 	Logs    *LogBuffer
 	Content *content.Store
 	Chat    *chat.Manager
+	Groups  *group.Manager
 	DB      *storage.DB // SQLite database for peer data
 
 	// NEW: canonical base URL for templates (e.g. http://127.0.0.1:7777)
@@ -70,6 +72,11 @@ func Start(addr string, v Viewer) error {
 	// Register data/storage endpoints if DB is available
 	if v.DB != nil {
 		routes.RegisterData(mux, v.DB, v.Node.ID(), v.SelfEmail)
+	}
+
+	// Register group endpoints if group manager is available
+	if v.Groups != nil {
+		routes.RegisterGroups(mux, v.Groups, v.Node.ID())
 	}
 
 	// Register data proxy for remote peer data operations

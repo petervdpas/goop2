@@ -12,6 +12,7 @@ import (
 	"goop/internal/chat"
 	"goop/internal/config"
 	"goop/internal/content"
+	"goop/internal/group"
 	"goop/internal/p2p"
 	"goop/internal/proto"
 	"goop/internal/rendezvous"
@@ -141,6 +142,10 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	chatMgr := chat.New(node.Host, 100) // 100 message buffer
 	log.Printf("💬 Chat enabled: direct messaging via /goop/chat/1.0.0")
 
+	// ── Group manager
+	grpMgr := group.New(node.Host, db)
+	log.Printf("👥 Group protocol enabled: /goop/group/1.0.0")
+
 	for _, c := range rvClients {
 		cc := c
 		go cc.SubscribeEvents(ctx, func(pm proto.PresenceMsg) {
@@ -191,6 +196,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			Logs:      o.Logs,
 			Content:   store,
 			Chat:      chatMgr,
+			Groups:    grpMgr,
 			DB:        db,
 			BaseURL:   url,
 		})
