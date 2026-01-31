@@ -206,9 +206,20 @@ button:focus-visible{
 
 .chat-msg {
   display: flex;
-  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
   max-width: 70%;
   animation: slideIn 0.2s ease;
+}
+
+.chat-msg-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.chat-msg-avatar {
+  margin-top: 2px;
 }
 
 @keyframes slideIn {
@@ -218,6 +229,7 @@ button:focus-visible{
 
 .chat-msg.msg-out {
   align-self: flex-end;
+  flex-direction: row-reverse;
 }
 
 .chat-msg.msg-in {

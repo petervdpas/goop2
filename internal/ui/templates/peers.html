@@ -221,11 +221,17 @@
       const isOutgoing = msg.from === selfID;
       const className = isOutgoing ? 'msg-out' : 'msg-in';
       const senderName = peerLabels[msg.from] || msg.from.substring(0, 8) + '...';
+      const avatarUrl = isOutgoing
+        ? '/api/avatar'
+        : '/api/avatar/peer/' + encodeURIComponent(msg.from);
 
       return `<div class="chat-msg ${className}">
-        <div class="msg-sender">${escapeHtml(senderName)}</div>
-        <div class="msg-content">${escapeHtml(msg.content)}</div>
-        <div class="msg-time">${time}</div>
+        <img class="avatar avatar-xs chat-msg-avatar" src="${avatarUrl}" alt="">
+        <div class="chat-msg-body">
+          <div class="msg-sender">${escapeHtml(senderName)}</div>
+          <div class="msg-content">${escapeHtml(msg.content)}</div>
+          <div class="msg-time">${time}</div>
+        </div>
       </div>`;
     }).join('');
 

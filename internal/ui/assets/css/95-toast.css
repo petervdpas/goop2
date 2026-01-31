@@ -69,6 +69,13 @@
 
 .toast-icon {
   font-size: 20px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.toast-icon img {
+  display: block;
 }
 
 .toast-title {

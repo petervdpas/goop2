@@ -52,18 +52,43 @@
             // - incoming messages (sender is not us)
             // - when NOT on the sender's peer page (chat window closed)
             if (msgType === 'direct' && msg.from && msg.from !== selfID && msg.from !== currentPeerPage) {
-              const shortID = msg.from.substring(0, 8) + '...';
+              var avatarUrl = '/api/avatar/peer/' + encodeURIComponent(msg.from);
+              var avatarImg = '<img src="' + avatarUrl + '" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">';
 
-              window.Goop.toast({
-                icon: '💬',
-                title: 'New Message',
-                message: '<div class="toast-peer-id">' + shortID + '</div><div>' +
-                         (msg.content.length > 60 ? msg.content.substring(0, 60) + '...' : msg.content) +
-                         '</div>',
-                onClick: () => {
-                  window.location.href = '/peer/' + msg.from;
-                },
-                duration: 8000
+              // Try to get a friendly name from the peers API
+              fetch('/api/peers').then(function(r){ return r.json(); }).then(function(peers) {
+                var label = msg.from.substring(0, 8) + '...';
+                if (Array.isArray(peers)) {
+                  var found = peers.find(function(p){ return p.ID === msg.from; });
+                  if (found && found.Content) label = found.Content;
+                }
+
+                var preview = msg.content;
+                if (preview.length > 60) preview = preview.substring(0, 60) + '...';
+
+                window.Goop.toast({
+                  icon: avatarImg,
+                  title: label,
+                  message: '<div>' + preview.replace(/</g,'&lt;') + '</div>',
+                  onClick: function() {
+                    window.location.href = '/peer/' + msg.from;
+                  },
+                  duration: 8000
+                });
+              }).catch(function() {
+                var shortID = msg.from.substring(0, 8) + '...';
+                var preview = msg.content;
+                if (preview.length > 60) preview = preview.substring(0, 60) + '...';
+
+                window.Goop.toast({
+                  icon: avatarImg,
+                  title: shortID,
+                  message: '<div>' + preview.replace(/</g,'&lt;') + '</div>',
+                  onClick: function() {
+                    window.location.href = '/peer/' + msg.from;
+                  },
+                  duration: 8000
+                });
               });
             }
           } catch (err) {
