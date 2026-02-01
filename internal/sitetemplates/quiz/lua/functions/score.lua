@@ -20,6 +20,22 @@ function call(request)
         end
     end
 
+    -- Persist the score (one row per peer, update on resubmit)
+    local existing = goop.db.scalar(
+        "SELECT _id FROM scores WHERE _owner = ?", goop.peer.id
+    )
+    if existing then
+        goop.db.exec(
+            "UPDATE scores SET score = ?, total = ?, peer_label = ?, _updated_at = CURRENT_TIMESTAMP WHERE _owner = ?",
+            score, total, goop.peer.label, goop.peer.id
+        )
+    else
+        goop.db.exec(
+            "INSERT INTO scores (_owner, score, total, peer_label) VALUES (?, ?, ?, ?)",
+            goop.peer.id, score, total, goop.peer.label
+        )
+    end
+
     return {
         score = score,
         total = total,

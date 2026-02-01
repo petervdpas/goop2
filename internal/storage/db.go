@@ -657,6 +657,48 @@ func (d *DB) LuaQuery(query string, args ...any) ([]map[string]any, error) {
 	return results, rows.Err()
 }
 
+// LuaExec executes a parameterized write statement (INSERT, UPDATE, DELETE)
+// for Lua data functions. Returns the number of rows affected.
+func (d *DB) LuaExec(stmt string, args ...any) (int64, error) {
+	if err := validateWrite(stmt); err != nil {
+		return 0, err
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	res, err := d.db.Exec(stmt, args...)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// validateWrite ensures only INSERT, UPDATE, DELETE statements are allowed.
+func validateWrite(stmt string) error {
+	q := strings.TrimSpace(stmt)
+	upper := strings.ToUpper(q)
+
+	allowed := false
+	for _, prefix := range []string{"INSERT", "UPDATE", "DELETE", "REPLACE"} {
+		if strings.HasPrefix(upper, prefix) {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return fmt.Errorf("only INSERT, UPDATE, DELETE statements are allowed")
+	}
+
+	// Reject multiple statements
+	trimmed := strings.TrimRight(q, "; \t\n\r")
+	if strings.Contains(trimmed, ";") {
+		return fmt.Errorf("multiple SQL statements not allowed")
+	}
+
+	return nil
+}
+
 // LuaScalar executes a read-only parameterized query and returns a single value.
 func (d *DB) LuaScalar(query string, args ...any) (any, error) {
 	if err := validateReadOnly(query); err != nil {

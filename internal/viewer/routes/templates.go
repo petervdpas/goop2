@@ -164,11 +164,19 @@ func clearSitePreserveLua(root string) error {
 	}
 	for _, e := range entries {
 		if e.Name() == "lua" {
-			// Preserve lua/ root (chat scripts), but clear lua/functions/
-			// so template data functions get a clean install.
+			// Preserve lua/ root (chat scripts), but clear files inside
+			// lua/functions/ so template data functions get a clean install.
+			// We remove individual files rather than the directory itself to
+			// preserve the fsnotify watch on the functions/ inode.
 			fnDir := filepath.Join(root, "lua", "functions")
-			if err := os.RemoveAll(fnDir); err != nil && !os.IsNotExist(err) {
+			fnEntries, err := os.ReadDir(fnDir)
+			if err != nil && !os.IsNotExist(err) {
 				return err
+			}
+			for _, fe := range fnEntries {
+				if err := os.RemoveAll(filepath.Join(fnDir, fe.Name())); err != nil {
+					return err
+				}
 			}
 			continue
 		}

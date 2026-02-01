@@ -157,6 +157,19 @@
   // ── Visitor view: take quiz ──
 
   async function renderQuiz() {
+    // Check if this peer already submitted
+    var scores = await db.query("scores") || [];
+    for (var s = 0; s < scores.length; s++) {
+      if (scores[s]._owner === myId) {
+        showResult(scores[s], true);
+        return;
+      }
+    }
+
+    renderQuizForm();
+  }
+
+  async function renderQuizForm() {
     var questions = await db.query("questions") || [];
 
     if (questions.length === 0) {
@@ -202,24 +215,34 @@
       try {
         // Call server-side scoring function
         var result = await db.call("score", { answers: answers });
-        showResult(result);
+        showResult(result, true);
       } catch (err) {
         root.innerHTML = '<div class="qz-result"><p class="msg">Error: ' + esc(err.message || String(err)) + '</p></div>';
       }
     };
   }
 
-  function showResult(r) {
+  function showResult(r, allowRetake) {
     var pct = r.total > 0 ? Math.round((r.score / r.total) * 100) : 0;
-    var cls = r.passed ? "pass" : "fail";
-    var emoji = r.passed ? "🎉" : "😔";
+    var passed = r.passed !== undefined ? r.passed : r.score >= Math.ceil(r.total * 0.7);
+    var cls = passed ? "pass" : "fail";
+    var emoji = passed ? "🎉" : "😔";
+    var msg = r.message || (r.score + " out of " + r.total + " correct");
 
-    root.innerHTML =
+    var html =
       '<div class="qz-result">' +
         '<div class="score ' + cls + '">' + r.score + ' / ' + r.total + '</div>' +
         '<div class="label">' + pct + '% correct</div>' +
-        '<div class="msg">' + emoji + ' ' + esc(r.message || '') + '</div>' +
+        '<div class="msg">' + emoji + ' ' + esc(msg) + '</div>' +
+        (allowRetake ? '<button class="qz-submit" id="retake-quiz" style="margin-top:1.5rem;">Retake Quiz</button>' : '') +
       '</div>';
+    root.innerHTML = html;
+
+    if (allowRetake) {
+      document.getElementById("retake-quiz").onclick = function () {
+        renderQuizForm();
+      };
+    }
   }
 
   function esc(s) {

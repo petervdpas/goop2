@@ -425,6 +425,26 @@ func dbScalarFn(inv *invocationCtx, db *storage.DB) lua.LGFunction {
 	}
 }
 
+func dbExecFn(inv *invocationCtx, db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		stmt := L.CheckString(1)
+
+		// Collect variadic args (statement parameters)
+		args := collectLuaArgs(L, 2)
+
+		affected, err := db.LuaExec(stmt, args...)
+		if err != nil {
+			L.Push(lua.LNil)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+
+		L.Push(lua.LNumber(affected))
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
 // collectLuaArgs gathers variadic arguments from the Lua stack starting at position start.
 func collectLuaArgs(L *lua.LState, start int) []any {
 	var args []any

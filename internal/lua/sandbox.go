@@ -128,6 +128,7 @@ func newSandboxedDataVM(inv *invocationCtx, kv *kvStore, engine *Engine, db *sto
 			dbTbl := L.NewTable()
 			dbTbl.RawSetString("query", L.NewFunction(dbQueryFn(inv, db)))
 			dbTbl.RawSetString("scalar", L.NewFunction(dbScalarFn(inv, db)))
+			dbTbl.RawSetString("exec", L.NewFunction(dbExecFn(inv, db)))
 			goopTbl.RawSetString("db", dbTbl)
 		}
 	}
