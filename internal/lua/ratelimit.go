@@ -24,32 +24,6 @@ func newRateLimiter(perPeerPerMin, globalPerMin int) *rateLimiter {
 	}
 }
 
-// Allow returns true if the request from peerID is within both per-peer and global limits.
-func (r *rateLimiter) Allow(peerID string) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	now := time.Now()
-	cutoff := now.Add(-r.window)
-
-	// Prune and check global
-	r.global = pruneOld(r.global, cutoff)
-	if len(r.global) >= r.globalMax {
-		return false
-	}
-
-	// Prune and check per-peer
-	r.perPeer[peerID] = pruneOld(r.perPeer[peerID], cutoff)
-	if len(r.perPeer[peerID]) >= r.peerMax {
-		return false
-	}
-
-	// Record
-	r.global = append(r.global, now)
-	r.perPeer[peerID] = append(r.perPeer[peerID], now)
-	return true
-}
-
 // AllowFunc checks rate limits with per-function granularity.
 // funcLimit: -1 = use default peerMax, 0 = no limiting, N>0 = custom limit.
 func (r *rateLimiter) AllowFunc(peerID, function string, funcLimit int) bool {
