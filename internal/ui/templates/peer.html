@@ -60,9 +60,15 @@
       const time = new Date(msg.timestamp).toLocaleString();
       const isOutgoing = msg.from !== peerID;
       const className = isOutgoing ? 'msg-out' : 'msg-in';
+      const avatarUrl = isOutgoing
+        ? '/api/avatar'
+        : '/api/avatar/peer/' + encodeURIComponent(peerID);
       return `<div class="chat-msg ${className}">
-        <div class="msg-content">${escapeHtml(msg.content)}</div>
-        <div class="msg-time">${time}</div>
+        <img class="avatar avatar-xs chat-msg-avatar" src="${avatarUrl}" alt="">
+        <div class="chat-msg-body">
+          <div class="msg-content">${escapeHtml(msg.content)}</div>
+          <div class="msg-time">${time}</div>
+        </div>
       </div>`;
     }).join('');
 

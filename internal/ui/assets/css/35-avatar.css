@@ -74,6 +74,18 @@
   flex-shrink: 0;
 }
 
+.peerright {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+}
+
+.peerright .btn {
+  font-size: 0.8em;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
 /* Peer detail page: compact header card */
 .peer-detail-card {
   display: flex;

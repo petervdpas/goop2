@@ -41,6 +41,7 @@
   border-bottom: 1px solid var(--line);
   background: linear-gradient(180deg, color-mix(in srgb, var(--chip) 90%, transparent), color-mix(in srgb, var(--chip) 55%, transparent));
   transition: background var(--ease);
+  position: relative;
 }
 
 .peerrow:hover{
