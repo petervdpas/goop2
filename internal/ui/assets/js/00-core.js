@@ -42,6 +42,40 @@
     el.classList.toggle("hidden", !!hidden);
   }
 
+  function escapeHtml(str) {
+    var d = document.createElement("div");
+    d.textContent = String(str == null ? "" : str);
+    return d.innerHTML;
+  }
+
+  async function api(url, body) {
+    var resp = await fetch(url, {
+      method: body !== undefined ? "POST" : "GET",
+      headers: body !== undefined ? { "Content-Type": "application/json" } : {},
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    if (!resp.ok) {
+      var text = await resp.text();
+      throw new Error(text || resp.statusText);
+    }
+    var ct = resp.headers.get("Content-Type") || "";
+    if (ct.includes("application/json")) {
+      return resp.json();
+    }
+    return null;
+  }
+
+  function toast(msg, isError) {
+    if (window.Goop && window.Goop.toast) {
+      window.Goop.toast({
+        icon: isError ? "!" : "ok",
+        title: isError ? "Error" : "Success",
+        message: msg,
+        duration: isError ? 6000 : 3000,
+      });
+    }
+  }
+
   // Lightweight namespace
   window.Goop = window.Goop || {};
   window.Goop.core = {
@@ -54,5 +88,8 @@
     setHidden,
     safeLocalStorageGet,
     safeLocalStorageSet,
+    escapeHtml,
+    api,
+    toast,
   };
 })();

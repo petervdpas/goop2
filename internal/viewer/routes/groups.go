@@ -38,8 +38,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 				http.Error(w, fmt.Sprintf("Failed to create group: %v", err), http.StatusInternalServerError)
 				return
 			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			writeJSON(w, map[string]any{
 				"status": "created",
 				"id":     id,
 			})
@@ -75,8 +74,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 				}
 			}
 
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(result)
+			writeJSON(w, result)
 
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -104,8 +102,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 			http.Error(w, fmt.Sprintf("Failed: %v", err), http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "joined"})
+		writeJSON(w, map[string]string{"status": "joined"})
 	})
 
 	// Host leaves own group
@@ -129,8 +126,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 			http.Error(w, fmt.Sprintf("Failed: %v", err), http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "left"})
+		writeJSON(w, map[string]string{"status": "left"})
 	})
 
 	// Close/delete a hosted group
@@ -154,8 +150,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 			http.Error(w, fmt.Sprintf("Failed to close group: %v", err), http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "closed"})
+		writeJSON(w, map[string]string{"status": "closed"})
 	})
 
 	// List subscriptions
@@ -172,17 +167,16 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 
 		// Also include active connection info
 		hostPeer, groupID, connected := grpMgr.ActiveGroup()
-		result := map[string]interface{}{
+		result := map[string]any{
 			"subscriptions": subs,
-			"active": map[string]interface{}{
+			"active": map[string]any{
 				"connected":    connected,
 				"host_peer_id": hostPeer,
 				"group_id":     groupID,
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(result)
+		writeJSON(w, result)
 	})
 
 	// Join a remote group
@@ -212,8 +206,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "joined"})
+		writeJSON(w, map[string]string{"status": "joined"})
 	})
 
 	// Invite a peer to a hosted group
@@ -243,8 +236,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "invited"})
+		writeJSON(w, map[string]string{"status": "invited"})
 	})
 
 	// Rejoin a subscription (reconnect to a previously joined group)
@@ -274,8 +266,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "rejoined"})
+		writeJSON(w, map[string]string{"status": "rejoined"})
 	})
 
 	// Remove a stale subscription
@@ -302,8 +293,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "removed"})
+		writeJSON(w, map[string]string{"status": "removed"})
 	})
 
 	// Leave current group
@@ -316,8 +306,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 			http.Error(w, fmt.Sprintf("Failed to leave group: %v", err), http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "left"})
+		writeJSON(w, map[string]string{"status": "left"})
 	})
 
 	// Send message to current group (client-side) or hosted group (host-side)
@@ -327,7 +316,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 			return
 		}
 		var req struct {
-			Payload interface{} `json:"payload"`
+			Payload any `json:"payload"`
 			GroupID string      `json:"group_id"` // optional: if set, send as host to hosted group
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -349,8 +338,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 			}
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "sent"})
+		writeJSON(w, map[string]string{"status": "sent"})
 	})
 
 	// SSE endpoint for group events
@@ -360,9 +348,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 			return
 		}
 
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
+		sseHeaders(w)
 
 		flusher, ok := w.(http.Flusher)
 		if !ok {

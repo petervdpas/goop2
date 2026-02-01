@@ -33,7 +33,7 @@ func ValidatePeerName(name string) (string, error) {
 }
 
 // WriteJSONFile writes a JSON object to a file, creating parent directories if needed.
-func WriteJSONFile(path string, v interface{}) error {
+func WriteJSONFile(path string, v any) error {
 	if dir := filepath.Dir(path); dir != "." && dir != "" {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err

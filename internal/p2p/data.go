@@ -22,10 +22,10 @@ type DataRequest struct {
 	Op         string                 `json:"op"`
 	Table      string                 `json:"table,omitempty"`
 	Name       string                 `json:"name,omitempty"`
-	Data       map[string]interface{} `json:"data,omitempty"`
+	Data       map[string]any `json:"data,omitempty"`
 	ID         int64                  `json:"id,omitempty"`
 	Where      string                 `json:"where,omitempty"`
-	Args       []interface{}          `json:"args,omitempty"`
+	Args       []any          `json:"args,omitempty"`
 	Columns    []string               `json:"columns,omitempty"`
 	ColumnDefs []storage.ColumnDef    `json:"column_defs,omitempty"`
 	Column     *storage.ColumnDef     `json:"column,omitempty"`
@@ -38,7 +38,7 @@ type DataRequest struct {
 // DataResponse is the wire format for a data operation response.
 type DataResponse struct {
 	OK    bool        `json:"ok"`
-	Data  interface{} `json:"data,omitempty"`
+	Data  any `json:"data,omitempty"`
 	Error string      `json:"error,omitempty"`
 }
 
@@ -224,7 +224,7 @@ func (n *Node) dataOpQuery(callerID string, req DataRequest) DataResponse {
 			args = append(args, callerID)
 		} else {
 			where = "_owner = ?"
-			args = []interface{}{callerID}
+			args = []any{callerID}
 		}
 	}
 
@@ -284,7 +284,7 @@ func (n *Node) dataOpInsert(callerID string, req DataRequest) DataResponse {
 	if err != nil {
 		return DataResponse{Error: err.Error()}
 	}
-	return DataResponse{OK: true, Data: map[string]interface{}{
+	return DataResponse{OK: true, Data: map[string]any{
 		"status": "inserted",
 		"id":     id,
 	}}

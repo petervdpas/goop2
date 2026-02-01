@@ -121,21 +121,21 @@ func (d *DB) Path() string {
 }
 
 // Exec executes a query without returning rows
-func (d *DB) Exec(query string, args ...interface{}) (sql.Result, error) {
+func (d *DB) Exec(query string, args ...any) (sql.Result, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.db.Exec(query, args...)
 }
 
 // Query executes a query that returns rows
-func (d *DB) Query(query string, args ...interface{}) (*sql.Rows, error) {
+func (d *DB) Query(query string, args ...any) (*sql.Rows, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.db.Query(query, args...)
 }
 
 // QueryRow executes a query that returns a single row
-func (d *DB) QueryRow(query string, args ...interface{}) *sql.Row {
+func (d *DB) QueryRow(query string, args ...any) *sql.Row {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.db.QueryRow(query, args...)
@@ -269,7 +269,7 @@ func (d *DB) DescribeTable(table string) ([]ColumnInfo, error) {
 }
 
 // Insert inserts a row into a table
-func (d *DB) Insert(table string, ownerID string, ownerEmail string, data map[string]interface{}) (int64, error) {
+func (d *DB) Insert(table string, ownerID string, ownerEmail string, data map[string]any) (int64, error) {
 	if !validIdent(table) {
 		return 0, fmt.Errorf("invalid table name: %s", table)
 	}
@@ -279,7 +279,7 @@ func (d *DB) Insert(table string, ownerID string, ownerEmail string, data map[st
 
 	cols := "_owner, _owner_email"
 	placeholders := "?, ?"
-	args := []interface{}{ownerID, ownerEmail}
+	args := []any{ownerID, ownerEmail}
 
 	for col, val := range data {
 		if !validIdent(col) {
@@ -299,7 +299,7 @@ func (d *DB) Insert(table string, ownerID string, ownerEmail string, data map[st
 }
 
 // UpdateRow updates specific columns of a row by _id
-func (d *DB) UpdateRow(table string, rowID int64, data map[string]interface{}) error {
+func (d *DB) UpdateRow(table string, rowID int64, data map[string]any) error {
 	if !validIdent(table) {
 		return fmt.Errorf("invalid table name: %s", table)
 	}
@@ -307,7 +307,7 @@ func (d *DB) UpdateRow(table string, rowID int64, data map[string]interface{}) e
 	defer d.mu.Unlock()
 
 	setClauses := "_updated_at = CURRENT_TIMESTAMP"
-	args := []interface{}{}
+	args := []any{}
 	for col, val := range data {
 		if !validIdent(col) {
 			return fmt.Errorf("invalid column name: %s", col)
@@ -323,7 +323,7 @@ func (d *DB) UpdateRow(table string, rowID int64, data map[string]interface{}) e
 }
 
 // UpdateRowOwner updates a row only if it belongs to the given owner.
-func (d *DB) UpdateRowOwner(table string, rowID int64, ownerID string, data map[string]interface{}) error {
+func (d *DB) UpdateRowOwner(table string, rowID int64, ownerID string, data map[string]any) error {
 	if !validIdent(table) {
 		return fmt.Errorf("invalid table name: %s", table)
 	}
@@ -331,7 +331,7 @@ func (d *DB) UpdateRowOwner(table string, rowID int64, ownerID string, data map[
 	defer d.mu.Unlock()
 
 	setClauses := "_updated_at = CURRENT_TIMESTAMP"
-	args := []interface{}{}
+	args := []any{}
 	for col, val := range data {
 		if !validIdent(col) {
 			return fmt.Errorf("invalid column name: %s", col)
@@ -464,13 +464,13 @@ type SelectOpts struct {
 	Table   string
 	Columns []string
 	Where   string
-	Args    []interface{}
+	Args    []any
 	Limit   int
 	Offset  int
 }
 
 // Select queries rows from a table
-func (d *DB) Select(table string, columns []string, where string, args ...interface{}) ([]map[string]interface{}, error) {
+func (d *DB) Select(table string, columns []string, where string, args ...any) ([]map[string]any, error) {
 	return d.SelectPaged(SelectOpts{
 		Table:   table,
 		Columns: columns,
@@ -480,7 +480,7 @@ func (d *DB) Select(table string, columns []string, where string, args ...interf
 }
 
 // SelectPaged queries rows with optional LIMIT/OFFSET
-func (d *DB) SelectPaged(opts SelectOpts) ([]map[string]interface{}, error) {
+func (d *DB) SelectPaged(opts SelectOpts) ([]map[string]any, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -517,10 +517,10 @@ func (d *DB) SelectPaged(opts SelectOpts) ([]map[string]interface{}, error) {
 		return nil, err
 	}
 
-	var results []map[string]interface{}
+	var results []map[string]any
 	for rows.Next() {
-		values := make([]interface{}, len(colNames))
-		valuePtrs := make([]interface{}, len(colNames))
+		values := make([]any, len(colNames))
+		valuePtrs := make([]any, len(colNames))
 		for i := range values {
 			valuePtrs[i] = &values[i]
 		}
@@ -529,7 +529,7 @@ func (d *DB) SelectPaged(opts SelectOpts) ([]map[string]interface{}, error) {
 			return nil, err
 		}
 
-		row := make(map[string]interface{})
+		row := make(map[string]any)
 		for i, col := range colNames {
 			// Convert []byte to string so JSON encoding works correctly
 			// (otherwise []byte becomes base64-encoded)

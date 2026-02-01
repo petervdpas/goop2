@@ -23,7 +23,7 @@ type Viewer struct {
 	Peers     *state.PeerTable
 
 	CfgPath string
-	Cfg     interface{} // Config interface to avoid import cycle
+	Cfg     any // Config interface to avoid import cycle
 	Logs    *LogBuffer
 	Content *content.Store
 	Chat    *chat.Manager
@@ -98,7 +98,7 @@ type MinimalViewer struct {
 	SelfLabel     func() string
 	SelfEmail     func() string
 	CfgPath       string
-	Cfg           interface{}
+	Cfg           any
 	Logs          *LogBuffer
 	BaseURL       string
 	RendezvousURL string

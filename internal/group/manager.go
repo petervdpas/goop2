@@ -22,7 +22,7 @@ type Event struct {
 	Type    string      `json:"type"`
 	Group   string      `json:"group"`
 	From    string      `json:"from,omitempty"`
-	Payload interface{} `json:"payload,omitempty"`
+	Payload any `json:"payload,omitempty"`
 }
 
 // Manager handles the group protocol, both host-side (relay) and client-side (connection).
@@ -446,7 +446,7 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 	// Extract group name from welcome payload for subscription storage
 	groupName := ""
 	appType := ""
-	if wp, ok := welcome.Payload.(map[string]interface{}); ok {
+	if wp, ok := welcome.Payload.(map[string]any); ok {
 		if n, ok := wp["group_name"].(string); ok {
 			groupName = n
 		}
@@ -506,7 +506,7 @@ func (m *Manager) clientReadLoop(ctx context.Context, dec *json.Decoder, cc *cli
 }
 
 // SendToGroup sends a message through the active client connection.
-func (m *Manager) SendToGroup(payload interface{}) error {
+func (m *Manager) SendToGroup(payload any) error {
 	m.mu.RLock()
 	cc := m.activeConn
 	m.mu.RUnlock()
@@ -753,7 +753,7 @@ func (m *Manager) handleInviteStream(s network.Stream) {
 // ─── Shutdown ────────────────────────────────────────────────────────────────
 
 // SendToGroupAsHost sends a message to all members of a hosted group from the host.
-func (m *Manager) SendToGroupAsHost(groupID string, payload interface{}) error {
+func (m *Manager) SendToGroupAsHost(groupID string, payload any) error {
 	m.mu.RLock()
 	hg, exists := m.groups[groupID]
 	m.mu.RUnlock()

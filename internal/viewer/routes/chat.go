@@ -44,8 +44,7 @@ func RegisterChat(mux *http.ServeMux, chatMgr *chat.Manager) {
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		writeJSON(w, map[string]any{
 			"status": "sent",
 			"to":     req.To,
 		})
@@ -81,8 +80,7 @@ func RegisterChat(mux *http.ServeMux, chatMgr *chat.Manager) {
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		writeJSON(w, map[string]any{
 			"status": "sent",
 			"type":   "broadcast",
 		})
@@ -96,8 +94,7 @@ func RegisterChat(mux *http.ServeMux, chatMgr *chat.Manager) {
 		}
 
 		messages := chatMgr.GetBroadcasts()
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(messages)
+		writeJSON(w, messages)
 	})
 
 	// Get all messages
@@ -118,8 +115,7 @@ func RegisterChat(mux *http.ServeMux, chatMgr *chat.Manager) {
 			messages = chatMgr.GetMessages()
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(messages)
+		writeJSON(w, messages)
 	})
 
 	// SSE endpoint for live chat updates
@@ -130,10 +126,7 @@ func RegisterChat(mux *http.ServeMux, chatMgr *chat.Manager) {
 			return
 		}
 
-		// Set SSE headers
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
+		sseHeaders(w)
 
 		flusher, ok := w.(http.Flusher)
 		if !ok {

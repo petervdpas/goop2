@@ -6,7 +6,6 @@ import (
 	"log"
 	"net"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -49,11 +48,6 @@ func OpenBrowser(url string) error {
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	return cmd.Start()
-}
-
-// helper for consistent site path resolution
-func siteDir(peerDir string) string {
-	return filepath.Join(peerDir, "site")
 }
 
 func logBanner(peerDir, cfgPath string) {

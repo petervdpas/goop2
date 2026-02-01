@@ -60,8 +60,7 @@ func RegisterDataProxy(mux *http.ServeMux, node *p2p.Node) {
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp.Data)
+		writeJSON(w, resp.Data)
 	})
 }
 
@@ -105,11 +104,11 @@ func buildDataRequest(op string, r *http.Request) (p2p.DataRequest, error) {
 	var body struct {
 		Table   string                 `json:"table"`
 		Name    string                 `json:"name"`
-		Data    map[string]interface{} `json:"data"`
+		Data    map[string]any `json:"data"`
 		ID      int64                  `json:"id"`
 		Where   string                 `json:"where"`
-		Args    []interface{}          `json:"args"`
-		Columns interface{}            `json:"columns"`
+		Args    []any          `json:"args"`
+		Columns any            `json:"columns"`
 		Column  *storage.ColumnDef     `json:"column"`
 		Limit   int                    `json:"limit"`
 		Offset  int                    `json:"offset"`
@@ -136,7 +135,7 @@ func buildDataRequest(op string, r *http.Request) (p2p.DataRequest, error) {
 	// "columns" can be either []string (for query) or []ColumnDef (for create-table)
 	if body.Columns != nil {
 		switch v := body.Columns.(type) {
-		case []interface{}:
+		case []any:
 			if op == "create-table" {
 				// Re-marshal and unmarshal as []ColumnDef
 				b, _ := json.Marshal(v)

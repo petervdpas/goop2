@@ -91,12 +91,6 @@
   max-width: 520px;
 }
 
-.peerright{
-  display:flex;
-  gap: 10px;
-  align-items:center;
-}
-
 /* -----------------------------
    Buttons
 ------------------------------ */
@@ -367,6 +361,7 @@ html[data-theme="light"] .peers-splash img {
 }
 
 .peer-search {
+  width: 100%;
   margin: 8px 0;
   padding: 8px 12px;
   border: 1px solid var(--line);

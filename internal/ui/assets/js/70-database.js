@@ -1,7 +1,7 @@
 // internal/ui/assets/js/70-database.js
 // Full-featured SQLite database editor
 (() => {
-  const { qs, qsa, on, setHidden } = window.Goop.core;
+  const { qs, qsa, on, setHidden, escapeHtml, api, toast } = window.Goop.core;
 
   // Only activate on database page
   const dbPage = qs("#db-page");
@@ -61,41 +61,6 @@
 
   function visibleCols() {
     return columns.filter(function(c) { return !hiddenCols.has(c.name); });
-  }
-
-  // -------- API helper --------
-  async function api(url, body) {
-    const resp = await fetch(url, {
-      method: body !== undefined ? "POST" : "GET",
-      headers: body !== undefined ? { "Content-Type": "application/json" } : {},
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-    if (!resp.ok) {
-      const text = await resp.text();
-      throw new Error(text || resp.statusText);
-    }
-    const ct = resp.headers.get("Content-Type") || "";
-    if (ct.includes("application/json")) {
-      return resp.json();
-    }
-    return null;
-  }
-
-  function toast(msg, isError) {
-    if (window.Goop && window.Goop.toast) {
-      window.Goop.toast({
-        icon: isError ? "!" : "ok",
-        title: isError ? "Error" : "Success",
-        message: msg,
-        duration: isError ? 6000 : 3000,
-      });
-    }
-  }
-
-  function escapeHtml(str) {
-    const d = document.createElement("div");
-    d.textContent = String(str);
-    return d.innerHTML;
   }
 
   // -------- Table list --------

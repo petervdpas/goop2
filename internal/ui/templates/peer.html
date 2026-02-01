@@ -115,11 +115,11 @@
     console.error('SSE connection lost, reconnecting...');
   };
 
-  function escapeHtml(text) {
-    const div = document.createElement('div');
+  var escapeHtml = window.Goop && window.Goop.core ? window.Goop.core.escapeHtml : function(text) {
+    var div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
-  }
+  };
 
   // Initial load
   loadMessages();

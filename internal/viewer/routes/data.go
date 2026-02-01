@@ -23,8 +23,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(tables)
+		writeJSON(w,tables)
 	})
 
 	// Create a new table
@@ -59,8 +58,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		writeJSON(w,map[string]string{
 			"status": "created",
 			"table":  req.Name,
 		})
@@ -75,7 +73,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 
 		var req struct {
 			Table string                 `json:"table"`
-			Data  map[string]interface{} `json:"data"`
+			Data  map[string]any `json:"data"`
 		}
 
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -98,8 +96,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		writeJSON(w,map[string]any{
 			"status": "inserted",
 			"id":     id,
 		})
@@ -116,7 +113,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			Table   string        `json:"table"`
 			Columns []string      `json:"columns"`
 			Where   string        `json:"where"`
-			Args    []interface{} `json:"args"`
+			Args    []any `json:"args"`
 			Limit   int           `json:"limit"`
 			Offset  int           `json:"offset"`
 		}
@@ -144,8 +141,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(rows)
+		writeJSON(w,rows)
 	})
 
 	// Describe table schema
@@ -175,8 +171,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(cols)
+		writeJSON(w,cols)
 	})
 
 	// Delete a table
@@ -205,8 +200,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		writeJSON(w,map[string]string{
 			"status": "deleted",
 			"table":  req.Table,
 		})
@@ -222,7 +216,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 		var req struct {
 			Table string                 `json:"table"`
 			ID    int64                  `json:"id"`
-			Data  map[string]interface{} `json:"data"`
+			Data  map[string]any `json:"data"`
 		}
 
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -245,8 +239,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		writeJSON(w,map[string]string{
 			"status": "updated",
 		})
 	})
@@ -283,8 +276,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		writeJSON(w,map[string]string{
 			"status": "deleted",
 		})
 	})
@@ -316,8 +308,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "added"})
+		writeJSON(w,map[string]string{"status": "added"})
 	})
 
 	// Drop a column from a table
@@ -347,8 +338,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "dropped"})
+		writeJSON(w,map[string]string{"status": "dropped"})
 	})
 
 	// Set insert policy for a table
@@ -386,8 +376,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		writeJSON(w,map[string]string{
 			"status": "updated",
 			"policy": req.Policy,
 		})
@@ -420,8 +409,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		writeJSON(w,map[string]string{
 			"status":   "renamed",
 			"new_name": req.NewName,
 		})

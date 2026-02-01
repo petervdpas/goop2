@@ -5,6 +5,7 @@ package routes
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"net"
 	"net/http"
 	"path"
@@ -178,10 +179,21 @@ func getTrimmedPostFormValue(form map[string][]string, key string) string {
 
 // requireContentStore checks if content store is configured and sends error if not.
 // Returns true if store is configured, false otherwise.
-func requireContentStore(w http.ResponseWriter, store interface{}) bool {
+func requireContentStore(w http.ResponseWriter, store any) bool {
 	if store == nil {
 		http.Error(w, "content store not configured", http.StatusInternalServerError)
 		return false
 	}
 	return true
+}
+
+func writeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(v)
+}
+
+func sseHeaders(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
 }

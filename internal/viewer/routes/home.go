@@ -42,10 +42,7 @@ func registerHomeRoutes(mux *http.ServeMux, d Deps) {
 			return
 		}
 
-		// SSE headers
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
+		sseHeaders(w)
 
 		// Subscribe to peer updates
 		ch := d.Peers.Subscribe()
@@ -53,7 +50,7 @@ func registerHomeRoutes(mux *http.ServeMux, d Deps) {
 
 		// Send initial snapshot
 		snapshot := d.Peers.Snapshot()
-		snapshotData, _ := json.Marshal(map[string]interface{}{
+		snapshotData, _ := json.Marshal(map[string]any{
 			"type":  "snapshot",
 			"peers": viewmodels.BuildPeerRows(snapshot),
 		})
@@ -88,8 +85,7 @@ func registerHomeRoutes(mux *http.ServeMux, d Deps) {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(viewmodels.BuildPeerRows(d.Peers.Snapshot()))
+		writeJSON(w, viewmodels.BuildPeerRows(d.Peers.Snapshot()))
 	})
 
 	// JSON endpoint for self identity
@@ -98,12 +94,11 @@ func registerHomeRoutes(mux *http.ServeMux, d Deps) {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
 		avatarHash := ""
 		if d.AvatarStore != nil {
 			avatarHash = d.AvatarStore.Hash()
 		}
-		json.NewEncoder(w).Encode(map[string]string{
+		writeJSON(w, map[string]string{
 			"id":          d.Node.ID(),
 			"label":       safeCall(d.SelfLabel),
 			"email":       safeCall(d.SelfEmail),

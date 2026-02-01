@@ -6,6 +6,9 @@
 
   var qs = core.qs;
   var on = core.on;
+  var escapeHtml = core.escapeHtml;
+  var api = core.api;
+  var toast = core.toast;
 
   // -------- Groups page (/self/groups) --------
   var groupsPage = qs("#groups-page");
@@ -17,22 +20,6 @@
   var createPage = qs("#cg-create-form");
   if (createPage) {
     initCreateGroupsPage();
-  }
-
-  function toast(msg, isError) {
-    if (window.Goop && window.Goop.ui && window.Goop.ui.toast) {
-      window.Goop.ui.toast({
-        title: isError ? "Error" : "Success",
-        message: msg,
-        duration: isError ? 6000 : 3000,
-      });
-    }
-  }
-
-  function escapeHtml(str) {
-    var d = document.createElement("div");
-    d.textContent = String(str == null ? "" : str);
-    return d.innerHTML;
   }
 
   function shortId(id) {
@@ -61,19 +48,6 @@
       } catch (_) {}
     }
     return "";
-  }
-
-  function api(url, body) {
-    return fetch(url, {
-      method: body !== undefined ? "POST" : "GET",
-      headers: body !== undefined ? { "Content-Type": "application/json" } : {},
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    }).then(function(resp) {
-      if (!resp.ok) return resp.text().then(function(t) { throw new Error(t || resp.statusText); });
-      var ct = resp.headers.get("Content-Type") || "";
-      if (ct.indexOf("application/json") !== -1) return resp.json();
-      return null;
-    });
   }
 
   // -------- Invite peer to group --------
