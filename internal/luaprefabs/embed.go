@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-//go:embed all:help all:starter all:dice
+//go:embed all:help all:starter all:dice all:examples
 var prefabFS embed.FS
 
 // PrefabMeta holds prefab metadata from manifest.json.
