@@ -3,9 +3,11 @@ module goop
 go 1.24.0
 
 require (
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/libp2p/go-libp2p v0.34.0
 	github.com/libp2p/go-libp2p-pubsub v0.11.0
 	github.com/wailsapp/wails/v2 v2.11.0
+	github.com/yuin/gopher-lua v1.1.1
 	modernc.org/sqlite v1.44.3
 )
 

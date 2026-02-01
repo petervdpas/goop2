@@ -196,6 +196,23 @@
       </div>
     </div>
 
+    <div class="card" style="margin-top: 12px;">
+      <h3>Lua Scripting</h3>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="muted small">Off</span>
+        <label class="switch" title="Enable Lua chat scripts">
+          <input type="checkbox" name="lua_enabled"
+                 {{if .Cfg.Lua.Enabled}}checked{{end}}>
+          <span class="slider"></span>
+        </label>
+        <span class="muted small">On</span>
+      </div>
+      <div class="hint">
+        When enabled, peers can run !commands defined in your site/lua/ folder.
+        {{if .Cfg.Lua.Enabled}}<a href="/lua">Manage scripts</a>{{end}}
+      </div>
+    </div>
+
     <div class="actions">
       <button class="btn" type="submit">Save</button>
     </div>

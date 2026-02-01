@@ -35,6 +35,8 @@ type Deps struct {
 	// Rendezvous-only mode (no p2p node, limited routes)
 	RendezvousOnly bool
 	RendezvousURL  string
+
+	PeerDir string // root directory for this peer's data
 }
 
 func Register(mux *http.ServeMux, d Deps) {
@@ -54,6 +56,7 @@ func Register(mux *http.ServeMux, d Deps) {
 	registerOfflineRoutes(mux, d)
 	registerSiteAPIRoutes(mux, d)
 	registerTemplateRoutes(mux, d, csrf)
+	registerLuaRoutes(mux, d, csrf)
 	registerGroupsUIRoutes(mux, d)
 	registerAvatarRoutes(mux, d)
 }

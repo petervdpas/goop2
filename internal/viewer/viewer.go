@@ -35,6 +35,8 @@ type Viewer struct {
 
 	// NEW: canonical base URL for templates (e.g. http://127.0.0.1:7777)
 	BaseURL string
+
+	PeerDir string // root directory for this peer's data
 }
 
 func Start(addr string, v Viewer) error {
@@ -68,6 +70,7 @@ func Start(addr string, v Viewer) error {
 		DB:          v.DB,
 		AvatarStore: v.AvatarStore,
 		AvatarCache: v.AvatarCache,
+		PeerDir:     v.PeerDir,
 	})
 
 	// Register chat endpoints if chat manager is available

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,6 +15,14 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 )
+
+// CommandDispatcher handles chat commands (messages starting with "!").
+type CommandDispatcher func(ctx context.Context, fromPeerID, content string, sender DirectSender)
+
+// DirectSender sends a direct message to a peer.
+type DirectSender interface {
+	SendDirect(ctx context.Context, toPeerID, content string) error
+}
 
 const (
 	// ChatProtocolID is the libp2p protocol ID for chat
@@ -31,6 +40,7 @@ type Manager struct {
 	bufferSize  int             // max messages to keep
 	listeners   []chan *Message // SSE listeners
 	localPeerID string          // our peer ID
+	onCommand   CommandDispatcher
 }
 
 // New creates a new chat manager
@@ -200,6 +210,11 @@ func (m *Manager) Unsubscribe(ch <-chan *Message) {
 	}
 }
 
+// SetCommandHandler registers a dispatcher for ! commands.
+func (m *Manager) SetCommandHandler(fn CommandDispatcher) {
+	m.onCommand = fn
+}
+
 // handleStream handles incoming chat streams
 func (m *Manager) handleStream(stream network.Stream) {
 	defer stream.Close()
@@ -228,6 +243,11 @@ func (m *Manager) handleStream(stream network.Stream) {
 	m.addMessage(&msg)
 
 	log.Printf("CHAT: Received message from %s: %.50s", msg.From, msg.Content)
+
+	// Dispatch ! commands
+	if m.onCommand != nil && msg.Type == MessageTypeDirect && strings.HasPrefix(msg.Content, "!") {
+		go m.onCommand(context.Background(), msg.From, msg.Content, m)
+	}
 }
 
 // addMessage adds a message to the buffer and notifies listeners

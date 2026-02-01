@@ -67,6 +67,12 @@ func (n *Node) handleSiteStream(s network.Stream) {
 		return
 	}
 
+	// Block access to lua/ directory (scripts and state)
+	if strings.HasPrefix(clean, "lua/") || clean == "lua" {
+		_, _ = io.WriteString(s, "ERR forbidden\n")
+		return
+	}
+
 	b, err := os.ReadFile(full)
 	if err != nil {
 		_, _ = io.WriteString(s, "ERR not found\n")

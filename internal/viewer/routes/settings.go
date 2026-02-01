@@ -101,6 +101,13 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 		cfg.Presence.RendezvousWAN = getTrimmedPostFormValue(r.PostForm, "presence_rendezvous_wan")
 
+		switch strings.ToLower(getTrimmedPostFormValue(r.PostForm, "lua_enabled")) {
+		case "on", "1", "true", "yes":
+			cfg.Lua.Enabled = true
+		default:
+			cfg.Lua.Enabled = false
+		}
+
 		if err := config.Save(d.CfgPath, cfg); err != nil {
 			vm := viewmodels.SettingsVM{
 				BaseVM:  baseVM("Me", "self", "page.self", d),

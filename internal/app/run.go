@@ -14,6 +14,7 @@ import (
 	"goop/internal/config"
 	"goop/internal/content"
 	"goop/internal/group"
+	luapkg "goop/internal/lua"
 	"goop/internal/p2p"
 	"goop/internal/proto"
 	"goop/internal/rendezvous"
@@ -149,6 +150,21 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	chatMgr := chat.New(node.Host, 100) // 100 message buffer
 	log.Printf("💬 Chat enabled: direct messaging via /goop/chat/1.0.0")
 
+	// ── Lua scripting engine
+	if cfg.Lua.Enabled {
+		luaEngine, luaErr := luapkg.NewEngine(cfg.Lua, o.PeerDir, node.ID(), selfContent, peers)
+		if luaErr != nil {
+			log.Printf("WARNING: Lua engine failed to start: %v", luaErr)
+		} else {
+			chatMgr.SetCommandHandler(func(ctx context.Context, fromPeerID, content string, sender chat.DirectSender) {
+				luaEngine.Dispatch(ctx, fromPeerID, content, luapkg.SenderFunc(func(ctx2 context.Context, toPeerID, msg string) error {
+					return sender.SendDirect(ctx2, toPeerID, msg)
+				}))
+			})
+			defer luaEngine.Close()
+		}
+	}
+
 	// ── Group manager
 	grpMgr := group.New(node.Host, db)
 	log.Printf("👥 Group protocol enabled: /goop/group/1.0.0")
@@ -210,6 +226,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			BaseURL:     url,
 			AvatarStore: avatarStore,
 			AvatarCache: avatarCache,
+			PeerDir:     o.PeerDir,
 		})
 	}
 

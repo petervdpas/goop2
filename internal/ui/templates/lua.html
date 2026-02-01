@@ -1,0 +1,237 @@
+<!-- internal/ui/templates/lua.html -->
+{{define "page.lua"}}
+<div class="page page-lua">
+  <div class="create-tabs">
+    <a class="create-tab" href="/edit">Editor</a>
+    <a class="create-tab" href="/templates">Templates</a>
+    <a class="create-tab active" href="/lua">Lua Scripts</a>
+    <a class="create-tab" href="/create/groups">Groups</a>
+  </div>
+
+  {{if not .LuaEnabled}}
+  <div class="banner warn" style="margin-bottom: 12px;">
+    Lua scripting is currently <strong>disabled</strong>.
+    You can manage scripts here, but they won't run until you
+    <a href="/self#settings">enable Lua</a> in settings.
+  </div>
+  {{end}}
+
+  {{if .Error}}
+    <div class="banner err">{{.Error}}</div>
+  {{end}}
+
+  {{if .Saved}}
+    <div class="banner ok">Saved.</div>
+  {{end}}
+
+  <div class="ed">
+    <!-- Left panel: script list + prefabs -->
+    <aside class="ed-left panel">
+      <!-- Scripts section -->
+      <div class="lua-panel-section">
+        <div class="lua-panel-section-head">
+          <div>
+            <div class="ed-left-title">Scripts</div>
+            <div class="muted small"><code>site/lua/</code></div>
+          </div>
+          <button type="button" id="lua-new-btn" class="ed-left-newbtn" title="Create a new script">
+            New&hellip;
+          </button>
+        </div>
+        <div class="lua-panel-section-body">
+          <div class="lua-script-list">
+            {{range .Scripts}}
+            <a href="/lua?edit={{.Name}}" class="lua-script-row{{if eq $.EditName .Name}} selected{{end}}">
+              <span class="ed-tree-icon">📜</span>
+              <span class="lua-script-name">{{.Name}}.lua</span>
+              <span class="muted small lua-script-size">{{.Size}}b</span>
+            </a>
+            {{else}}
+            <div class="muted small" style="padding: 12px;">No scripts yet.</div>
+            {{end}}
+          </div>
+        </div>
+      </div>
+
+      <!-- Prefabs section -->
+      <div class="lua-panel-section">
+        <div class="lua-panel-section-head">
+          <div class="ed-left-title">Prefabs</div>
+        </div>
+        <div class="lua-panel-section-body">
+          {{range .Prefabs}}
+          {{$dir := .Dir}}
+          <div style="margin-bottom: 10px;">
+            <div style="display:flex; align-items:center; gap:6px; margin-bottom: 2px;">
+              <span>{{.Icon}}</span>
+              <span class="small" style="font-weight:600;">{{.Name}}</span>
+              {{if not .AllInstalled}}
+              <button type="button" class="btn secondary small lua-prefab-apply"
+                      data-dir="{{.Dir}}" data-name="{{.Name}}"
+                      style="margin-left:auto; padding:2px 8px; font-size:0.75em;">
+                Install all
+              </button>
+              {{end}}
+            </div>
+            <div class="muted small" style="margin-bottom: 2px;">{{.Description}}</div>
+            {{range .Scripts}}
+            <div class="lua-prefab-script-row">
+              {{if .Installed}}
+              <span class="muted small" style="opacity:0.5;">📜 {{.Name}}.lua</span>
+              <span class="muted small" style="margin-left:auto; opacity:0.4;">installed</span>
+              {{else}}
+              <span class="small">📜 {{.Name}}.lua</span>
+              <button type="button" class="btn secondary small lua-prefab-script-add"
+                      data-dir="{{$dir}}" data-script="{{.Name}}"
+                      style="margin-left:auto; padding:1px 8px; font-size:0.75em;">
+                Add
+              </button>
+              {{end}}
+            </div>
+            {{end}}
+          </div>
+          {{end}}
+        </div>
+      </div>
+    </aside>
+
+    <!-- Right panel: editor -->
+    <section class="ed-right panel">
+      {{if .EditName}}
+      <div class="ed-fileops">
+        <form method="POST" action="/lua/save" class="ed-save" id="lua-save-form">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <input type="hidden" name="name" value="{{.EditName}}">
+          <input type="hidden" name="path" value="{{.EditName}}.lua">
+
+          <div class="ed-savebar ed-savebar-compact">
+            <div class="ed-savebar-row">
+              <div class="ed-savebar-title">
+                <code>{{.EditName}}.lua</code>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button type="submit" class="ed-savebar-save">Save</button>
+                <button type="button" class="btn secondary small" id="lua-delete-btn"
+                        data-name="{{.EditName}}" style="padding:4px 10px; font-size:0.8em;">
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="ed-editorwrap">
+            <textarea class="ed-area" name="content">{{.Content}}</textarea>
+          </div>
+        </form>
+      </div>
+      {{else}}
+      <div style="display:flex; align-items:center; justify-content:center; height:100%; padding:40px;">
+        <div class="muted" style="text-align:center;">
+          <p>Select a script from the list to edit it,</p>
+          <p>or create a new one.</p>
+        </div>
+      </div>
+      {{end}}
+    </section>
+  </div>
+</div>
+
+<script>
+(function() {
+  var csrf = {{.CSRF}};
+
+  // New script button
+  var newBtn = document.getElementById('lua-new-btn');
+  if (newBtn) {
+    newBtn.addEventListener('click', function() {
+      var name = prompt('Script name (letters, numbers, hyphens, underscores):');
+      if (!name) return;
+      name = name.trim().replace(/\.lua$/i, '');
+      if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+        alert('Invalid name. Use only letters, numbers, hyphens, and underscores.');
+        return;
+      }
+
+      var form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '/lua/new';
+      form.innerHTML = '<input type="hidden" name="csrf" value="' + csrf + '">' +
+                        '<input type="hidden" name="name" value="' + name + '">';
+      document.body.appendChild(form);
+      form.submit();
+    });
+  }
+
+  // Delete button
+  var delBtn = document.getElementById('lua-delete-btn');
+  if (delBtn) {
+    delBtn.addEventListener('click', function() {
+      var name = delBtn.getAttribute('data-name');
+      var msg = 'Delete "' + name + '.lua"? This cannot be undone.';
+
+      if (window.Goop && window.Goop.ui && window.Goop.ui.confirm) {
+        Goop.ui.confirm(msg, 'Delete Script').then(function(ok) {
+          if (ok) doDelete(name);
+        });
+      } else if (confirm(msg)) {
+        doDelete(name);
+      }
+    });
+  }
+
+  function doDelete(name) {
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/lua/delete';
+    form.innerHTML = '<input type="hidden" name="csrf" value="' + csrf + '">' +
+                      '<input type="hidden" name="name" value="' + name + '">';
+    document.body.appendChild(form);
+    form.submit();
+  }
+
+  // Prefab "Install all" buttons
+  document.querySelectorAll('.lua-prefab-apply').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var dir = btn.getAttribute('data-dir');
+      var name = btn.getAttribute('data-name');
+      applyPrefab(dir, null, name);
+    });
+  });
+
+  // Per-script "Add" buttons
+  document.querySelectorAll('.lua-prefab-script-add').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var dir = btn.getAttribute('data-dir');
+      var script = btn.getAttribute('data-script');
+      applyPrefab(dir, script, script + '.lua');
+    });
+  });
+
+  function applyPrefab(dir, script, label) {
+    fetch('/api/lua/prefabs/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prefab: dir, script: script || undefined, csrf: csrf })
+    })
+    .then(function(res) {
+      if (!res.ok) return res.text().then(function(t) { throw new Error(t); });
+      return res.json();
+    })
+    .then(function() {
+      if (window.Goop && window.Goop.ui) {
+        Goop.ui.toast({ title: 'Installed', message: '"' + label + '" added.', duration: 2000 });
+      }
+      setTimeout(function() { window.location.href = '/lua'; }, 500);
+    })
+    .catch(function(err) {
+      var errMsg = err.message || 'Unknown error';
+      if (window.Goop && window.Goop.ui) {
+        Goop.ui.toast({ title: 'Error', message: errMsg, duration: 6000 });
+      } else {
+        alert('Failed to install: ' + errMsg);
+      }
+    });
+  }
+})();
+</script>
+{{end}}

@@ -1,0 +1,5 @@
+{
+  "name": "Help",
+  "description": "A single !help command that lists all available commands.",
+  "icon": "❓"
+}

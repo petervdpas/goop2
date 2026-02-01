@@ -21,6 +21,7 @@ type Config struct {
 	Presence Presence `json:"presence"`
 	Profile  Profile  `json:"profile"`
 	Viewer   Viewer   `json:"viewer"`
+	Lua      Lua      `json:"lua"`
 }
 
 type Identity struct {
@@ -69,6 +70,17 @@ type Viewer struct {
 	Theme    string `json:"theme"`
 }
 
+type Lua struct {
+	Enabled          bool   `json:"enabled"`
+	ScriptDir        string `json:"script_dir"`
+	TimeoutSeconds   int    `json:"timeout_seconds"`
+	MaxMemoryMB      int    `json:"max_memory_mb"`
+	RateLimitPerPeer int    `json:"rate_limit_per_peer"`
+	RateLimitGlobal  int    `json:"rate_limit_global"`
+	HTTPEnabled      bool   `json:"http_enabled"`
+	KVEnabled        bool   `json:"kv_enabled"`
+}
+
 func Default() Config {
 	return Config{
 		Identity: Identity{
@@ -99,6 +111,16 @@ func Default() Config {
 			HTTPAddr: "",
 			Debug:    false,
 			Theme:    "dark",
+		},
+		Lua: Lua{
+			Enabled:          false,
+			ScriptDir:        "site/lua",
+			TimeoutSeconds:   5,
+			MaxMemoryMB:      10,
+			RateLimitPerPeer: 10,
+			RateLimitGlobal:  60,
+			HTTPEnabled:      true,
+			KVEnabled:        true,
 		},
 	}
 }
@@ -162,6 +184,22 @@ func (c *Config) Validate() error {
 	if rw != "" {
 		if err := validateWANRendezvous(rw); err != nil {
 			return fmt.Errorf("presence.rendezvous_wan: %w", err)
+		}
+	}
+
+	// Lua
+	if c.Lua.Enabled {
+		if strings.TrimSpace(c.Lua.ScriptDir) == "" {
+			return errors.New("lua.script_dir is required when lua is enabled")
+		}
+		if c.Lua.TimeoutSeconds < 1 || c.Lua.TimeoutSeconds > 60 {
+			return errors.New("lua.timeout_seconds must be 1..60")
+		}
+		if c.Lua.RateLimitPerPeer <= 0 {
+			return errors.New("lua.rate_limit_per_peer must be > 0")
+		}
+		if c.Lua.RateLimitGlobal <= 0 {
+			return errors.New("lua.rate_limit_global must be > 0")
 		}
 	}
 

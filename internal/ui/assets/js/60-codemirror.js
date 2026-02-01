@@ -18,6 +18,7 @@
     if (p.endsWith(".js") || p.endsWith(".mjs") || p.endsWith(".cjs")) return "javascript";
     if (p.endsWith(".json")) return { name: "javascript", json: true };
     if (p.endsWith(".md") || p.endsWith(".markdown")) return "markdown";
+    if (p.endsWith(".lua")) return "lua";
     return null;
   }
 
