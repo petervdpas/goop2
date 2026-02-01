@@ -1,10 +1,14 @@
-# Lua Chat Scripts
+# Lua Scripting
 
 ## Overview
 
-Lua chat scripts turn every Goop2 peer into a programmable service endpoint. When a remote peer sends a direct message that starts with `!`, the local chat manager intercepts it, dispatches it to a matching Lua script, and returns the script's output as a reply message — all over the existing `/goop/chat/1.0.0` protocol.
+Lua scripting turns every Goop2 peer into a programmable node. It has two faces:
 
-Think of it as a per-peer API surfaced through chat commands. A peer running a weather script responds to `!weather London` with a forecast. A peer running a help script responds to `!help` with a list of available commands. No new protocols, no new infrastructure — just Lua scripts in a folder.
+**Phase 1 — Chat commands.** When a remote peer sends a direct message starting with `!`, the local chat manager dispatches it to a Lua script and replies with the result. Think `!weather London` → `"London: 12°C, partly cloudy"`. This works today over the existing `/goop/chat/1.0.0` protocol. No new infrastructure.
+
+**Phase 2 — Data functions.** Lua scripts become server-side compute for the peer's ephemeral site. A visitor's browser calls a Lua function on the host peer via `/goop/data/1.0.0` and gets structured JSON back. This gives peers what they're currently missing — backend logic. A quiz site can score answers server-side so visitors can't cheat. A marketplace peer can validate bids. A game host can enforce rules.
+
+Both phases share the same Lua engine, sandbox, and script directory. Phase 1 is the starting point. Phase 2 is the payoff.
 
 ### Why Lua
 
@@ -537,3 +541,333 @@ In the application startup (wherever the chat manager and P2P node are initializ
 2. If `cfg.Lua.Enabled`, create `lua.NewEngine(cfg.Lua, peerDir)`
 3. Set `chatManager.luaEngine = engine`
 4. On shutdown, call `engine.Close()`
+
+---
+
+## Phase 2: Lua Data Functions
+
+### The Problem
+
+Right now a peer's site is static HTML/JS/CSS served over `/goop/site/1.0.0`. The data protocol (`/goop/data/1.0.0`) gives structured access to the peer's SQLite database. Between these two, peers can build interactive sites — but all logic runs client-side, in the visitor's browser.
+
+This is fine until you need the host to enforce rules. A quiz where the visitor's browser knows the answers isn't much of a quiz. A marketplace where the buyer's browser validates its own bid isn't trustworthy. A game where the client decides who won isn't fair.
+
+What's missing is **server-side compute** — logic that runs on the host peer's machine, where the visitor can't inspect or tamper with it.
+
+### The Idea
+
+Lua scripts in `site/lua/` gain a second entry point. In addition to `handle(args)` for chat commands, a script can export `call(request)` for data protocol invocations:
+
+```lua
+-- site/lua/score-quiz.lua
+
+-- Chat interface (Phase 1)
+function handle(args)
+    return "This is a data function. Visit my site to take the quiz."
+end
+
+-- Data interface (Phase 2)
+function call(request)
+    local answers = request.params.answers    -- table from visitor
+    local quiz_id = request.params.quiz_id
+
+    -- Load correct answers from the host's database
+    local correct = goop.db.query(
+        "SELECT question_id, answer FROM quiz_answers WHERE quiz_id = ?",
+        quiz_id
+    )
+
+    local score = 0
+    for _, row in ipairs(correct) do
+        if answers[row.question_id] == row.answer then
+            score = score + 1
+        end
+    end
+
+    return {
+        score = score,
+        total = #correct,
+        passed = score >= math.floor(#correct * 0.7)
+    }
+end
+```
+
+The visitor's site JavaScript calls this function:
+
+```javascript
+// In the host peer's site template, running in the visitor's browser
+const result = await goopData.call("score-quiz", {
+    quiz_id: "midterm-2026",
+    answers: { q1: "B", q2: "A", q3: "D" }
+});
+// result = { score: 2, total: 3, passed: false }
+```
+
+### How It Works
+
+The data protocol already supports structured request/response between peers. Data functions add a new operation type alongside the existing database operations:
+
+```
+Visitor browser
+    → goopData.call("score-quiz", params)
+    → local Goop2 viewer
+    → /goop/data/1.0.0 stream to host peer
+    → host peer's data handler sees op="lua-call"
+    → dispatches to Lua engine
+    → Lua script runs with goop.db access
+    → returns structured result
+    → JSON response back through the stream
+    → visitor's browser receives result
+```
+
+### Request/Response Format
+
+**Request** (JSON over data protocol stream):
+
+```json
+{
+    "op": "lua-call",
+    "function": "score-quiz",
+    "params": {
+        "quiz_id": "midterm-2026",
+        "answers": { "q1": "B", "q2": "A", "q3": "D" }
+    }
+}
+```
+
+**Response**:
+
+```json
+{
+    "ok": true,
+    "result": {
+        "score": 2,
+        "total": 3,
+        "passed": false
+    }
+}
+```
+
+**Error response**:
+
+```json
+{
+    "ok": false,
+    "error": "function not found: score-quiz"
+}
+```
+
+### Extended API: `goop.db`
+
+Data functions get an additional API that chat commands don't — read access to the host peer's SQLite database:
+
+```lua
+-- Read-only query, returns array of row tables
+local rows = goop.db.query("SELECT * FROM quiz_answers WHERE quiz_id = ?", quiz_id)
+
+-- Single value
+local count = goop.db.scalar("SELECT COUNT(*) FROM submissions WHERE peer_id = ?", goop.peer.id)
+```
+
+- **Read-only**. Scripts cannot INSERT, UPDATE, DELETE, or run DDL. The database connection uses SQLite's read-only mode.
+- **Scoped to the peer's own database**. No cross-peer queries.
+- **Parameterized queries only**. The `query` and `scalar` functions use prepared statements — no string concatenation, no SQL injection.
+- **Row limit**: queries return at most 1000 rows. Result sets are capped at 1MB serialized.
+- **The caller's peer ID is always available** via `goop.peer.id`, so scripts can filter by visitor identity without trusting client-supplied values.
+
+If a script needs to write data (record a quiz submission, log a bid), it returns the data to the caller and the caller writes it through the normal data protocol — where the peer ID is stamped by the system, not the script. This keeps the write path honest.
+
+### Capability Discovery
+
+Unlike chat commands where `!help` is enough, data functions need programmatic discovery. A visiting peer's site JavaScript needs to know what functions are available before calling them.
+
+A well-known data operation handles this:
+
+```json
+{ "op": "lua-list" }
+```
+
+Returns:
+
+```json
+{
+    "ok": true,
+    "functions": [
+        {
+            "name": "score-quiz",
+            "description": "Score a quiz submission"
+        },
+        {
+            "name": "get-products",
+            "description": "List available products"
+        }
+    ]
+}
+```
+
+The `description` comes from a comment at the top of each script:
+
+```lua
+--- Score a quiz submission
+function call(request)
+    ...
+end
+```
+
+### Examples
+
+**Product catalog with server-side filtering:**
+
+```lua
+--- Search products by category and price range
+function call(request)
+    local p = request.params
+    local rows = goop.db.query(
+        "SELECT id, name, price, description FROM products WHERE category = ? AND price BETWEEN ? AND ? ORDER BY price LIMIT 50",
+        p.category, p.min_price or 0, p.max_price or 999999
+    )
+    return { products = rows }
+end
+```
+
+**Leaderboard with anti-cheat:**
+
+```lua
+--- Get leaderboard for a game
+function call(request)
+    local game_id = request.params.game_id
+    local scores = goop.db.query(
+        "SELECT peer_id, score, submitted_at FROM scores WHERE game_id = ? ORDER BY score DESC LIMIT 20",
+        game_id
+    )
+    return {
+        game_id = game_id,
+        leaderboard = scores
+    }
+end
+```
+
+**Rate-limited API proxy:**
+
+```lua
+--- Get weather data (caches results, avoids exposing API key)
+function call(request)
+    local city = request.params.city
+    if not city or city == "" then
+        error("city parameter required")
+    end
+
+    -- Check cache
+    local cached = goop.kv.get("weather:" .. city)
+    if cached then
+        local data = goop.json.decode(cached)
+        if os.time() - data.fetched < 300 then  -- 5 minute cache
+            return data
+        end
+    end
+
+    -- Fetch fresh data (API key stays on host, never sent to visitor)
+    local key = goop.kv.get("owm_api_key")
+    local status, body = goop.http.get(
+        "https://api.openweathermap.org/data/2.5/weather?q=" .. city .. "&appid=" .. key .. "&units=metric"
+    )
+
+    local weather = goop.json.decode(body)
+    local result = {
+        city = weather.name,
+        temp = weather.main.temp,
+        description = weather.weather[1].description,
+        fetched = os.time()
+    }
+
+    goop.kv.set("weather:" .. city, goop.json.encode(result))
+    return result
+end
+```
+
+This last example shows something important: the API key lives on the host peer and is never exposed to the visitor. The Lua function acts as a proxy — the visitor gets weather data, the host keeps control of the key. This is a pattern that's impossible with client-side-only sites.
+
+### Security Additions for Phase 2
+
+Data functions inherit all Phase 1 security (sandbox, timeouts, rate limits, resource caps) with these additions:
+
+| Concern | Mitigation |
+|---------|------------|
+| SQL injection | Parameterized queries only; `goop.db.query` uses prepared statements |
+| Data exfiltration | Read-only database access; no writes from scripts |
+| Large result sets | 1000 row limit, 1MB serialized response cap |
+| Function enumeration | `lua-list` only returns functions that define `call()`; chat-only scripts are hidden |
+| Abuse from visitors | Same rate limiting as chat: per-peer and global caps apply |
+
+### What This Makes Possible
+
+With Phase 1 (chat commands) and Phase 2 (data functions) together, a Goop2 peer becomes a full application server:
+
+- **Static assets** via `/goop/site/1.0.0` — the frontend
+- **Database** via `/goop/data/1.0.0` — the data layer
+- **Server-side logic** via Lua data functions — the backend
+- **Peer identity** via libp2p — authentication for free
+
+A peer can host a quiz app, a store, a game, a dashboard — anything that needs a frontend, a database, and server-side logic. The visitor's browser loads the site, calls Lua functions for server-side work, and reads/writes data through the data protocol. All running on the host's machine, all authenticated by the mesh, no cloud infrastructure required.
+
+This is the completion of the peer-as-platform model. The ephemeral web gets a backend.
+
+---
+
+## Templates as Full-Stack Starters
+
+### The Idea
+
+Templates already drop files into a peer's site folder — HTML, CSS, JavaScript. With Lua scripting, templates can ship the backend too. A template becomes a full-stack application in a zip file: frontend, database schema, and server-side logic, all wired together and working out of the box.
+
+Install a quiz template, and you immediately have:
+
+```
+site/
+  index.html          ← the quiz UI
+  style.css           ← styling
+  app.js              ← frontend logic (calls Lua functions)
+  lua/
+    score-quiz.lua    ← server-side scoring
+    leaderboard.lua   ← server-side leaderboard
+  schema.sql          ← tables for questions, answers, scores
+```
+
+The peer doesn't need to understand Lua, SQL, or JavaScript to have a working quiz site. They install the template, add their questions through the UI, and visitors can take the quiz with server-side scoring — immediately.
+
+### Learning by Tweaking
+
+This is the real value. Instead of reading docs and writing a Lua script from scratch, a peer starts with working code and modifies it:
+
+1. **Install a template** — everything works, zero configuration
+2. **Read the Lua script** — it's 30 lines, readable, well-commented
+3. **Change something small** — adjust the passing score from 70% to 50%
+4. **See the result immediately** — hot reload picks up the change
+5. **Try something bigger** — add a time bonus to the scoring logic
+6. **Build your own** — now you understand the pattern, write a new script from scratch
+
+This is how people actually learn. Not from documentation — from working examples they can break and fix. Templates provide the working example. Lua provides the readability. Hot reload provides the feedback loop.
+
+### Template Complexity Tiers
+
+Not every template needs Lua. Templates naturally fall into tiers of complexity:
+
+| Tier | Ships with | Example |
+|------|-----------|---------|
+| **Static** | HTML, CSS, JS | Personal homepage, portfolio |
+| **Data** | Static + schema.sql | Guestbook, link collection |
+| **Full-stack** | Data + lua/ scripts | Quiz, marketplace, game |
+
+A peer's journey might follow the tiers: start with a static template, graduate to one with a database, then try a full-stack template with Lua. Each tier builds on the last. By the time they reach full-stack, they've already seen how the site folder, the database, and the data protocol work — Lua is just the next piece.
+
+### Specialization Over Templates
+
+Once a peer understands the pieces, they don't need complete templates anymore. They need components:
+
+- "I want to add server-side scoring to my existing quiz" → drop in `score-quiz.lua`
+- "I want a leaderboard on my game site" → drop in `leaderboard.lua` + a schema migration
+- "I want to proxy an API without exposing my key" → drop in `api-proxy.lua`
+
+These are **Lua snippets** — single-purpose scripts that solve one problem. Smaller than templates, shareable between peers, composable. A peer might install a full-stack quiz template to start, then later replace the scoring script with a custom one, add a leaderboard script from someone else, and write their own analytics script.
+
+The progression: **templates → tweaking → components → custom scripts**. Each step requires a little more understanding and gives a little more control. Nobody has to start from zero.
