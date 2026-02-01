@@ -1,4 +1,5 @@
 --- Tic-tac-toe game management
+--- @rate_limit 0
 function call(request)
     local action = request.params.action
 

@@ -1,4 +1,5 @@
 --- Tic-tac-toe game management
+--- @rate_limit 0
 function call(request)
     local action = request.params.action
 
@@ -60,7 +61,9 @@ function new_pve_game()
         status = "playing",
         board = "---------",
         turn = "X",
-        mode = "pve"
+        mode = "pve",
+        winner = "",
+        challenger_label = "Computer"
     }
 end
 
@@ -137,7 +140,24 @@ function lobby()
     local games = goop.db.query(
         "SELECT _id, _owner, challenger, challenger_label, board, turn, status, winner, mode, _created_at FROM games ORDER BY _id DESC LIMIT 20"
     )
-    return { games = games or {} }
+
+    -- Include stats in lobby response to save a round-trip
+    local wins = goop.db.scalar(
+        "SELECT COUNT(*) FROM games WHERE winner = ? AND status LIKE 'won_%'",
+        goop.self.id
+    ) or 0
+    local losses = goop.db.scalar(
+        "SELECT COUNT(*) FROM games WHERE winner != '' AND winner != ? AND status LIKE 'won_%'",
+        goop.self.id
+    ) or 0
+    local draws = goop.db.scalar(
+        "SELECT COUNT(*) FROM games WHERE status = 'draw'"
+    ) or 0
+
+    return {
+        games = games or {},
+        stats = { wins = wins, losses = losses, draws = draws }
+    }
 end
 
 function cancel_game(game_id)

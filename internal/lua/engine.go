@@ -6,7 +6,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -40,6 +42,7 @@ type scriptMeta struct {
 	description string // from leading --- comment
 	hasCall     bool   // script defines call() entry point
 	isFunction  bool   // true if loaded from functions/ subdirectory
+	rateLimit   int    // -1 = use default, 0 = unlimited, N>0 = custom per-peer-per-minute
 }
 
 // DataFunctionInfo describes a Lua data function for lua-list responses.
@@ -163,6 +166,7 @@ func (e *Engine) compileScriptAs(name, path string, isFunction bool) error {
 		description: extractDescription(source),
 		hasCall:     detectEntryPoint(source, "call"),
 		isFunction:  isFunction,
+		rateLimit:   extractRateLimit(source),
 	}
 
 	e.mu.Lock()
@@ -185,11 +189,38 @@ func extractDescription(source string) string {
 			continue
 		}
 		if strings.HasPrefix(line, "---") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "---"))
+			desc := strings.TrimSpace(strings.TrimPrefix(line, "---"))
+			if !strings.HasPrefix(desc, "@") {
+				return desc
+			}
+			continue
 		}
 		break
 	}
 	return ""
+}
+
+var rateLimitRe = regexp.MustCompile(`^---\s*@rate_limit\s+(\d+)`)
+
+// extractRateLimit parses a --- @rate_limit N annotation from the leading comment block.
+// Returns -1 (use default), 0 (unlimited), or N>0 (custom limit).
+func extractRateLimit(source string) int {
+	for _, line := range strings.Split(source, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if !strings.HasPrefix(line, "---") {
+			break
+		}
+		if m := rateLimitRe.FindStringSubmatch(line); m != nil {
+			n, err := strconv.Atoi(m[1])
+			if err == nil {
+				return n
+			}
+		}
+	}
+	return -1
 }
 
 // detectEntryPoint checks if a script defines a given function name.
@@ -254,12 +285,6 @@ func (e *Engine) Dispatch(ctx context.Context, fromPeerID, content string, sende
 		return
 	}
 
-	// Rate limit
-	if !e.limiter.Allow(fromPeerID) {
-		_ = sender.SendDirect(ctx, fromPeerID, "Rate limit exceeded. Try again later.")
-		return
-	}
-
 	// Lookup script
 	e.mu.RLock()
 	meta, ok := e.scripts[cmdName]
@@ -268,6 +293,12 @@ func (e *Engine) Dispatch(ctx context.Context, fromPeerID, content string, sende
 	if !ok {
 		reply := fmt.Sprintf("Unknown command: %s", cmdName)
 		_ = sender.SendDirect(ctx, fromPeerID, reply)
+		return
+	}
+
+	// Rate limit (per-function)
+	if !e.limiter.AllowFunc(fromPeerID, cmdName, meta.rateLimit) {
+		_ = sender.SendDirect(ctx, fromPeerID, "Rate limit exceeded. Try again later.")
 		return
 	}
 
@@ -404,11 +435,6 @@ func (e *Engine) ListDataFunctions() any {
 // CallFunction executes a script's call(request) entry point.
 // This is the Phase 2 data function interface.
 func (e *Engine) CallFunction(ctx context.Context, callerID, function string, params map[string]any) (any, error) {
-	// Rate limit
-	if !e.limiter.Allow(callerID) {
-		return nil, fmt.Errorf("rate limit exceeded")
-	}
-
 	// Lookup script
 	e.mu.RLock()
 	meta, ok := e.scripts[function]
@@ -419,6 +445,11 @@ func (e *Engine) CallFunction(ctx context.Context, callerID, function string, pa
 	}
 	if !meta.hasCall {
 		return nil, fmt.Errorf("function %s does not support call()", function)
+	}
+
+	// Rate limit (per-function)
+	if !e.limiter.AllowFunc(callerID, function, meta.rateLimit) {
+		return nil, fmt.Errorf("rate limit exceeded")
 	}
 
 	// Resolve peer label

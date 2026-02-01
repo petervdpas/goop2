@@ -1,4 +1,5 @@
 --- Make a move in a tic-tac-toe game
+--- @rate_limit 0
 function call(request)
     local p = request.params
     local game_id = p.game_id
@@ -130,6 +131,7 @@ function call(request)
     )
 
     local result = {
+        game_id = game._id,
         board = new_board,
         turn = new_turn,
         status = new_status,

@@ -51,18 +51,19 @@
     stopPolling();
     currentGameId = null;
 
-    var lobby, stats;
+    var lobby;
     try {
+      // Single call returns both games list and stats
       lobby = await db.call("ttt", { action: "lobby" });
-      stats = await db.call("ttt", { action: "stats" });
     } catch (e) {
       root.innerHTML = '<p class="ttt-empty">Could not load lobby.</p>';
       return;
     }
 
     var games = lobby.games || [];
+    var stats = lobby.stats || {};
 
-    // Check if I have an active game
+    // Check if I have an active game — render directly from lobby data
     for (var i = 0; i < games.length; i++) {
       var g = games[i];
       if ((g.status === "playing" || g.status === "waiting") &&
@@ -83,13 +84,11 @@
     html += '</div>';
 
     // Stats
-    if (stats) {
-      html += '<div class="ttt-stats">';
-      html += '<span><span class="stat-val">' + (stats.wins || 0) + '</span> wins</span>';
-      html += '<span><span class="stat-val">' + (stats.losses || 0) + '</span> losses</span>';
-      html += '<span><span class="stat-val">' + (stats.draws || 0) + '</span> draws</span>';
-      html += '</div>';
-    }
+    html += '<div class="ttt-stats">';
+    html += '<span><span class="stat-val">' + (stats.wins || 0) + '</span> wins</span>';
+    html += '<span><span class="stat-val">' + (stats.losses || 0) + '</span> losses</span>';
+    html += '<span><span class="stat-val">' + (stats.draws || 0) + '</span> draws</span>';
+    html += '</div>';
 
     // Pending challenges (owner only)
     if (isOwner) {
@@ -172,10 +171,12 @@
             Goop.ui.toast(result.error);
             btnPve.disabled = false;
           } else {
-            showGame(result.game_id);
+            // Render directly from the new_pve response — no extra game_state call
+            currentGameId = result.game_id;
+            renderBoard(result);
           }
         } catch (e) {
-          Goop.ui.toast("Error starting game.");
+          Goop.ui.toast(e.message || "Error starting game.");
           btnPve.disabled = false;
         }
       };
@@ -195,10 +196,11 @@
             }
             btnChallenge.disabled = false;
           } else {
+            // For PvP, we need to poll for the host's acceptance
             showGame(result.game_id);
           }
         } catch (e) {
-          Goop.ui.toast("Error creating challenge.");
+          Goop.ui.toast(e.message || "Error creating challenge.");
           btnChallenge.disabled = false;
         }
       };
@@ -284,7 +286,6 @@
       // Turn indicator
       var opLabel = (state.mode === "pve") ? "Computer" : "Opponent";
       var turnLabel = isYourTurn ? "Your turn" : opLabel + "'s turn";
-      var symClass = state.turn === "X" ? "symbol-x" : "symbol-o";
       html += '<div class="ttt-status">';
       html += 'You: <span class="' + (yourSymbol === "X" ? "symbol-x" : "symbol-o") + '">' + symbolChar(yourSymbol) + '</span>';
       html += ' &mdash; ' + turnLabel;
@@ -339,8 +340,9 @@
           cell.classList.add("disabled");
 
           try {
+            var gameId = state.game_id || currentGameId;
             var result = await db.call("move", {
-              game_id: state.game_id,
+              game_id: gameId,
               position: pos
             });
             if (result.error) {
@@ -348,16 +350,16 @@
               renderBoard(state); // re-render previous state
               return;
             }
-            result.game_id = state.game_id;
-            result.challenger_label = state.challenger_label;
+            if (!result.game_id) result.game_id = gameId;
+            if (!result.challenger_label) result.challenger_label = state.challenger_label;
             renderBoard(result);
 
             // Start polling for opponent's move in PvP
             if (result.mode === "pvp" && result.status === "playing") {
-              startPolling(state.game_id);
+              startPolling(result.game_id);
             }
           } catch (e) {
-            Goop.ui.toast("Error making move.");
+            Goop.ui.toast(e.message || "Error making move.");
             renderBoard(state);
           }
         };
@@ -373,11 +375,14 @@
           var result = await db.call("ttt", { action: "new_pve" });
           if (result.error) {
             Goop.ui.toast(result.error);
+            btnRematchPve.disabled = false;
           } else {
-            showGame(result.game_id);
+            // Render directly — no extra game_state call needed
+            currentGameId = result.game_id;
+            renderBoard(result);
           }
         } catch (e) {
-          Goop.ui.toast("Error starting game.");
+          Goop.ui.toast(e.message || "Error starting game.");
           btnRematchPve.disabled = false;
         }
       };

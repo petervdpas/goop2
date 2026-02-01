@@ -222,6 +222,10 @@ func goToLua(L *lua.LState, v interface{}) lua.LValue {
 		return lua.LBool(val)
 	case float64:
 		return lua.LNumber(val)
+	case int:
+		return lua.LNumber(float64(val))
+	case int64:
+		return lua.LNumber(float64(val))
 	case string:
 		return lua.LString(val)
 	case []interface{}:

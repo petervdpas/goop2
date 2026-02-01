@@ -2,7 +2,7 @@
   "name": "Tic-Tac-Toe",
   "description": "Classic tic-tac-toe \u2014 challenge visitors or play against the computer.",
   "category": "games",
-  "icon": "\u274c\u2b55",
+  "icon": "\ud83c\udfb2",
   "tables": {
     "games": { "insert_policy": "open" }
   }

@@ -176,7 +176,7 @@
             renderBoard(result);
           }
         } catch (e) {
-          Goop.ui.toast("Error starting game.");
+          Goop.ui.toast(e.message || "Error starting game.");
           btnPve.disabled = false;
         }
       };
@@ -200,7 +200,7 @@
             showGame(result.game_id);
           }
         } catch (e) {
-          Goop.ui.toast("Error creating challenge.");
+          Goop.ui.toast(e.message || "Error creating challenge.");
           btnChallenge.disabled = false;
         }
       };
@@ -340,8 +340,9 @@
           cell.classList.add("disabled");
 
           try {
+            var gameId = state.game_id || currentGameId;
             var result = await db.call("move", {
-              game_id: state.game_id || currentGameId,
+              game_id: gameId,
               position: pos
             });
             if (result.error) {
@@ -349,8 +350,8 @@
               renderBoard(state); // re-render previous state
               return;
             }
-            result.game_id = state.game_id || currentGameId;
-            result.challenger_label = state.challenger_label;
+            if (!result.game_id) result.game_id = gameId;
+            if (!result.challenger_label) result.challenger_label = state.challenger_label;
             renderBoard(result);
 
             // Start polling for opponent's move in PvP
@@ -358,7 +359,7 @@
               startPolling(result.game_id);
             }
           } catch (e) {
-            Goop.ui.toast("Error making move.");
+            Goop.ui.toast(e.message || "Error making move.");
             renderBoard(state);
           }
         };
@@ -381,7 +382,7 @@
             renderBoard(result);
           }
         } catch (e) {
-          Goop.ui.toast("Error starting game.");
+          Goop.ui.toast(e.message || "Error starting game.");
           btnRematchPve.disabled = false;
         }
       };
