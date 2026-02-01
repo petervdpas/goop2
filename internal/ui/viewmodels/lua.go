@@ -23,15 +23,17 @@ type PrefabStatus struct {
 
 type LuaVM struct {
 	BaseVM
-	CSRF    string
-	Scripts []LuaScript
-	Prefabs []PrefabStatus
+	CSRF      string
+	Scripts   []LuaScript // chat scripts from lua/
+	Functions []LuaScript // data functions from lua/functions/
+	Prefabs   []PrefabStatus
 
 	// Editor state (when editing a script)
-	EditName string
-	Content  string
-	Saved    bool
-	Error    string
+	EditName   string
+	EditIsFunc bool   // true if editing a function (from functions/)
+	Content    string
+	Saved      bool
+	Error      string
 
 	// Whether Lua is currently enabled in config
 	LuaEnabled bool

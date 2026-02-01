@@ -18,15 +18,20 @@ import (
 
 var validScriptName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
-func registerLuaRoutes(mux *http.ServeMux, d Deps, csrf string) {
-	// resolveScriptDir returns the absolute path to the lua script directory.
-	resolveScriptDir := func() (string, error) {
-		cfg, err := config.Load(d.CfgPath)
-		if err != nil {
-			return "", err
-		}
-		return filepath.Join(d.PeerDir, cfg.Lua.ScriptDir), nil
+// resolveTargetDir returns the script or functions directory based on isFunc.
+func resolveTargetDir(d Deps, isFunc bool) (string, error) {
+	cfg, err := config.Load(d.CfgPath)
+	if err != nil {
+		return "", err
 	}
+	dir := filepath.Join(d.PeerDir, cfg.Lua.ScriptDir)
+	if isFunc {
+		dir = filepath.Join(dir, "functions")
+	}
+	return dir, nil
+}
+
+func registerLuaRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 	// GET /lua — show script list + prefab gallery + editor
 	mux.HandleFunc("/lua", func(w http.ResponseWriter, r *http.Request) {
@@ -42,9 +47,11 @@ func registerLuaRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 
 		scriptDir := filepath.Join(d.PeerDir, cfg.Lua.ScriptDir)
+		functionsDir := filepath.Join(scriptDir, "functions")
 		scripts := listScripts(scriptDir)
+		functions := listScripts(functionsDir)
 
-		// Build set of installed script names for quick lookup
+		// Build set of installed script names for quick lookup (chat scripts only)
 		installed := make(map[string]bool, len(scripts))
 		for _, s := range scripts {
 			installed[s.Name] = true
@@ -77,16 +84,23 @@ func registerLuaRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			BaseVM:     baseVM("Lua Scripts", "create", "page.lua", d),
 			CSRF:       csrf,
 			Scripts:    scripts,
+			Functions:  functions,
 			Prefabs:    prefabs,
 			LuaEnabled: cfg.Lua.Enabled,
 		}
 
 		// Check if editing a specific script
 		editName := r.URL.Query().Get("edit")
+		isFunc := r.URL.Query().Get("func") == "1"
 		if editName != "" {
-			content, err := os.ReadFile(filepath.Join(scriptDir, editName+".lua"))
+			dir := scriptDir
+			if isFunc {
+				dir = functionsDir
+			}
+			content, err := os.ReadFile(filepath.Join(dir, editName+".lua"))
 			if err == nil {
 				vm.EditName = editName
+				vm.EditIsFunc = isFunc
 				vm.Content = string(content)
 			}
 		}
@@ -108,30 +122,36 @@ func registerLuaRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 		name := getTrimmedPostFormValue(r.PostForm, "name")
 		content := r.PostForm.Get("content")
+		isFunc := r.PostForm.Get("is_func") == "1"
 
 		if !validScriptName.MatchString(name) {
 			http.Redirect(w, r, "/lua?error=Invalid+script+name", http.StatusFound)
 			return
 		}
 
-		scriptDir, err := resolveScriptDir()
+		dir, err := resolveTargetDir(d, isFunc)
 		if err != nil {
 			http.Redirect(w, r, "/lua?error="+err.Error(), http.StatusFound)
 			return
 		}
 
-		if err := os.MkdirAll(scriptDir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			http.Redirect(w, r, "/lua?error="+err.Error(), http.StatusFound)
 			return
 		}
 
-		path := filepath.Join(scriptDir, name+".lua")
+		funcParam := ""
+		if isFunc {
+			funcParam = "&func=1"
+		}
+
+		path := filepath.Join(dir, name+".lua")
 		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-			http.Redirect(w, r, "/lua?edit="+name+"&error="+err.Error(), http.StatusFound)
+			http.Redirect(w, r, "/lua?edit="+name+funcParam+"&error="+err.Error(), http.StatusFound)
 			return
 		}
 
-		http.Redirect(w, r, "/lua?edit="+name+"&saved=1", http.StatusFound)
+		http.Redirect(w, r, "/lua?edit="+name+"&saved=1"+funcParam, http.StatusFound)
 	})
 
 	// POST /lua/new — create a new empty script
@@ -141,36 +161,47 @@ func registerLuaRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 
 		name := getTrimmedPostFormValue(r.PostForm, "name")
+		isFunc := r.PostForm.Get("is_func") == "1"
+
 		if !validScriptName.MatchString(name) {
 			http.Redirect(w, r, "/lua?error=Invalid+script+name.+Use+letters,+numbers,+hyphens,+underscores.", http.StatusFound)
 			return
 		}
 
-		scriptDir, err := resolveScriptDir()
+		dir, err := resolveTargetDir(d, isFunc)
 		if err != nil {
 			http.Redirect(w, r, "/lua?error="+err.Error(), http.StatusFound)
 			return
 		}
 
-		if err := os.MkdirAll(scriptDir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			http.Redirect(w, r, "/lua?error="+err.Error(), http.StatusFound)
 			return
 		}
 
-		path := filepath.Join(scriptDir, name+".lua")
+		funcParam := ""
+		if isFunc {
+			funcParam = "&func=1"
+		}
+
+		path := filepath.Join(dir, name+".lua")
 		if _, err := os.Stat(path); err == nil {
-			// Already exists, just open it
-			http.Redirect(w, r, "/lua?edit="+name, http.StatusFound)
+			http.Redirect(w, r, "/lua?edit="+name+funcParam, http.StatusFound)
 			return
 		}
 
-		stub := "-- " + name + ".lua\nfunction handle(args)\n    return \"hello from !" + name + "\"\nend\n"
+		var stub string
+		if isFunc {
+			stub = "--- " + name + "\nfunction call(request)\n    return { message = \"hello from " + name + "\" }\nend\n"
+		} else {
+			stub = "-- " + name + ".lua\nfunction handle(args)\n    return \"hello from !" + name + "\"\nend\n"
+		}
 		if err := os.WriteFile(path, []byte(stub), 0o644); err != nil {
 			http.Redirect(w, r, "/lua?error="+err.Error(), http.StatusFound)
 			return
 		}
 
-		http.Redirect(w, r, "/lua?edit="+name, http.StatusFound)
+		http.Redirect(w, r, "/lua?edit="+name+funcParam, http.StatusFound)
 	})
 
 	// POST /lua/delete — delete a script
@@ -180,18 +211,20 @@ func registerLuaRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 
 		name := getTrimmedPostFormValue(r.PostForm, "name")
+		isFunc := r.PostForm.Get("is_func") == "1"
+
 		if !validScriptName.MatchString(name) {
 			http.Redirect(w, r, "/lua?error=Invalid+script+name", http.StatusFound)
 			return
 		}
 
-		scriptDir, err := resolveScriptDir()
+		dir, err := resolveTargetDir(d, isFunc)
 		if err != nil {
 			http.Redirect(w, r, "/lua?error="+err.Error(), http.StatusFound)
 			return
 		}
 
-		path := filepath.Join(scriptDir, name+".lua")
+		path := filepath.Join(dir, name+".lua")
 		_ = os.Remove(path)
 
 		http.Redirect(w, r, "/lua", http.StatusFound)
@@ -243,7 +276,8 @@ func registerLuaRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			scripts = map[string][]byte{target: data}
 		}
 
-		scriptDir, err := resolveScriptDir()
+		// Prefabs install to the chat scripts directory
+		scriptDir, err := resolveTargetDir(d, false)
 		if err != nil {
 			http.Error(w, "failed to resolve script dir: "+err.Error(), http.StatusInternalServerError)
 			return

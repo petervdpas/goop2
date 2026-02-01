@@ -88,6 +88,10 @@ func mapSuffixToOp(suffix string) string {
 		return "drop-column"
 	case "tables/rename":
 		return "rename-table"
+	case "lua/call":
+		return "lua-call"
+	case "lua/list":
+		return "lua-list"
 	}
 	return ""
 }
@@ -95,25 +99,27 @@ func mapSuffixToOp(suffix string) string {
 func buildDataRequest(op string, r *http.Request) (p2p.DataRequest, error) {
 	req := p2p.DataRequest{Op: op}
 
-	// "tables" is a GET with no body
-	if op == "tables" {
+	// GET ops with no body
+	if op == "tables" || op == "lua-list" {
 		return req, nil
 	}
 
 	// All other ops expect a JSON body
 	var body struct {
-		Table   string                 `json:"table"`
-		Name    string                 `json:"name"`
-		Data    map[string]any `json:"data"`
-		ID      int64                  `json:"id"`
-		Where   string                 `json:"where"`
-		Args    []any          `json:"args"`
-		Columns any            `json:"columns"`
-		Column  *storage.ColumnDef     `json:"column"`
-		Limit   int                    `json:"limit"`
-		Offset  int                    `json:"offset"`
-		OldName string                 `json:"old_name"`
-		NewName string                 `json:"new_name"`
+		Table    string             `json:"table"`
+		Name     string             `json:"name"`
+		Data     map[string]any     `json:"data"`
+		ID       int64              `json:"id"`
+		Where    string             `json:"where"`
+		Args     []any              `json:"args"`
+		Columns  any                `json:"columns"`
+		Column   *storage.ColumnDef `json:"column"`
+		Limit    int                `json:"limit"`
+		Offset   int                `json:"offset"`
+		OldName  string             `json:"old_name"`
+		NewName  string             `json:"new_name"`
+		Function string             `json:"function"`
+		Params   map[string]any     `json:"params"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -131,6 +137,8 @@ func buildDataRequest(op string, r *http.Request) (p2p.DataRequest, error) {
 	req.Offset = body.Offset
 	req.OldName = body.OldName
 	req.NewName = body.NewName
+	req.Function = body.Function
+	req.Params = body.Params
 
 	// "columns" can be either []string (for query) or []ColumnDef (for create-table)
 	if body.Columns != nil {

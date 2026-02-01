@@ -156,11 +156,15 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		if luaErr != nil {
 			log.Printf("WARNING: Lua engine failed to start: %v", luaErr)
 		} else {
+			// Phase 1: chat command dispatch
 			chatMgr.SetCommandHandler(func(ctx context.Context, fromPeerID, content string, sender chat.DirectSender) {
 				luaEngine.Dispatch(ctx, fromPeerID, content, luapkg.SenderFunc(func(ctx2 context.Context, toPeerID, msg string) error {
 					return sender.SendDirect(ctx2, toPeerID, msg)
 				}))
 			})
+			// Phase 2: data function dispatch + database access
+			luaEngine.SetDB(db)
+			node.SetLuaDispatcher(luaEngine)
 			defer luaEngine.Close()
 		}
 	}

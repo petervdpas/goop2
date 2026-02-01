@@ -101,5 +101,16 @@
     addColumn(table, column) {
       return post(apiBase + "/tables/add-column", { table, column });
     },
+
+    /** Call a Lua data function. Returns the function's result. */
+    async call(fn, params) {
+      return post(apiBase + "/lua/call", { "function": fn, params: params || {} });
+    },
+
+    /** List available Lua data functions. Returns [{name, description}] */
+    async functions() {
+      var resp = await request(apiBase + "/lua/list");
+      return resp ? (resp.functions || []) : [];
+    },
   };
 })();

@@ -70,10 +70,10 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		}
 
-		// 2. Clear all site files
+		// 2. Clear site files (preserve lua/ directory for chat scripts)
 		if d.Content != nil {
 			root := d.Content.RootAbs()
-			if err := os.RemoveAll(root); err != nil {
+			if err := clearSitePreserveLua(root); err != nil {
 				http.Error(w, "failed to clear site: "+err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -149,6 +149,34 @@ func parseTableNames(schema string) []string {
 		}
 	}
 	return names
+}
+
+// clearSitePreserveLua removes all site files/directories except lua/.
+// Chat scripts in lua/ survive template changes; templates write data
+// functions to lua/functions/ which get recreated from the template.
+func clearSitePreserveLua(root string) error {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	for _, e := range entries {
+		if e.Name() == "lua" {
+			// Preserve lua/ root (chat scripts), but clear lua/functions/
+			// so template data functions get a clean install.
+			fnDir := filepath.Join(root, "lua", "functions")
+			if err := os.RemoveAll(fnDir); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(root, e.Name())); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func dropAllTables(db *storage.DB) error {

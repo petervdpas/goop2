@@ -3,10 +3,12 @@ package storage
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 
 	_ "modernc.org/sqlite"
@@ -568,4 +570,110 @@ type TableInfo struct {
 	Name         string `json:"name"`
 	InsertPolicy string `json:"insert_policy"`
 	CreatedAt    string `json:"created_at"`
+}
+
+// ── Lua read-only query methods ──
+
+const (
+	luaMaxRows        = 1000
+	luaMaxResultBytes = 1 * 1024 * 1024 // 1MB
+)
+
+// validateReadOnly checks that a SQL query is read-only.
+func validateReadOnly(query string) error {
+	q := strings.TrimSpace(query)
+	upper := strings.ToUpper(q)
+
+	if !strings.HasPrefix(upper, "SELECT") && !strings.HasPrefix(upper, "WITH") {
+		return fmt.Errorf("only SELECT queries are allowed")
+	}
+
+	// Reject multiple statements (allow trailing semicolons)
+	trimmed := strings.TrimRight(q, "; \t\n\r")
+	if strings.Contains(trimmed, ";") {
+		return fmt.Errorf("multiple SQL statements not allowed")
+	}
+
+	return nil
+}
+
+// LuaQuery executes a read-only parameterized query for Lua scripts.
+// Returns at most 1000 rows. Total result size is capped at 1MB serialized JSON.
+func (d *DB) LuaQuery(query string, args ...any) ([]map[string]any, error) {
+	if err := validateReadOnly(query); err != nil {
+		return nil, err
+	}
+
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	rows, err := d.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	colNames, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+
+	var results []map[string]any
+	totalSize := 0
+
+	for rows.Next() {
+		if len(results) >= luaMaxRows {
+			break
+		}
+
+		values := make([]any, len(colNames))
+		valuePtrs := make([]any, len(colNames))
+		for i := range values {
+			valuePtrs[i] = &values[i]
+		}
+
+		if err := rows.Scan(valuePtrs...); err != nil {
+			return nil, err
+		}
+
+		row := make(map[string]any)
+		for i, col := range colNames {
+			if b, ok := values[i].([]byte); ok {
+				row[col] = string(b)
+			} else {
+				row[col] = values[i]
+			}
+		}
+
+		rowJSON, _ := json.Marshal(row)
+		totalSize += len(rowJSON)
+		if totalSize > luaMaxResultBytes {
+			return nil, fmt.Errorf("result set exceeds 1MB limit")
+		}
+
+		results = append(results, row)
+	}
+
+	return results, rows.Err()
+}
+
+// LuaScalar executes a read-only parameterized query and returns a single value.
+func (d *DB) LuaScalar(query string, args ...any) (any, error) {
+	if err := validateReadOnly(query); err != nil {
+		return nil, err
+	}
+
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	var result any
+	err := d.db.QueryRow(query, args...).Scan(&result)
+	if err != nil {
+		return nil, err
+	}
+
+	if b, ok := result.([]byte); ok {
+		return string(b), nil
+	}
+	return result, nil
 }

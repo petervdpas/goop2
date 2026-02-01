@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"time"
 
 	"goop/internal/proto"
 	"goop/internal/storage"
@@ -17,29 +18,37 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 )
 
+// LuaDispatcher handles lua-call and lua-list data operations.
+type LuaDispatcher interface {
+	CallFunction(ctx context.Context, callerID, function string, params map[string]any) (any, error)
+	ListDataFunctions() any
+}
+
 // DataRequest is the wire format for a data operation request.
 type DataRequest struct {
-	Op         string                 `json:"op"`
-	Table      string                 `json:"table,omitempty"`
-	Name       string                 `json:"name,omitempty"`
-	Data       map[string]any `json:"data,omitempty"`
-	ID         int64                  `json:"id,omitempty"`
-	Where      string                 `json:"where,omitempty"`
-	Args       []any          `json:"args,omitempty"`
-	Columns    []string               `json:"columns,omitempty"`
-	ColumnDefs []storage.ColumnDef    `json:"column_defs,omitempty"`
-	Column     *storage.ColumnDef     `json:"column,omitempty"`
-	Limit      int                    `json:"limit,omitempty"`
-	Offset     int                    `json:"offset,omitempty"`
-	OldName    string                 `json:"old_name,omitempty"`
-	NewName    string                 `json:"new_name,omitempty"`
+	Op         string              `json:"op"`
+	Table      string              `json:"table,omitempty"`
+	Name       string              `json:"name,omitempty"`
+	Data       map[string]any      `json:"data,omitempty"`
+	ID         int64               `json:"id,omitempty"`
+	Where      string              `json:"where,omitempty"`
+	Args       []any               `json:"args,omitempty"`
+	Columns    []string            `json:"columns,omitempty"`
+	ColumnDefs []storage.ColumnDef `json:"column_defs,omitempty"`
+	Column     *storage.ColumnDef  `json:"column,omitempty"`
+	Limit      int                 `json:"limit,omitempty"`
+	Offset     int                 `json:"offset,omitempty"`
+	OldName    string              `json:"old_name,omitempty"`
+	NewName    string              `json:"new_name,omitempty"`
+	Function   string              `json:"function,omitempty"` // for lua-call
+	Params     map[string]any      `json:"params,omitempty"`  // for lua-call
 }
 
 // DataResponse is the wire format for a data operation response.
 type DataResponse struct {
-	OK    bool        `json:"ok"`
-	Data  any `json:"data,omitempty"`
-	Error string      `json:"error,omitempty"`
+	OK    bool   `json:"ok"`
+	Data  any    `json:"data,omitempty"`
+	Error string `json:"error,omitempty"`
 }
 
 // EnableData stores the DB reference and registers the data stream handler.
@@ -110,6 +119,10 @@ func (n *Node) dispatchDataOp(callerID string, req DataRequest) DataResponse {
 			return DataResponse{Error: "schema operations not allowed for remote peers"}
 		}
 		return n.dispatchSchemaOp(req)
+	case "lua-call":
+		return n.dataOpLuaCall(callerID, req)
+	case "lua-list":
+		return n.dataOpLuaList()
 	default:
 		return DataResponse{Error: fmt.Sprintf("unknown op: %s", req.Op)}
 	}
@@ -403,6 +416,31 @@ func (n *Node) dataOpDeleteTable(req DataRequest) DataResponse {
 		"status": "deleted",
 		"table":  table,
 	}}
+}
+
+func (n *Node) dataOpLuaCall(callerID string, req DataRequest) DataResponse {
+	if n.luaDispatcher == nil {
+		return DataResponse{Error: "lua scripting not enabled"}
+	}
+	if req.Function == "" {
+		return DataResponse{Error: "function name required"}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	result, err := n.luaDispatcher.CallFunction(ctx, callerID, req.Function, req.Params)
+	if err != nil {
+		return DataResponse{Error: err.Error()}
+	}
+	return DataResponse{OK: true, Data: result}
+}
+
+func (n *Node) dataOpLuaList() DataResponse {
+	if n.luaDispatcher == nil {
+		return DataResponse{OK: true, Data: map[string]any{"functions": []any{}}}
+	}
+	return DataResponse{OK: true, Data: map[string]any{"functions": n.luaDispatcher.ListDataFunctions()}}
 }
 
 // LocalDataOp executes a data operation on the local database, using callerID as the owner.

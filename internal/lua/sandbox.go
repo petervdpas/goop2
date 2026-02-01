@@ -1,6 +1,8 @@
 package lua
 
 import (
+	"goop/internal/storage"
+
 	lua "github.com/yuin/gopher-lua"
 )
 
@@ -112,4 +114,23 @@ func injectGoopTable(L *lua.LState, inv *invocationCtx, kv *kvStore, engine *Eng
 	goop.RawSetString("commands", L.NewFunction(commandsFn(engine)))
 
 	L.SetGlobal("goop", goop)
+}
+
+// newSandboxedDataVM creates a VM with goop.db access for data functions.
+func newSandboxedDataVM(inv *invocationCtx, kv *kvStore, engine *Engine, db *storage.DB) *lua.LState {
+	L := newSandboxedVM(inv, kv, engine)
+
+	// Inject goop.db table (only for data functions)
+	if db != nil {
+		goop := L.GetGlobal("goop")
+		goopTbl, ok := goop.(*lua.LTable)
+		if ok {
+			dbTbl := L.NewTable()
+			dbTbl.RawSetString("query", L.NewFunction(dbQueryFn(inv, db)))
+			dbTbl.RawSetString("scalar", L.NewFunction(dbScalarFn(inv, db)))
+			goopTbl.RawSetString("db", dbTbl)
+		}
+	}
+
+	return L
 }

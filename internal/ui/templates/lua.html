@@ -27,27 +27,53 @@
   <div class="ed">
     <!-- Left panel: script list + prefabs -->
     <aside class="ed-left panel">
-      <!-- Scripts section -->
+      <!-- Chat scripts section -->
       <div class="lua-panel-section">
         <div class="lua-panel-section-head">
           <div>
-            <div class="ed-left-title">Scripts</div>
+            <div class="ed-left-title">Chat Scripts</div>
             <div class="muted small"><code>site/lua/</code></div>
           </div>
-          <button type="button" id="lua-new-btn" class="ed-left-newbtn" title="Create a new script">
+          <button type="button" class="ed-left-newbtn lua-new-btn" data-func="0" title="Create a new chat script">
             New&hellip;
           </button>
         </div>
         <div class="lua-panel-section-body">
           <div class="lua-script-list">
             {{range .Scripts}}
-            <a href="/lua?edit={{.Name}}" class="lua-script-row{{if eq $.EditName .Name}} selected{{end}}">
+            <a href="/lua?edit={{.Name}}" class="lua-script-row{{if and (eq $.EditName .Name) (not $.EditIsFunc)}} selected{{end}}">
               <span class="ed-tree-icon">📜</span>
               <span class="lua-script-name">{{.Name}}.lua</span>
               <span class="muted small lua-script-size">{{.Size}}b</span>
             </a>
             {{else}}
-            <div class="muted small" style="padding: 12px;">No scripts yet.</div>
+            <div class="muted small" style="padding: 12px;">No chat scripts yet.</div>
+            {{end}}
+          </div>
+        </div>
+      </div>
+
+      <!-- Data functions section -->
+      <div class="lua-panel-section">
+        <div class="lua-panel-section-head">
+          <div>
+            <div class="ed-left-title">Functions</div>
+            <div class="muted small"><code>site/lua/functions/</code></div>
+          </div>
+          <button type="button" class="ed-left-newbtn lua-new-btn" data-func="1" title="Create a new data function">
+            New&hellip;
+          </button>
+        </div>
+        <div class="lua-panel-section-body">
+          <div class="lua-script-list">
+            {{range .Functions}}
+            <a href="/lua?edit={{.Name}}&func=1" class="lua-script-row{{if and (eq $.EditName .Name) $.EditIsFunc}} selected{{end}}">
+              <span class="ed-tree-icon">⚙️</span>
+              <span class="lua-script-name">{{.Name}}.lua</span>
+              <span class="muted small lua-script-size">{{.Size}}b</span>
+            </a>
+            {{else}}
+            <div class="muted small" style="padding: 12px;">No data functions yet.</div>
             {{end}}
           </div>
         </div>
@@ -103,16 +129,17 @@
           <input type="hidden" name="csrf" value="{{.CSRF}}">
           <input type="hidden" name="name" value="{{.EditName}}">
           <input type="hidden" name="path" value="{{.EditName}}.lua">
+          {{if .EditIsFunc}}<input type="hidden" name="is_func" value="1">{{end}}
 
           <div class="ed-savebar ed-savebar-compact">
             <div class="ed-savebar-row">
               <div class="ed-savebar-title">
-                <code>{{.EditName}}.lua</code>
+                {{if .EditIsFunc}}<span class="muted small">functions/</span>{{end}}<code>{{.EditName}}.lua</code>
               </div>
               <div style="display:flex; gap:6px;">
                 <button type="submit" class="ed-savebar-save">Save</button>
                 <button type="button" class="btn secondary small" id="lua-delete-btn"
-                        data-name="{{.EditName}}" style="padding:4px 10px; font-size:0.8em;">
+                        data-name="{{.EditName}}" data-func="{{if .EditIsFunc}}1{{else}}0{{end}}" style="padding:4px 10px; font-size:0.8em;">
                   Delete
                 </button>
               </div>
@@ -140,11 +167,12 @@
 (function() {
   var csrf = {{.CSRF}};
 
-  // New script button
-  var newBtn = document.getElementById('lua-new-btn');
-  if (newBtn) {
-    newBtn.addEventListener('click', function() {
-      var name = prompt('Script name (letters, numbers, hyphens, underscores):');
+  // New script/function buttons
+  document.querySelectorAll('.lua-new-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var isFunc = btn.getAttribute('data-func') === '1';
+      var label = isFunc ? 'Function' : 'Script';
+      var name = prompt(label + ' name (letters, numbers, hyphens, underscores):');
       if (!name) return;
       name = name.trim().replace(/\.lua$/i, '');
       if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
@@ -155,36 +183,42 @@
       var form = document.createElement('form');
       form.method = 'POST';
       form.action = '/lua/new';
-      form.innerHTML = '<input type="hidden" name="csrf" value="' + csrf + '">' +
-                        '<input type="hidden" name="name" value="' + name + '">';
+      var html = '<input type="hidden" name="csrf" value="' + csrf + '">' +
+                 '<input type="hidden" name="name" value="' + name + '">';
+      if (isFunc) html += '<input type="hidden" name="is_func" value="1">';
+      form.innerHTML = html;
       document.body.appendChild(form);
       form.submit();
     });
-  }
+  });
 
   // Delete button
   var delBtn = document.getElementById('lua-delete-btn');
   if (delBtn) {
     delBtn.addEventListener('click', function() {
       var name = delBtn.getAttribute('data-name');
-      var msg = 'Delete "' + name + '.lua"? This cannot be undone.';
+      var isFunc = delBtn.getAttribute('data-func') === '1';
+      var label = isFunc ? 'function' : 'script';
+      var msg = 'Delete ' + label + ' "' + name + '.lua"? This cannot be undone.';
 
       if (window.Goop && window.Goop.ui && window.Goop.ui.confirm) {
-        Goop.ui.confirm(msg, 'Delete Script').then(function(ok) {
-          if (ok) doDelete(name);
+        Goop.ui.confirm(msg, 'Delete').then(function(ok) {
+          if (ok) doDelete(name, isFunc);
         });
       } else if (confirm(msg)) {
-        doDelete(name);
+        doDelete(name, isFunc);
       }
     });
   }
 
-  function doDelete(name) {
+  function doDelete(name, isFunc) {
     var form = document.createElement('form');
     form.method = 'POST';
     form.action = '/lua/delete';
-    form.innerHTML = '<input type="hidden" name="csrf" value="' + csrf + '">' +
-                      '<input type="hidden" name="name" value="' + name + '">';
+    var html = '<input type="hidden" name="csrf" value="' + csrf + '">' +
+               '<input type="hidden" name="name" value="' + name + '">';
+    if (isFunc) html += '<input type="hidden" name="is_func" value="1">';
+    form.innerHTML = html;
     document.body.appendChild(form);
     form.submit();
   }

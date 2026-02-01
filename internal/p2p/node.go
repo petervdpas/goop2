@@ -44,6 +44,9 @@ type Node struct {
 	// Set by EnableData in data.go
 	db *storage.DB
 
+	// Set by SetLuaDispatcher
+	luaDispatcher LuaDispatcher
+
 	// Set by EnableAvatar in avatar.go
 	avatarStore *avatar.Store
 }
@@ -156,6 +159,11 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 	}
 
 	return n, nil
+}
+
+// SetLuaDispatcher sets the Lua engine for lua-call/lua-list data operations.
+func (n *Node) SetLuaDispatcher(d LuaDispatcher) {
+	n.luaDispatcher = d
 }
 
 func (n *Node) Close() error {

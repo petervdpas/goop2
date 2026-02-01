@@ -13,6 +13,7 @@ import (
 
 	"goop/internal/config"
 	"goop/internal/state"
+	"goop/internal/storage"
 
 	"github.com/fsnotify/fsnotify"
 	lua "github.com/yuin/gopher-lua"
@@ -33,31 +34,47 @@ func (f SenderFunc) SendDirect(ctx context.Context, toPeerID, content string) er
 	return f(ctx, toPeerID, content)
 }
 
+// scriptMeta holds compiled script along with Phase 2 metadata.
+type scriptMeta struct {
+	proto       *lua.FunctionProto
+	description string // from leading --- comment
+	hasCall     bool   // script defines call() entry point
+	isFunction  bool   // true if loaded from functions/ subdirectory
+}
+
+// DataFunctionInfo describes a Lua data function for lua-list responses.
+type DataFunctionInfo struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
 // Engine manages Lua scripts, hot reload, and command dispatch.
 type Engine struct {
-	mu        sync.RWMutex
-	scripts   map[string]*lua.FunctionProto // command name -> compiled proto
-	cfg       config.Lua
-	scriptDir string
-	kv        *kvStore
-	watcher   *fsnotify.Watcher
-	limiter   *rateLimiter
-	selfID    string
-	selfLabel func() string
-	peers     *state.PeerTable
-	closed    chan struct{}
+	mu           sync.RWMutex
+	scripts      map[string]*scriptMeta // command name -> compiled script + metadata
+	cfg          config.Lua
+	scriptDir    string // site/lua/ — chat scripts
+	functionsDir string // site/lua/functions/ — data functions
+	kv           *kvStore
+	db           *storage.DB
+	watcher      *fsnotify.Watcher
+	limiter      *rateLimiter
+	selfID       string
+	selfLabel    func() string
+	peers        *state.PeerTable
+	closed       chan struct{}
 }
 
 // NewEngine creates and starts a Lua scripting engine.
 func NewEngine(cfg config.Lua, peerDir string, selfID string, selfLabel func() string, peers *state.PeerTable) (*Engine, error) {
 	scriptDir := filepath.Join(peerDir, cfg.ScriptDir)
+	functionsDir := filepath.Join(scriptDir, "functions")
 	stateDir := filepath.Join(scriptDir, ".state")
 
-	if err := os.MkdirAll(scriptDir, 0755); err != nil {
-		return nil, fmt.Errorf("create script dir: %w", err)
-	}
-	if err := os.MkdirAll(stateDir, 0755); err != nil {
-		return nil, fmt.Errorf("create state dir: %w", err)
+	for _, dir := range []string{scriptDir, functionsDir, stateDir} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return nil, fmt.Errorf("create dir %s: %w", dir, err)
+		}
 	}
 
 	watcher, err := fsnotify.NewWatcher()
@@ -66,37 +83,33 @@ func NewEngine(cfg config.Lua, peerDir string, selfID string, selfLabel func() s
 	}
 
 	e := &Engine{
-		scripts:   make(map[string]*lua.FunctionProto),
-		cfg:       cfg,
-		scriptDir: scriptDir,
-		kv:        newKVStore(stateDir),
-		watcher:   watcher,
-		limiter:   newRateLimiter(cfg.RateLimitPerPeer, cfg.RateLimitGlobal),
-		selfID:    selfID,
-		selfLabel: selfLabel,
-		peers:     peers,
-		closed:    make(chan struct{}),
+		scripts:      make(map[string]*scriptMeta),
+		cfg:          cfg,
+		scriptDir:    scriptDir,
+		functionsDir: functionsDir,
+		kv:           newKVStore(stateDir),
+		watcher:      watcher,
+		limiter:      newRateLimiter(cfg.RateLimitPerPeer, cfg.RateLimitGlobal),
+		selfID:       selfID,
+		selfLabel:    selfLabel,
+		peers:        peers,
+		closed:       make(chan struct{}),
 	}
 
-	// Initial scan
-	entries, err := os.ReadDir(scriptDir)
-	if err != nil {
-		watcher.Close()
-		return nil, fmt.Errorf("read script dir: %w", err)
-	}
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".lua") {
-			continue
-		}
-		name := strings.TrimSuffix(entry.Name(), ".lua")
-		if err := e.compileScript(name, filepath.Join(scriptDir, entry.Name())); err != nil {
-			log.Printf("LUA: failed to compile %s: %v", entry.Name(), err)
-		}
-	}
+	// Scan chat scripts in scriptDir
+	e.scanDir(scriptDir, false)
 
+	// Scan data functions in functionsDir
+	e.scanDir(functionsDir, true)
+
+	// Watch both directories
 	if err := watcher.Add(scriptDir); err != nil {
 		watcher.Close()
 		return nil, fmt.Errorf("watch script dir: %w", err)
+	}
+	if err := watcher.Add(functionsDir); err != nil {
+		watcher.Close()
+		return nil, fmt.Errorf("watch functions dir: %w", err)
 	}
 
 	go e.watchLoop()
@@ -105,13 +118,37 @@ func NewEngine(cfg config.Lua, peerDir string, selfID string, selfLabel func() s
 	return e, nil
 }
 
+func (e *Engine) scanDir(dir string, isFunction bool) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".lua") {
+			continue
+		}
+		name := strings.TrimSuffix(entry.Name(), ".lua")
+		if err := e.compileScriptAs(name, filepath.Join(dir, entry.Name()), isFunction); err != nil {
+			log.Printf("LUA: failed to compile %s: %v", entry.Name(), err)
+		}
+	}
+}
+
 func (e *Engine) compileScript(name, path string) error {
+	// Detect if this file is in the functions/ subdirectory
+	isFunction := strings.HasPrefix(filepath.Dir(path), e.functionsDir)
+	return e.compileScriptAs(name, path, isFunction)
+}
+
+func (e *Engine) compileScriptAs(name, path string, isFunction bool) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
 
-	chunk, err := parse.Parse(strings.NewReader(string(data)), name)
+	source := string(data)
+
+	chunk, err := parse.Parse(strings.NewReader(source), name)
 	if err != nil {
 		return fmt.Errorf("parse: %w", err)
 	}
@@ -121,12 +158,46 @@ func (e *Engine) compileScript(name, path string) error {
 		return fmt.Errorf("compile: %w", err)
 	}
 
+	meta := &scriptMeta{
+		proto:       proto,
+		description: extractDescription(source),
+		hasCall:     detectEntryPoint(source, "call"),
+		isFunction:  isFunction,
+	}
+
 	e.mu.Lock()
-	e.scripts[name] = proto
+	e.scripts[name] = meta
 	e.mu.Unlock()
 
-	log.Printf("LUA: compiled script %q", name)
+	kind := "chat"
+	if isFunction {
+		kind = "function"
+	}
+	log.Printf("LUA: compiled %s script %q (call=%v)", kind, name, meta.hasCall)
 	return nil
+}
+
+// extractDescription returns the first --- comment from a script source.
+func extractDescription(source string) string {
+	for _, line := range strings.Split(source, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "---") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "---"))
+		}
+		break
+	}
+	return ""
+}
+
+// detectEntryPoint checks if a script defines a given function name.
+func detectEntryPoint(source, funcName string) bool {
+	// Match "function <name>(" with optional whitespace
+	pattern := "function " + funcName + "("
+	patternAlt := "function " + funcName + " ("
+	return strings.Contains(source, pattern) || strings.Contains(source, patternAlt)
 }
 
 func (e *Engine) removeScript(name string) {
@@ -191,7 +262,7 @@ func (e *Engine) Dispatch(ctx context.Context, fromPeerID, content string, sende
 
 	// Lookup script
 	e.mu.RLock()
-	proto, ok := e.scripts[cmdName]
+	meta, ok := e.scripts[cmdName]
 	e.mu.RUnlock()
 
 	if !ok {
@@ -220,7 +291,7 @@ func (e *Engine) Dispatch(ctx context.Context, fromPeerID, content string, sende
 		selfLabel:  e.selfLabel(),
 	}
 
-	result, err := e.executeScript(execCtx, inv, proto, args)
+	result, err := e.executeScript(execCtx, inv, meta.proto, args)
 	if err != nil {
 		log.Printf("LUA: error executing %s: %v", cmdName, err)
 		result = fmt.Sprintf("Script error: %v", err)
@@ -289,6 +360,16 @@ func (e *Engine) executeScript(ctx context.Context, inv *invocationCtx, proto *l
 	}
 }
 
+// SetDB sets the database reference for goop.db access in data functions.
+func (e *Engine) SetDB(db *storage.DB) {
+	e.db = db
+}
+
+// FunctionsDir returns the path to the data functions directory.
+func (e *Engine) FunctionsDir() string {
+	return e.functionsDir
+}
+
 // Commands returns a sorted list of loaded command names.
 func (e *Engine) Commands() []string {
 	e.mu.RLock()
@@ -300,6 +381,131 @@ func (e *Engine) Commands() []string {
 	}
 	sort.Strings(cmds)
 	return cmds
+}
+
+// ListDataFunctions returns metadata for scripts that define call().
+func (e *Engine) ListDataFunctions() any {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	var funcs []DataFunctionInfo
+	for name, meta := range e.scripts {
+		if meta.hasCall {
+			funcs = append(funcs, DataFunctionInfo{
+				Name:        name,
+				Description: meta.description,
+			})
+		}
+	}
+	sort.Slice(funcs, func(i, j int) bool { return funcs[i].Name < funcs[j].Name })
+	return funcs
+}
+
+// CallFunction executes a script's call(request) entry point.
+// This is the Phase 2 data function interface.
+func (e *Engine) CallFunction(ctx context.Context, callerID, function string, params map[string]any) (any, error) {
+	// Rate limit
+	if !e.limiter.Allow(callerID) {
+		return nil, fmt.Errorf("rate limit exceeded")
+	}
+
+	// Lookup script
+	e.mu.RLock()
+	meta, ok := e.scripts[function]
+	e.mu.RUnlock()
+
+	if !ok {
+		return nil, fmt.Errorf("function not found: %s", function)
+	}
+	if !meta.hasCall {
+		return nil, fmt.Errorf("function %s does not support call()", function)
+	}
+
+	// Resolve peer label
+	peerLabel := callerID
+	if sp, ok := e.peers.Get(callerID); ok {
+		peerLabel = sp.Content
+	}
+
+	// Execute with timeout
+	timeout := time.Duration(e.cfg.TimeoutSeconds) * time.Second
+	execCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	inv := &invocationCtx{
+		ctx:        execCtx,
+		scriptName: function,
+		peerID:     callerID,
+		peerLabel:  peerLabel,
+		selfID:     e.selfID,
+		selfLabel:  e.selfLabel(),
+	}
+
+	return e.executeDataFunction(execCtx, inv, meta.proto, params)
+}
+
+func (e *Engine) executeDataFunction(ctx context.Context, inv *invocationCtx, proto *lua.FunctionProto, params map[string]any) (any, error) {
+	L := newSandboxedDataVM(inv, e.kv, e, e.db)
+	defer L.Close()
+
+	// Load compiled proto
+	lfunc := L.NewFunctionFromProto(proto)
+	L.Push(lfunc)
+	if err := L.PCall(0, lua.MultRet, nil); err != nil {
+		return nil, fmt.Errorf("load script: %w", err)
+	}
+
+	// Get call() function
+	callFn := L.GetGlobal("call")
+	if callFn == lua.LNil {
+		return nil, fmt.Errorf("script has no call() function")
+	}
+
+	// Build request table
+	requestTbl := L.NewTable()
+	paramsTbl := goToLua(L, mapToInterface(params))
+	requestTbl.RawSetString("params", paramsTbl)
+
+	// Run in goroutine for timeout
+	type result struct {
+		val any
+		err error
+	}
+	ch := make(chan result, 1)
+
+	go func() {
+		if err := L.CallByParam(lua.P{
+			Fn:      callFn,
+			NRet:    1,
+			Protect: true,
+		}, requestTbl); err != nil {
+			ch <- result{err: err}
+			return
+		}
+		ret := L.Get(-1)
+		L.Pop(1)
+		ch <- result{val: luaToGo(ret)}
+	}()
+
+	select {
+	case r := <-ch:
+		return r.val, r.err
+	case <-ctx.Done():
+		L.Close()
+		return nil, fmt.Errorf("script timed out")
+	}
+}
+
+// mapToInterface converts map[string]any to interface{} for goToLua.
+func mapToInterface(m map[string]any) interface{} {
+	if m == nil {
+		return map[string]interface{}{}
+	}
+	out := make(map[string]interface{}, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
 }
 
 // Close shuts down the engine.

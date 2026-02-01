@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"goop/internal/storage"
+
 	lua "github.com/yuin/gopher-lua"
 )
 
@@ -369,4 +371,65 @@ func commandsFn(engine *Engine) lua.LGFunction {
 		L.Push(tbl)
 		return 1
 	}
+}
+
+// ── DB API (Phase 2 — data functions only) ──
+
+func dbQueryFn(inv *invocationCtx, db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		query := L.CheckString(1)
+
+		// Collect variadic args (query parameters)
+		args := collectLuaArgs(L, 2)
+
+		rows, err := db.LuaQuery(query, args...)
+		if err != nil {
+			L.Push(lua.LNil)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+
+		// Convert []map[string]any to Lua table of tables
+		tbl := L.NewTable()
+		for i, row := range rows {
+			rowTbl := L.NewTable()
+			for k, v := range row {
+				rowTbl.RawSetString(k, goToLua(L, v))
+			}
+			tbl.RawSetInt(i+1, rowTbl)
+		}
+
+		L.Push(tbl)
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
+func dbScalarFn(inv *invocationCtx, db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		query := L.CheckString(1)
+
+		// Collect variadic args (query parameters)
+		args := collectLuaArgs(L, 2)
+
+		val, err := db.LuaScalar(query, args...)
+		if err != nil {
+			L.Push(lua.LNil)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+
+		L.Push(goToLua(L, val))
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
+// collectLuaArgs gathers variadic arguments from the Lua stack starting at position start.
+func collectLuaArgs(L *lua.LState, start int) []any {
+	var args []any
+	for i := start; i <= L.GetTop(); i++ {
+		args = append(args, luaToGo(L.Get(i)))
+	}
+	return args
 }
