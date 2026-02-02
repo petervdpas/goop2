@@ -235,7 +235,9 @@ jobs:
   # ───────────────────────────────────────────────────────────────
   # Linux ARM64 portable tarball (Raspberry Pi)
   # ───────────────────────────────────────────────────────────────
+  # TODO: re-enable when ARM runners are available
   linux_portable_arm64:
+    if: false
     name: Linux ARM64 Portable (tar.gz)
     runs-on: ubuntu-24.04-arm
     steps:
@@ -299,7 +301,9 @@ jobs:
   # ───────────────────────────────────────────────────────────────
   # Linux ARM64 .deb package (Raspberry Pi)
   # ───────────────────────────────────────────────────────────────
+  # TODO: re-enable when ARM runners are available
   linux_deb_arm64:
+    if: false
     name: Linux ARM64 .deb (Raspberry Pi)
     runs-on: ubuntu-24.04-arm
     steps:
@@ -516,7 +520,7 @@ jobs:
   # ───────────────────────────────────────────────────────────────
   release:
     name: Publish GitHub Release
-    needs: [windows, linux_portable, linux_deb, linux_portable_arm64, linux_deb_arm64, rpm_fedora41, rpm_fedora42]
+    needs: [windows, linux_portable, linux_deb, rpm_fedora41, rpm_fedora42]
     runs-on: ubuntu-24.04
     steps:
       - name: Download all artifacts
