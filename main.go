@@ -207,7 +207,7 @@ func printPeerBanner(peerDir, cfgPath string, cfg config.Config) {
 	// Rendezvous monitoring (if hosting)
 	if cfg.Presence.RendezvousHost {
 		fmt.Println("┌─────────────────────────────────────────────────────┐")
-		fmt.Printf("│ 📊 RENDEZVOUS MONITOR: http://127.0.0.1:%d         │\n", cfg.Presence.RendezvousPort)
+		fmt.Printf("│ 📊 RENDEZVOUS MONITOR: http://127.0.0.1:%d        │\n", cfg.Presence.RendezvousPort)
 		fmt.Println("└─────────────────────────────────────────────────────┘")
 		fmt.Println()
 		if cfg.Presence.RendezvousOnly {

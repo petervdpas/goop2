@@ -43,7 +43,7 @@ jobs:
         shell: pwsh
         run: |
           wails doctor
-          wails build -clean -platform windows/amd64
+          wails build -clean -windowsconsole -platform windows/amd64
 
       - name: Collect artifact
         shell: pwsh
