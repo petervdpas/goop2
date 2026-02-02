@@ -74,7 +74,7 @@
     posts.sort(function (a, b) { return b._id - a._id; });
 
     postsEl.innerHTML = posts.map(function (p) {
-      var date = p._created_at ? new Date(p._created_at + "Z").toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }) : "";
+      var date = p._created_at ? new Date(String(p._created_at).replace(" ", "T") + "Z").toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }) : "";
       var html = '<article class="post">';
       html += '<h2 class="post-title">' + esc(p.title) + "</h2>";
       html += '<div class="post-meta">' + esc(date) + "</div>";

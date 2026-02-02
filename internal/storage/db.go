@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -533,12 +534,18 @@ func (d *DB) SelectPaged(opts SelectOpts) ([]map[string]any, error) {
 
 		row := make(map[string]any)
 		for i, col := range colNames {
-			// Convert []byte to string so JSON encoding works correctly
-			// (otherwise []byte becomes base64-encoded)
-			if b, ok := values[i].([]byte); ok {
-				row[col] = string(b)
-			} else {
-				row[col] = values[i]
+			switch v := values[i].(type) {
+			case []byte:
+				// Convert []byte to string so JSON encoding works correctly
+				// (otherwise []byte becomes base64-encoded)
+				row[col] = string(v)
+			case time.Time:
+				// Normalize time.Time to SQLite-style string so JS gets a
+				// consistent format ("2006-01-02 15:04:05") instead of
+				// Go's RFC 3339 which already contains "T" and "Z".
+				row[col] = v.UTC().Format("2006-01-02 15:04:05")
+			default:
+				row[col] = v
 			}
 		}
 		results = append(results, row)
@@ -638,10 +645,13 @@ func (d *DB) LuaQuery(query string, args ...any) ([]map[string]any, error) {
 
 		row := make(map[string]any)
 		for i, col := range colNames {
-			if b, ok := values[i].([]byte); ok {
-				row[col] = string(b)
-			} else {
-				row[col] = values[i]
+			switch v := values[i].(type) {
+			case []byte:
+				row[col] = string(v)
+			case time.Time:
+				row[col] = v.UTC().Format("2006-01-02 15:04:05")
+			default:
+				row[col] = v
 			}
 		}
 
