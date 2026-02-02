@@ -1,0 +1,12 @@
+Package: goop2
+Version: 2.0.0
+Section: net
+Priority: optional
+Architecture: amd64
+Depends: libgtk-3-0, libwebkit2gtk-4.0-37
+Maintainer: Peter van de Pas <peter.vdpas@protonmail.com>
+Description: Ephemeral Web - peer-to-peer presence-based web system
+ Goop2 is a peer-to-peer, presence-based web system for small, personal
+ websites. Each peer is a self-contained node with its own identity,
+ content, and optional local web UI.
+Homepage: https://github.com/petervdpas/goop2

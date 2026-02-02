@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Goop2
+Comment=Ephemeral Web - peer-to-peer presence-based web system
+Exec=/usr/bin/goop2
+Icon=goop2
+Terminal=false
+Categories=Network;P2P;
+Keywords=peer;web;ephemeral;p2p;
+StartupWMClass=goop2
