@@ -209,6 +209,11 @@ func (a *App) CreatePeer(name string) (string, error) {
 		return "", err
 	}
 
+	// Ensure default store templates exist
+	if err := ensureDefaultStoreTemplates(peerDir); err != nil {
+		return "", err
+	}
+
 	return name, nil
 }
 
@@ -450,6 +455,61 @@ func ensureDefaultPeerSite(peerDir string) error {
 		if err := os.WriteFile(stylePath, []byte(defaultStyleCSS), 0o644); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func ensureDefaultStoreTemplates(peerDir string) error {
+	tplDir := filepath.Join(peerDir, "templates", "hello-store")
+
+	// Skip if already exists
+	if _, err := os.Stat(filepath.Join(tplDir, "manifest.json")); err == nil {
+		return nil
+	}
+
+	if err := os.MkdirAll(filepath.Join(tplDir, "css"), 0o755); err != nil {
+		return err
+	}
+
+	manifest := `{
+  "name": "Hello Store",
+  "description": "A simple starter template served from the template store.",
+  "category": "starter",
+  "icon": "🏪"
+}
+`
+	if err := os.WriteFile(filepath.Join(tplDir, "manifest.json"), []byte(manifest), 0o644); err != nil {
+		return err
+	}
+
+	indexHTML := `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Hello from the Store</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <h1>Hello from the Template Store</h1>
+  <p>This site was installed from a store template.</p>
+</body>
+</html>
+`
+	if err := os.WriteFile(filepath.Join(tplDir, "index.html"), []byte(indexHTML), 0o644); err != nil {
+		return err
+	}
+
+	css := `body {
+  font-family: system-ui, sans-serif;
+  max-width: 600px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+h1 { color: #2a6; }
+`
+	if err := os.WriteFile(filepath.Join(tplDir, "css", "style.css"), []byte(css), 0o644); err != nil {
+		return err
 	}
 
 	return nil
