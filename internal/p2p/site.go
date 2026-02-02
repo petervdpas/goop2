@@ -115,7 +115,7 @@ func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (m
 	h = strings.TrimSpace(h)
 
 	if strings.HasPrefix(h, "ERR ") {
-		return "", nil, fmt.Errorf(strings.TrimPrefix(h, "ERR "))
+		return "", nil, fmt.Errorf("%s", strings.TrimPrefix(h, "ERR "))
 	}
 
 	// ---- FIX: parse size from the END ----

@@ -29,7 +29,13 @@ func NewStore(peerFolder string, siteRel string) (*Store, error) {
 	if siteRel == "" {
 		siteRel = "site"
 	}
-	root, err := filepath.Abs(filepath.Join(peerFolder, siteRel))
+	var joined string
+	if filepath.IsAbs(siteRel) {
+		joined = filepath.Clean(siteRel)
+	} else {
+		joined = filepath.Join(peerFolder, siteRel)
+	}
+	root, err := filepath.Abs(joined)
 	if err != nil {
 		return nil, err
 	}

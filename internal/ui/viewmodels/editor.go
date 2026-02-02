@@ -6,9 +6,10 @@ type EditorVM struct {
 	BaseVM
 	CSRF string
 
-	Path    string
-	Content string
-	ETag    string
+	Path     string
+	Content  string
+	ETag     string
+	SiteRoot string // absolute path to the site root directory
 
 	Dir   string
 	Files []EditorFileRow

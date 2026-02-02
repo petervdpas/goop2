@@ -47,7 +47,8 @@
   <h1 id="settings" style="margin-top: 18px;">Settings</h1>
 
   <p class="muted small">
-    Config file: <code>{{.CfgPath}}</code>
+    Config file: <code>{{.CfgPath}}</code><br>
+    Site folder: <code>{{.Cfg.Paths.SiteRoot}}</code>
   </p>
 
   {{if .Saved}}
@@ -208,7 +209,7 @@
         <span class="muted small">On</span>
       </div>
       <div class="hint">
-        When enabled, peers can run !commands defined in your site/lua/ folder.
+        When enabled, peers can run !commands defined in your <code>{{.Cfg.Lua.ScriptDir}}</code> folder.
         {{if .Cfg.Lua.Enabled}}<a href="/lua">Manage scripts</a>{{end}}
       </div>
     </div>

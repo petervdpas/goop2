@@ -16,6 +16,7 @@ import (
 	"goop/internal/config"
 	"goop/internal/state"
 	"goop/internal/storage"
+	"goop/internal/util"
 
 	"github.com/fsnotify/fsnotify"
 	lua "github.com/yuin/gopher-lua"
@@ -70,7 +71,7 @@ type Engine struct {
 
 // NewEngine creates and starts a Lua scripting engine.
 func NewEngine(cfg config.Lua, peerDir string, selfID string, selfLabel func() string, peers *state.PeerTable) (*Engine, error) {
-	scriptDir := filepath.Join(peerDir, cfg.ScriptDir)
+	scriptDir := util.ResolvePath(peerDir, cfg.ScriptDir)
 	functionsDir := filepath.Join(scriptDir, "functions")
 	stateDir := filepath.Join(scriptDir, ".state")
 

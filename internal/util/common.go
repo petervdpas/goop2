@@ -19,6 +19,17 @@ const (
 	ShortTimeout          = 2 * time.Second
 )
 
+// ResolvePath joins base and rel, but if rel is an absolute path it is returned
+// directly (cleaned). Go's filepath.Join strips leading slashes from later
+// arguments, so filepath.Join("a", "/b") returns "a/b" not "/b".  This helper
+// gives the intuitive behaviour: absolute paths override the base.
+func ResolvePath(base, rel string) string {
+	if filepath.IsAbs(rel) {
+		return filepath.Clean(rel)
+	}
+	return filepath.Join(base, rel)
+}
+
 // ValidatePeerName validates and normalizes a peer name.
 // Returns the trimmed name and an error if invalid.
 func ValidatePeerName(name string) (string, error) {

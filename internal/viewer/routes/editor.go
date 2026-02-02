@@ -37,11 +37,12 @@ func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			etag = "none"
 		} else if err != nil {
 			vm := viewmodels.EditorVM{
-				BaseVM: baseVM("Editor", "editor", "page.editor", d),
-				CSRF:   csrf,
-				Path:   rel,
-				Dir:    dir,
-				Error:  err.Error(),
+				BaseVM:   baseVM("Editor", "editor", "page.editor", d),
+				CSRF:     csrf,
+				Path:     rel,
+				Dir:      dir,
+				SiteRoot: d.Content.RootAbs(),
+				Error:    err.Error(),
 			}
 			render.Render(w, vm)
 			return
@@ -71,15 +72,16 @@ func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 
 		vm := viewmodels.EditorVM{
-			BaseVM:  baseVM("Create", "create", "page.editor", d),
-			CSRF:    csrf,
-			Path:    rel,
-			Dir:     dir,
-			Files:   files,
-			Tree:    treeRows,
-			Content: string(b),
-			ETag:    etag,
-			Saved:   (r.URL.Query().Get("saved") == "1"),
+			BaseVM:   baseVM("Create", "create", "page.editor", d),
+			CSRF:     csrf,
+			Path:     rel,
+			Dir:      dir,
+			Files:    files,
+			Tree:     treeRows,
+			Content:  string(b),
+			ETag:     etag,
+			SiteRoot: d.Content.RootAbs(),
+			Saved:    (r.URL.Query().Get("saved") == "1"),
 		}
 		render.Render(w, vm)
 	})

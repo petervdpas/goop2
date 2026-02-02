@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -66,7 +65,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 
 		templatesDir := ""
 		if cfg.Presence.TemplatesDir != "" {
-			templatesDir = filepath.Join(o.PeerDir, cfg.Presence.TemplatesDir)
+			templatesDir = util.ResolvePath(o.PeerDir, cfg.Presence.TemplatesDir)
 		}
 
 		rv = rendezvous.New(addr, templatesDir)
@@ -129,14 +128,14 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 
 	peers := state.NewPeerTable()
 
-	keyPath := filepath.Join(o.PeerDir, cfg.Identity.KeyFile)
+	keyPath := util.ResolvePath(o.PeerDir, cfg.Identity.KeyFile)
 	node, err := p2p.New(ctx, cfg.P2P.ListenPort, keyPath, peers, selfContent, selfEmail)
 	if err != nil {
 		return err
 	}
 	defer node.Close()
 
-	node.EnableSite(filepath.Join(o.PeerDir, "site"))
+	node.EnableSite(util.ResolvePath(o.PeerDir, cfg.Paths.SiteRoot))
 
 	// ── Avatar store
 	avatarStore := avatar.NewStore(o.PeerDir)
@@ -216,7 +215,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	// ── Viewer
 	if cfg.Viewer.HTTPAddr != "" {
 		addr, url, _ := NormalizeLocalViewer(cfg.Viewer.HTTPAddr)
-		store, err := content.NewStore(o.PeerDir, "site")
+		store, err := content.NewStore(o.PeerDir, cfg.Paths.SiteRoot)
 		if err != nil {
 			return err
 		}

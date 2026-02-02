@@ -33,6 +33,20 @@
   justify-content: space-between;
   gap: 12px;
   padding: 10px 10px 6px;
+  min-width: 0;
+}
+
+.lua-panel-section-head > div{
+  min-width: 0;
+}
+
+.lua-panel-section-head code{
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
 }
 
 .lua-panel-section-body{

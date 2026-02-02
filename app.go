@@ -178,6 +178,18 @@ func (a *App) OpenInBrowser(url string) {
 	runtime.BrowserOpenURL(a.ctx, url)
 }
 
+// SelectSiteFolder opens a native directory picker and returns the chosen path.
+// Returns empty string if the user cancels.
+func (a *App) SelectSiteFolder() (string, error) {
+	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Choose site folder",
+	})
+	if err != nil {
+		return "", err
+	}
+	return dir, nil
+}
+
 // -------------------------
 // Frontend API (peers)
 // -------------------------
@@ -186,7 +198,7 @@ func (a *App) ListPeers() ([]PeerInfo, error) {
 	return listPeerInfos("./peers")
 }
 
-func (a *App) CreatePeer(name string) (string, error) {
+func (a *App) CreatePeer(name string, siteFolder string) (string, error) {
 	name, err := util.ValidatePeerName(name)
 	if err != nil {
 		return "", err
@@ -200,12 +212,28 @@ func (a *App) CreatePeer(name string) (string, error) {
 	}
 
 	// Ensure config exists
-	if _, _, err := config.Ensure(cfgPath); err != nil {
+	cfg, created, err := config.Ensure(cfgPath)
+	if err != nil {
 		return "", err
 	}
 
+	// If a site folder was chosen, update all paths that derive from site root
+	if siteFolder != "" && created {
+		cfg.Paths.SiteRoot = siteFolder
+		cfg.Paths.SiteSource = filepath.Join(siteFolder, "src")
+		cfg.Paths.SiteStage = filepath.Join(siteFolder, "stage")
+		cfg.Lua.ScriptDir = filepath.Join(siteFolder, "lua")
+		if err := config.Save(cfgPath, cfg); err != nil {
+			return "", err
+		}
+	}
+
 	// Ensure default site files exist (index.html + style.css)
-	if err := ensureDefaultPeerSite(peerDir); err != nil {
+	siteDir := filepath.Join(peerDir, "site")
+	if siteFolder != "" {
+		siteDir = siteFolder
+	}
+	if err := ensureDefaultPeerSite(siteDir); err != nil {
 		return "", err
 	}
 
@@ -431,8 +459,7 @@ func writeUIState(path string, s uiState) error {
 	return util.WriteJSONFile(path, s)
 }
 
-func ensureDefaultPeerSite(peerDir string) error {
-	siteDir := filepath.Join(peerDir, "site")
+func ensureDefaultPeerSite(siteDir string) error {
 	if err := os.MkdirAll(siteDir, 0o755); err != nil {
 		return err
 	}

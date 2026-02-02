@@ -14,6 +14,7 @@ import (
 	"goop/internal/luaprefabs"
 	"goop/internal/ui/render"
 	"goop/internal/ui/viewmodels"
+	"goop/internal/util"
 )
 
 var validScriptName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
@@ -24,7 +25,7 @@ func resolveTargetDir(d Deps, isFunc bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(d.PeerDir, cfg.Lua.ScriptDir)
+	dir := util.ResolvePath(d.PeerDir, cfg.Lua.ScriptDir)
 	if isFunc {
 		dir = filepath.Join(dir, "functions")
 	}
@@ -46,7 +47,7 @@ func registerLuaRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			return
 		}
 
-		scriptDir := filepath.Join(d.PeerDir, cfg.Lua.ScriptDir)
+		scriptDir := util.ResolvePath(d.PeerDir, cfg.Lua.ScriptDir)
 		functionsDir := filepath.Join(scriptDir, "functions")
 		scripts := listScripts(scriptDir)
 		functions := listScripts(functionsDir)
@@ -86,6 +87,7 @@ func registerLuaRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			Scripts:    scripts,
 			Functions:  functions,
 			Prefabs:    prefabs,
+			ScriptDir:  cfg.Lua.ScriptDir,
 			LuaEnabled: cfg.Lua.Enabled,
 		}
 

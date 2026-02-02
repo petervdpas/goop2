@@ -23,10 +23,11 @@ type PrefabStatus struct {
 
 type LuaVM struct {
 	BaseVM
-	CSRF      string
-	Scripts   []LuaScript // chat scripts from lua/
-	Functions []LuaScript // data functions from lua/functions/
-	Prefabs   []PrefabStatus
+	CSRF       string
+	Scripts    []LuaScript // chat scripts from lua/
+	Functions  []LuaScript // data functions from lua/functions/
+	Prefabs    []PrefabStatus
+	ScriptDir  string // display path for the script directory
 
 	// Editor state (when editing a script)
 	EditName   string

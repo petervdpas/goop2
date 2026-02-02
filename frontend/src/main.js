@@ -137,6 +137,30 @@ async function renderLauncher(host) {
   row.appendChild(name);
   row.appendChild(create);
   createBody.appendChild(row);
+
+  // Site folder picker
+  let selectedSiteFolder = "";
+  const folderRow = div("row folderRow");
+  const browse = btn("Browse…", "secondary");
+  const folderLabel = div("folderLabel");
+  folderLabel.textContent = "Site folder: default (peers/<name>/site)";
+  folderRow.appendChild(browse);
+  folderRow.appendChild(folderLabel);
+  createBody.appendChild(folderRow);
+
+  browse.addEventListener("click", async () => {
+    try {
+      const folder = await window.go.main.App.SelectSiteFolder();
+      if (folder) {
+        selectedSiteFolder = folder;
+        folderLabel.textContent = folder;
+        folderLabel.title = folder;
+      }
+    } catch (e) {
+      // user cancelled or error — ignore
+    }
+  });
+
   createCard.appendChild(createBody);
   panel.appendChild(createCard);
 
@@ -330,8 +354,10 @@ async function renderLauncher(host) {
     create.textContent = "Creating…";
 
     try {
-      const created = await window.go.main.App.CreatePeer(v);
+      const created = await window.go.main.App.CreatePeer(v, selectedSiteFolder);
       name.value = "";
+      selectedSiteFolder = "";
+      folderLabel.textContent = "Site folder: default (peers/<name>/site)";
       await refreshPeers(created);
       status.textContent = `Created: ${created}`;
     } catch (e) {
