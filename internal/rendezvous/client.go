@@ -60,6 +60,67 @@ func (c *Client) Publish(ctx context.Context, pm proto.PresenceMsg) error {
 	return nil
 }
 
+// ListTemplates fetches the template store listing from the rendezvous server.
+// Returns nil (not an error) if the server has no template store (404).
+func (c *Client) ListTemplates(ctx context.Context) ([]StoreMeta, error) {
+	if c.BaseURL == "" {
+		return nil, nil
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/api/templates", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+	}()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+	if resp.StatusCode/100 != 2 {
+		return nil, fmt.Errorf("list templates: status %s", resp.Status)
+	}
+
+	var out []StoreMeta
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// DownloadTemplateBundle fetches the tar.gz bundle for a store template.
+// Caller must close the returned ReadCloser.
+func (c *Client) DownloadTemplateBundle(ctx context.Context, dir string) (io.ReadCloser, error) {
+	if c.BaseURL == "" {
+		return nil, fmt.Errorf("no base url")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/api/templates/"+dir+"/bundle", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode/100 != 2 {
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		return nil, fmt.Errorf("download bundle: status %s", resp.Status)
+	}
+
+	return resp.Body, nil
+}
+
 // SubscribeEvents connects to /events and calls onMsg for each "data: <json>" message.
 // It reconnects automatically with a small backoff until ctx is cancelled.
 func (c *Client) SubscribeEvents(ctx context.Context, onMsg func(proto.PresenceMsg)) {

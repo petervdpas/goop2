@@ -3,13 +3,20 @@
 package routes
 
 import (
+	"archive/tar"
+	"compress/gzip"
+	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
+	"goop/internal/rendezvous"
 	"goop/internal/sitetemplates"
 	"goop/internal/storage"
 	"goop/internal/ui/render"
@@ -26,15 +33,42 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 		templates, _ := sitetemplates.List()
 
+		// Fetch store templates from rendezvous servers (best-effort, 5s timeout)
+		var storeTemplates []rendezvous.StoreMeta
+		var storeError string
+		if len(d.RVClients) > 0 {
+			seen := map[string]bool{}
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
+
+			for _, c := range d.RVClients {
+				list, err := c.ListTemplates(ctx)
+				if err != nil {
+					if storeError == "" {
+						storeError = "could not connect to template store"
+					}
+					continue
+				}
+				for _, m := range list {
+					if !seen[m.Dir] {
+						seen[m.Dir] = true
+						storeTemplates = append(storeTemplates, m)
+					}
+				}
+			}
+		}
+
 		vm := viewmodels.TemplatesVM{
-			BaseVM:    baseVM("Templates", "create", "page.templates", d),
-			CSRF:      csrf,
-			Templates: templates,
+			BaseVM:         baseVM("Templates", "create", "page.templates", d),
+			CSRF:           csrf,
+			Templates:      templates,
+			StoreTemplates: storeTemplates,
+			StoreError:     storeError,
 		}
 		render.Render(w, vm)
 	})
 
-	// POST /api/templates/apply — apply a template (resets site + db)
+	// POST /api/templates/apply — apply a built-in template (resets site + db)
 	mux.HandleFunc("/api/templates/apply", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -62,72 +96,29 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			return
 		}
 
-		// 1. Drop all user database tables
-		if d.DB != nil {
-			if err := dropAllTables(d.DB); err != nil {
-				http.Error(w, "failed to clear database: "+err.Error(), http.StatusInternalServerError)
-				return
-			}
-		}
-
-		// 2. Clear site files (preserve lua/ directory for chat scripts)
-		if d.Content != nil {
-			root := d.Content.RootAbs()
-			if err := clearSitePreserveLua(root); err != nil {
-				http.Error(w, "failed to clear site: "+err.Error(), http.StatusInternalServerError)
-				return
-			}
-			if err := d.Content.EnsureRoot(); err != nil {
-				http.Error(w, "failed to recreate site dir: "+err.Error(), http.StatusInternalServerError)
-				return
-			}
-		}
-
-		// 3. Write template site files
+		// Get template files and metadata from embedded templates
 		files, err := sitetemplates.SiteFiles(req.Template)
 		if err != nil {
 			http.Error(w, "template not found: "+err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		if d.Content != nil {
-			root := d.Content.RootAbs()
-			for rel, data := range files {
-				abs := filepath.Join(root, rel)
-				if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
-					http.Error(w, "failed to create dir: "+err.Error(), http.StatusInternalServerError)
-					return
-				}
-				if err := os.WriteFile(abs, data, 0o644); err != nil {
-					http.Error(w, "failed to write file: "+err.Error(), http.StatusInternalServerError)
-					return
+		schema, _ := sitetemplates.Schema(req.Template)
+		meta, _ := sitetemplates.GetMeta(req.Template)
+
+		var tablePolicies map[string]string
+		if len(meta.Tables) > 0 {
+			tablePolicies = make(map[string]string)
+			for name, tp := range meta.Tables {
+				if tp.InsertPolicy != "" {
+					tablePolicies[name] = tp.InsertPolicy
 				}
 			}
 		}
 
-		// 4. Run template schema SQL
-		if d.DB != nil {
-			schema, err := sitetemplates.Schema(req.Template)
-			if err == nil && schema != "" {
-				if _, err := d.DB.Exec(schema); err != nil {
-					http.Error(w, "failed to create tables: "+err.Error(), http.StatusInternalServerError)
-					return
-				}
-				// Register each table found in the schema
-				for _, name := range parseTableNames(schema) {
-					d.DB.Exec("INSERT OR REPLACE INTO _tables (name, schema) VALUES (?, ?)", name, schema)
-				}
-			}
-
-			// 5. Apply per-table insert policies from manifest
-			meta, err := sitetemplates.GetMeta(req.Template)
-			if err == nil && len(meta.Tables) > 0 {
-				for tableName, tp := range meta.Tables {
-					if tp.InsertPolicy != "" {
-						d.DB.SetTableInsertPolicy(tableName, tp.InsertPolicy)
-					}
-				}
-			}
+		if err := applyTemplateFiles(d, files, schema, tablePolicies); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -136,6 +127,216 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			"template": req.Template,
 		})
 	})
+
+	// POST /api/templates/apply-store — apply a store template (resets site + db)
+	mux.HandleFunc("/api/templates/apply-store", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if !isLocalRequest(r) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		var req struct {
+			Template string `json:"template"`
+			CSRF     string `json:"csrf"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		if req.CSRF != csrf {
+			http.Error(w, "bad csrf", http.StatusForbidden)
+			return
+		}
+		if req.Template == "" {
+			http.Error(w, "template name required", http.StatusBadRequest)
+			return
+		}
+
+		// Download bundle from first rendezvous that has it
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancel()
+
+		var body io.ReadCloser
+		var dlErr error
+		for _, c := range d.RVClients {
+			body, dlErr = c.DownloadTemplateBundle(ctx, req.Template)
+			if dlErr == nil {
+				break
+			}
+		}
+		if dlErr != nil {
+			http.Error(w, "failed to download template: "+dlErr.Error(), http.StatusBadGateway)
+			return
+		}
+		defer body.Close()
+
+		// Extract tar.gz into memory
+		allFiles, err := extractTarGz(body)
+		if err != nil {
+			http.Error(w, "failed to extract template: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Separate site files, schema, and manifest
+		var schema string
+		var manifest rendezvous.StoreMeta
+		siteFiles := make(map[string][]byte)
+
+		for rel, data := range allFiles {
+			switch rel {
+			case "schema.sql":
+				schema = string(data)
+			case "manifest.json":
+				json.Unmarshal(data, &manifest)
+			default:
+				siteFiles[rel] = data
+			}
+		}
+
+		var tablePolicies map[string]string
+		if len(manifest.Tables) > 0 {
+			tablePolicies = make(map[string]string)
+			for name, tp := range manifest.Tables {
+				if tp.InsertPolicy != "" {
+					tablePolicies[name] = tp.InsertPolicy
+				}
+			}
+		}
+
+		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"status":   "applied",
+			"template": req.Template,
+		})
+	})
+}
+
+// applyTemplateFiles runs the 5-step apply flow:
+// 1. Drop all user tables
+// 2. Clear site files (preserve lua/)
+// 3. Write template site files
+// 4. Execute schema.sql
+// 5. Apply table insert policies
+func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePolicies map[string]string) error {
+	// 1. Drop all user database tables
+	if d.DB != nil {
+		if err := dropAllTables(d.DB); err != nil {
+			return fmt.Errorf("failed to clear database: %w", err)
+		}
+	}
+
+	// 2. Clear site files (preserve lua/)
+	if d.Content != nil {
+		root := d.Content.RootAbs()
+		if err := clearSitePreserveLua(root); err != nil {
+			return fmt.Errorf("failed to clear site: %w", err)
+		}
+		if err := d.Content.EnsureRoot(); err != nil {
+			return fmt.Errorf("failed to recreate site dir: %w", err)
+		}
+	}
+
+	// 3. Write template site files
+	if d.Content != nil {
+		root := d.Content.RootAbs()
+		for rel, data := range files {
+			abs := filepath.Join(root, rel)
+			if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+				return fmt.Errorf("failed to create dir: %w", err)
+			}
+			if err := os.WriteFile(abs, data, 0o644); err != nil {
+				return fmt.Errorf("failed to write file: %w", err)
+			}
+		}
+	}
+
+	// 4. Run template schema SQL
+	if d.DB != nil && schema != "" {
+		if _, err := d.DB.Exec(schema); err != nil {
+			return fmt.Errorf("failed to create tables: %w", err)
+		}
+		for _, name := range parseTableNames(schema) {
+			d.DB.Exec("INSERT OR REPLACE INTO _tables (name, schema) VALUES (?, ?)", name, schema)
+		}
+	}
+
+	// 5. Apply per-table insert policies
+	if d.DB != nil && len(tablePolicies) > 0 {
+		for tableName, policy := range tablePolicies {
+			d.DB.SetTableInsertPolicy(tableName, policy)
+		}
+	}
+
+	return nil
+}
+
+// extractTarGz reads a tar.gz stream into a map of relative path → content.
+// Strips the top-level directory prefix, rejects paths with "..",
+// and enforces a 10MB per-file limit.
+func extractTarGz(r io.Reader) (map[string][]byte, error) {
+	const maxFileSize = 10 << 20 // 10MB
+
+	gr, err := gzip.NewReader(r)
+	if err != nil {
+		return nil, fmt.Errorf("gzip: %w", err)
+	}
+	defer gr.Close()
+
+	tr := tar.NewReader(gr)
+	files := make(map[string][]byte)
+
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("tar: %w", err)
+		}
+
+		if hdr.Typeflag != tar.TypeReg {
+			continue
+		}
+
+		// Strip top-level directory prefix (e.g. "blog/index.html" → "index.html")
+		name := hdr.Name
+		if i := strings.IndexByte(name, '/'); i >= 0 {
+			name = name[i+1:]
+		}
+		if name == "" {
+			continue
+		}
+
+		// Reject path traversal
+		if strings.Contains(name, "..") {
+			continue
+		}
+
+		if hdr.Size > maxFileSize {
+			return nil, fmt.Errorf("file %q exceeds 10MB limit", name)
+		}
+
+		data, err := io.ReadAll(io.LimitReader(tr, maxFileSize+1))
+		if err != nil {
+			return nil, fmt.Errorf("read %q: %w", name, err)
+		}
+		if int64(len(data)) > maxFileSize {
+			return nil, fmt.Errorf("file %q exceeds 10MB limit", name)
+		}
+
+		files[name] = data
+	}
+
+	return files, nil
 }
 
 var reCreateTable = regexp.MustCompile(`(?i)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)`)

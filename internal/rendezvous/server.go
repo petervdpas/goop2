@@ -40,6 +40,8 @@ type Server struct {
 
 	tmpl  *template.Template
 	style []byte
+
+	templateStore *TemplateStore
 }
 
 type peerRow struct {
@@ -55,15 +57,16 @@ type peerRow struct {
 }
 
 type indexVM struct {
-	Title       string
-	Endpoint    string
-	ConnectURLs []string
-	PeerCount   int
-	Peers       []peerRow
-	Now         string
+	Title          string
+	Endpoint       string
+	ConnectURLs    []string
+	PeerCount      int
+	Peers          []peerRow
+	Now            string
+	StoreTemplates []StoreMeta
 }
 
-func New(addr string) *Server {
+func New(addr string, templatesDir string) *Server {
 	funcs := template.FuncMap{
 		"statusClass": func(t string) string {
 			switch t {
@@ -109,7 +112,7 @@ func New(addr string) *Server {
 		css = []byte("/* missing style.css */")
 	}
 
-	return &Server{
+	s := &Server{
 		addr:    addr,
 		clients: map[chan []byte]struct{}{},
 		peers:   map[string]peerRow{},
@@ -118,6 +121,10 @@ func New(addr string) *Server {
 		tmpl:    tmpl,
 		style:   css,
 	}
+
+	s.templateStore = NewTemplateStore(templatesDir)
+
+	return s
 }
 
 func (s *Server) Start(ctx context.Context) error {
@@ -226,6 +233,12 @@ func (s *Server) Start(ctx context.Context) error {
 
 		w.WriteHeader(http.StatusNoContent)
 	})
+
+	// Template store API
+	if s.templateStore != nil {
+		mux.HandleFunc("/api/templates", s.handleTemplateList)
+		mux.HandleFunc("/api/templates/", s.handleTemplateRoutes)
+	}
 
 	s.srv = &http.Server{
 		Addr:              s.addr,
@@ -494,15 +507,73 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 	peers := s.snapshotPeers()
 
+	var storeTemplates []StoreMeta
+	if s.templateStore != nil {
+		storeTemplates = s.templateStore.List()
+	}
+
 	w.Header().Set("content-type", "text/html; charset=utf-8")
 	_ = s.tmpl.Execute(w, indexVM{
-		Title:       "Goop² Rendezvous",
-		Endpoint:    s.URL(),
-		ConnectURLs: s.connectURLs(),
-		PeerCount:   len(peers),
-		Peers:       peers,
-		Now:         time.Now().Format("2006-01-02 15:04:05"),
+		Title:          "Goop² Rendezvous",
+		Endpoint:       s.URL(),
+		ConnectURLs:    s.connectURLs(),
+		PeerCount:      len(peers),
+		Peers:          peers,
+		Now:            time.Now().Format("2006-01-02 15:04:05"),
+		StoreTemplates: storeTemplates,
 	})
+}
+
+func (s *Server) handleTemplateList(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(s.templateStore.List())
+}
+
+func (s *Server) handleTemplateRoutes(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// /api/templates/<dir>/manifest.json  or  /api/templates/<dir>/bundle
+	path := strings.TrimPrefix(r.URL.Path, "/api/templates/")
+	parts := strings.SplitN(path, "/", 2)
+	if len(parts) != 2 || parts[0] == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	dir, action := parts[0], parts[1]
+
+	switch action {
+	case "manifest.json":
+		meta, ok := s.templateStore.GetManifest(dir)
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_ = json.NewEncoder(w).Encode(meta)
+
+	case "bundle":
+		_, ok := s.templateStore.GetManifest(dir)
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/gzip")
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", dir+".tar.gz"))
+		if err := s.templateStore.WriteBundle(w, dir); err != nil {
+			log.Printf("template bundle write error: %v", err)
+		}
+
+	default:
+		http.NotFound(w, r)
+	}
 }
 
 func validatePresence(pm proto.PresenceMsg) error {

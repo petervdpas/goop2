@@ -62,6 +62,7 @@
     <div class="tabs">
       <button class="tab-button active" data-tab="peers">📡 Active Peers</button>
       <button class="tab-button" data-tab="logs">📋 Server Logs</button>
+      {{if .StoreTemplates}}<button class="tab-button" data-tab="templates">🏪 Template Store <span class="tab-badge">{{len .StoreTemplates}}</span></button>{{end}}
     </div>
 
     <div class="tab-content active" id="peers-tab">
@@ -106,6 +107,31 @@
         </div>
       </div>
     </div>
+
+    {{if .StoreTemplates}}
+    <div class="tab-content" id="templates-tab">
+      <div class="templates-section">
+        <h2 class="section-title">Template Store</h2>
+        <p class="templates-hint">These templates are available to peers connected to this rendezvous server.</p>
+        <div class="rv-tpl-grid">
+          {{range .StoreTemplates}}
+          <div class="rv-tpl-card">
+            <div class="rv-tpl-icon">{{.Icon}}</div>
+            <div class="rv-tpl-body">
+              <div class="rv-tpl-name">{{.Name}}</div>
+              <div class="rv-tpl-cat">{{.Category}}</div>
+              <div class="rv-tpl-desc">{{.Description}}</div>
+            </div>
+            <div class="rv-tpl-footer">
+              <span class="rv-tpl-dir">{{.Dir}}</span>
+              <a class="rv-tpl-dl" href="/api/templates/{{.Dir}}/bundle" title="Download bundle">⬇ bundle</a>
+            </div>
+          </div>
+          {{end}}
+        </div>
+      </div>
+    </div>
+    {{end}}
 
     <script>
       // Format bytes helper

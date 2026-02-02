@@ -63,7 +63,13 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	var rv *rendezvous.Server
 	if cfg.Presence.RendezvousHost {
 		addr := fmt.Sprintf("127.0.0.1:%d", cfg.Presence.RendezvousPort)
-		rv = rendezvous.New(addr)
+
+		templatesDir := ""
+		if cfg.Presence.TemplatesDir != "" {
+			templatesDir = filepath.Join(o.PeerDir, cfg.Presence.TemplatesDir)
+		}
+
+		rv = rendezvous.New(addr, templatesDir)
 		if err := rv.Start(ctx); err != nil {
 			return err
 		}
@@ -231,6 +237,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			AvatarStore: avatarStore,
 			AvatarCache: avatarCache,
 			PeerDir:     o.PeerDir,
+			RVClients:   rvClients,
 		})
 	}
 

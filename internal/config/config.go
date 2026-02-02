@@ -57,6 +57,10 @@ type Presence struct {
 	// If true: run ONLY rendezvous server; do NOT start libp2p peer node.
 	// This implies RendezvousHost=true and requires a valid RendezvousPort.
 	RendezvousOnly bool `json:"rendezvous_only"`
+
+	// Directory containing store templates served by the rendezvous server.
+	// Relative to the peer directory. Empty/missing dir means no store templates.
+	TemplatesDir string `json:"templates_dir"`
 }
 
 type Profile struct {
@@ -103,6 +107,7 @@ func Default() Config {
 			RendezvousPort: 8787,
 			RendezvousWAN:  "",
 			RendezvousOnly: false,
+			TemplatesDir:   "templates",
 		},
 		Profile: Profile{
 			Label: "hello",

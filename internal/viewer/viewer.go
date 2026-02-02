@@ -9,6 +9,7 @@ import (
 	"goop/internal/content"
 	"goop/internal/group"
 	"goop/internal/p2p"
+	"goop/internal/rendezvous"
 	"goop/internal/state"
 	"goop/internal/storage"
 	viewerassets "goop/internal/ui/assets"
@@ -37,6 +38,8 @@ type Viewer struct {
 	BaseURL string
 
 	PeerDir string // root directory for this peer's data
+
+	RVClients []*rendezvous.Client
 }
 
 func Start(addr string, v Viewer) error {
@@ -71,6 +74,7 @@ func Start(addr string, v Viewer) error {
 		AvatarStore: v.AvatarStore,
 		AvatarCache: v.AvatarCache,
 		PeerDir:     v.PeerDir,
+		RVClients:   v.RVClients,
 	})
 
 	// Register chat endpoints if chat manager is available

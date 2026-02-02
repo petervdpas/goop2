@@ -7,6 +7,7 @@ import (
 	"goop/internal/avatar"
 	"goop/internal/content"
 	"goop/internal/p2p"
+	"goop/internal/rendezvous"
 	"goop/internal/state"
 	"goop/internal/storage"
 )
@@ -37,6 +38,8 @@ type Deps struct {
 	RendezvousURL  string
 
 	PeerDir string // root directory for this peer's data
+
+	RVClients []*rendezvous.Client
 }
 
 func Register(mux *http.ServeMux, d Deps) {

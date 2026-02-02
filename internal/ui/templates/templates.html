@@ -11,23 +11,47 @@
   <h2 class="tpl-heading">Choose a template</h2>
   <p class="muted small tpl-sub">Applying a template will replace your entire site and database.</p>
 
+  <h3 class="tpl-section-heading">Built-in</h3>
   <div class="tpl-grid">
     {{range .Templates}}
-    <div class="tpl-card" data-dir="{{.Dir}}">
+    <div class="tpl-card" data-dir="{{.Dir}}" data-source="builtin">
       <div class="tpl-card-icon">{{.Icon}}</div>
       <div class="tpl-card-body">
         <div class="tpl-card-name">{{.Name}}</div>
         <div class="tpl-card-cat muted small">{{.Category}}</div>
         <div class="tpl-card-desc small">{{.Description}}</div>
       </div>
-      <button type="button" class="tpl-card-apply" data-dir="{{.Dir}}" data-name="{{.Name}}">
+      <button type="button" class="tpl-card-apply" data-dir="{{.Dir}}" data-name="{{.Name}}" data-source="builtin">
         Apply
       </button>
     </div>
     {{else}}
-    <div class="muted">No templates available.</div>
+    <div class="muted">No built-in templates available.</div>
     {{end}}
   </div>
+
+  <h3 class="tpl-section-heading">Template Store <span class="tpl-badge-store">store</span></h3>
+  {{if .StoreError}}
+  <div class="muted small">{{.StoreError}}</div>
+  {{else if .StoreTemplates}}
+  <div class="tpl-grid">
+    {{range .StoreTemplates}}
+    <div class="tpl-card" data-dir="{{.Dir}}" data-source="store">
+      <div class="tpl-card-icon">{{.Icon}}</div>
+      <div class="tpl-card-body">
+        <div class="tpl-card-name">{{.Name}} <span class="tpl-badge-store">store</span></div>
+        <div class="tpl-card-cat muted small">{{.Category}}</div>
+        <div class="tpl-card-desc small">{{.Description}}</div>
+      </div>
+      <button type="button" class="tpl-card-apply" data-dir="{{.Dir}}" data-name="{{.Name}}" data-source="store">
+        Apply
+      </button>
+    </div>
+    {{end}}
+  </div>
+  {{else}}
+  <div class="muted small">No store templates available.</div>
+  {{end}}
 </div>
 
 <script>
@@ -36,23 +60,26 @@
 
   document.querySelectorAll('.tpl-card-apply').forEach(function(btn) {
     btn.addEventListener('click', function() {
-      var dir  = btn.getAttribute('data-dir');
-      var name = btn.getAttribute('data-name');
+      var dir    = btn.getAttribute('data-dir');
+      var name   = btn.getAttribute('data-name');
+      var source = btn.getAttribute('data-source');
 
       var msg = 'Apply "' + name + '"?\n\nThis will DELETE all your current site files and database tables and replace them with the template. This cannot be undone.';
 
       if (window.Goop && window.Goop.ui && window.Goop.ui.confirm) {
         Goop.ui.confirm(msg, 'Apply Template').then(function(ok) {
-          if (ok) applyTemplate(dir, name);
+          if (ok) applyTemplate(dir, name, source);
         });
       } else if (confirm(msg)) {
-        applyTemplate(dir, name);
+        applyTemplate(dir, name, source);
       }
     });
   });
 
-  function applyTemplate(dir, name) {
-    fetch('/api/templates/apply', {
+  function applyTemplate(dir, name, source) {
+    var url = source === 'store' ? '/api/templates/apply-store' : '/api/templates/apply';
+
+    fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ template: dir, csrf: csrf })

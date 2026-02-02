@@ -105,3 +105,32 @@
   background: var(--accent);
   color: var(--bg);
 }
+
+/* ── Section headings ── */
+.tpl-section-heading {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 1.5rem 0 0.75rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tpl-section-heading:first-of-type {
+  margin-top: 0;
+}
+
+/* ── Store badge ── */
+.tpl-badge-store {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--bg);
+  vertical-align: middle;
+  line-height: 1;
+}

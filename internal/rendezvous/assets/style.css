@@ -579,6 +579,133 @@ h1 {
   font-style: italic;
 }
 
+/* Tab badge */
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 10px;
+  background: var(--accent-blue);
+  color: #fff;
+  line-height: 1;
+}
+
+/* Template Store Section */
+.templates-section {
+  margin-top: 24px;
+}
+
+.templates-hint {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.rv-tpl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.rv-tpl-card {
+  background: var(--bg-secondary);
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s;
+  position: relative;
+  overflow: hidden;
+}
+
+.rv-tpl-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--accent-green), var(--accent-blue));
+}
+
+.rv-tpl-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(59, 130, 246, 0.3);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+}
+
+.rv-tpl-icon {
+  font-size: 2.5rem;
+  margin-bottom: 12px;
+}
+
+.rv-tpl-body {
+  flex: 1;
+}
+
+.rv-tpl-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.rv-tpl-cat {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.rv-tpl-desc {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.rv-tpl-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.rv-tpl-dir {
+  font-size: 12px;
+  font-family: 'Courier New', monospace;
+  color: var(--text-secondary);
+  background: rgba(0, 0, 0, 0.15);
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.rv-tpl-dl {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-blue);
+  text-decoration: none;
+  padding: 6px 14px;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.rv-tpl-dl:hover {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: var(--accent-blue);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .container {
@@ -610,5 +737,9 @@ h1 {
   .logs-container {
     max-height: 400px;
     font-size: 12px;
+  }
+
+  .rv-tpl-grid {
+    grid-template-columns: 1fr;
   }
 }
