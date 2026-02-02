@@ -26,8 +26,8 @@ func ValidatePeerName(name string) (string, error) {
 	if name == "" {
 		return "", errors.New("peer name is empty")
 	}
-	if strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
-		return "", errors.New("invalid peer name")
+	if strings.ContainsAny(name, `/\ `) || strings.Contains(name, "..") {
+		return "", errors.New("peer name must not contain spaces, slashes or '..'")
 	}
 	return name, nil
 }

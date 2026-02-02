@@ -132,7 +132,7 @@ async function renderLauncher(host) {
 
   const createBody = div("cardBody");
   const row = div("row");
-  const name = input("peerC");
+  const name = input("Name your peer (no spaces or special characters)", "input");
   const create = btn("Create", "secondary");
   row.appendChild(name);
   row.appendChild(create);
@@ -319,6 +319,10 @@ async function renderLauncher(host) {
     const v = name.value.trim();
     if (!v) {
       err.textContent = "Enter a peer name.";
+      return;
+    }
+    if (/\s/.test(v)) {
+      err.textContent = "Peer name must not contain spaces.";
       return;
     }
 
