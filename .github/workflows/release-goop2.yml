@@ -55,7 +55,7 @@ jobs:
         run: |
           wails doctor
           $ver = "${{ steps.version.outputs.VERSION }}"
-          wails build -clean -windowsconsole -platform windows/amd64 -ldflags "-X main.appVersion=$ver"
+          wails build -clean -platform windows/amd64 -ldflags "-X main.appVersion=$ver"
 
       - name: Install Inno Setup
         shell: pwsh
