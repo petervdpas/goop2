@@ -1,7 +1,7 @@
 // frontend/src/main.js
 import "./style.css";
 import splashUrl from "./assets/images/goop2-splash.png";
-import iconUrl from "./assets/images/goop2.png";
+import iconUrl from "./assets/images/goop2-icon.png";
 import {
   clear, div, btn, input, h1, h2, p,
   normalizeTheme, applyTheme, normalizeBase
