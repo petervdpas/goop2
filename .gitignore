@@ -30,7 +30,7 @@ Thumbs.db
 # Wails build output
 # -----------------------------
 /build/darwin/
-/build/windows/installer/
+/build/windows/installer/output/
 /build/windows/*.exe
 /build/windows/*.msi
 /build/windows/*.zip
