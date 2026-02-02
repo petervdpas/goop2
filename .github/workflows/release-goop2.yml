@@ -64,7 +64,19 @@ jobs:
       - name: Build installer
         shell: pwsh
         run: |
-          iscc /DMyAppVersion="${{ steps.version.outputs.VERSION }}" build\windows\installer\goop2-installer.iss
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) { throw "ISCC.exe not found at $iscc" }
+
+          # Verify source files exist
+          $issFile = Resolve-Path "build\windows\installer\goop2-installer.iss"
+          if (!(Test-Path "build\bin\goop2.exe")) { throw "goop2.exe not found" }
+          if (!(Test-Path "build\windows\icon.ico")) { throw "icon.ico not found" }
+
+          Write-Host "CWD:      $(Get-Location)"
+          Write-Host "ISS file: $issFile"
+          Write-Host "ISCC:     $iscc"
+
+          & $iscc /V9 /DMyAppVersion="${{ steps.version.outputs.VERSION }}" "$issFile"
 
       - name: Collect artifacts
         shell: pwsh
