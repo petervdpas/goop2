@@ -32,7 +32,7 @@ var (
 	version  = flag.Bool("version", false, "Show version")
 )
 
-const appVersion = "2.0.0"
+const appVersion = "2.2.0"
 
 func main() {
 	flag.Parse()
