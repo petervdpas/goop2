@@ -54,7 +54,8 @@ jobs:
         shell: pwsh
         run: |
           wails doctor
-          wails build -clean -windowsconsole -platform windows/amd64
+          $ver = "${{ steps.version.outputs.VERSION }}"
+          wails build -clean -windowsconsole -platform windows/amd64 -ldflags "-X main.appVersion=$ver"
 
       - name: Install Inno Setup
         shell: pwsh
@@ -125,7 +126,7 @@ jobs:
             export PATH="$(go env GOPATH)/bin:${PATH}"
 
             wails doctor
-            wails build -clean -platform linux/amd64
+            wails build -clean -platform linux/amd64 -ldflags "-X main.appVersion=${VERSION}"
 
             # Create portable tarball
             TARDIR="goop2-${VERSION}-linux-amd64"
@@ -189,7 +190,7 @@ jobs:
             export PATH="$(go env GOPATH)/bin:${PATH}"
 
             wails doctor
-            wails build -clean -platform linux/amd64
+            wails build -clean -platform linux/amd64 -ldflags "-X main.appVersion=${VERSION}"
 
             # Assemble .deb
             PKG="goop2_${VERSION}_amd64"
@@ -270,7 +271,7 @@ jobs:
             export PATH="$(go env GOPATH)/bin:${PATH}"
 
             wails doctor
-            wails build -clean -platform linux/arm64 -tags webkit2_41
+            wails build -clean -platform linux/arm64 -tags webkit2_41 -ldflags "-X main.appVersion=${VERSION}"
 
             # Create portable tarball
             TARDIR="goop2-${VERSION}-linux-arm64"
@@ -339,7 +340,7 @@ jobs:
             export PATH="$(go env GOPATH)/bin:${PATH}"
 
             wails doctor
-            wails build -clean -platform linux/arm64 -tags webkit2_41
+            wails build -clean -platform linux/arm64 -tags webkit2_41 -ldflags "-X main.appVersion=${VERSION}"
 
             # Assemble .deb
             PKG="goop2_${VERSION}_arm64"
@@ -416,7 +417,7 @@ jobs:
             export PATH="$(go env GOPATH)/bin:${PATH}"
 
             wails doctor
-            wails build -clean -platform linux/amd64
+            wails build -clean -platform linux/amd64 -ldflags "-X main.appVersion=${VERSION}"
 
             # Set up rpmbuild
             RPMTOP="$HOME/rpmbuild"
@@ -484,7 +485,7 @@ jobs:
             export PATH="$(go env GOPATH)/bin:${PATH}"
 
             wails doctor
-            wails build -clean -platform linux/amd64
+            wails build -clean -platform linux/amd64 -ldflags "-X main.appVersion=${VERSION}"
 
             # Set up rpmbuild
             RPMTOP="$HOME/rpmbuild"

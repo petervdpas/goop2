@@ -32,7 +32,8 @@ var (
 	version  = flag.Bool("version", false, "Show version")
 )
 
-const appVersion = "2.2.0"
+// appVersion is set at build time via -ldflags "-X main.appVersion=x.y.z"
+var appVersion = "dev"
 
 func main() {
 	flag.Parse()
