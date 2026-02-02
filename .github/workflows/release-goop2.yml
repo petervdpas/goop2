@@ -237,20 +237,15 @@ jobs:
   # ───────────────────────────────────────────────────────────────
   linux_portable_arm64:
     name: Linux ARM64 Portable (tar.gz)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
 
       - name: Build and package
         uses: addnab/docker-run-action@v3
         with:
           image: debian:bookworm
-          options: --platform linux/arm64 -v ${{ github.workspace }}:/src -w /src -e GITHUB_REF_NAME=${{ github.ref_name }}
+          options: -v ${{ github.workspace }}:/src -w /src -e GITHUB_REF_NAME=${{ github.ref_name }}
           shell: bash
           run: |
             set -euo pipefail
@@ -306,20 +301,15 @@ jobs:
   # ───────────────────────────────────────────────────────────────
   linux_deb_arm64:
     name: Linux ARM64 .deb (Raspberry Pi)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
 
       - name: Build and package
         uses: addnab/docker-run-action@v3
         with:
           image: debian:bookworm
-          options: --platform linux/arm64 -v ${{ github.workspace }}:/src -w /src -e GITHUB_REF_NAME=${{ github.ref_name }}
+          options: -v ${{ github.workspace }}:/src -w /src -e GITHUB_REF_NAME=${{ github.ref_name }}
           shell: bash
           run: |
             set -euo pipefail
