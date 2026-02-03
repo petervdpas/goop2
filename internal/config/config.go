@@ -268,6 +268,9 @@ func Load(path string) (Config, error) {
 		return Config{}, err
 	}
 
+	// Strip UTF-8 BOM if present (common when editing JSON on Windows).
+	b = stripBOM(b)
+
 	// Start from defaults so missing JSON fields remain initialized.
 	cfg := Default()
 	if err := json.Unmarshal(b, &cfg); err != nil {
@@ -279,6 +282,32 @@ func Load(path string) (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// LoadPartial reads a config file without validation. Useful for reading
+// individual fields (like rendezvous_only) when full validation may fail.
+func LoadPartial(path string) (Config, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return Config{}, err
+	}
+
+	b = stripBOM(b)
+
+	cfg := Default()
+	if err := json.Unmarshal(b, &cfg); err != nil {
+		return Config{}, err
+	}
+
+	return cfg, nil
+}
+
+// stripBOM removes a UTF-8 byte order mark if present.
+func stripBOM(b []byte) []byte {
+	if len(b) >= 3 && b[0] == 0xEF && b[1] == 0xBB && b[2] == 0xBF {
+		return b[3:]
+	}
+	return b
 }
 
 func Save(path string, cfg Config) error {

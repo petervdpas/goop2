@@ -623,8 +623,10 @@ func listPeerInfos(root string) ([]PeerInfo, error) {
 
 		info := PeerInfo{Name: e.Name()}
 
-		// Read config to check rendezvous_only flag
-		if cfg, err := config.Load(cfgPath); err == nil {
+		// Read config to check rendezvous_only flag.
+		// Use LoadPartial (no validation) so the pill shows even when
+		// the config has validation issues (e.g. missing rendezvous_host).
+		if cfg, err := config.LoadPartial(cfgPath); err == nil {
 			info.RendezvousOnly = cfg.Presence.RendezvousOnly
 		}
 

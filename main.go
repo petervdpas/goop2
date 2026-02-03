@@ -76,7 +76,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, "Usage: goop2 rendezvous <peer-directory>")
 			os.Exit(1)
 		}
-		runCLIPeer(args[1])
+		runCLIRendezvous(args[1])
 
 	default:
 		fmt.Fprintf(os.Stderr, "Error: unknown command '%s'\n", command)
@@ -153,6 +153,49 @@ func runCLIPeer(peerDirArg string) {
 		Cfg:     cfg,
 	}); err != nil {
 		log.Fatalf("Peer failed: %v", err)
+	}
+}
+
+func runCLIRendezvous(peerDirArg string) {
+	absDir, err := filepath.Abs(peerDirArg)
+	if err != nil {
+		log.Fatalf("Invalid peer directory: %v", err)
+	}
+
+	if stat, err := os.Stat(absDir); err != nil || !stat.IsDir() {
+		log.Fatalf("Peer directory does not exist: %s", absDir)
+	}
+
+	cfgPath := filepath.Join(absDir, "goop.json")
+	cfg, _, err := config.Ensure(cfgPath)
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	// Force rendezvous mode regardless of what the config file says.
+	cfg.Presence.RendezvousOnly = true
+	cfg.Presence.RendezvousHost = true
+
+	printPeerBanner(absDir, cfgPath, cfg)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-sigCh
+		log.Println("\nShutting down gracefully...")
+		cancel()
+	}()
+
+	if err := app.Run(ctx, app.Options{
+		PeerDir: absDir,
+		CfgPath: cfgPath,
+		Cfg:     cfg,
+	}); err != nil {
+		log.Fatalf("Rendezvous server failed: %v", err)
 	}
 }
 
