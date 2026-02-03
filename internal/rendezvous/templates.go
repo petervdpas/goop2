@@ -206,7 +206,7 @@ func (ts *TemplateStore) WriteBundle(w io.Writer, dir string) error {
 
 	for rel, data := range t.files {
 		hdr := &tar.Header{
-			Name: filepath.Join(dir, rel),
+			Name: path.Join(dir, filepath.ToSlash(rel)),
 			Mode: 0o644,
 			Size: int64(len(data)),
 		}

@@ -242,7 +242,7 @@ func testExtractTarGz(r io.Reader) (map[string][]byte, error) {
 			continue
 		}
 		// Strip top-level dir prefix
-		name := hdr.Name
+		name := filepath.ToSlash(hdr.Name)
 		if i := strings.IndexByte(name, '/'); i >= 0 {
 			name = name[i+1:]
 		}

@@ -308,7 +308,7 @@ func extractTarGz(r io.Reader) (map[string][]byte, error) {
 		}
 
 		// Strip top-level directory prefix (e.g. "blog/index.html" → "index.html")
-		name := hdr.Name
+		name := filepath.ToSlash(hdr.Name)
 		if i := strings.IndexByte(name, '/'); i >= 0 {
 			name = name[i+1:]
 		}
