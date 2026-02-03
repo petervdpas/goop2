@@ -27,8 +27,20 @@ go build -ldflags="-s -w" -o goop2
 
 ### 2. Test Locally
 
+Create a peer directory with a `goop.json` that enables the rendezvous server:
+
 ```bash
-./goop2 -rendezvous -addr localhost:8787
+mkdir -p /tmp/rv-peer
+cat > /tmp/rv-peer/goop.json <<'EOF'
+{
+  "presence": {
+    "rendezvous_only": true,
+    "rendezvous_host": true,
+    "rendezvous_port": 8787
+  }
+}
+EOF
+./goop2 rendezvous /tmp/rv-peer
 ```
 
 Visit http://localhost:8787 to see the monitoring UI.
@@ -193,25 +205,15 @@ curl -N https://rendezvous.yourdomain.com/events
 
 ## Configuration
 
-### Command-Line Flags
+All rendezvous configuration is done via `goop.json` in the peer directory. There are no command-line flags or environment variables for configuration.
 
-```bash
-./rendezvous -h
-```
+Key settings in `goop.json` under `"presence"`:
 
-Options:
-- `-addr` - Listen address (default: localhost:8787)
-  - Use `0.0.0.0:8787` to listen on all interfaces
-  - Use `127.0.0.1:8787` for localhost only (recommended with reverse proxy)
-
-### Environment Variables
-
-Set in systemd service file:
-```ini
-[Service]
-Environment="GOOP_RENDEZVOUS_ADDR=127.0.0.1:8787"
-Environment="GOOP_LOG_LEVEL=info"
-```
+- `rendezvous_host` (default `false`) — Enable the rendezvous server
+- `rendezvous_port` (default `8787`) — Listen port (binds to `127.0.0.1`)
+- `rendezvous_only` (default `false`) — Run only the rendezvous server (no P2P node)
+- `templates_dir` (default `"templates"`) — Directory for store templates (relative to peer dir)
+- `peer_db_path` (default `""`) — SQLite path for peer state persistence (see Load Balancing)
 
 ## Firewall Configuration
 
@@ -264,30 +266,52 @@ The server logs include:
 
 ## Load Balancing
 
-For high-availability deployments, run multiple instances:
+For high-availability deployments, run multiple instances.
 
-**Caddyfile:**
+> **Important:** By default, peer state is in-memory per instance. Without a shared
+> peer database, each instance only sees the peers that published to it. Use one of
+> these strategies:
+>
+> 1. **Sticky sessions (simplest):** Use `ip_hash` so each client always hits the
+>    same backend. SSE works correctly and peers don't "disappear."
+> 2. **Shared peer DB:** Set `peer_db_path` in each instance's `goop.json` to the
+>    same SQLite file on a shared volume. Instances sync peer state every 3 seconds.
+>    With a shared DB, `round_robin` is acceptable.
+
+**Caddyfile (sticky sessions):**
 ```caddyfile
 rendezvous.yourdomain.com {
     reverse_proxy localhost:8787 localhost:8788 localhost:8789 {
-        lb_policy round_robin
+        lb_policy ip_hash
         health_uri /healthz
         health_interval 10s
     }
 }
 ```
 
-Start multiple instances:
+**Shared peer DB example `goop.json`:**
+```json
+{
+  "presence": {
+    "rendezvous_only": true,
+    "rendezvous_host": true,
+    "rendezvous_port": 8787,
+    "peer_db_path": "/shared/volume/peers.db"
+  }
+}
+```
+
+Start multiple instances (each with its own peer directory but sharing the DB file):
 ```bash
-./rendezvous -addr localhost:8787 &
-./rendezvous -addr localhost:8788 &
-./rendezvous -addr localhost:8789 &
+./goop2 rendezvous /opt/goop/peer1 &
+./goop2 rendezvous /opt/goop/peer2 &
+./goop2 rendezvous /opt/goop/peer3 &
 ```
 
 ## Security Considerations
 
 1. **Always use reverse proxy with HTTPS** - Don't expose the rendezvous server directly
-2. **Bind to localhost** - Use `-addr 127.0.0.1:8787` when behind reverse proxy
+2. **Bind to localhost** - The server binds to `127.0.0.1` by default when behind reverse proxy
 3. **Rate limiting** - Configure in Caddy/Nginx to prevent abuse
 4. **Authentication** - See Caddyfile.example for basic auth setup on sensitive endpoints
 5. **Firewall** - Only allow connections from your reverse proxy
@@ -301,10 +325,10 @@ Start multiple instances:
 sudo journalctl -u goop-rendezvous -n 50
 
 # Verify binary permissions
-ls -la /opt/goop/rendezvous
+ls -la /opt/goop/goop2
 
 # Test manually
-sudo -u goop /opt/goop/rendezvous -addr localhost:8787
+sudo -u goop /opt/goop/goop2 rendezvous /opt/goop/peer
 ```
 
 ### Can't connect through reverse proxy
@@ -348,7 +372,12 @@ Clients will automatically register with the server and appear in the web UI.
 
 ## Backup and Recovery
 
-The rendezvous server is stateless - all peer data is in-memory. No backup needed.
+By default, the rendezvous server is stateless — all peer data is in-memory and peers
+re-register automatically after a restart. No backup is needed.
+
+If `peer_db_path` is configured, peer state is persisted in a SQLite file. This file
+can be backed up, but it is not critical — peers will re-register within seconds of
+a restart even without it.
 
 To migrate:
 1. Stop old server
@@ -385,7 +414,8 @@ sudo chmod 755 /opt/goop/goop2
 sudo systemctl start goop-rendezvous
 ```
 
-Zero-downtime updates with multiple instances:
+Zero-downtime updates with multiple instances (requires shared `peer_db_path` or
+sticky sessions so peers survive the rolling restart):
 1. Update instance 1, wait for health check
 2. Update instance 2, wait for health check
 3. Update instance 3, etc.

@@ -10,7 +10,12 @@ import (
 // and the goop.* API table injected.
 func newSandboxedVM(inv *invocationCtx, kv *kvStore, engine *Engine) *lua.LState {
 	L := lua.NewState(lua.Options{
-		SkipOpenLibs: true,
+		SkipOpenLibs:        true,
+		CallStackSize:       128,
+		RegistrySize:        2048,
+		RegistryMaxSize:     engine.registryMaxSize(),
+		RegistryGrowStep:    32,
+		MinimizeStackMemory: true,
 	})
 
 	// Selectively open safe standard libraries

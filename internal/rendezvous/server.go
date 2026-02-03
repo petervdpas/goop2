@@ -42,6 +42,7 @@ type Server struct {
 	style []byte
 
 	templateStore *TemplateStore
+	peerDB        *peerDB // nil when persistence is disabled
 }
 
 type peerRow struct {
@@ -66,7 +67,7 @@ type indexVM struct {
 	StoreTemplates []StoreMeta
 }
 
-func New(addr string, templatesDir string) *Server {
+func New(addr string, templatesDir string, peerDBPath string) *Server {
 	funcs := template.FuncMap{
 		"statusClass": func(t string) string {
 			switch t {
@@ -122,14 +123,34 @@ func New(addr string, templatesDir string) *Server {
 		style:   css,
 	}
 
+	// Open peer DB if path provided (for multi-instance persistence)
+	if peerDBPath != "" {
+		db, err := openPeerDB(peerDBPath)
+		if err != nil {
+			log.Printf("WARNING: peer DB open failed: %v (running in-memory only)", err)
+		} else {
+			s.peerDB = db
+		}
+	}
+
 	s.templateStore = NewTemplateStore(templatesDir)
 
 	return s
 }
 
 func (s *Server) Start(ctx context.Context) error {
+	// Load existing peers from SQLite on startup
+	if s.peerDB != nil {
+		s.loadPeersFromDB()
+	}
+
 	// Start peer cleanup goroutine
 	go s.cleanupStalePeers(ctx)
+
+	// Periodic sync from DB (catch peers from other instances)
+	if s.peerDB != nil {
+		go s.syncFromDB(ctx)
+	}
 
 	mux := http.NewServeMux()
 
@@ -364,6 +385,9 @@ func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64) {
 	if pm.Type == proto.TypeOffline {
 		delete(s.peers, pm.PeerID)
 		s.addLog(fmt.Sprintf("Peer went offline and removed: %s", pm.PeerID))
+		if s.peerDB != nil {
+			go s.peerDB.remove(pm.PeerID)
+		}
 		return
 	}
 
@@ -376,7 +400,7 @@ func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64) {
 		bytesReceived = existing.BytesReceived
 	}
 
-	s.peers[pm.PeerID] = peerRow{
+	row := peerRow{
 		PeerID:        pm.PeerID,
 		Type:          pm.Type,
 		Content:       pm.Content,
@@ -386,6 +410,11 @@ func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64) {
 		LastSeen:      now,
 		BytesSent:     bytesSent,
 		BytesReceived: bytesReceived,
+	}
+	s.peers[pm.PeerID] = row
+
+	if s.peerDB != nil {
+		go s.peerDB.upsert(row)
 	}
 }
 
@@ -440,6 +469,63 @@ func (s *Server) cleanupStalePeers(ctx context.Context) {
 				if peer.LastSeen < staleThreshold {
 					delete(s.peers, peerID)
 					s.addLog(fmt.Sprintf("Removed stale peer: %s (last seen: %v)", peerID, time.UnixMilli(peer.LastSeen).Format("15:04:05")))
+				}
+			}
+			s.mu.Unlock()
+
+			if s.peerDB != nil {
+				go s.peerDB.cleanupStale(staleThreshold)
+			}
+		}
+	}
+}
+
+// loadPeersFromDB restores peer state from SQLite on startup.
+func (s *Server) loadPeersFromDB() {
+	rows, err := s.peerDB.loadAll()
+	if err != nil {
+		log.Printf("peerdb: load error: %v", err)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, r := range rows {
+		s.peers[r.PeerID] = r
+	}
+	if len(rows) > 0 {
+		log.Printf("peerdb: loaded %d peers from database", len(rows))
+	}
+}
+
+// syncFromDB periodically merges peer state from SQLite so that peers
+// registered by other instances become visible.
+func (s *Server) syncFromDB(ctx context.Context) {
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			rows, err := s.peerDB.loadAll()
+			if err != nil {
+				continue
+			}
+
+			s.mu.Lock()
+			dbPeers := make(map[string]struct{}, len(rows))
+			for _, r := range rows {
+				dbPeers[r.PeerID] = struct{}{}
+				existing, ok := s.peers[r.PeerID]
+				if !ok || r.LastSeen > existing.LastSeen {
+					s.peers[r.PeerID] = r
+				}
+			}
+			// Remove peers that were cleaned up by another instance
+			for peerID := range s.peers {
+				if _, inDB := dbPeers[peerID]; !inDB {
+					delete(s.peers, peerID)
 				}
 			}
 			s.mu.Unlock()

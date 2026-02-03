@@ -343,7 +343,10 @@ func (e *Engine) Dispatch(ctx context.Context, fromPeerID, content string, sende
 
 func (e *Engine) executeScript(ctx context.Context, inv *invocationCtx, proto *lua.FunctionProto, args string) (string, error) {
 	L := newSandboxedVM(inv, e.kv, e)
-	defer L.Close()
+
+	var closeOnce sync.Once
+	closeL := func() { closeOnce.Do(func() { L.Close() }) }
+	defer closeL()
 
 	// Load compiled proto
 	lfunc := L.NewFunctionFromProto(proto)
@@ -358,6 +361,9 @@ func (e *Engine) executeScript(ctx context.Context, inv *invocationCtx, proto *l
 		return "", fmt.Errorf("script has no handle() function")
 	}
 
+	memMon := newMemoryMonitor(e.cfg.MaxMemoryMB)
+	stopMon := memMon.watch(ctx, L, inv.scriptName)
+
 	// Run in goroutine so we can kill on timeout
 	type result struct {
 		val string
@@ -366,6 +372,12 @@ func (e *Engine) executeScript(ctx context.Context, inv *invocationCtx, proto *l
 	ch := make(chan result, 1)
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				ch <- result{err: fmt.Errorf("script panic: %v", r)}
+			}
+		}()
+
 		if err := L.CallByParam(lua.P{
 			Fn:      handleFn,
 			NRet:    1,
@@ -385,9 +397,22 @@ func (e *Engine) executeScript(ctx context.Context, inv *invocationCtx, proto *l
 
 	select {
 	case r := <-ch:
+		stopMon()
+		if memMon.wasExceeded() {
+			return "", fmt.Errorf("script killed: memory limit exceeded")
+		}
 		return r.val, r.err
 	case <-ctx.Done():
-		L.Close() // kill the VM
+		stopMon()
+		closeL()
+		// Drain goroutine so it doesn't leak
+		select {
+		case <-ch:
+		case <-time.After(500 * time.Millisecond):
+		}
+		if memMon.wasExceeded() {
+			return "", fmt.Errorf("script killed: memory limit exceeded")
+		}
 		return "", fmt.Errorf("script timed out")
 	}
 }
@@ -395,6 +420,19 @@ func (e *Engine) executeScript(ctx context.Context, inv *invocationCtx, proto *l
 // SetDB sets the database reference for goop.db access in data functions.
 func (e *Engine) SetDB(db *storage.DB) {
 	e.db = db
+}
+
+// registryMaxSize derives a registry cap from the MaxMemoryMB config.
+// Each registry slot is roughly 48 bytes; this gives a proportional bound.
+func (e *Engine) registryMaxSize() int {
+	if e.cfg.MaxMemoryMB <= 0 {
+		return 0
+	}
+	max := e.cfg.MaxMemoryMB * 1024 * 1024 / 48
+	if max < 5120 {
+		max = 5120
+	}
+	return max
 }
 
 // FunctionsDir returns the path to the data functions directory.
@@ -478,7 +516,10 @@ func (e *Engine) CallFunction(ctx context.Context, callerID, function string, pa
 
 func (e *Engine) executeDataFunction(ctx context.Context, inv *invocationCtx, proto *lua.FunctionProto, params map[string]any) (any, error) {
 	L := newSandboxedDataVM(inv, e.kv, e, e.db)
-	defer L.Close()
+
+	var closeOnce sync.Once
+	closeL := func() { closeOnce.Do(func() { L.Close() }) }
+	defer closeL()
 
 	// Load compiled proto
 	lfunc := L.NewFunctionFromProto(proto)
@@ -498,6 +539,9 @@ func (e *Engine) executeDataFunction(ctx context.Context, inv *invocationCtx, pr
 	paramsTbl := goToLua(L, mapToInterface(params))
 	requestTbl.RawSetString("params", paramsTbl)
 
+	memMon := newMemoryMonitor(e.cfg.MaxMemoryMB)
+	stopMon := memMon.watch(ctx, L, inv.scriptName)
+
 	// Run in goroutine for timeout
 	type result struct {
 		val any
@@ -506,6 +550,12 @@ func (e *Engine) executeDataFunction(ctx context.Context, inv *invocationCtx, pr
 	ch := make(chan result, 1)
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				ch <- result{err: fmt.Errorf("script panic: %v", r)}
+			}
+		}()
+
 		if err := L.CallByParam(lua.P{
 			Fn:      callFn,
 			NRet:    1,
@@ -521,9 +571,21 @@ func (e *Engine) executeDataFunction(ctx context.Context, inv *invocationCtx, pr
 
 	select {
 	case r := <-ch:
+		stopMon()
+		if memMon.wasExceeded() {
+			return nil, fmt.Errorf("script killed: memory limit exceeded")
+		}
 		return r.val, r.err
 	case <-ctx.Done():
-		L.Close()
+		stopMon()
+		closeL()
+		select {
+		case <-ch:
+		case <-time.After(500 * time.Millisecond):
+		}
+		if memMon.wasExceeded() {
+			return nil, fmt.Errorf("script killed: memory limit exceeded")
+		}
 		return nil, fmt.Errorf("script timed out")
 	}
 }

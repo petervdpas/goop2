@@ -61,6 +61,11 @@ type Presence struct {
 	// Directory containing store templates served by the rendezvous server.
 	// Relative to the peer directory. Empty/missing dir means no store templates.
 	TemplatesDir string `json:"templates_dir"`
+
+	// Optional path to a SQLite database for persisting peer state across
+	// rendezvous server restarts and sharing state between multiple instances.
+	// Relative to the peer directory. Empty means in-memory only (default).
+	PeerDBPath string `json:"peer_db_path"`
 }
 
 type Profile struct {
@@ -205,6 +210,9 @@ func (c *Config) Validate() error {
 		}
 		if c.Lua.RateLimitGlobal <= 0 {
 			return errors.New("lua.rate_limit_global must be > 0")
+		}
+		if c.Lua.MaxMemoryMB < 1 || c.Lua.MaxMemoryMB > 1024 {
+			return errors.New("lua.max_memory_mb must be 1..1024")
 		}
 	}
 

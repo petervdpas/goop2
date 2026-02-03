@@ -9,8 +9,9 @@ User=goop
 Group=goop
 WorkingDirectory=/opt/goop
 
-# Path to the goop2 binary in rendezvous mode
-ExecStart=/opt/goop/goop2 -rendezvous -addr 127.0.0.1:8787
+# Path to the goop2 binary in rendezvous mode.
+# The peer directory must contain a goop.json with rendezvous settings.
+ExecStart=/opt/goop/goop2 rendezvous /opt/goop/peer
 
 # Restart policy
 Restart=always
@@ -25,7 +26,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/log/goop
+ReadWritePaths=/var/log/goop /opt/goop/peer
 
 # Logging
 StandardOutput=journal
