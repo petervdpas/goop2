@@ -3,6 +3,7 @@ package storage
 
 import (
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -728,4 +729,154 @@ func (d *DB) LuaScalar(query string, args ...any) (any, error) {
 		return string(b), nil
 	}
 	return result, nil
+}
+
+// DumpSQL produces a SQL script (CREATE TABLE + INSERT INTO) for all user tables.
+// The output can recreate the full schema and data when executed on a fresh database.
+func (d *DB) DumpSQL() (string, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	// 1. Get all user table names from _tables registry
+	rows, err := d.db.Query(`SELECT name FROM _tables ORDER BY name`)
+	if err != nil {
+		return "", fmt.Errorf("query _tables: %w", err)
+	}
+	var tableNames []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			rows.Close()
+			return "", err
+		}
+		tableNames = append(tableNames, name)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+
+	var buf strings.Builder
+
+	for _, table := range tableNames {
+		// 2. PRAGMA table_info → build CREATE TABLE
+		infoRows, err := d.db.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+		if err != nil {
+			return "", fmt.Errorf("table_info %s: %w", table, err)
+		}
+
+		type colMeta struct {
+			name     string
+			typ      string
+			notNull  bool
+			dflt     *string
+			pk       bool
+		}
+		var cols []colMeta
+		for infoRows.Next() {
+			var cid, nn, pk int
+			var name, typ string
+			var dflt *string
+			if err := infoRows.Scan(&cid, &name, &typ, &nn, &dflt, &pk); err != nil {
+				infoRows.Close()
+				return "", err
+			}
+			cols = append(cols, colMeta{name: name, typ: typ, notNull: nn != 0, dflt: dflt, pk: pk != 0})
+		}
+		infoRows.Close()
+
+		buf.WriteString(fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (\n", table))
+		for i, c := range cols {
+			buf.WriteString("  ")
+			buf.WriteString(c.name)
+			if c.typ != "" {
+				buf.WriteString(" ")
+				buf.WriteString(c.typ)
+			}
+			if c.pk {
+				buf.WriteString(" PRIMARY KEY")
+				// Check if it's an AUTOINCREMENT column (INTEGER PRIMARY KEY)
+				if strings.EqualFold(c.typ, "INTEGER") {
+					buf.WriteString(" AUTOINCREMENT")
+				}
+			}
+			if c.notNull && !c.pk {
+				buf.WriteString(" NOT NULL")
+			}
+			if c.dflt != nil {
+				buf.WriteString(" DEFAULT ")
+				buf.WriteString(*c.dflt)
+			}
+			if i < len(cols)-1 {
+				buf.WriteString(",")
+			}
+			buf.WriteString("\n")
+		}
+		buf.WriteString(");\n")
+
+		// 3. SELECT * → build INSERT INTO statements
+		colNames := make([]string, len(cols))
+		for i, c := range cols {
+			colNames[i] = c.name
+		}
+
+		dataRows, err := d.db.Query(fmt.Sprintf("SELECT * FROM %s ORDER BY _id", table))
+		if err != nil {
+			return "", fmt.Errorf("select %s: %w", table, err)
+		}
+
+		dataCols, _ := dataRows.Columns()
+		for dataRows.Next() {
+			values := make([]any, len(dataCols))
+			ptrs := make([]any, len(dataCols))
+			for i := range values {
+				ptrs[i] = &values[i]
+			}
+			if err := dataRows.Scan(ptrs...); err != nil {
+				dataRows.Close()
+				return "", err
+			}
+
+			buf.WriteString(fmt.Sprintf("INSERT INTO %s (%s) VALUES (", table, strings.Join(dataCols, ", ")))
+			for i, v := range values {
+				if i > 0 {
+					buf.WriteString(", ")
+				}
+				buf.WriteString(sqlEscapeValue(v))
+			}
+			buf.WriteString(");\n")
+		}
+		dataRows.Close()
+
+		buf.WriteString("\n")
+	}
+
+	return buf.String(), nil
+}
+
+// sqlEscapeValue converts a Go value to a SQL literal for use in INSERT statements.
+func sqlEscapeValue(v any) string {
+	if v == nil {
+		return "NULL"
+	}
+	switch val := v.(type) {
+	case int64:
+		return fmt.Sprintf("%d", val)
+	case float64:
+		return fmt.Sprintf("%g", val)
+	case string:
+		return "'" + strings.ReplaceAll(val, "'", "''") + "'"
+	case []byte:
+		return "X'" + hex.EncodeToString(val) + "'"
+	case time.Time:
+		return "'" + val.UTC().Format("2006-01-02 15:04:05") + "'"
+	case bool:
+		if val {
+			return "1"
+		}
+		return "0"
+	default:
+		s := fmt.Sprintf("%v", val)
+		return "'" + strings.ReplaceAll(s, "'", "''") + "'"
+	}
 }

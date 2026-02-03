@@ -226,3 +226,127 @@ html, body {
   text-align: center;
   padding: 1rem;
 }
+
+/* -- Add question form -- */
+.qz-add-form {
+  margin-bottom: 1.5rem;
+}
+
+.qz-add-form h3 {
+  margin: 0 0 1.2rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.qz-field {
+  margin-bottom: 1rem;
+}
+
+.qz-field label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--muted);
+  margin-bottom: 0.3rem;
+}
+
+.qz-input {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.95rem;
+  background: var(--bg);
+  color: var(--text);
+  transition: border-color 0.15s;
+}
+
+.qz-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.qz-textarea {
+  resize: vertical;
+  min-height: 3rem;
+}
+
+.qz-options-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.qz-option-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.qz-option-field label {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.qz-option-field .qz-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.qz-option-letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.qz-correct-radio {
+  flex: 0 0 auto;
+  accent-color: var(--green);
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+}
+
+.qz-form-hint {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 1rem;
+}
+
+.qz-form-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.qz-form-actions .qz-submit {
+  flex: 1;
+  margin-top: 0;
+}
+
+.qz-cancel {
+  flex: 0 0 auto;
+  padding: 0.7rem 1.2rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 500;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.qz-cancel:hover {
+  border-color: var(--red);
+  color: var(--red);
+}

@@ -222,6 +222,16 @@
   <p class="muted small">
     Note: Changing networking or viewer settings may require restarting this peer.
   </p>
+
+  {{if not .RendezvousOnly}}
+  <h1 style="margin-top: 18px;">Import / Export</h1>
+  <p class="muted small">Export your site as a .zip archive (files, database, lua scripts) or import one to restore.</p>
+  <div style="display:flex;gap:0.75rem;margin-top:0.5rem;flex-wrap:wrap;">
+    <button type="button" class="btn secondary" id="export-btn">Export site (.zip)</button>
+    <button type="button" class="btn secondary" id="import-btn">Import site (.zip)</button>
+    <input type="file" id="import-file" accept=".zip" style="display:none">
+  </div>
+  {{end}}
 </div>
 
 <script>
@@ -296,6 +306,108 @@
         .catch(function(err) {
           alert('Delete failed: ' + err.message);
         });
+    });
+  }
+
+  // ── Export site ──
+  var exportBtn = document.getElementById('export-btn');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', function() {
+      exportBtn.disabled = true;
+      exportBtn.textContent = 'Exporting...';
+
+      fetch('/api/site/export')
+        .then(function(res) {
+          if (!res.ok) return res.text().then(function(t) { throw new Error(t); });
+          var cd = res.headers.get('Content-Disposition') || '';
+          var match = cd.match(/filename="?([^"]+)"?/);
+          var filename = match ? match[1] : 'goop-export.zip';
+          return res.blob().then(function(blob) { return { blob: blob, filename: filename }; });
+        })
+        .then(function(result) {
+          var url = URL.createObjectURL(result.blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = result.filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          if (window.Goop && window.Goop.ui) {
+            Goop.ui.toast({ title: 'Exported', message: 'Site archive downloaded.', duration: 3000 });
+          }
+        })
+        .catch(function(err) {
+          var errMsg = err.message || 'Unknown error';
+          if (window.Goop && window.Goop.ui) {
+            Goop.ui.toast({ title: 'Export Error', message: errMsg, duration: 6000 });
+          } else {
+            alert('Failed to export: ' + errMsg);
+          }
+        })
+        .finally(function() {
+          exportBtn.disabled = false;
+          exportBtn.textContent = 'Export site (.zip)';
+        });
+    });
+  }
+
+  // ── Import site ──
+  var importBtn  = document.getElementById('import-btn');
+  var importFile = document.getElementById('import-file');
+
+  if (importBtn && importFile) {
+    var csrf = {{.CSRF}};
+
+    importBtn.addEventListener('click', function() {
+      importFile.click();
+    });
+
+    importFile.addEventListener('change', function() {
+      var file = importFile.files[0];
+      if (!file) return;
+
+      var msg = 'Import "' + file.name + '"?\n\nThis will DELETE all your current site files and database tables and replace them with the archive contents. This cannot be undone.';
+
+      function doImport() {
+        var fd = new FormData();
+        fd.append('csrf', csrf);
+        fd.append('file', file);
+
+        fetch('/api/site/import', { method: 'POST', body: fd })
+          .then(function(res) {
+            if (!res.ok) return res.text().then(function(t) { throw new Error(t); });
+            return res.json();
+          })
+          .then(function() {
+            if (window.Goop && window.Goop.ui) {
+              Goop.ui.toast({ title: 'Site Imported', message: 'Archive applied. Redirecting to editor...', duration: 3000 });
+            }
+            setTimeout(function() { window.location.href = '/edit'; }, 1500);
+          })
+          .catch(function(err) {
+            var errMsg = err.message || 'Unknown error';
+            if (window.Goop && window.Goop.ui) {
+              Goop.ui.toast({ title: 'Import Error', message: errMsg, duration: 6000 });
+            } else {
+              alert('Failed to import: ' + errMsg);
+            }
+          })
+          .finally(function() {
+            importFile.value = '';
+          });
+      }
+
+      if (window.Goop && window.Goop.ui && window.Goop.ui.confirm) {
+        Goop.ui.confirm(msg, 'Import Site').then(function(ok) {
+          if (ok) doImport();
+          else importFile.value = '';
+        });
+      } else if (confirm(msg)) {
+        doImport();
+      } else {
+        importFile.value = '';
+      }
     });
   }
 })();

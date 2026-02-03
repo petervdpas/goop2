@@ -122,33 +122,57 @@
 
   function showAddForm() {
     var form = document.createElement("div");
-    form.className = "qz-card";
+    form.className = "qz-card qz-add-form";
     form.innerHTML =
       '<h3>New Question</h3>' +
-      '<div style="display:flex;flex-direction:column;gap:0.5rem">' +
-        '<input id="nq" placeholder="Question text" style="padding:0.4rem;border:1px solid #d8dce6;border-radius:6px">' +
-        '<input id="na" placeholder="Option A" style="padding:0.4rem;border:1px solid #d8dce6;border-radius:6px">' +
-        '<input id="nb" placeholder="Option B" style="padding:0.4rem;border:1px solid #d8dce6;border-radius:6px">' +
-        '<input id="nc" placeholder="Option C" style="padding:0.4rem;border:1px solid #d8dce6;border-radius:6px">' +
-        '<input id="nd" placeholder="Option D" style="padding:0.4rem;border:1px solid #d8dce6;border-radius:6px">' +
-        '<select id="ncorrect" style="padding:0.4rem;border:1px solid #d8dce6;border-radius:6px">' +
-          '<option value="a">Correct: A</option><option value="b">Correct: B</option>' +
-          '<option value="c">Correct: C</option><option value="d">Correct: D</option>' +
-        '</select>' +
+      '<div class="qz-field">' +
+        '<label for="nq">Question</label>' +
+        '<textarea id="nq" class="qz-input qz-textarea" placeholder="Type your question here..." rows="2"></textarea>' +
+      '</div>' +
+      '<div class="qz-options-grid">' +
+        '<div class="qz-option-field">' +
+          '<label for="na"><span class="qz-option-letter">A</span></label>' +
+          '<input id="na" class="qz-input" placeholder="Option A">' +
+          '<input type="radio" name="ncorrect" value="a" class="qz-correct-radio" checked title="Mark as correct">' +
+        '</div>' +
+        '<div class="qz-option-field">' +
+          '<label for="nb"><span class="qz-option-letter">B</span></label>' +
+          '<input id="nb" class="qz-input" placeholder="Option B">' +
+          '<input type="radio" name="ncorrect" value="b" class="qz-correct-radio" title="Mark as correct">' +
+        '</div>' +
+        '<div class="qz-option-field">' +
+          '<label for="nc"><span class="qz-option-letter">C</span></label>' +
+          '<input id="nc" class="qz-input" placeholder="Option C">' +
+          '<input type="radio" name="ncorrect" value="c" class="qz-correct-radio" title="Mark as correct">' +
+        '</div>' +
+        '<div class="qz-option-field">' +
+          '<label for="nd"><span class="qz-option-letter">D</span></label>' +
+          '<input id="nd" class="qz-input" placeholder="Option D">' +
+          '<input type="radio" name="ncorrect" value="d" class="qz-correct-radio" title="Mark as correct">' +
+        '</div>' +
+      '</div>' +
+      '<div class="qz-form-hint">Select the radio button next to the correct answer.</div>' +
+      '<div class="qz-form-actions">' +
         '<button class="qz-submit" id="save-q">Save Question</button>' +
+        '<button class="qz-cancel" id="cancel-q">Cancel</button>' +
       '</div>';
     root.insertBefore(form, root.firstChild);
 
+    document.getElementById("cancel-q").onclick = function () {
+      form.remove();
+    };
+
     document.getElementById("save-q").onclick = async function () {
       var q = document.getElementById("nq").value.trim();
-      if (!q) return;
+      if (!q) { document.getElementById("nq").focus(); return; }
+      var correct = root.querySelector('input[name="ncorrect"]:checked');
       await db.insert("questions", {
         question: q,
-        option_a: document.getElementById("na").value.trim() || "A",
-        option_b: document.getElementById("nb").value.trim() || "B",
-        option_c: document.getElementById("nc").value.trim() || "C",
-        option_d: document.getElementById("nd").value.trim() || "D",
-        correct: document.getElementById("ncorrect").value
+        option_a: document.getElementById("na").value.trim() || "Option A",
+        option_b: document.getElementById("nb").value.trim() || "Option B",
+        option_c: document.getElementById("nc").value.trim() || "Option C",
+        option_d: document.getElementById("nd").value.trim() || "Option D",
+        correct: correct ? correct.value : "a"
       });
       renderOwner();
     };
