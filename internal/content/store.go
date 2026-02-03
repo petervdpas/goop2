@@ -17,6 +17,7 @@ import (
 
 var (
 	ErrOutsideRoot = errors.New("path outside root")
+	ErrForbidden   = errors.New("forbidden")
 	ErrNotFound    = errors.New("not found")
 	ErrConflict    = errors.New("conflict")
 )
@@ -456,6 +457,14 @@ func (s *Store) cleanAbs(rel string) (string, error) {
 	rootPrefix := rootClean + string(filepath.Separator)
 	if abs != rootClean && !strings.HasPrefix(abs, rootPrefix) {
 		return "", ErrOutsideRoot
+	}
+
+	// Block access to lua/ directory (scripts are not site content)
+	if abs != rootClean {
+		clean := filepath.ToSlash(strings.TrimPrefix(abs, rootPrefix))
+		if clean == "lua" || strings.HasPrefix(clean, "lua/") {
+			return "", ErrForbidden
+		}
 	}
 
 	// prevent symlink escape on existing paths

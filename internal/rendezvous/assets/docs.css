@@ -1,0 +1,299 @@
+/* Goop² Docs — documentation-specific styles */
+
+.docs-container {
+  max-width: 1200px;
+}
+
+.docs-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 28px;
+  align-items: start;
+}
+
+/* ─── Sidebar ─── */
+.docs-sidebar {
+  position: sticky;
+  top: 24px;
+  padding: 20px 0;
+  border-radius: 14px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+.sidebar-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 0 20px 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.sidebar-link {
+  display: block;
+  padding: 10px 20px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  border-left: 3px solid transparent;
+  transition: all 0.2s;
+}
+
+.sidebar-link:hover {
+  color: var(--text-primary);
+  background: var(--bg-card);
+}
+
+.sidebar-link.active {
+  color: var(--accent);
+  border-left-color: var(--accent);
+  background: var(--bg-card);
+  font-weight: 600;
+}
+
+/* ─── Content area ─── */
+.docs-content {
+  min-width: 0;
+}
+
+.docs-article {
+  padding: 36px 40px;
+  border-radius: 14px;
+  line-height: 1.75;
+}
+
+/* ─── Article typography ─── */
+.docs-article h1 {
+  font-size: 28px;
+  font-weight: 800;
+  margin: 0 0 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.docs-article h2 {
+  font-size: 21px;
+  font-weight: 700;
+  margin: 36px 0 14px;
+  color: var(--text-primary);
+}
+
+.docs-article h3 {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 28px 0 10px;
+  color: var(--text-primary);
+}
+
+.docs-article p {
+  margin: 0 0 16px;
+  color: var(--text-secondary);
+}
+
+.docs-article a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.docs-article a:hover {
+  text-decoration: underline;
+}
+
+.docs-article strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.docs-article ul,
+.docs-article ol {
+  margin: 0 0 16px;
+  padding-left: 24px;
+  color: var(--text-secondary);
+}
+
+.docs-article li {
+  margin-bottom: 6px;
+}
+
+.docs-article li > ul,
+.docs-article li > ol {
+  margin-top: 6px;
+  margin-bottom: 0;
+}
+
+/* ─── Code ─── */
+.docs-article code {
+  font-family: 'Courier New', Consolas, monospace;
+  font-size: 13px;
+  background: rgba(0, 0, 0, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--accent);
+}
+
+.docs-article pre {
+  margin: 0 0 20px;
+  padding: 18px 20px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow-x: auto;
+  line-height: 1.5;
+}
+
+.docs-article pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+/* ─── Tables ─── */
+.docs-article table {
+  width: 100%;
+  margin: 0 0 20px;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.docs-article th {
+  text-align: left;
+  padding: 10px 14px;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  border-bottom: 2px solid var(--border);
+}
+
+.docs-article td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.docs-article tr:last-child td {
+  border-bottom: none;
+}
+
+.docs-article td code {
+  font-size: 12px;
+}
+
+/* ─── Blockquotes ─── */
+.docs-article blockquote {
+  margin: 0 0 16px;
+  padding: 14px 20px;
+  border-left: 4px solid var(--accent);
+  background: var(--bg-card);
+  border-radius: 0 10px 10px 0;
+  color: var(--text-secondary);
+}
+
+.docs-article blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* ─── Horizontal rule ─── */
+.docs-article hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 32px 0;
+}
+
+/* ─── Prev / Next navigation ─── */
+.docs-nav-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 24px;
+  gap: 16px;
+}
+
+.docs-nav-btn {
+  display: inline-block;
+  padding: 12px 20px;
+  background: var(--bg-glass);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.docs-nav-btn:hover {
+  color: var(--accent);
+  border-color: var(--border-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--glow);
+}
+
+.docs-nav-btn.prev {
+  margin-right: auto;
+}
+
+.docs-nav-btn.next {
+  margin-left: auto;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 768px) {
+  .docs-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .docs-sidebar {
+    position: static;
+    max-height: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 14px;
+  }
+
+  .sidebar-title {
+    width: 100%;
+    padding: 0 6px 10px;
+  }
+
+  .sidebar-link {
+    padding: 8px 14px;
+    border-left: none;
+    border-radius: 8px;
+    font-size: 13px;
+  }
+
+  .sidebar-link.active {
+    border-left: none;
+    background: rgba(129, 140, 248, 0.15);
+  }
+
+  .docs-article {
+    padding: 24px 20px;
+  }
+
+  .docs-article h1 {
+    font-size: 22px;
+  }
+
+  .docs-nav-footer {
+    flex-direction: column;
+  }
+
+  .docs-nav-btn.next {
+    margin-left: 0;
+  }
+}

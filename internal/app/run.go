@@ -76,7 +76,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			peerDBPath = util.ResolvePath(o.PeerDir, cfg.Presence.PeerDBPath)
 		}
 
-		rv = rendezvous.New(addr, templatesDir, peerDBPath)
+		rv = rendezvous.New(addr, templatesDir, peerDBPath, cfg.Presence.AdminPassword)
 		if err := rv.Start(ctx); err != nil {
 			return err
 		}
@@ -107,6 +107,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			if rv != nil {
 				rvURL = rv.URL()
 			}
+			avatarStore := avatar.NewStore(o.PeerDir)
 			go viewer.StartMinimal(addr, viewer.MinimalViewer{
 				SelfLabel:      selfContent,
 				SelfEmail:      selfEmail,
@@ -115,6 +116,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 				Logs:           o.Logs,
 				BaseURL:        url,
 				RendezvousURL:  rvURL,
+				AvatarStore:    avatarStore,
 			})
 			log.Printf("📋 Settings viewer: %s", url)
 		}

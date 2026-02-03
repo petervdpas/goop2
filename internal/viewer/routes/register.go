@@ -87,6 +87,7 @@ func RegisterMinimal(mux *http.ServeMux, d Deps) {
 	registerSelfRoutes(mux, d, csrf)
 	registerSettingsRoutes(mux, d, csrf)
 	registerLogsUIRoutes(mux, d)
+	registerAvatarRoutes(mux, d)
 
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")

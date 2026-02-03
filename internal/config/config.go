@@ -58,6 +58,10 @@ type Presence struct {
 	// This implies RendezvousHost=true and requires a valid RendezvousPort.
 	RendezvousOnly bool `json:"rendezvous_only"`
 
+	// Password for the /admin monitoring panel (HTTP Basic Auth, user: "admin").
+	// Empty means admin panel is disabled (returns 403).
+	AdminPassword string `json:"admin_password"`
+
 	// Directory containing store templates served by the rendezvous server.
 	// Relative to the peer directory. Empty/missing dir means no store templates.
 	TemplatesDir string `json:"templates_dir"`

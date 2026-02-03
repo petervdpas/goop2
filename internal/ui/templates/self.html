@@ -195,6 +195,18 @@
           Optional. Join WAN presence mesh (LAN + WAN).
         </div>
       </div>
+
+      <div class="field" style="margin-top: 12px;">
+        <label>Admin password</label>
+        <input name="presence_admin_password"
+               type="password"
+               value="{{.Cfg.Presence.AdminPassword}}"
+               placeholder="(empty = admin panel disabled)">
+        <div class="hint">
+          Password for the <code>/admin</code> monitoring panel (HTTP Basic Auth, user: <code>admin</code>).
+          Leave empty to disable the admin panel.
+        </div>
+      </div>
     </div>
 
     <div class="card" style="margin-top: 12px;">

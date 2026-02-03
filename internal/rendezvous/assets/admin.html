@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{.Title}}</title>
+  <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+  <link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="header-left">
+        <div class="logo">📡</div>
+        <div>
+          <h1>{{.Title}}</h1>
+          <p class="subtitle"><span class="live-dot"></span>Live dashboard</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+          <span class="theme-icon">🌙</span>
+        </button>
+        <a class="nav-link" href="/docs">Docs</a>
+        <a class="nav-link" href="/">Public</a>
+      </div>
+    </header>
+
+    <!-- Hero counters -->
+    <div class="hero-row">
+      <div class="hero-card glass">
+        <div class="hero-number" id="count">{{.PeerCount}}</div>
+        <div class="hero-label">Connected Peers</div>
+      </div>
+      <div class="hero-card glass">
+        <div class="hero-number" id="clock">{{.Now}}</div>
+        <div class="hero-label">Server Time</div>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div class="search-bar">
+      <span class="search-icon">&#x1F50D;</span>
+      <input id="q" class="search-input" placeholder="Filter peers..." />
+    </div>
+
+    <!-- Peers panel -->
+    <div class="dash-split">
+      <div class="dash-panel glass">
+        <div class="dash-panel-header">
+          <span class="dash-panel-label"><span class="live-dot"></span> Peers</span>
+        </div>
+        <div id="peers-container">
+          {{if eq (len .Peers) 0}}
+          <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            <p>No peers connected yet</p>
+            <p class="empty-hint">Peers will appear here once they connect</p>
+          </div>
+          {{else}}
+          <div class="peer-grid" id="peer-grid">
+            {{range .Peers}}
+            <div class="peer-card peer-row" data-status="{{statusClass .Type}}" data-label="{{.Content}}" data-email="{{.Email}}">
+              <div class="peer-header">
+                <span class="status-badge {{statusClass .Type}}">{{.Type}}</span>
+                <span class="peer-time">{{fmtMillis .LastSeen}}</span>
+              </div>
+              <div class="peer-label">{{.Content}}</div>
+              {{if .Email}}<div class="peer-email">{{.Email}}</div>{{end}}
+              <div class="peer-id">{{.PeerID}}</div>
+              <div class="peer-stats">
+                <span class="stat-item" title="Sent">↑ {{fmtBytes .BytesSent}}</span>
+                <span class="stat-item" title="Received">↓ {{fmtBytes .BytesReceived}}</span>
+              </div>
+            </div>
+            {{end}}
+          </div>
+          {{end}}
+        </div>
+      </div>
+
+      <!-- Logs panel -->
+      <div class="dash-panel glass">
+        <div class="dash-panel-header">
+          <span class="dash-panel-label">Server Logs</span>
+        </div>
+        <div class="logs-container" id="logs-container">
+          <div class="log-entry empty">Loading...</div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function formatBytes(b) {
+        if (b < 1024) return b + ' B';
+        if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+        if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB';
+        return (b / 1073741824).toFixed(1) + ' GB';
+      }
+
+      var palette = ['#e74c3c','#e67e22','#f1c40f','#2ecc71','#1abc9c','#3498db','#9b59b6','#e91e63','#00bcd4','#ff5722','#607d8b','#795548','#8bc34a','#673ab7'];
+      function hash(s){var h=0;for(var i=0;i<s.length;i++)h=((h<<5)-h+s.charCodeAt(i))|0;return Math.abs(h);}
+      function initials(l){l=(l||'').trim();if(!l)return '?';var p=l.split(/\s+/);return p.length>=2?(p[0][0]+p[1][0]).toUpperCase():l.substring(0,Math.min(2,l.length)).toUpperCase();}
+      function avatarURI(l,e){var c=palette[hash((l||'')+(e||''))%palette.length];return 'data:image/svg+xml;base64,'+btoa('<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><rect width="36" height="36" rx="18" fill="'+c+'"/><text x="18" y="18" dy=".35em" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="600" fill="#fff">'+initials(l)+'</text></svg>');}
+
+      // Theme
+      (function(){
+        var t=document.getElementById('themeToggle'),i=t.querySelector('.theme-icon'),h=document.documentElement,s=localStorage.getItem('theme')||'dark';
+        h.setAttribute('data-theme',s);i.textContent=s==='dark'?'☀️':'🌙';
+        t.onclick=function(){s=h.getAttribute('data-theme')==='dark'?'light':'dark';h.setAttribute('data-theme',s);localStorage.setItem('theme',s);i.textContent=s==='dark'?'☀️':'🌙';};
+      })();
+
+      // Live clock
+      (function(){
+        var el=document.getElementById('clock');
+        if(!el)return;
+        function tick(){var d=new Date();el.textContent=d.toLocaleTimeString();}
+        tick();setInterval(tick,1000);
+        el.style.fontSize='32px';
+      })();
+
+      // Live data
+      (function(){
+        var R=2000;
+
+        async function updatePeers(){
+          if(document.hidden)return;
+          var q=document.getElementById('q');if(q&&q===document.activeElement)return;
+          try{
+            var r=await fetch('/peers.json'),d=await r.json();
+            document.getElementById('count').textContent=d.length;
+            var c=document.getElementById('peers-container');if(!c)return;
+            if(!d.length){c.innerHTML='<div class="empty-state"><div class="empty-icon">📭</div><p>No peers connected yet</p><p class="empty-hint">Peers will appear here once they connect</p></div>';return;}
+            c.innerHTML='<div class="peer-grid" id="peer-grid">'+d.map(function(p){
+              var sc=p.type==='online'?'on':(p.type==='offline'?'off':'up');
+              var ls=p.last_seen?new Date(p.last_seen).toLocaleString():'';
+              var av=avatarURI(p.content||'',p.email||'');
+              return '<div class="peer-card peer-row" data-status="'+sc+'" data-label="'+(p.content||'')+'">'
+                +'<div class="peer-header"><img src="'+av+'" width="28" height="28" style="border-radius:50%;margin-right:8px"><span class="status-badge '+sc+'">'+p.type+'</span><span class="peer-time">'+ls+'</span></div>'
+                +'<div class="peer-label">'+(p.content||'Unknown')+'</div>'
+                +(p.email?'<div class="peer-email">'+p.email+'</div>':'')
+                +'<div class="peer-id">'+p.peer_id+'</div>'
+                +'<div class="peer-stats"><span class="stat-item">↑ '+formatBytes(p.bytes_sent||0)+'</span><span class="stat-item">↓ '+formatBytes(p.bytes_received||0)+'</span></div>'
+                +'</div>';
+            }).join('')+'</div>';
+            applyFilter();
+          }catch(e){console.error(e);}
+        }
+        setInterval(updatePeers,R);
+
+        async function updateLogs(){
+          try{
+            var r=await fetch('/logs.json'),l=await r.json(),c=document.getElementById('logs-container');if(!c)return;
+            if(!l.length){c.innerHTML='<div class="log-entry empty">No logs yet</div>';return;}
+            c.innerHTML=l.reverse().map(function(x){return '<div class="log-entry">'+x+'</div>';}).join('');
+          }catch(e){console.error(e);}
+        }
+        setInterval(updateLogs,R);updateLogs();
+
+        var q=document.getElementById('q');
+        function applyFilter(){
+          var v=(q.value||'').toLowerCase().trim(),c=document.getElementById('peers-container');if(!c)return;
+          var rows=c.querySelectorAll('.peer-row'),n=0;
+          rows.forEach(function(r){var ok=!v||r.textContent.toLowerCase().indexOf(v)!==-1;r.style.display=ok?'':'none';if(ok)n++;});
+          document.getElementById('count').textContent=n;
+        }
+        window.applyFilter=applyFilter;
+        q.addEventListener('input',applyFilter);
+
+        // Inject avatars on initial server-rendered cards
+        document.querySelectorAll('.peer-card[data-label]').forEach(function(card){
+          var h=card.querySelector('.peer-header');if(!h||h.querySelector('img'))return;
+          var img=document.createElement('img');img.src=avatarURI(card.getAttribute('data-label')||'',card.getAttribute('data-email')||'');
+          img.width=28;img.height=28;img.style.cssText='border-radius:50%;margin-right:8px';
+          h.insertBefore(img,h.firstChild);
+        });
+      })();
+
+      // SPA navigation: fetch public pages without credentials so the
+      // browser never re-sends cached Basic-Auth headers (avoids
+      // password-manager popups on every click).
+      (function(){
+        document.addEventListener('click', function(e){
+          var a = e.target.closest('a');
+          if (!a || a.target === '_blank') return;
+          var h = a.getAttribute('href');
+          if (!h || h.charAt(0) !== '/') return;
+          if (h === '/' || h.indexOf('/docs') === 0) {
+            e.preventDefault();
+            fetch(h, {credentials:'omit'}).then(function(r){
+              if (!r.ok) { location.href = h; return; }
+              return r.text();
+            }).then(function(t){
+              if (!t) return;
+              history.pushState(null, '', h);
+              document.open(); document.write(t); document.close();
+            }).catch(function(){ location.href = h; });
+          }
+        });
+        window.addEventListener('popstate', function(){
+          var p = location.pathname;
+          if (p === '/' || p.indexOf('/docs') === 0) {
+            fetch(p, {credentials:'omit'}).then(function(r){ return r.text(); }).then(function(t){
+              document.open(); document.write(t); document.close();
+            });
+          }
+        });
+      })();
+    </script>
+  </div>
+</body>
+</html>

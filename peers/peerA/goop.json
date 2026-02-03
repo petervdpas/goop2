@@ -18,7 +18,10 @@
     "rendezvous_host": true,
     "rendezvous_port": 8787,
     "rendezvous_wan": "",
-    "rendezvous_only": true
+    "rendezvous_only": true,
+    "admin_password": "welcome",
+    "templates_dir": "templates",
+    "peer_db_path": ""
   },
   "profile": {
     "label": "Peer-A",
@@ -26,7 +29,17 @@
   },
   "viewer": {
     "http_addr": ":7777",
-    "debug": true,
+    "debug": false,
     "theme": "light"
+  },
+  "lua": {
+    "enabled": false,
+    "script_dir": "site/lua",
+    "timeout_seconds": 5,
+    "max_memory_mb": 10,
+    "rate_limit_per_peer": 30,
+    "rate_limit_global": 120,
+    "http_enabled": true,
+    "kv_enabled": true
   }
 }

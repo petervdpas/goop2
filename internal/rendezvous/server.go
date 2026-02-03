@@ -20,7 +20,7 @@ import (
 	"goop/internal/util"
 )
 
-//go:embed assets/index.html assets/style.css
+//go:embed all:assets
 var embedded embed.FS
 
 const (
@@ -29,8 +29,9 @@ const (
 )
 
 type Server struct {
-	addr string
-	srv  *http.Server
+	addr          string
+	adminPassword string
+	srv           *http.Server
 
 	mu        sync.Mutex
 	clients   map[chan []byte]struct{}
@@ -44,11 +45,20 @@ type Server struct {
 	logs    []string
 	maxLogs int
 
-	tmpl  *template.Template
-	style []byte
+	tmpl      *template.Template
+	adminTmpl *template.Template
+	docsTmpl  *template.Template
+	style     []byte
+	docsCSS   []byte
+	favicon   []byte
+	docsSite  *DocSite
 
 	templateStore *TemplateStore
 	peerDB        *peerDB // nil when persistence is disabled
+
+	// per-IP rate limiter for /publish
+	rateMu     sync.Mutex
+	rateWindow map[string][]time.Time
 }
 
 type peerRow struct {
@@ -67,13 +77,26 @@ type indexVM struct {
 	Title          string
 	Endpoint       string
 	ConnectURLs    []string
-	PeerCount      int
-	Peers          []peerRow
-	Now            string
 	StoreTemplates []StoreMeta
+	HasAdmin       bool
 }
 
-func New(addr string, templatesDir string, peerDBPath string) *Server {
+type adminVM struct {
+	Title     string
+	PeerCount int
+	Peers     []peerRow
+	Now       string
+}
+
+type docsVM struct {
+	Title   string
+	Pages   []DocPage
+	Current *DocPage
+	Prev    *DocPage
+	Next    *DocPage
+}
+
+func New(addr string, templatesDir string, peerDBPath string, adminPassword string) *Server {
 	funcs := template.FuncMap{
 		"statusClass": func(t string) string {
 			switch t {
@@ -105,29 +128,52 @@ func New(addr string, templatesDir string, peerDBPath string) *Server {
 		},
 	}
 
-	t := template.New("index.html").Funcs(funcs)
+	tmpl, err := template.New("index.html").Funcs(funcs).ParseFS(embedded, "assets/index.html")
+	if err != nil {
+		panic(err)
+	}
 
-	// Parse AFTER Funcs are registered.
-	tmpl, err := t.ParseFS(embedded, "assets/index.html")
+	adminTmpl, err := template.New("admin.html").Funcs(funcs).ParseFS(embedded, "assets/admin.html")
+	if err != nil {
+		panic(err)
+	}
+
+	docsTmpl, err := template.New("docs.html").Funcs(funcs).ParseFS(embedded, "assets/docs.html")
 	if err != nil {
 		panic(err)
 	}
 
 	css, err := embedded.ReadFile("assets/style.css")
 	if err != nil {
-		// If you prefer: panic(err)
 		css = []byte("/* missing style.css */")
 	}
 
+	docsCSSData, err := embedded.ReadFile("assets/docs.css")
+	if err != nil {
+		docsCSSData = []byte("/* missing docs.css */")
+	}
+
+	faviconData, err := embedded.ReadFile("assets/favicon.ico")
+	if err != nil {
+		faviconData = nil
+	}
+
 	s := &Server{
-		addr:      addr,
-		clients:   map[chan []byte]struct{}{},
-		clientIPs: map[chan []byte]string{},
-		peers:     map[string]peerRow{},
-		logs:    make([]string, 0, 500),
-		maxLogs: 500,
-		tmpl:    tmpl,
-		style:   css,
+		addr:          addr,
+		adminPassword: adminPassword,
+		clients:       map[chan []byte]struct{}{},
+		clientIPs:     map[chan []byte]string{},
+		peers:         map[string]peerRow{},
+		logs:          make([]string, 0, 500),
+		maxLogs:       500,
+		tmpl:          tmpl,
+		adminTmpl:     adminTmpl,
+		docsTmpl:      docsTmpl,
+		style:         css,
+		docsCSS:       docsCSSData,
+		favicon:       faviconData,
+		docsSite:      newDocSite(),
+		rateWindow:    map[string][]time.Time{},
 	}
 
 	// Open peer DB if path provided (for multi-instance persistence)
@@ -161,18 +207,22 @@ func (s *Server) Start(ctx context.Context) error {
 
 	mux := http.NewServeMux()
 
-	// Human + machine endpoints
+	// Public endpoints
 	mux.HandleFunc("/", s.handleIndex)
-	mux.HandleFunc("/peers.json", s.handlePeersJSON)
-	mux.HandleFunc("/logs.json", s.handleLogsJSON)
-
-	// Static (embedded) CSS
 	mux.HandleFunc("/assets/style.css", s.handleStyle)
-
+	mux.HandleFunc("/assets/docs.css", s.handleDocsCSS)
+	mux.HandleFunc("/favicon.ico", s.handleFavicon)
+	mux.HandleFunc("/docs", s.handleDocsRedirect)
+	mux.HandleFunc("/docs/", s.handleDocs)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("content-type", "text/plain; charset=utf-8")
 		_, _ = w.Write([]byte("ok"))
 	})
+
+	// Admin-protected endpoints
+	mux.HandleFunc("/admin", s.handleAdmin)
+	mux.HandleFunc("/peers.json", s.handlePeersJSON)
+	mux.HandleFunc("/logs.json", s.handleLogsJSON)
 
 	// SSE: stream messages to subscribers
 	mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
@@ -232,6 +282,13 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/publish", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Per-IP rate limiting: 60 requests per minute
+		ip := extractIP(r.RemoteAddr)
+		if !s.allowPublish(ip) {
+			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
 			return
 		}
 
@@ -515,6 +572,9 @@ func (s *Server) cleanupStalePeers(ctx context.Context) {
 			if s.peerDB != nil {
 				go s.peerDB.cleanupStale(staleThreshold)
 			}
+
+			// Clean up stale rate limiter entries
+			s.cleanupRateLimiter()
 		}
 	}
 }
@@ -581,9 +641,85 @@ func (s *Server) handleStyle(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(s.style)
 }
 
+func (s *Server) handleDocsCSS(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("content-type", "text/css; charset=utf-8")
+	_, _ = w.Write(s.docsCSS)
+}
+
+func (s *Server) handleFavicon(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.favicon == nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "image/x-icon")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	_, _ = w.Write(s.favicon)
+}
+
+func (s *Server) handleDocsRedirect(w http.ResponseWriter, r *http.Request) {
+	if len(s.docsSite.Pages) == 0 {
+		http.NotFound(w, r)
+		return
+	}
+	http.Redirect(w, r, "/docs/"+s.docsSite.Pages[0].Slug, http.StatusFound)
+}
+
+func (s *Server) handleDocs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	slug := strings.TrimPrefix(r.URL.Path, "/docs/")
+	if slug == "" {
+		s.handleDocsRedirect(w, r)
+		return
+	}
+
+	page, ok := s.docsSite.BySlug[slug]
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Find prev/next pages.
+	var prev, next *DocPage
+	for i, p := range s.docsSite.Pages {
+		if p.Slug == slug {
+			if i > 0 {
+				prev = &s.docsSite.Pages[i-1]
+			}
+			if i < len(s.docsSite.Pages)-1 {
+				next = &s.docsSite.Pages[i+1]
+			}
+			break
+		}
+	}
+
+	w.Header().Set("content-type", "text/html; charset=utf-8")
+	_ = s.docsTmpl.Execute(w, docsVM{
+		Title:   page.Title,
+		Pages:   s.docsSite.Pages,
+		Current: page,
+		Prev:    prev,
+		Next:    next,
+	})
+}
+
 func (s *Server) handlePeersJSON(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.requireAdmin(w, r) {
 		return
 	}
 	w.Header().Set("content-type", "application/json; charset=utf-8")
@@ -593,6 +729,9 @@ func (s *Server) handlePeersJSON(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleLogsJSON(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.requireAdmin(w, r) {
 		return
 	}
 	s.logMu.Lock()
@@ -630,8 +769,6 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	peers := s.snapshotPeers()
-
 	var storeTemplates []StoreMeta
 	if s.templateStore != nil {
 		storeTemplates = s.templateStore.List()
@@ -642,11 +779,99 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		Title:          "Goop² Rendezvous",
 		Endpoint:       s.URL(),
 		ConnectURLs:    s.connectURLs(),
-		PeerCount:      len(peers),
-		Peers:          peers,
-		Now:            time.Now().Format("2006-01-02 15:04:05"),
 		StoreTemplates: storeTemplates,
+		HasAdmin:       s.adminPassword != "",
 	})
+}
+
+func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.requireAdmin(w, r) {
+		return
+	}
+
+	peers := s.snapshotPeers()
+
+	w.Header().Set("content-type", "text/html; charset=utf-8")
+	_ = s.adminTmpl.Execute(w, adminVM{
+		Title:     "Goop² Admin",
+		PeerCount: len(peers),
+		Peers:     peers,
+		Now:       time.Now().Format("2006-01-02 15:04:05"),
+	})
+}
+
+// requireAdmin checks HTTP Basic Auth. Returns true if authorized.
+func (s *Server) requireAdmin(w http.ResponseWriter, r *http.Request) bool {
+	if s.adminPassword == "" {
+		http.Error(w, "admin panel disabled", http.StatusForbidden)
+		return false
+	}
+	user, pass, ok := r.BasicAuth()
+	if !ok || user != "admin" || pass != s.adminPassword {
+		w.Header().Set("WWW-Authenticate", `Basic realm="Goop2 Admin"`)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return false
+	}
+	return true
+}
+
+// allowPublish checks the per-IP sliding window rate limit (60 req/min).
+func (s *Server) allowPublish(ip string) bool {
+	const maxRequests = 60
+	window := time.Minute
+
+	now := time.Now()
+	cutoff := now.Add(-window)
+
+	s.rateMu.Lock()
+	defer s.rateMu.Unlock()
+
+	times := s.rateWindow[ip]
+
+	// Trim expired entries
+	n := 0
+	for _, t := range times {
+		if t.After(cutoff) {
+			times[n] = t
+			n++
+		}
+	}
+	times = times[:n]
+
+	if len(times) >= maxRequests {
+		s.rateWindow[ip] = times
+		return false
+	}
+
+	s.rateWindow[ip] = append(times, now)
+	return true
+}
+
+// cleanupRateLimiter removes stale entries from the rate limiter map.
+func (s *Server) cleanupRateLimiter() {
+	cutoff := time.Now().Add(-time.Minute)
+
+	s.rateMu.Lock()
+	defer s.rateMu.Unlock()
+
+	for ip, times := range s.rateWindow {
+		n := 0
+		for _, t := range times {
+			if t.After(cutoff) {
+				times[n] = t
+				n++
+			}
+		}
+		if n == 0 {
+			delete(s.rateWindow, ip)
+		} else {
+			s.rateWindow[ip] = times[:n]
+		}
+	}
 }
 
 func (s *Server) handleTemplateList(w http.ResponseWriter, r *http.Request) {

@@ -100,6 +100,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 
 		cfg.Presence.RendezvousWAN = getTrimmedPostFormValue(r.PostForm, "presence_rendezvous_wan")
+		cfg.Presence.AdminPassword = getTrimmedPostFormValue(r.PostForm, "presence_admin_password")
 
 		switch strings.ToLower(getTrimmedPostFormValue(r.PostForm, "lua_enabled")) {
 		case "on", "1", "true", "yes":

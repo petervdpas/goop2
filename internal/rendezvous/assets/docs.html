@@ -3,75 +3,47 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{{.Title}}</title>
+  <title>{{.Title}} — Goop² Docs</title>
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
   <link rel="stylesheet" href="/assets/style.css" />
+  <link rel="stylesheet" href="/assets/docs.css" />
 </head>
 <body>
-  <div class="container">
+  <div class="container docs-container">
     <header class="header">
       <div class="header-left">
         <div class="logo">📡</div>
         <div>
-          <h1>Goop² Rendezvous</h1>
-          <p class="subtitle">Peer discovery &amp; template distribution for the ephemeral web</p>
+          <h1>Goop² Documentation</h1>
+          <p class="subtitle">User guide &amp; reference</p>
         </div>
       </div>
       <div class="header-right">
         <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
           <span class="theme-icon">🌙</span>
         </button>
-        <a class="nav-link" href="/docs">Docs</a>
-        {{if .HasAdmin}}<a class="nav-link accent" href="/admin">Admin</a>{{end}}
-        <a class="nav-link" href="/healthz" target="_blank">Health</a>
+        <a class="nav-link" href="/">Home</a>
       </div>
     </header>
 
-    {{if .ConnectURLs}}
-    <div class="connect-box glass">
-      <div class="connect-label">Connect to this server</div>
-      <div class="connect-hint">Paste a URL below into a peer's <strong>WAN rendezvous</strong> setting to join this network</div>
-      {{range .ConnectURLs}}
-      <div class="connect-url" onclick="navigator.clipboard.writeText('{{.}}').then(()=>{this.classList.add('copied');setTimeout(()=>this.classList.remove('copied'),1200)})">
-        <code>{{.}}</code>
-        <span class="copy-hint">click to copy</span>
-      </div>
-      {{end}}
-    </div>
-    {{end}}
-
-    {{if .StoreTemplates}}
-    <div class="welcome-section">
-      <h2 class="section-title">Template Store</h2>
-      <p class="templates-hint">Site templates available to peers connected to this rendezvous server.</p>
-      <div class="rv-tpl-grid">
-        {{range .StoreTemplates}}
-        <div class="rv-tpl-card">
-          <div class="rv-tpl-icon">{{.Icon}}</div>
-          <div class="rv-tpl-body">
-            <div class="rv-tpl-name">{{.Name}}</div>
-            <div class="rv-tpl-cat">{{.Category}}</div>
-            <div class="rv-tpl-desc">{{.Description}}</div>
-          </div>
-          <div class="rv-tpl-footer">
-            <span class="rv-tpl-dir">{{.Dir}}</span>
-            <a class="rv-tpl-dl" href="/api/templates/{{.Dir}}/bundle" title="Download bundle">⬇ bundle</a>
-          </div>
-        </div>
+    <div class="docs-layout">
+      <nav class="docs-sidebar glass">
+        <div class="sidebar-title">Contents</div>
+        {{range .Pages}}
+        <a class="sidebar-link{{if eq .Slug $.Current.Slug}} active{{end}}" href="/docs/{{.Slug}}">{{.Title}}</a>
         {{end}}
-      </div>
-    </div>
-    {{end}}
+      </nav>
 
-    <div class="welcome-section">
-      <h2 class="section-title">About Goop²</h2>
-      <p class="about-text">
-        Goop² is a peer-to-peer content publishing system for the ephemeral web.
-        Peers connect via mDNS on local networks or through rendezvous servers like
-        this one for WAN discovery. Each peer hosts its own site content and
-        synchronizes with others in real time.
-      </p>
-      <div class="endpoint-chip">{{.Endpoint}}</div>
+      <main class="docs-content">
+        <article class="docs-article glass">
+          {{.Current.HTML}}
+        </article>
+
+        <div class="docs-nav-footer">
+          {{if .Prev}}<a class="docs-nav-btn prev" href="/docs/{{.Prev.Slug}}">&larr; {{.Prev.Title}}</a>{{else}}<span></span>{{end}}
+          {{if .Next}}<a class="docs-nav-btn next" href="/docs/{{.Next.Slug}}">{{.Next.Title}} &rarr;</a>{{else}}<span></span>{{end}}
+        </div>
+      </main>
     </div>
 
     <script>
