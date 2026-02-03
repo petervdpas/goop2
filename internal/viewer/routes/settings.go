@@ -88,11 +88,13 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			cfg.Presence.HeartbeatSec = atoiOrNeg(hb)
 		}
 
-		switch strings.ToLower(getTrimmedPostFormValue(r.PostForm, "presence_rendezvous_host")) {
+		switch strings.ToLower(getTrimmedPostFormValue(r.PostForm, "presence_rendezvous_server")) {
 		case "on", "1", "true", "yes":
 			cfg.Presence.RendezvousHost = true
+			cfg.Presence.RendezvousOnly = true
 		default:
 			cfg.Presence.RendezvousHost = false
+			cfg.Presence.RendezvousOnly = false
 		}
 
 		if rp := getTrimmedPostFormValue(r.PostForm, "presence_rendezvous_port"); rp != "" {

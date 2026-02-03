@@ -147,21 +147,24 @@
     <div class="card" style="margin-top: 12px;">
       <h3>Rendezvous</h3>
 
-      <div class="rv-local">
-        <div class="rv-local-title">Local rendezvous server</div>
+      <div class="rv-local rv-local--title-only">
+        <div class="rv-local-title">Setup as Rendezvous Server</div>
 
         <div class="rv-local-toggle">
           <span class="muted small">Off</span>
-          <label class="switch" title="Enable local rendezvous server">
+          <label class="switch" title="Run as a dedicated rendezvous server (disables P2P)">
             <input id="rv_host"
                    type="checkbox"
-                   name="presence_rendezvous_host"
-                   {{if .Cfg.Presence.RendezvousHost}}checked{{end}}>
+                   name="presence_rendezvous_server"
+                   {{if .Cfg.Presence.RendezvousOnly}}checked{{end}}
+                   onchange="document.getElementById('rv-server-opts').style.display=this.checked?'':'none'">
             <span class="slider"></span>
           </label>
           <span class="muted small">On</span>
         </div>
+      </div>
 
+      <div id="rv-server-opts" class="rv-local" style="margin-top:10px;{{if not .Cfg.Presence.RendezvousOnly}} display:none{{end}}">
         <div class="rv-local-row">
           <div class="field rv-port-field">
             <label>Port</label>

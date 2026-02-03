@@ -59,6 +59,11 @@
   width: min(520px, 100%);
 }
 
+.rv-local--title-only{
+  grid-template-areas: "title toggle";
+  grid-template-rows: auto;
+}
+
 #rv_port.rv-disabled{
   opacity: 0.60;
 }
