@@ -121,6 +121,15 @@ func normalizeDirRel(p string) string {
 	return p
 }
 
+var imageExts = map[string]bool{
+	".png": true, ".jpg": true, ".jpeg": true, ".gif": true,
+	".webp": true, ".svg": true, ".ico": true, ".bmp": true,
+}
+
+func isImageExt(p string) bool {
+	return imageExts[strings.ToLower(path.Ext(p))]
+}
+
 func dirOf(p string) string {
 	p = strings.TrimSpace(p)
 	p = strings.TrimPrefix(p, "/")

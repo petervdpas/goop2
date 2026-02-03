@@ -10,6 +10,7 @@ type EditorVM struct {
 	Content  string
 	ETag     string
 	SiteRoot string // absolute path to the site root directory
+	IsImage  bool   // true when Path points to an image file
 
 	Dir   string
 	Files []EditorFileRow

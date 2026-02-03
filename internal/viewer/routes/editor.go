@@ -81,6 +81,7 @@ func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			Content:  string(b),
 			ETag:     etag,
 			SiteRoot: d.Content.RootAbs(),
+			IsImage:  isImageExt(rel),
 			Saved:    (r.URL.Query().Get("saved") == "1"),
 		}
 		render.Render(w, vm)

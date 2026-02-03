@@ -534,6 +534,10 @@ func ensureDefaultPeerSite(siteDir string) error {
 		}
 	}
 
+	if err := os.MkdirAll(filepath.Join(siteDir, "images"), 0o755); err != nil {
+		return err
+	}
+
 	stylePath := filepath.Join(siteDir, "style.css")
 	if _, err := os.Stat(stylePath); err != nil {
 		if !os.IsNotExist(err) {

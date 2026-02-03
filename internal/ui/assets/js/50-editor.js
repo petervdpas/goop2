@@ -50,6 +50,7 @@
     if (label) label.textContent = state.selectedDir || "(root)";
 
     setSelectedNode("dir", state.selectedDir || "");
+    updateImgPanel();
   }
 
   const rootLink = qs("#ed-root-link");
@@ -397,6 +398,58 @@
 
       if (k === "folder") await post("/edit/mkdir", { dir, name });
       else await post("/edit/new", { dir, name });
+    });
+  }
+
+  // Image upload panel
+  const imgInput = qs("#ed-img-input");
+  const imgBtn = qs("#ed-img-btn");
+  const imgHint = qs("#ed-img-hint");
+
+  function isImagesDir(dir) {
+    return dir === "images" || dir.startsWith("images/");
+  }
+
+  function updateImgPanel() {
+    if (!imgBtn) return;
+    const enabled = isImagesDir(state.selectedDir);
+    imgBtn.disabled = !enabled;
+    if (imgHint) {
+      imgHint.textContent = enabled
+        ? "Upload to " + state.selectedDir + "/"
+        : "Select the images/ folder to enable.";
+    }
+  }
+
+  if (imgBtn) {
+    imgBtn.addEventListener("click", () => {
+      if (imgInput && !imgBtn.disabled) imgInput.click();
+    });
+  }
+
+  if (imgInput) {
+    imgInput.addEventListener("change", async () => {
+      const file = imgInput.files[0];
+      if (!file) return;
+      imgInput.value = "";
+
+      const dest = state.selectedDir + "/" + file.name;
+      const fd = new FormData();
+      fd.append("path", dest);
+      fd.append("file", file);
+
+      const res = await fetch("/api/site/upload", {
+        method: "POST",
+        body: fd,
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        await dlgAlert("Upload failed", text.slice(0, 600));
+        return;
+      }
+
+      window.location.reload();
     });
   }
 

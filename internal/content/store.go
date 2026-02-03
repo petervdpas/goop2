@@ -20,7 +20,14 @@ var (
 	ErrForbidden   = errors.New("forbidden")
 	ErrNotFound    = errors.New("not found")
 	ErrConflict    = errors.New("conflict")
+	ErrImagePath   = errors.New("image files must be placed in the images/ folder")
 )
+
+// imageExts lists extensions that are considered image files.
+var imageExts = map[string]bool{
+	".png": true, ".jpg": true, ".jpeg": true, ".gif": true,
+	".webp": true, ".svg": true, ".ico": true, ".bmp": true,
+}
 
 type Store struct {
 	root string // absolute path to peer's editable root (e.g. /.../peerA/site)
@@ -80,6 +87,13 @@ func (s *Store) Write(ctx context.Context, rel string, data []byte, ifMatch stri
 	abs, err := s.cleanAbs(rel)
 	if err != nil {
 		return "", err
+	}
+
+	// Image files must live under images/
+	ext := strings.ToLower(path.Ext(rel))
+	clean := strings.TrimPrefix(filepath.ToSlash(rel), "/")
+	if imageExts[ext] && !strings.HasPrefix(clean, "images/") {
+		return "", ErrImagePath
 	}
 
 	// optional optimistic concurrency

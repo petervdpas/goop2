@@ -17,6 +17,7 @@
   {{end}}
 
   <div class="ed">
+    <div class="ed-left-col">
     <aside class="ed-left panel">
       <div class="ed-left-head">
         <div class="ed-left-head-row">
@@ -24,8 +25,8 @@
             <div class="ed-left-title">Site tree</div>
             <div class="muted small">
               <!-- Click to target root -->
-              <a href="#" id="ed-root-link" class="muted small" title="Target root ({{.SiteRoot}})">
-                <code>{{.SiteRoot}}/</code>
+              <a href="#" id="ed-root-link" class="muted small" title="{{.SiteRoot}}">
+                <code>site/</code>
               </a>
             </div>
           </div>
@@ -83,7 +84,32 @@
       </div>
     </aside>
 
+    <div class="ed-img-panel panel">
+      <div class="ed-img-panel-title">Upload image</div>
+      <button type="button" id="ed-img-btn" class="ed-left-newbtn" disabled
+              title="Select the images/ folder (or a subfolder) first">
+        Choose file…
+      </button>
+      <input type="file" id="ed-img-input" accept="image/*" hidden>
+      <div class="muted small" id="ed-img-hint">
+        Select the <code>images/</code> folder to enable.
+      </div>
+    </div>
+    </div>
+
     <section class="ed-right panel">
+      {{if .IsImage}}
+      <div class="ed-savebar ed-savebar-compact">
+        <div class="ed-savebar-row">
+          <div class="ed-savebar-title">
+            <code>{{.Path}}</code>
+          </div>
+        </div>
+      </div>
+      <div class="ed-img-preview">
+        <img src="/p/{{.SelfID}}/{{.Path}}" alt="{{.Path}}">
+      </div>
+      {{else}}
       <div class="ed-fileops">
         <form method="POST" action="/edit/save" class="ed-save">
           <input type="hidden" name="csrf" value="{{.CSRF}}">
@@ -111,6 +137,7 @@
           </div>
         </form>
       </div>
+      {{end}}
     </section>
   </div>
 </div>
