@@ -42,12 +42,14 @@ goop2 peer <peer-directory>
 ```
 
 **Example:**
+
 ```bash
 ./goop2 peer ./peers/mysite
 ./goop2 peer /home/user/peers/blog
 ```
 
 **What it does:**
+
 - Loads `goop.json` from the peer directory
 - Opens or creates `data.db` SQLite database
 - Serves static site from `site/` subdirectory
@@ -57,7 +59,8 @@ goop2 peer <peer-directory>
 - Optionally hosts rendezvous server (if configured)
 
 **Peer directory structure:**
-```
+
+```bash
 peers/mysite/
 ├── goop.json          # Configuration
 ├── data.db            # SQLite database (auto-created)
@@ -79,7 +82,7 @@ The peer's `goop.json` should have `rendezvous_host: true` configured. This star
 ### CLI vs Desktop Comparison
 
 | Feature | CLI Peer Mode | Desktop Mode |
-|---------|----------|-------------|
+| -- | -- | -- |
 | **Command** | `goop2 peer <dir>` | `goop2` |
 | **Memory** | ~30-50 MB | ~80-150 MB |
 | **GUI** | None | Full UI |
@@ -116,6 +119,7 @@ All configuration is via `goop.json` in the peer directory. There are no environ
 ```
 
 **Key settings:**
+
 - `viewer.http_addr` — Bind to localhost if behind reverse proxy
 - `p2p.listen_port` — Unique per peer on same host
 - `presence.rendezvous_wan` — Your production rendezvous server
@@ -143,7 +147,7 @@ All configuration is via `goop.json` in the peer directory. There are no environ
 Key rendezvous settings in `goop.json` under `"presence"`:
 
 | Setting | Default | Description |
-|---------|---------|-------------|
+| -- | -- | -- |
 | `rendezvous_host` | `false` | Enable the rendezvous server |
 | `rendezvous_port` | `8787` | Listen port (binds to `127.0.0.1`) |
 | `rendezvous_only` | `false` | Run only rendezvous (no P2P node) |
@@ -157,6 +161,7 @@ Key rendezvous settings in `goop.json` under `"presence"`:
 ### Pattern 1: Single Peer Server
 
 **Systemd service:**
+
 ```ini
 [Unit]
 Description=Goop² Peer - My Blog
@@ -176,6 +181,7 @@ WantedBy=multi-user.target
 ```
 
 **Deploy:**
+
 ```bash
 sudo useradd -r -s /bin/false goop
 sudo mkdir -p /opt/goop/peers/blog/site
@@ -251,6 +257,7 @@ Visit http://localhost:8787 to see the monitoring UI.
 ### Rendezvous-Only Mode
 
 When configured with `rendezvous_only: true`, only the rendezvous server runs — no libp2p P2P node. A **minimal settings viewer** starts alongside, providing:
+
 - **Settings page** (`/self`) — edit peer label, email, and config
 - **Logs page** (`/logs`) — live log monitoring with SSE tail
 - **Rendezvous dashboard link** — quick access to the rendezvous web UI
@@ -258,6 +265,7 @@ When configured with `rendezvous_only: true`, only the rendezvous server runs �
 ### Desktop Launcher Integration
 
 The desktop launcher (Wails) automatically detects rendezvous-only peers:
+
 - Rendezvous peers display a **"Rendezvous"** badge in the peer list
 - The Start button changes to **"Configure"** for rendezvous peers
 - Starting a rendezvous peer opens Settings (`/self`) instead of the peer list
@@ -265,6 +273,7 @@ The desktop launcher (Wails) automatically detects rendezvous-only peers:
 ### Production Deployment
 
 **Create user and directories:**
+
 ```bash
 sudo useradd -r -s /bin/false goop
 sudo mkdir -p /opt/goop /var/log/goop
@@ -274,6 +283,7 @@ sudo chmod 755 /opt/goop/goop2
 ```
 
 **Install systemd service:**
+
 ```bash
 sudo cp docs/goop-rendezvous.service /etc/systemd/system/
 sudo systemctl daemon-reload
@@ -282,6 +292,7 @@ sudo systemctl start goop-rendezvous
 ```
 
 **Check status:**
+
 ```bash
 sudo systemctl status goop-rendezvous
 sudo journalctl -u goop-rendezvous -f
@@ -290,9 +301,11 @@ sudo journalctl -u goop-rendezvous -f
 ### Rendezvous Endpoints
 
 **Web UI:**
+
 - `GET /` — Real-time peer monitoring dashboard (auto-refreshes via SSE)
 
 **REST API:**
+
 - `GET /peers.json` — JSON list of all registered peers
 - `GET /logs.json` — JSON-formatted server log entries
 - `POST /publish` — Register a peer (used by clients)
@@ -300,11 +313,13 @@ sudo journalctl -u goop-rendezvous -f
 - `GET /healthz` — Health check endpoint (returns "ok")
 
 **Template Store API:**
+
 - `GET /api/templates` — List available templates
 - `GET /api/templates/<name>/manifest.json` — Template metadata
 - `GET /api/templates/<name>/bundle` — Download template as tar.gz
 
 **Example usage:**
+
 ```bash
 curl https://rendezvous.yourdomain.com/peers.json
 curl https://rendezvous.yourdomain.com/healthz
@@ -326,6 +341,7 @@ For high-availability deployments, run multiple instances.
 >    With a shared DB, `round_robin` is acceptable.
 
 **Caddyfile (sticky sessions):**
+
 ```caddyfile
 rendezvous.yourdomain.com {
     reverse_proxy localhost:8787 localhost:8788 localhost:8789 {
@@ -337,6 +353,7 @@ rendezvous.yourdomain.com {
 ```
 
 **Shared peer DB example `goop.json`:**
+
 ```json
 {
   "presence": {
@@ -349,6 +366,7 @@ rendezvous.yourdomain.com {
 ```
 
 Start multiple instances (each with its own peer directory but sharing the DB file):
+
 ```bash
 ./goop2 rendezvous /opt/goop/peer1 &
 ./goop2 rendezvous /opt/goop/peer2 &
@@ -392,6 +410,7 @@ sudo systemctl start goop-rendezvous
 
 Zero-downtime updates with multiple instances (requires shared `peer_db_path` or
 sticky sessions so peers survive the rolling restart):
+
 1. Update instance 1, wait for health check
 2. Update instance 2, wait for health check
 3. Update instance 3, etc.
@@ -399,6 +418,7 @@ sticky sessions so peers survive the rolling restart):
 ### Performance
 
 Expected capacity:
+
 - **1000+ peers** on a single instance (2 vCPU, 1GB RAM)
 - **< 1ms** response time for API requests
 - **< 10MB** memory per 1000 peers
@@ -413,6 +433,7 @@ Expected capacity:
 See [Caddyfile.example](./Caddyfile.example) for detailed configurations.
 
 **Simple subdomain:**
+
 ```caddyfile
 rendezvous.yourdomain.com {
     reverse_proxy localhost:8787
@@ -420,6 +441,7 @@ rendezvous.yourdomain.com {
 ```
 
 **Path-based routing:**
+
 ```caddyfile
 yourdomain.com {
     handle /rendezvous* {
@@ -429,6 +451,7 @@ yourdomain.com {
 ```
 
 **Peer viewer:**
+
 ```caddyfile
 mysite.yourdomain.com {
     reverse_proxy localhost:8080
@@ -531,7 +554,7 @@ Systematic review of 19 production-readiness concerns, verified against actual c
 #### Addressed (13/19)
 
 | # | Issue | Status |
-|---|-------|--------|
+| -- | -- | -- |
 | 1 | Systemd service file outdated | **Fixed** — updated to current subcommand syntax |
 | 2 | Config precedence undefined | **Non-issue** — `goop.json` is the only source; no env vars or CLI config flags |
 | 3 | Multi-instance peers disappear | **Fixed** — SQLite WAL-mode peer DB via `peer_db_path`, 3s sync interval |
@@ -549,14 +572,14 @@ Systematic review of 19 production-readiness concerns, verified against actual c
 #### Partially Addressed (2/19)
 
 | # | Issue | Notes |
-|---|-------|-------|
+| -- | -- | -- |
 | 10 | Data functions can write any row | Chat scripts have no DB access (correct); data functions have full read+write via `goop.db.exec`; **no per-table permissions** — intentional design (site owner deploys scripts) |
 | 19 | Undefined host-failure mode | Hub restart: peers re-register within 5s (good). **Group host crash: detection depends on TCP timeout (2-9 min)**; no application-level group heartbeat; auto-reconnect is startup-only |
 
 #### Not Addressed (2/19)
 
 | # | Issue | Notes |
-|---|-------|-------|
+| -- | -- | -- |
 | 6 | Health endpoint too simple | `/healthz` returns `"ok"` unconditionally; does not check DB connectivity, memory, or goroutine count |
 | 15 | No result data integrity | No message signatures or cross-validation; identity enforced by host overwriting `From` field |
 

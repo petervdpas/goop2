@@ -24,7 +24,7 @@ Both phases share the same Lua engine, sandbox, and script directory.
 
 ### Where Scripts Live
 
-```
+```bash
 {peerDir}/
   site/
     lua/
@@ -59,7 +59,7 @@ Both directories are **excluded from site serving** — scripts are never served
 
 ### Chat Command Dispatch
 
-```
+```bash
 Remote peer                          Local peer
     |                                    |
     |  SendDirect("!weather London")     |
@@ -79,7 +79,7 @@ Remote peer                          Local peer
 
 ### Data Function Dispatch
 
-```
+```bash
 Visitor browser
     -> goopData.call("score-quiz", params)
     -> local Goop2 viewer
@@ -238,6 +238,7 @@ goop.db.exec("UPDATE games SET board = ? WHERE _id = ?", new_board, game_id)
 ### Data Protocol Request/Response Format
 
 **Request:**
+
 ```json
 {
     "op": "lua-call",
@@ -247,11 +248,13 @@ goop.db.exec("UPDATE games SET board = ? WHERE _id = ?", new_board, game_id)
 ```
 
 **Response:**
+
 ```json
 { "ok": true, "result": { "score": 2, "total": 3, "passed": false } }
 ```
 
 **Function discovery:**
+
 ```json
 { "op": "lua-list" }
 ```
@@ -319,6 +322,7 @@ end
 Each Lua VM is created with restricted standard libraries.
 
 **Available:**
+
 - `string` — full string library
 - `table` — full table library
 - `math` — full math library
@@ -327,6 +331,7 @@ Each Lua VM is created with restricted standard libraries.
 - `pcall`, `xpcall`, `error`, `assert`
 
 **Removed:**
+
 - `os.execute`, `os.remove`, `os.rename`, `os.exit`, `os.getenv`, `os.tmpname`
 - `io` — entire library
 - `loadfile`, `dofile` — no loading external files
@@ -343,7 +348,7 @@ Each Lua VM is created with restricted standard libraries.
 ### Resource Limits
 
 | Resource | Limit | Rationale |
-|----------|-------|-----------|
+| -- | -- | -- |
 | Execution time | 5s (default) | Prevents infinite loops |
 | Memory | 10MB per VM | Prevents memory exhaustion |
 | Registry max size | Derived from MaxMemoryMB | Caps table/string allocations |
@@ -380,7 +385,7 @@ Scripts can make outbound HTTP/HTTPS requests via `goop.http` but cannot open ra
 ```
 
 | Field | Type | Default | Description |
-|-------|------|---------|-------------|
+| -- | -- | -- | -- |
 | `enabled` | bool | `false` | Master switch for Lua scripting |
 | `script_dir` | string | `"site/lua"` | Path to script directory (relative to peer folder) |
 | `timeout_seconds` | int | `5` | Max execution time per invocation |
@@ -398,7 +403,7 @@ Disabled by default. The peer must explicitly opt in.
 
 ### Package Structure
 
-```
+```bash
 internal/lua/
     engine.go      -- Engine: loads scripts, manages proto map, handles reload
     sandbox.go     -- VM creation with restricted stdlib, goop.* injection
@@ -417,7 +422,7 @@ Templates can ship the backend too. A template becomes a full-stack application:
 
 Install a quiz template and you immediately have:
 
-```
+```bash
 site/
   index.html          -- the quiz UI
   style.css           -- styling
@@ -439,7 +444,7 @@ The learning progression: **templates -> tweaking -> components -> custom script
 
 The host peer installs the tic-tac-toe template. Their site becomes a game lobby. Visitors see open games and can start a challenge. All game state lives in the host's database. Moves are validated server-side by a Lua function — neither player can cheat.
 
-```
+```bash
 Host peer (PeerA)                          Visitor (PeerB)
     |                                           |
     |  installs tic-tac-toe template            |
@@ -644,7 +649,7 @@ The database schema, Lua functions, and game logic don't change — only the tra
 
 ### File Structure
 
-```
+```bash
 internal/sitetemplates/tictactoe/
     manifest.json
     schema.sql
@@ -659,7 +664,7 @@ internal/sitetemplates/tictactoe/
 ### Edge Cases
 
 | Case | Handling |
-|---|---|
+| -- | -- |
 | Host never accepts challenge | Game stays `waiting`. Visitor can cancel. |
 | Player disconnects mid-game | Game persists in DB. Resumes when they revisit. |
 | Host goes offline | Visitor can't reach site (ephemeral web). Resumes when host returns. |

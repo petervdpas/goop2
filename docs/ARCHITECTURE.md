@@ -55,7 +55,7 @@ A super hub maintains a registry of community hubs: their names, descriptions, a
 
 Super hubs are **DNS for communities**:
 
-```
+```bash
 Super Hub (directory)
   ├── Community Hub: "Go Developers"
   │     ├── peer-A
@@ -86,7 +86,7 @@ Goop² is free software built on a simple economic principle: **you only pay whe
 ### A Web Inside the Web
 
 | Traditional Web | Goop² Ephemeral Web |
-|---|---|
+| -- | -- |
 | DNS root servers | Super hubs |
 | Domain registrars | Community hubs |
 | Web servers | Peers |
@@ -155,6 +155,7 @@ Every template is just HTML + JS + a SQLite schema. The peer serves the UI, the 
 When PeerB visits PeerA's template site (at `/p/<peerA>/`), all data operations are automatically routed to **PeerA's database** via the P2P data protocol (`/goop/data/1.0.0`). The JavaScript client (`goop-data.js`) detects the remote context from the URL and transparently proxies API calls through the local server to the remote peer.
 
 This means:
+
 - A visitor filling out an enquete form writes to the **site owner's** database
 - The `_owner` field is set to the **visitor's** peer ID (cryptographically authenticated by libp2p)
 - The `_owner_email` is resolved from the site owner's peer table (from presence messages)
@@ -203,7 +204,7 @@ This means:
 
 Each template consists of:
 
-```
+```bash
 templates/
   corkboard/
     schema.sql        -- SQLite tables for this template
@@ -264,7 +265,7 @@ Templates can be **built-in** (shipped with the binary), **downloaded** (from a 
 Goop2 currently has three communication patterns:
 
 | Pattern | Protocol | Scope |
-|---------|----------|-------|
+| -- | -- | -- |
 | Broadcast | GossipSub (presence) | Everyone |
 | 1:1 | `/goop/chat/1.0.0` | Two peers |
 | Request/response | `/goop/data/1.0.0` | Two peers |
@@ -274,7 +275,7 @@ Groups are the missing middle — N peers, scoped to a subset of the network.
 ### Communication Layers
 
 | Layer | Scope | Visibility | Use Case |
-|---|---|---|---|
+| -- | -- | -- | -- |
 | **Direct** | 1-to-1 | Private | Private chat, invitations |
 | **Group** | N peers | Group members only | Games, collaboration, study groups |
 | **Broadcast** | Entire hub | Everyone | Announcements, community chat |
@@ -282,7 +283,7 @@ Groups are the missing middle — N peers, scoped to a subset of the network.
 ### Group Types
 
 | Type | Description | Lifecycle |
-|---|---|---|
+| -- | -- | -- |
 | **Ephemeral** | Created for a specific activity (game, quiz) | Auto-dissolves when activity ends |
 | **Persistent** | Ongoing groups (study group, project team) | Exists until explicitly closed |
 | **Open** | Any community member can join | Listed in community UI |
@@ -293,13 +294,14 @@ Groups are the missing middle — N peers, scoped to a subset of the network.
 The group creator (host) acts as the hub. Each member opens a long-lived bidirectional stream to the host. The host relays messages between members.
 
 Why host-relayed:
+
 - The host **serves the site** (UI, templates) via `/goop/site/1.0.0`
 - The host **stores the data** (game state, form responses) via `/goop/data/1.0.0`
 - The host **knows the visitors** (peer table, presence)
 - Low member counts (2-30) mean fan-out cost is negligible
 - Private by design — only the host knows the full member list
 
-```
+```bash
 Member A  <──stream──>  Host  <──stream──>  Member B
                          │
                     (fan-out relay)
@@ -320,7 +322,7 @@ A long-lived bidirectional stream between each member and the host. JSON message
 **Message Types:**
 
 | Type | Direction | Purpose |
-|------|-----------|---------|
+| -- | -- | -- |
 | `join` | Member -> Host | Request to join a group |
 | `welcome` | Host -> Member | Confirmation with current member list and state |
 | `members` | Host -> Members | Updated member list (on join/leave) |
@@ -376,7 +378,7 @@ CREATE TABLE _group_subscriptions (
 ### Interaction with Existing Protocols
 
 | Task | Protocol |
-|------|----------|
+| -- | -- |
 | Serve game UI | `/goop/site/1.0.0` |
 | Store game state, scores, history | `/goop/data/1.0.0` |
 | Real-time moves, chat, sync | `/goop/group/1.0.0` |
@@ -404,13 +406,13 @@ Goop.group = {
 
 **Navigation:**
 
-```
+```bash
 Peers | Me | Create | Groups | Database | Logs
 ```
 
 Inside the Create tab:
 
-```
+```bash
 [Editor]  [Templates]  [Groups]
 ```
 
@@ -423,6 +425,7 @@ Inside the Create tab:
 ### How Templates Use Groups
 
 **Quiz Flow:**
+
 1. Teacher selects Quiz template, creates questions
 2. Teacher shares site URL or creates an open, ephemeral group
 3. Students visit the teacher's quiz page at `/p/<teacher>/`
@@ -431,6 +434,7 @@ Inside the Create tab:
 6. Group channel provides real-time coordination (timer, leaderboard sync)
 
 **Chess Match:**
+
 1. Peer-A selects Chess template
 2. Peer-A creates an invite-only, ephemeral group
 3. Peer-A sends invitation to Peer-B via direct message
@@ -458,7 +462,7 @@ The missing piece is coordination. Today, one peer calls one function on one oth
 ### The Cloud Parallel
 
 | Cloud Concept | Goop2 Equivalent |
-|---|---|
+| -- | -- |
 | Azure Service Fabric / AWS Lambda | Lua data functions on peers |
 | Service registry / discovery | Peer groups + `lua-list` |
 | Message queue (SQS, Service Bus) | Work queue in host's database |
@@ -550,7 +554,7 @@ Each peer processes only its own data. No raw content leaves any peer's machine.
 ### Security Considerations
 
 | Concern | Mitigation |
-|---|---|
+| -- | -- |
 | Malicious work items | Workers only execute functions they've installed locally |
 | Result tampering | Cross-validate by sending same work to multiple peers |
 | Resource exhaustion | Per-invocation limits: 5s timeout, 10MB memory, 3 HTTP requests |
@@ -577,7 +581,7 @@ It's useful for communities that want to compute together without renting cloud 
 
 ## The Big Picture
 
-```
+```bash
 Super Hub (directory of communities)
     │
     └── Community Hub (rendezvous server)
