@@ -46,6 +46,7 @@ func baseVM(title, active, contentTmpl string, d Deps) viewmodels.BaseVM {
 		Theme:          theme,
 		RendezvousOnly: d.RendezvousOnly,
 		RendezvousURL:  d.RendezvousURL,
+		BridgeURL:      d.BridgeURL,
 	}
 }
 

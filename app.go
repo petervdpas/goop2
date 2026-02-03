@@ -299,9 +299,10 @@ func (a *App) StartPeer(peerName string) error {
 
 	go func() {
 		if err := goopapp.Run(a.ctx, goopapp.Options{
-			PeerDir: peerDir,
-			CfgPath: cfgPath,
-			Cfg:     cfg,
+			PeerDir:   peerDir,
+			CfgPath:   cfgPath,
+			Cfg:       cfg,
+			BridgeURL: a.GetBridgeURL(),
 		}); err != nil {
 			log.Fatal(err)
 		}
@@ -391,6 +392,65 @@ func (a *App) startBridge() error {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+	}))
+
+	// Save export zip via native file dialog
+	mux.HandleFunc("/export-save", withCORS(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		if err := r.ParseMultipartForm(50 << 20); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+
+		filename := r.FormValue("filename")
+		if filename == "" {
+			filename = "goop-export.zip"
+		}
+
+		file, _, err := r.FormFile("file")
+		if err != nil {
+			http.Error(w, "file required", http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+
+		data, err := io.ReadAll(io.LimitReader(file, 50<<20+1))
+		if err != nil {
+			http.Error(w, "read error", http.StatusInternalServerError)
+			return
+		}
+
+		savePath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+			Title:           "Save export archive",
+			DefaultFilename: filename,
+			Filters: []runtime.FileFilter{
+				{DisplayName: "Zip Archives (*.zip)", Pattern: "*.zip"},
+			},
+		})
+		if err != nil {
+			http.Error(w, "dialog error: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if savePath == "" {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{"cancelled": true})
+			return
+		}
+
+		if err := os.WriteFile(savePath, data, 0o644); err != nil {
+			http.Error(w, "write error: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"cancelled": false,
+			"path":      savePath,
+		})
 	}))
 
 	// Open URL in browser endpoint

@@ -24,9 +24,10 @@ import (
 )
 
 type Options struct {
-	PeerDir string
-	CfgPath string
-	Cfg     config.Config
+	PeerDir   string
+	CfgPath   string
+	Cfg       config.Config
+	BridgeURL string
 }
 
 type runtime struct {
@@ -41,18 +42,20 @@ func Run(ctx context.Context, opt Options) error {
 	logBanner(opt.PeerDir, opt.CfgPath)
 
 	return runPeer(ctx, runPeerOpts{
-		PeerDir: opt.PeerDir,
-		CfgPath: opt.CfgPath,
-		Cfg:     opt.Cfg,
-		Logs:    logBuf,
+		PeerDir:   opt.PeerDir,
+		CfgPath:   opt.CfgPath,
+		Cfg:       opt.Cfg,
+		Logs:      logBuf,
+		BridgeURL: opt.BridgeURL,
 	})
 }
 
 type runPeerOpts struct {
-	PeerDir string
-	CfgPath string
-	Cfg     config.Config
-	Logs    *viewer.LogBuffer
+	PeerDir   string
+	CfgPath   string
+	Cfg       config.Config
+	Logs      *viewer.LogBuffer
+	BridgeURL string
 }
 
 func runPeer(ctx context.Context, o runPeerOpts) error {
@@ -237,6 +240,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			AvatarCache: avatarCache,
 			PeerDir:     o.PeerDir,
 			RVClients:   rvClients,
+			BridgeURL:   o.BridgeURL,
 		})
 	}
 

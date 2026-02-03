@@ -40,6 +40,9 @@ type Viewer struct {
 	PeerDir string // root directory for this peer's data
 
 	RVClients []*rendezvous.Client
+
+	// Wails bridge URL for native dialogs (empty when not running in Wails)
+	BridgeURL string
 }
 
 func Start(addr string, v Viewer) error {
@@ -75,6 +78,7 @@ func Start(addr string, v Viewer) error {
 		AvatarCache: v.AvatarCache,
 		PeerDir:     v.PeerDir,
 		RVClients:   v.RVClients,
+		BridgeURL:   v.BridgeURL,
 	})
 
 	// Register chat endpoints if chat manager is available

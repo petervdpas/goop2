@@ -40,6 +40,9 @@ type Deps struct {
 	PeerDir string // root directory for this peer's data
 
 	RVClients []*rendezvous.Client
+
+	// Wails bridge URL for native dialogs (empty when not running in Wails)
+	BridgeURL string
 }
 
 func Register(mux *http.ServeMux, d Deps) {

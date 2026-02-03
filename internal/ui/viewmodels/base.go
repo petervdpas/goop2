@@ -15,4 +15,7 @@ type BaseVM struct {
 	// Rendezvous-only mode (no p2p node, limited nav)
 	RendezvousOnly bool
 	RendezvousURL  string
+
+	// Wails bridge URL for native dialogs (empty when not running in Wails)
+	BridgeURL string
 }

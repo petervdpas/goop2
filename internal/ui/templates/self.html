@@ -312,6 +312,8 @@
   // ── Export site ──
   var exportBtn = document.getElementById('export-btn');
   if (exportBtn) {
+    var bridgeURL = {{.BridgeURL}};
+
     exportBtn.addEventListener('click', function() {
       exportBtn.disabled = true;
       exportBtn.textContent = 'Exporting...';
@@ -325,6 +327,24 @@
           return res.blob().then(function(blob) { return { blob: blob, filename: filename }; });
         })
         .then(function(result) {
+          // Use native save dialog via bridge if available
+          if (bridgeURL) {
+            var fd = new FormData();
+            fd.append('file', result.blob, result.filename);
+            fd.append('filename', result.filename);
+            return fetch(bridgeURL + '/export-save', { method: 'POST', body: fd })
+              .then(function(res) {
+                if (!res.ok) throw new Error('Save dialog failed');
+                return res.json();
+              })
+              .then(function(data) {
+                if (data.cancelled) return;
+                if (window.Goop && window.Goop.ui) {
+                  Goop.ui.toast({ title: 'Exported', message: 'Saved to ' + data.path, duration: 3000 });
+                }
+              });
+          }
+          // Fallback: browser download
           var url = URL.createObjectURL(result.blob);
           var a = document.createElement('a');
           a.href = url;
