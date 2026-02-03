@@ -23,12 +23,18 @@ import (
 //go:embed assets/index.html assets/style.css
 var embedded embed.FS
 
+const (
+	maxSSEClients      = 1024 // global SSE connection limit
+	maxSSEClientsPerIP = 10   // per-IP SSE connection limit
+)
+
 type Server struct {
 	addr string
 	srv  *http.Server
 
-	mu      sync.Mutex
-	clients map[chan []byte]struct{}
+	mu        sync.Mutex
+	clients   map[chan []byte]struct{}
+	clientIPs map[chan []byte]string // channel -> remote IP (for per-IP tracking)
 
 	// simple in-memory peer view for the web page
 	peers map[string]peerRow
@@ -114,9 +120,10 @@ func New(addr string, templatesDir string, peerDBPath string) *Server {
 	}
 
 	s := &Server{
-		addr:    addr,
-		clients: map[chan []byte]struct{}{},
-		peers:   map[string]peerRow{},
+		addr:      addr,
+		clients:   map[chan []byte]struct{}{},
+		clientIPs: map[chan []byte]string{},
+		peers:     map[string]peerRow{},
 		logs:    make([]string, 0, 500),
 		maxLogs: 500,
 		tmpl:    tmpl,
@@ -187,7 +194,11 @@ func (s *Server) Start(ctx context.Context) error {
 		w.Header().Set("X-Accel-Buffering", "no")
 
 		ch := make(chan []byte, 64)
-		s.addClient(ch)
+		remoteIP := extractIP(r.RemoteAddr)
+		if err := s.addClient(ch, remoteIP); err != nil {
+			http.Error(w, err.Error(), http.StatusTooManyRequests)
+			return
+		}
 		defer s.removeClient(ch)
 
 		// Initial comment so proxies flush headers
@@ -341,17 +352,45 @@ func (s *Server) connectURLs() []string {
 	return urls
 }
 
-func (s *Server) addClient(ch chan []byte) {
+func (s *Server) addClient(ch chan []byte, remoteIP string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if len(s.clients) >= maxSSEClients {
+		return fmt.Errorf("too many SSE connections (%d)", maxSSEClients)
+	}
+
+	// Per-IP limit
+	ipCount := 0
+	for _, ip := range s.clientIPs {
+		if ip == remoteIP {
+			ipCount++
+		}
+	}
+	if ipCount >= maxSSEClientsPerIP {
+		return fmt.Errorf("too many SSE connections from %s (%d)", remoteIP, maxSSEClientsPerIP)
+	}
+
 	s.clients[ch] = struct{}{}
+	s.clientIPs[ch] = remoteIP
+	return nil
 }
 
 func (s *Server) removeClient(ch chan []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.clients, ch)
+	delete(s.clientIPs, ch)
 	close(ch)
+}
+
+// extractIP returns the IP portion of a host:port address.
+func extractIP(addr string) string {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	return host
 }
 
 func (s *Server) broadcast(b []byte) {

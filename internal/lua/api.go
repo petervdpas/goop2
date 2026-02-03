@@ -124,11 +124,6 @@ func doHTTPRequest(inv *invocationCtx, method, rawURL, payload string) (string, 
 		return "", fmt.Errorf("http request limit (%d) exceeded", maxHTTPPerInvocation)
 	}
 
-	// SSRF protection: resolve the host and check for private/loopback IPs
-	if err := checkSSRF(rawURL); err != nil {
-		return "", err
-	}
-
 	var bodyReader io.Reader
 	if payload != "" {
 		bodyReader = strings.NewReader(payload)
@@ -142,7 +137,12 @@ func doHTTPRequest(inv *invocationCtx, method, rawURL, payload string) (string, 
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	// Use an SSRF-safe client that pins DNS resolution in the dialer,
+	// eliminating the TOCTOU window of DNS rebinding attacks.
+	client := &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: ssrfSafeTransport(),
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
@@ -156,30 +156,45 @@ func doHTTPRequest(inv *invocationCtx, method, rawURL, payload string) (string, 
 	return string(data), nil
 }
 
-func checkSSRF(rawURL string) error {
-	// Extract host from URL
-	parts := strings.SplitN(rawURL, "://", 2)
-	if len(parts) != 2 {
-		return fmt.Errorf("invalid url: %s", rawURL)
-	}
-	hostPort := parts[1]
-	// strip path
-	if idx := strings.IndexByte(hostPort, '/'); idx != -1 {
-		hostPort = hostPort[:idx]
-	}
-	host := hostPort
-	if h, _, err := net.SplitHostPort(hostPort); err == nil {
-		host = h
-	}
+// ssrfSafeTransport returns an http.Transport with a custom dialer that
+// resolves DNS and validates the IP before connecting, preventing DNS
+// rebinding attacks (TOCTOU between lookup and connect).
+func ssrfSafeTransport() *http.Transport {
+	return &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, fmt.Errorf("invalid address: %w", err)
+			}
 
-	ips, err := net.LookupIP(host)
-	if err != nil {
-		return fmt.Errorf("dns lookup failed: %w", err)
+			// Resolve DNS
+			ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+			if err != nil {
+				return nil, fmt.Errorf("dns lookup failed: %w", err)
+			}
+			if len(ips) == 0 {
+				return nil, fmt.Errorf("no addresses for host %s", host)
+			}
+
+			// Validate ALL resolved IPs before connecting to any
+			for _, ipAddr := range ips {
+				if err := checkIP(ipAddr.IP); err != nil {
+					return nil, err
+				}
+			}
+
+			// Connect directly to the validated IP, bypassing further DNS
+			var dialer net.Dialer
+			pinnedAddr := net.JoinHostPort(ips[0].IP.String(), port)
+			return dialer.DialContext(ctx, network, pinnedAddr)
+		},
 	}
-	for _, ip := range ips {
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
-			return fmt.Errorf("request to private/loopback address blocked")
-		}
+}
+
+// checkIP rejects loopback, private, and link-local addresses.
+func checkIP(ip net.IP) error {
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+		return fmt.Errorf("request to private/loopback address blocked")
 	}
 	return nil
 }

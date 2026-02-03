@@ -56,6 +56,7 @@ type memberConn struct {
 	stream   network.Stream
 	encoder  *json.Encoder
 	cancel   context.CancelFunc
+	sendCh   chan Message // buffered outbound queue for non-blocking broadcast
 }
 
 type clientConn struct {
@@ -136,7 +137,7 @@ func (m *Manager) handleIncomingStream(s network.Stream) {
 		return
 	}
 
-	// Create member connection
+	// Create member connection with buffered send channel
 	ctx, cancel := context.WithCancel(context.Background())
 	mc := &memberConn{
 		peerID:   remotePeer,
@@ -144,10 +145,15 @@ func (m *Manager) handleIncomingStream(s network.Stream) {
 		stream:   s,
 		encoder:  enc,
 		cancel:   cancel,
+		sendCh:   make(chan Message, 64),
 	}
 	hg.members[remotePeer] = mc
 	memberList := hg.memberList(m.selfID)
 	hg.mu.Unlock()
+
+	// Start per-member drain goroutine: writes from sendCh to the stream
+	// with a deadline so one slow peer cannot block the others.
+	go mc.drainLoop(ctx)
 
 	log.Printf("GROUP: %s joined group %s", remotePeer, groupID)
 
@@ -674,8 +680,39 @@ func (g *hostedGroup) broadcast(msg Message, excludePeerID string) {
 		if pid == excludePeerID {
 			continue
 		}
-		if err := mc.encoder.Encode(msg); err != nil {
-			log.Printf("GROUP: Failed to send to %s: %v", pid, err)
+		select {
+		case mc.sendCh <- msg:
+		default:
+			// Slow peer; drop message rather than blocking others.
+			log.Printf("GROUP: Send buffer full for %s, dropping message", pid)
+		}
+	}
+}
+
+const memberWriteTimeout = 5 * time.Second
+
+// drainLoop writes queued messages from sendCh to the stream with a deadline.
+// If a write times out or fails, the member is disconnected.
+func (mc *memberConn) drainLoop(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg, ok := <-mc.sendCh:
+			if !ok {
+				return
+			}
+			if dl, ok := mc.stream.(interface{ SetWriteDeadline(time.Time) error }); ok {
+				_ = dl.SetWriteDeadline(time.Now().Add(memberWriteTimeout))
+			}
+			if err := mc.encoder.Encode(msg); err != nil {
+				log.Printf("GROUP: Write to %s failed: %v (disconnecting)", mc.peerID, err)
+				mc.cancel()
+				return
+			}
+			if dl, ok := mc.stream.(interface{ SetWriteDeadline(time.Time) error }); ok {
+				_ = dl.SetWriteDeadline(time.Time{}) // clear deadline
+			}
 		}
 	}
 }
