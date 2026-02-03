@@ -526,43 +526,44 @@ The rendezvous monitoring dashboard shows currently connected peers, peer IDs an
 
 ### Security Audit Summary
 
-Systematic review of production-readiness concerns, verified against actual code.
+Systematic review of 19 production-readiness concerns, verified against actual code.
 
-#### High Severity
+#### Addressed (6/19)
 
 | # | Issue | Status |
 |---|-------|--------|
-| 3 | Multi-instance peers disappear (no shared state) | **Fixed** — SQLite peer DB persistence via `peer_db_path` |
-| 9 | No Lua VM memory limit | **Fixed** — Registry size caps + process-level memory monitoring |
-
-#### Medium Severity
-
-| # | Issue | Notes |
-|---|-------|-------|
-| 5 | Publish endpoint abuse (no server-side rate limit) | Caddy rate limiting documented; server-side rate limit recommended |
-| 7 | Shared rate limiter (chat + data functions) | Per-function `@rate_limit` exists but global budget is shared |
-| 13 | Broadcast blocks on slow peer | Fan-out is synchronous; per-peer timeouts recommended |
-| 17 | `.state/` directory exposed via site serving | `lua/` blocked, `.state/` needs same treatment |
-| 10 | Data functions can write any row via `db.exec` | Write access is intentional; per-table permissions could be added |
-| 4 | No SSE connection limit | Buffered channels + keepalive exist; max-connections guard recommended |
-| 19 | Undefined host-failure mode for groups | Members detect via stream closure but no failover |
-
-#### Low Severity / Non-Issues
-
-| # | Issue | Notes |
-|---|-------|-------|
 | 1 | Systemd service file outdated | **Fixed** — updated to current subcommand syntax |
-| 6 | Health endpoint too simple | `/healthz` returns "ok" unconditionally; sufficient for single-instance |
-| 8 | SSRF DNS rebinding TOCTOU | `checkSSRF()` resolves and blocks private IPs; edge case with DNS rebinding |
-| 15 | No result data integrity | Peer identity is cryptographic; result data has no signatures |
-| 2 | Config precedence undefined | **Non-issue** — `goop.json` over hardcoded defaults, no ambiguity |
-| 14 | Worker opt-out path | **Non-issue** — `LeaveGroup()` works correctly |
-| 16 | Rendezvous exposure | **Non-issue** — already documented to use reverse proxy |
+| 2 | Config precedence undefined | **Non-issue** — `goop.json` is the only source; no env vars or CLI config flags |
+| 3 | Multi-instance peers disappear | **Fixed** — SQLite WAL-mode peer DB via `peer_db_path`, 3s sync interval |
+| 7 | Rate limits too coarse | **Addressed** — Per-function `@rate_limit N` annotations; keyed per peer+function |
+| 9 | No Lua VM memory limit | **Fixed** — Registry size caps + process-level memory monitor (100ms poll, hard kill via `L.Close()`) |
+| 14 | Worker opt-out path | **Addressed** — `LeaveGroup()` fully implemented with cleanup, notification, subscription removal |
+| 16 | Rendezvous exposure | **Non-issue** — Hardcoded to `127.0.0.1`; not configurable; requires reverse proxy |
 
-#### Not Applicable
+#### Partially Addressed (6/19)
 
-- **11. Atomic work claiming** — No work queue implemented yet (future design)
-- **12. TTL re-queuing** — No task queue implemented yet (future design)
+| # | Issue | Notes |
+|---|-------|-------|
+| 4 | No SSE connection limit | 64-element buffered channels + 25s keepalive + non-blocking send exist; **no max connection limit** — unbounded clients can connect |
+| 8 | SSRF DNS rebinding | `checkSSRF()` blocks loopback/private/link-local for IPv4+IPv6; **vulnerable to DNS rebinding** (TOCTOU between check and HTTP request) |
+| 10 | Data functions can write any row | Chat scripts have no DB access (correct); data functions have full read+write via `goop.db.exec`; **no per-table permissions** — intentional design (site owner deploys scripts) |
+| 13 | Broadcast blocks on slow peer | Rendezvous SSE: non-blocking send (safe). **Group broadcast: blocking** `Encode()` under lock — slow peer blocks all others |
+| 17 | Script/state exposure | P2P protocol blocks `lua/` directory (correct). **HTTP viewer self-serve does not block `lua/`** — Lua source readable via local viewer |
+| 19 | Undefined host-failure mode | Hub restart: peers re-register within 5s (good). **Group host crash: detection depends on TCP timeout (2-9 min)**; no application-level group heartbeat; auto-reconnect is startup-only |
+
+#### Not Addressed (5/19)
+
+| # | Issue | Notes |
+|---|-------|-------|
+| 5 | Publish endpoint abuse | **No server-side rate limiting** on `/publish`; any client can flood; relies entirely on reverse proxy |
+| 6 | Health endpoint too simple | `/healthz` returns `"ok"` unconditionally; does not check DB connectivity, memory, or goroutine count |
+| 15 | No result data integrity | No message signatures or cross-validation; identity enforced by host overwriting `From` field |
+| 18 | Backpressure on `/events` | **No max SSE connection limit**; no per-IP limit; no idle eviction; limited only by OS file descriptors |
+
+#### Not Applicable (2/19)
+
+- **11. Atomic work claiming** — No work queue implemented (future design)
+- **12. TTL re-queuing** — No task queue implemented (future design)
 
 ---
 

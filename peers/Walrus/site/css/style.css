@@ -1,0 +1,322 @@
+/* Blog template — clean, readable, literary feel */
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  --bg: #faf8f5;
+  --text: #2c2c2c;
+  --muted: #8a8278;
+  --accent: #b44d2d;
+  --border: #e4ddd4;
+  --panel: #ffffff;
+  --code-bg: #f0ebe4;
+  --serif: 'Lora', Georgia, serif;
+  --sans: 'Inter', system-ui, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.blog {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 4rem;
+}
+
+/* ── Header ── */
+.blog-header {
+  margin-bottom: 2.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+
+.blog-title {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 2.2rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.blog-subtitle {
+  margin: 0.3rem 0 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.btn-new {
+  position: absolute;
+  top: 0.5rem;
+  right: 0;
+  padding: 0.45rem 1.1rem;
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.btn-new:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.hidden { display: none !important; }
+
+/* ── Posts ── */
+.posts { }
+
+.post {
+  margin-bottom: 2.5rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.post:last-child {
+  border-bottom: none;
+}
+
+.post-title {
+  margin: 0 0 0.25rem;
+  font-family: var(--serif);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.post-meta {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-bottom: 0.9rem;
+}
+
+.post-body {
+  font-family: var(--serif);
+  font-size: 1.05rem;
+  line-height: 1.75;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.post-actions {
+  margin-top: 0.75rem;
+}
+
+.post-actions button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0.2rem 0.5rem;
+  font-family: var(--sans);
+}
+
+.post-actions button:hover {
+  color: var(--accent);
+}
+
+/* ── Empty / loading ── */
+.loading {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.empty-msg {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--muted);
+}
+
+.empty-msg p {
+  margin: 0.3rem 0;
+}
+
+/* ── Editor overlay ── */
+.editor-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.editor-card {
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 1.75rem;
+  width: 90%;
+  max-width: 560px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+}
+
+.editor-card h2 {
+  margin: 0 0 1rem;
+  font-family: var(--serif);
+  font-size: 1.25rem;
+}
+
+.editor-card label {
+  display: block;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.editor-card input,
+.editor-card textarea {
+  display: block;
+  width: 100%;
+  margin-top: 0.25rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 0.95rem;
+}
+
+.editor-card textarea {
+  font-family: var(--serif);
+  line-height: 1.65;
+  resize: vertical;
+}
+
+.editor-card input:focus,
+.editor-card textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.editor-btns {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.btn-cancel,
+.btn-save {
+  padding: 0.45rem 1.2rem;
+  border-radius: 6px;
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-cancel {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.btn-save {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
+}
+
+.btn-save:hover {
+  opacity: 0.9;
+}
+
+/* ── goop-ui dialog & toast (CSP blocks inline injection) ── */
+
+.goop-toast-wrap {
+  position: fixed; top: 1rem; right: 1rem; z-index: 99999;
+  display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none;
+}
+
+.goop-toast {
+  pointer-events: auto;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  font: 14px/1.4 var(--sans);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  animation: goop-fade-in 0.2s ease;
+}
+
+.goop-toast.exit { opacity: 0; transition: opacity 0.25s; }
+.goop-toast-title { font-weight: 600; margin-bottom: 0.15rem; }
+
+@keyframes goop-fade-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.goop-dlg-bg {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 99998;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.goop-dlg {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  min-width: 300px;
+  max-width: 420px;
+  font: 14px/1.5 var(--sans);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.goop-dlg h3 { margin: 0 0 0.5rem; font-size: 1rem; font-family: var(--serif); }
+.goop-dlg p  { margin: 0 0 0.75rem; color: var(--muted); }
+
+.goop-dlg input {
+  width: 100%; box-sizing: border-box;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  margin-bottom: 0.75rem;
+}
+
+.goop-dlg-btns {
+  display: flex; gap: 0.5rem; justify-content: flex-end;
+}
+
+.goop-dlg-btns button {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  background: transparent;
+  color: var(--muted);
+}
+
+.goop-dlg-btns button.primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.goop-dlg-btns button.primary:hover { opacity: 0.9; }
