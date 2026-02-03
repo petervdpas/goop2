@@ -53,9 +53,12 @@ secure-rendezvous.yourdomain.com {
 }
 
 # Option 5: Multiple rendezvous servers (load balancing)
+# Use ip_hash for sticky sessions so each client always hits the same backend.
+# Without sticky sessions (or a shared peer_db_path), each instance only sees
+# the peers that published to it — SSE subscribers miss peers on other instances.
 rendezvous-cluster.yourdomain.com {
 	reverse_proxy localhost:8787 localhost:8788 localhost:8789 {
-		lb_policy round_robin
+		lb_policy ip_hash
 		health_uri /healthz
 		health_interval 10s
 	}
