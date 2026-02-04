@@ -103,6 +103,6 @@
   align-items:center;
   gap: 12px;
   padding-top: 14px;
-  margin-top: auto;
+  margin-top: 16px;
   border-top: 1px solid var(--line);
 }

@@ -71,6 +71,8 @@
         {{end}}
         <li class="settings-nav-item" data-section="rendezvous">Rendezvous</li>
         <li class="settings-nav-item" data-section="server">Server</li>
+        <li class="settings-nav-item" data-section="admin" id="nav-admin"
+            style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">Admin</li>
         {{if not .RendezvousOnly}}
         <li class="settings-nav-item" data-section="scripting">Scripting</li>
         <li class="settings-nav-item" data-section="data">Data</li>
@@ -211,7 +213,7 @@
                        type="checkbox"
                        name="presence_rendezvous_server"
                        {{if .Cfg.Presence.RendezvousOnly}}checked{{end}}
-                       onchange="document.getElementById('rv-server-opts').style.display=this.checked?'':'none'">
+                       onchange="var on=this.checked;document.getElementById('rv-server-opts').style.display=on?'':'none';document.getElementById('nav-admin').style.display=on?'':'none'">
                 <span class="slider"></span>
               </label>
               <span class="muted small">On</span>
@@ -241,17 +243,22 @@
                 </a>
               </div>
             </div>
+          </div>
+        </div>
 
-            <div class="field" style="margin-top: 12px;">
-              <label>Admin password</label>
-              <input name="presence_admin_password"
-                     type="password"
-                     value="{{.Cfg.Presence.AdminPassword}}"
-                     placeholder="(empty = admin panel disabled)">
-              <div class="hint">
-                Password for the <code>/admin</code> monitoring panel (HTTP Basic Auth, user: <code>admin</code>).
-                Leave empty to disable the admin panel.
-              </div>
+        <!-- Admin (visible when server is enabled) -->
+        <div class="settings-section" data-section="admin">
+          <h3 class="settings-section-title">Admin</h3>
+
+          <div class="field">
+            <label>Admin password</label>
+            <input name="presence_admin_password"
+                   type="password"
+                   value="{{.Cfg.Presence.AdminPassword}}"
+                   placeholder="(empty = admin panel disabled)">
+            <div class="hint">
+              Password for the <code>/admin</code> monitoring panel (HTTP Basic Auth, user: <code>admin</code>).
+              Leave empty to disable the admin panel.
             </div>
           </div>
         </div>
