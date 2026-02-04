@@ -230,15 +230,22 @@
           <div id="rv-server-opts" style="margin-top:10px;{{if not .Cfg.Presence.RendezvousOnly}} display:none{{end}}">
             <div class="rv-local rv-local-row">
               <div class="field rv-port-field">
+                <label>Bind address</label>
+                <input name="presence_rendezvous_bind"
+                       value="{{.Cfg.Presence.RendezvousBind}}"
+                       placeholder="127.0.0.1">
+                <div class="hint">
+                  <code>127.0.0.1</code> = localhost only,
+                  <code>0.0.0.0</code> = accept LAN connections.
+                </div>
+              </div>
+
+              <div class="field rv-port-field">
                 <label>Port</label>
                 <input id="rv_port"
                        name="presence_rendezvous_port"
                        value="{{.Cfg.Presence.RendezvousPort}}"
                        placeholder="8787">
-                <div class="hint">
-                  Local service runs at <code>127.0.0.1:PORT</code>
-                  (publish later via Caddy).
-                </div>
               </div>
 
               <div class="rv-open">

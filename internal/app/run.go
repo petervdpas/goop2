@@ -65,7 +65,11 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	// ── Rendezvous server (optional)
 	var rv *rendezvous.Server
 	if cfg.Presence.RendezvousHost {
-		addr := fmt.Sprintf("127.0.0.1:%d", cfg.Presence.RendezvousPort)
+		bind := cfg.Presence.RendezvousBind
+		if bind == "" {
+			bind = "127.0.0.1"
+		}
+		addr := fmt.Sprintf("%s:%d", bind, cfg.Presence.RendezvousPort)
 
 		templatesDir := ""
 		if cfg.Presence.TemplatesDir != "" {

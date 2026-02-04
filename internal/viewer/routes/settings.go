@@ -101,6 +101,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			cfg.Presence.RendezvousPort = atoiOrNeg(rp)
 		}
 
+		cfg.Presence.RendezvousBind = getTrimmedPostFormValue(r.PostForm, "presence_rendezvous_bind")
 		cfg.Presence.RendezvousWAN = getTrimmedPostFormValue(r.PostForm, "presence_rendezvous_wan")
 		cfg.Presence.AdminPassword = getTrimmedPostFormValue(r.PostForm, "presence_admin_password")
 

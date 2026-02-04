@@ -44,11 +44,15 @@ type Presence struct {
 	TTLSec       int    `json:"ttl_seconds"`
 	HeartbeatSec int    `json:"heartbeat_seconds"`
 
-	// If true, run a local rendezvous service on 127.0.0.1:RendezvousPort.
+	// If true, run a local rendezvous service on RendezvousBind:RendezvousPort.
 	RendezvousHost bool `json:"rendezvous_host"`
 
 	// Local rendezvous service port (used only when RendezvousHost=true).
 	RendezvousPort int `json:"rendezvous_port"`
+
+	// Bind address for the rendezvous server. Default "127.0.0.1" (localhost only).
+	// Set to "0.0.0.0" to accept connections from other machines on the network.
+	RendezvousBind string `json:"rendezvous_bind"`
 
 	// Optional WAN rendezvous address to join WAN presence mesh (LAN + WAN).
 	// Example: https://rv.example.org  or  http://1.2.3.4:8787
@@ -114,6 +118,7 @@ func Default() Config {
 			HeartbeatSec:   5,
 			RendezvousHost: false,
 			RendezvousPort: 8787,
+			RendezvousBind: "127.0.0.1",
 			RendezvousWAN:  "",
 			RendezvousOnly: false,
 			TemplatesDir:   "templates",
@@ -190,6 +195,11 @@ func (c *Config) Validate() error {
 	if c.Presence.RendezvousHost {
 		if c.Presence.RendezvousPort <= 0 || c.Presence.RendezvousPort > 65535 {
 			return errors.New("presence.rendezvous_port must be 1..65535 when rendezvous_host is enabled")
+		}
+		if b := c.Presence.RendezvousBind; b != "" {
+			if net.ParseIP(b) == nil {
+				return errors.New("presence.rendezvous_bind must be a valid IP address")
+			}
 		}
 	}
 
