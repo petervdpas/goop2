@@ -4,6 +4,7 @@
 
   const files = [
     "00-core.js",
+    "01-select.js",
     "10-peers-autorefresh.js",
     "20-theme.js",
     "30-banners.js",
@@ -20,6 +21,7 @@
     "goop-group.js",
     "70-database.js",
     "75-groups.js",
+    "76-documents.js",
     "99-dialogs.js",
     "99-toast.js",
   ];

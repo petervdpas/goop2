@@ -7,6 +7,7 @@ import (
 	"goop/internal/avatar"
 	"goop/internal/chat"
 	"goop/internal/content"
+	"goop/internal/docs"
 	"goop/internal/group"
 	"goop/internal/p2p"
 	"goop/internal/rendezvous"
@@ -30,6 +31,7 @@ type Viewer struct {
 	Chat    *chat.Manager
 	Groups  *group.Manager
 	DB      *storage.DB // SQLite database for peer data
+	Docs    *docs.Store // shared documents store
 
 	AvatarStore *avatar.Store
 	AvatarCache *avatar.Cache
@@ -76,9 +78,11 @@ func Start(addr string, v Viewer) error {
 		DB:          v.DB,
 		AvatarStore: v.AvatarStore,
 		AvatarCache: v.AvatarCache,
-		PeerDir:     v.PeerDir,
-		RVClients:   v.RVClients,
-		BridgeURL:   v.BridgeURL,
+		PeerDir:      v.PeerDir,
+		RVClients:    v.RVClients,
+		BridgeURL:    v.BridgeURL,
+		DocsStore:    v.Docs,
+		GroupManager: v.Groups,
 	})
 
 	// Register chat endpoints if chat manager is available

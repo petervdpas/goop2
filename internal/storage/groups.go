@@ -8,6 +8,7 @@ type GroupRow struct {
 	Name       string `json:"name"`
 	AppType    string `json:"app_type"`
 	MaxMembers int    `json:"max_members"`
+	HostJoined bool   `json:"host_joined"`
 	CreatedAt  string `json:"created_at"`
 }
 
@@ -41,7 +42,7 @@ func (d *DB) ListGroups() ([]GroupRow, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	rows, err := d.db.Query(`SELECT id, name, app_type, max_members, created_at FROM _groups ORDER BY created_at DESC`)
+	rows, err := d.db.Query(`SELECT id, name, app_type, max_members, host_joined, created_at FROM _groups ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +51,7 @@ func (d *DB) ListGroups() ([]GroupRow, error) {
 	var groups []GroupRow
 	for rows.Next() {
 		var g GroupRow
-		if err := rows.Scan(&g.ID, &g.Name, &g.AppType, &g.MaxMembers, &g.CreatedAt); err != nil {
+		if err := rows.Scan(&g.ID, &g.Name, &g.AppType, &g.MaxMembers, &g.HostJoined, &g.CreatedAt); err != nil {
 			return nil, err
 		}
 		groups = append(groups, g)
@@ -65,8 +66,8 @@ func (d *DB) GetGroup(id string) (GroupRow, error) {
 
 	var g GroupRow
 	err := d.db.QueryRow(
-		`SELECT id, name, app_type, max_members, created_at FROM _groups WHERE id = ?`, id,
-	).Scan(&g.ID, &g.Name, &g.AppType, &g.MaxMembers, &g.CreatedAt)
+		`SELECT id, name, app_type, max_members, host_joined, created_at FROM _groups WHERE id = ?`, id,
+	).Scan(&g.ID, &g.Name, &g.AppType, &g.MaxMembers, &g.HostJoined, &g.CreatedAt)
 	if err != nil {
 		return g, fmt.Errorf("get group: %w", err)
 	}
@@ -79,6 +80,19 @@ func (d *DB) DeleteGroup(id string) error {
 	defer d.mu.Unlock()
 
 	_, err := d.db.Exec(`DELETE FROM _groups WHERE id = ?`, id)
+	return err
+}
+
+// SetHostJoined updates the host_joined flag for a group.
+func (d *DB) SetHostJoined(groupID string, joined bool) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	v := 0
+	if joined {
+		v = 1
+	}
+	_, err := d.db.Exec(`UPDATE _groups SET host_joined = ? WHERE id = ?`, v, groupID)
 	return err
 }
 

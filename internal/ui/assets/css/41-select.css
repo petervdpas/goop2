@@ -1,0 +1,151 @@
+/* internal/ui/assets/css/41-select.css */
+/* Shared custom select dropdown component */
+
+.gsel{
+  position: relative;
+}
+
+.gsel-trigger{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--field-bg);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--ease), box-shadow var(--ease), background var(--ease);
+  box-sizing: border-box;
+}
+
+.gsel-trigger:hover{
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.gsel-trigger:focus,
+.gsel.open .gsel-trigger{
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: var(--ring);
+  background: var(--field-bg-2);
+}
+
+.gsel-text{
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.gsel-arrow{
+  font-size: 10px;
+  color: var(--muted);
+  margin-left: 8px;
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+
+.gsel.open .gsel-arrow{
+  transform: rotate(180deg);
+}
+
+.gsel-dropdown{
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  padding: 4px 0;
+  z-index: 30;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.gsel.open .gsel-dropdown{
+  display: block;
+}
+
+.gsel-option{
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.gsel-option:hover{
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.gsel-option.selected{
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.gsel-option[disabled]{
+  opacity: 0.5;
+  cursor: default;
+}
+
+.gsel-option[disabled]:hover{
+  background: transparent;
+}
+
+.gsel-group-label{
+  padding: 6px 12px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* --- Context overrides --- */
+
+/* Settings page (.field) */
+.field .gsel-trigger{
+  padding: 11px 12px;
+  border-radius: 999px;
+}
+
+/* Database search bar */
+.db-search-bar .gsel{
+  flex: 0 0 auto;
+  min-width: 120px;
+}
+
+.db-search-bar .gsel-trigger{
+  padding: 7px 12px;
+  border-radius: 999px;
+}
+
+/* Database forms */
+.db-form-group .gsel-trigger,
+.db-col-row .gsel-trigger{
+  padding: 10px 12px;
+  border-radius: 999px;
+}
+
+/* Documents group bar */
+.docs-group-bar .gsel{
+  flex: 1;
+  max-width: 400px;
+}
+
+.docs-group-bar .gsel-trigger{
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 14px;
+}

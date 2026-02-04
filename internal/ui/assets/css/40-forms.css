@@ -33,8 +33,7 @@ pre.content{
   letter-spacing: 0.2px;
 }
 
-.field input,
-.field select{
+.field input{
   width:100%;
   padding: 11px 12px;
   border-radius: 999px;
@@ -45,17 +44,7 @@ pre.content{
   transition: border-color var(--ease), box-shadow var(--ease), background var(--ease);
 }
 
-.field select{
-  cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239aa3b2' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  padding-right: 32px;
-}
-
-.field input:focus,
-.field select:focus{
+.field input:focus{
   border-color: color-mix(in srgb, var(--accent) 60%, transparent);
   box-shadow: var(--ring);
   background: var(--field-bg-2);

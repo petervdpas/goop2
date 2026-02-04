@@ -77,12 +77,13 @@ func New(h host.Host, db *storage.DB) *Manager {
 		listeners: make([]chan *Event, 0),
 	}
 
-	// Load existing groups from DB into memory
+	// Load existing groups from DB into memory (restore host-joined state)
 	if groups, err := db.ListGroups(); err == nil {
 		for _, g := range groups {
 			m.groups[g.ID] = &hostedGroup{
-				info:    g,
-				members: make(map[string]*memberConn),
+				info:       g,
+				members:    make(map[string]*memberConn),
+				hostJoined: g.HostJoined,
 			}
 		}
 	}
@@ -327,6 +328,8 @@ func (m *Manager) JoinOwnGroup(groupID string) error {
 	memberList := hg.memberList(m.selfID)
 	hg.mu.Unlock()
 
+	_ = m.db.SetHostJoined(groupID, true)
+
 	// Broadcast updated member list to all connected peers
 	hg.broadcast(Message{
 		Type:    TypeMembers,
@@ -358,6 +361,8 @@ func (m *Manager) LeaveOwnGroup(groupID string) error {
 	hg.hostJoinedAt = 0
 	memberList := hg.memberList(m.selfID)
 	hg.mu.Unlock()
+
+	_ = m.db.SetHostJoined(groupID, false)
 
 	// Broadcast updated member list
 	hg.broadcast(Message{
@@ -846,6 +851,28 @@ func (m *Manager) Close() error {
 // SelfID returns the local peer ID.
 func (m *Manager) SelfID() string {
 	return m.selfID
+}
+
+// IsPeerInGroup returns true if the given peer is a current member of a hosted group.
+// Checks the members map and whether the host has joined.
+func (m *Manager) IsPeerInGroup(peerID, groupID string) bool {
+	m.mu.RLock()
+	hg, exists := m.groups[groupID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return false
+	}
+
+	hg.mu.RLock()
+	defer hg.mu.RUnlock()
+
+	if peerID == m.selfID && hg.hostJoined {
+		return true
+	}
+
+	_, isMember := hg.members[peerID]
+	return isMember
 }
 
 // IsGroupHost returns true if this peer hosts the given group.

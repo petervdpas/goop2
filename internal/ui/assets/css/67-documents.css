@@ -1,0 +1,217 @@
+/* internal/ui/assets/css/67-documents.css */
+
+/* -----------------------------
+   Documents page layout
+------------------------------ */
+.docs-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* -----------------------------
+   Group selector bar
+------------------------------ */
+.docs-group-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.docs-group-label {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* -----------------------------
+   Upload area
+------------------------------ */
+.docs-upload-area {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.docs-upload-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.docs-upload-title {
+  font-weight: 700;
+}
+
+.docs-upload-form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.docs-file-input {
+  flex: 1;
+  max-width: 400px;
+  font-size: 13px;
+}
+
+.docs-upload-progress {
+  padding: 6px 0;
+}
+
+.docs-progress-text {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* -----------------------------
+   Sections
+------------------------------ */
+.docs-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.docs-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 10px;
+}
+
+.docs-section-title {
+  font-weight: 750;
+}
+
+/* -----------------------------
+   File table
+------------------------------ */
+.docs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.docs-table th {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.docs-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
+}
+
+.docs-table tr:hover td {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
+.docs-file-name {
+  font-family: var(--mono);
+  word-break: break-all;
+}
+
+.docs-file-size {
+  white-space: nowrap;
+  color: var(--muted);
+  width: 80px;
+}
+
+.docs-file-actions {
+  white-space: nowrap;
+  width: 160px;
+  display: flex;
+  gap: 6px;
+}
+
+/* -----------------------------
+   Peer blocks
+------------------------------ */
+.docs-peer-block {
+  margin-bottom: 16px;
+}
+
+.docs-peer-label {
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.docs-status-online {
+  color: #4c7;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.docs-status-offline {
+  color: #e55;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* -----------------------------
+   Action buttons
+------------------------------ */
+.docs-action-btn {
+  padding: 6px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  font-size: 13px;
+  text-decoration: none;
+  display: inline-block;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--fg);
+}
+
+.docs-action-btn:hover {
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+}
+
+.docs-btn-primary {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.docs-btn-primary:hover {
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+.docs-btn-danger {
+  color: #e55;
+  border-color: color-mix(in srgb, #e55 38%, transparent);
+  background: color-mix(in srgb, #e55 10%, transparent);
+}
+
+.docs-btn-danger:hover {
+  background: color-mix(in srgb, #e55 18%, transparent);
+}
+
+.docs-btn-small {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
+/* -----------------------------
+   Empty state
+------------------------------ */
+.docs-empty {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 10px 0;
+}
+
+/* Hidden */
+.docs-page .hidden {
+  display: none !important;
+}

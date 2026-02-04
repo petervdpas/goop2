@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"goop/internal/avatar"
+	"goop/internal/docs"
 	"goop/internal/proto"
 	"goop/internal/state"
 	"goop/internal/storage"
@@ -49,6 +50,10 @@ type Node struct {
 
 	// Set by EnableAvatar in avatar.go
 	avatarStore *avatar.Store
+
+	// Set by EnableDocs in docs.go
+	docsStore    *docs.Store
+	groupChecker GroupChecker
 }
 
 type mdnsNotifee struct {

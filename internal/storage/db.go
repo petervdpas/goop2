@@ -95,6 +95,9 @@ func Open(configDir string) (*DB, error) {
 		return nil, fmt.Errorf("create groups table: %w", err)
 	}
 
+	// Migration: add host_joined column if missing (existing databases)
+	db.Exec(`ALTER TABLE _groups ADD COLUMN host_joined INTEGER DEFAULT 0`)
+
 	// Create group subscriptions table
 	if _, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS _group_subscriptions (

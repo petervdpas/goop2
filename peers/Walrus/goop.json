@@ -19,6 +19,7 @@
     "rendezvous_port": 8787,
     "rendezvous_wan": "http://127.0.0.1:8787/",
     "rendezvous_only": false,
+    "admin_password": "",
     "templates_dir": "templates",
     "peer_db_path": ""
   },

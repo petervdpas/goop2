@@ -31,6 +31,11 @@
     return n === 1 ? "1 member" : (n || 0) + " members";
   }
 
+  function typeBadge(appType) {
+    if (!appType) return "";
+    return ' <span class="groups-type-badge groups-type-' + escapeHtml(appType) + '">' + escapeHtml(appType) + '</span>';
+  }
+
   // Format event payload for human-readable display
   function formatEventPayload(evt) {
     var p = evt.payload;
@@ -156,10 +161,10 @@
           html += '<div class="groups-card">' +
             '<div class="groups-card-info">' +
               '<div class="groups-card-name">' + escapeHtml(g.name) +
+                typeBadge(g.app_type) +
                 (g.host_in_group ? ' <span class="groups-status-connected">joined</span>' : '') +
               '</div>' +
               '<div class="groups-card-meta"><code>' + escapeHtml(shortId(g.id)) + '</code>' +
-                (g.app_type ? ' &middot; ' + escapeHtml(g.app_type) : '') +
                 (g.max_members > 0 ? ' &middot; max ' + g.max_members : '') +
               '</div>' +
             '</div>' +
@@ -258,10 +263,10 @@
           html += '<div class="groups-card">' +
             '<div class="groups-card-info">' +
               '<div class="groups-card-name">' + escapeHtml(displayName) +
+                typeBadge(s.app_type) +
                 (isActive ? ' <span class="groups-status-connected">connected</span>' : '') +
               '</div>' +
               '<div class="groups-card-meta">Host: <code>' + escapeHtml(shortId(s.host_peer_id)) + '</code>' +
-                (s.app_type ? ' &middot; ' + escapeHtml(s.app_type) : '') +
                 (s.role ? ' &middot; ' + escapeHtml(s.role) : '') +
               '</div>' +
             '</div>' +
@@ -359,17 +364,19 @@
 
   // -------- Create Groups page logic --------
   function initCreateGroupsPage() {
+    var gsel = window.Goop.select;
     var nameInput = qs("#cg-name");
-    var appTypeInput = qs("#cg-apptype");
+    var appTypeSelect = qs("#cg-apptype");
     var maxMembersInput = qs("#cg-maxmembers");
     var createBtn = qs("#cg-create-btn");
     var hostedListEl = qs("#cg-hosted-list");
 
+    gsel.init(appTypeSelect);
     loadHostedList();
 
     on(createBtn, "click", function() {
       var name = (nameInput.value || "").trim();
-      var appType = (appTypeInput.value || "").trim();
+      var appType = (gsel.val(appTypeSelect) || "general").trim();
       var maxMembers = parseInt(maxMembersInput.value, 10) || 0;
 
       if (!name) { toast("Group name is required", true); return; }
@@ -377,7 +384,7 @@
       api("/api/groups", { name: name, app_type: appType, max_members: maxMembers }).then(function() {
         toast("Group created: " + name);
         nameInput.value = "";
-        appTypeInput.value = "";
+        gsel.setVal(appTypeSelect, "general");
         maxMembersInput.value = "0";
         loadHostedList();
       }).catch(function(err) {
@@ -399,10 +406,10 @@
           html += '<div class="groups-card">' +
             '<div class="groups-card-info">' +
               '<div class="groups-card-name">' + escapeHtml(g.name) +
+                typeBadge(g.app_type) +
                 (g.host_in_group ? ' <span class="groups-status-connected">joined</span>' : '') +
               '</div>' +
               '<div class="groups-card-meta">ID: <code>' + escapeHtml(shortId(g.id)) + '</code>' +
-                (g.app_type ? ' &middot; ' + escapeHtml(g.app_type) : '') +
                 (g.max_members > 0 ? ' &middot; max: ' + g.max_members : '') +
               '</div>' +
             '</div>' +

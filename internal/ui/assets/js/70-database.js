@@ -2,6 +2,7 @@
 // Full-featured SQLite database editor
 (() => {
   const { qs, qsa, on, setHidden, escapeHtml, api, toast } = window.Goop.core;
+  const gsel = window.Goop.select;
 
   // Only activate on database page
   const dbPage = qs("#db-page");
@@ -141,16 +142,19 @@
   }
 
   // -------- Search / filter --------
+  gsel.init(searchColEl, function() { executeSearch(); });
+
   function populateSearchBar() {
     if (columns.length === 0) {
       setHidden(searchBarEl, true);
       return;
     }
     setHidden(searchBarEl, false);
-    searchColEl.innerHTML = '<option value="*">All columns</option>';
+    var opts = [{ value: "*", label: "All columns" }];
     columns.forEach(function(col) {
-      searchColEl.innerHTML += '<option value="' + escapeHtml(col.name) + '">' + escapeHtml(col.name) + '</option>';
+      opts.push({ value: col.name, label: col.name });
     });
+    gsel.setOpts(searchColEl, { options: opts }, "*");
     searchInputEl.value = "";
   }
 
@@ -202,7 +206,7 @@
 
   function buildSearchBody(offset) {
     var query = (searchInputEl.value || "").trim();
-    var col = searchColEl.value;
+    var col = gsel.val(searchColEl);
 
     var reqBody = { table: currentTable, limit: pageSize, offset: offset };
 
@@ -501,11 +505,7 @@
       '</div>' +
       '<div class="db-form-group">' +
         '<label>Insert Policy</label>' +
-        '<select id="db-new-policy" class="db-input">' +
-          '<option value="owner">owner &mdash; only site owner</option>' +
-          '<option value="email">email &mdash; peers with email</option>' +
-          '<option value="open">open &mdash; anyone</option>' +
-        '</select>' +
+        gsel.html({ id: "db-new-policy", value: "owner", options: policyOptions() }) +
         '<div class="hint">Controls who can insert rows into this table via P2P.</div>' +
       '</div>' +
       '<div class="db-form-group">' +
@@ -520,6 +520,7 @@
         '<button id="db-create-submit" class="db-action-btn" style="background:color-mix(in srgb,var(--accent) 22%,transparent);border-color:color-mix(in srgb,var(--accent) 40%,transparent)">Create</button>' +
       '</div>';
 
+    initFormSelects(createFormEl);
     on(qs("#db-add-col"), "click", addColRow);
     on(qs("#db-create-cancel"), "click", function() { setHidden(createFormEl, true); });
     on(qs("#db-create-submit"), "click", submitCreateTable);
@@ -530,15 +531,32 @@
     qs("#db-new-name").focus();
   }
 
+  function colTypeOptions() {
+    return [
+      { value: "TEXT", label: "TEXT" },
+      { value: "INTEGER", label: "INTEGER" },
+      { value: "REAL", label: "REAL" },
+      { value: "BLOB", label: "BLOB" },
+    ];
+  }
+
+  function policyOptions() {
+    return [
+      { value: "owner", label: "owner \u2014 only site owner" },
+      { value: "email", label: "email \u2014 peers with email" },
+      { value: "open", label: "open \u2014 anyone" },
+    ];
+  }
+
+  // Init all .gsel within a container
+  function initFormSelects(container) {
+    container.querySelectorAll(".gsel").forEach(function(el) { gsel.init(el); });
+  }
+
   function colRowHtml() {
     return '<div class="db-col-row">' +
       '<input type="text" class="db-input db-col-name" placeholder="column name" />' +
-      '<select class="db-input db-col-type">' +
-        '<option value="TEXT">TEXT</option>' +
-        '<option value="INTEGER">INTEGER</option>' +
-        '<option value="REAL">REAL</option>' +
-        '<option value="BLOB">BLOB</option>' +
-      '</select>' +
+      gsel.html({ className: "db-col-type", value: "TEXT", options: colTypeOptions() }) +
       '<label class="db-col-notnull"><input type="checkbox" /> NOT NULL</label>' +
       '<button class="db-col-remove">x</button>' +
     '</div>';
@@ -550,6 +568,7 @@
     div.innerHTML = colRowHtml();
     var row = div.firstElementChild;
     container.appendChild(row);
+    initFormSelects(row);
     bindColRemove();
     qs(".db-col-name", row).focus();
   }
@@ -577,7 +596,7 @@
     var cols = [];
     qsa("#db-col-defs .db-col-row").forEach(function(row) {
       var n = qs(".db-col-name", row).value.trim();
-      var t = qs(".db-col-type", row).value;
+      var t = gsel.val(qs(".db-col-type", row));
       var nn = qs(".db-col-notnull input", row).checked;
       if (n) {
         cols.push({ name: n, type: t, not_null: nn });
@@ -586,7 +605,7 @@
 
     if (cols.length === 0) { toast("Add at least one column", true); return; }
 
-    var policy = qs("#db-new-policy").value || "owner";
+    var policy = gsel.val(qs("#db-new-policy")) || "owner";
 
     try {
       await api("/api/data/tables/create", { name: name, columns: cols });
@@ -705,11 +724,7 @@
     html += '<div class="db-form-group">' +
       '<label>Insert Policy</label>' +
       '<div style="display:flex;gap:8px;align-items:center">' +
-        '<select id="db-policy-select" class="db-input" style="flex:1">' +
-          '<option value="owner"' + (currentPolicy === "owner" ? " selected" : "") + '>owner &mdash; only site owner</option>' +
-          '<option value="email"' + (currentPolicy === "email" ? " selected" : "") + '>email &mdash; peers with email</option>' +
-          '<option value="open"' + (currentPolicy === "open" ? " selected" : "") + '>open &mdash; anyone</option>' +
-        '</select>' +
+        gsel.html({ id: "db-policy-select", value: currentPolicy || "owner", options: policyOptions(), style: "flex:1" }) +
         '<button id="db-policy-btn" class="db-action-btn">Save</button>' +
       '</div>' +
       '<div class="hint">Controls who can insert rows into this table via P2P.</div>' +
@@ -744,12 +759,7 @@
       '<label>Add Column</label>' +
       '<div class="db-col-row">' +
         '<input type="text" class="db-input db-col-name" id="db-addcol-name" placeholder="column name" />' +
-        '<select class="db-input db-col-type" id="db-addcol-type">' +
-          '<option value="TEXT">TEXT</option>' +
-          '<option value="INTEGER">INTEGER</option>' +
-          '<option value="REAL">REAL</option>' +
-          '<option value="BLOB">BLOB</option>' +
-        '</select>' +
+        gsel.html({ id: "db-addcol-type", className: "db-col-type", value: "TEXT", options: colTypeOptions() }) +
         '<button id="db-addcol-btn" class="db-action-btn">Add</button>' +
       '</div>' +
     '</div>';
@@ -759,10 +769,11 @@
     '</div>';
 
     alterFormEl.innerHTML = html;
+    initFormSelects(alterFormEl);
 
     // Bind policy save
     on(qs("#db-policy-btn"), "click", async function() {
-      var newPolicy = qs("#db-policy-select").value;
+      var newPolicy = gsel.val(qs("#db-policy-select"));
       try {
         await api("/api/data/tables/set-policy", { table: currentTable, policy: newPolicy });
         currentPolicy = newPolicy;
@@ -830,7 +841,7 @@
     // Bind add column
     on(qs("#db-addcol-btn"), "click", async function() {
       var colName = (qs("#db-addcol-name").value || "").trim();
-      var colType = qs("#db-addcol-type").value;
+      var colType = gsel.val(qs("#db-addcol-type"));
       if (!colName) { toast("Column name required", true); return; }
       if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(colName)) {
         toast("Invalid column name", true);
@@ -865,7 +876,6 @@
 
   // Search bindings
   on(searchInputEl, "input", applyFilter);
-  on(searchColEl, "change", executeSearch);
   on(searchClearEl, "click", function() {
     searchInputEl.value = "";
     executeSearch();

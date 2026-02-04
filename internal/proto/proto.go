@@ -25,6 +25,9 @@ const (
 
 	// libp2p stream protocol ID for fetching peer avatars
 	AvatarProtoID = "/goop/avatar/1.0.0"
+
+	// libp2p stream protocol ID for group document sharing
+	DocsProtoID = "/goop/docs/1.0.0"
 )
 
 const (

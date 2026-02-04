@@ -137,10 +137,17 @@
 
           <div class="field" style="max-width: 200px;">
             <label>Theme</label>
-            <select name="viewer_theme">
-              <option value="dark" {{if eq .Cfg.Viewer.Theme "dark"}}selected{{end}}>Dark</option>
-              <option value="light" {{if eq .Cfg.Viewer.Theme "light"}}selected{{end}}>Light</option>
-            </select>
+            <div id="settings-theme-select" class="gsel" data-value="{{.Cfg.Viewer.Theme}}">
+              <input type="hidden" name="viewer_theme" value="{{.Cfg.Viewer.Theme}}">
+              <button type="button" class="gsel-trigger">
+                <span class="gsel-text">{{if eq .Cfg.Viewer.Theme "light"}}Light{{else}}Dark{{end}}</span>
+                <span class="gsel-arrow">&#9662;</span>
+              </button>
+              <div class="gsel-dropdown">
+                <button type="button" class="gsel-option{{if eq .Cfg.Viewer.Theme "dark"}} selected{{end}}" data-value="dark">Dark</button>
+                <button type="button" class="gsel-option{{if eq .Cfg.Viewer.Theme "light"}} selected{{end}}" data-value="light">Light</button>
+              </div>
+            </div>
           </div>
         </div>
 

@@ -143,6 +143,46 @@
 }
 
 /* -----------------------------
+   Type badges
+------------------------------ */
+.groups-type-badge{
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-left: 6px;
+  vertical-align: middle;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.groups-type-general{
+  color: var(--muted);
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+}
+
+.groups-type-chat{
+  color: #6af;
+  background: color-mix(in srgb, #6af 12%, transparent);
+}
+
+.groups-type-files{
+  color: #fa4;
+  background: color-mix(in srgb, #fa4 12%, transparent);
+}
+
+.groups-type-game{
+  color: #c6f;
+  background: color-mix(in srgb, #c6f 12%, transparent);
+}
+
+.groups-type-cluster{
+  color: #f66;
+  background: color-mix(in srgb, #f66 12%, transparent);
+}
+
+/* -----------------------------
    Active connection banner
 ------------------------------ */
 .groups-active-conn{

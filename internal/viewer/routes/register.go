@@ -6,6 +6,8 @@ import (
 
 	"goop/internal/avatar"
 	"goop/internal/content"
+	"goop/internal/docs"
+	"goop/internal/group"
 	"goop/internal/p2p"
 	"goop/internal/rendezvous"
 	"goop/internal/state"
@@ -43,6 +45,10 @@ type Deps struct {
 
 	// Wails bridge URL for native dialogs (empty when not running in Wails)
 	BridgeURL string
+
+	// Document sharing
+	DocsStore    *docs.Store
+	GroupManager *group.Manager
 }
 
 func Register(mux *http.ServeMux, d Deps) {
@@ -65,6 +71,8 @@ func Register(mux *http.ServeMux, d Deps) {
 	registerExportRoutes(mux, d, csrf)
 	registerLuaRoutes(mux, d, csrf)
 	registerGroupsUIRoutes(mux, d)
+	registerDocsUIRoutes(mux, d)
+	registerDocsRoutes(mux, d)
 	registerAvatarRoutes(mux, d)
 }
 

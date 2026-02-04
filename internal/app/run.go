@@ -12,6 +12,7 @@ import (
 	"goop/internal/chat"
 	"goop/internal/config"
 	"goop/internal/content"
+	"goop/internal/docs"
 	"goop/internal/group"
 	luapkg "goop/internal/lua"
 	"goop/internal/p2p"
@@ -188,6 +189,15 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	grpMgr := group.New(node.Host, db)
 	log.Printf("👥 Group protocol enabled: /goop/group/1.0.0")
 
+	// ── File sharing store
+	docStore, err := docs.NewStore(o.PeerDir)
+	if err != nil {
+		log.Printf("WARNING: Failed to create file sharing store: %v", err)
+	} else {
+		node.EnableDocs(docStore, grpMgr)
+		log.Printf("📄 File sharing enabled: /goop/docs/1.0.0")
+	}
+
 	for _, c := range rvClients {
 		cc := c
 		go cc.SubscribeEvents(ctx, func(pm proto.PresenceMsg) {
@@ -242,6 +252,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			Chat:        chatMgr,
 			Groups:      grpMgr,
 			DB:          db,
+			Docs:        docStore,
 			BaseURL:     url,
 			AvatarStore: avatarStore,
 			AvatarCache: avatarCache,
