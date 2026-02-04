@@ -15,7 +15,8 @@
     </div>
   </div>
   <a class="btn identity-site-btn"
-     href="/open?url={{printf "%s/p/%s/" .BaseURL .PeerID | urlquery}}"
+     href="{{printf "%s/p/%s/" .BaseURL .PeerID}}"
+     onclick="return openExternal(this.href)"
      rel="noopener">Open site</a>
 </div>
 

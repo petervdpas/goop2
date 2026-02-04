@@ -27,7 +27,8 @@
           </div>
           <div class="peerright">
             <a class="btn"
-               href="/open?url={{printf "%s/p/%s/" $.BaseURL .ID | urlquery}}"
+               href="{{printf "%s/p/%s/" $.BaseURL .ID}}"
+               onclick="return openExternal(this.href)"
                rel="noopener">
               Open Site
             </a>
@@ -114,7 +115,7 @@
         <span class="peercontent muted small"><code>${escapeHtml(shortId)}</code> &middot; seen ${escapeHtml(lastSeen)}</span>
       </div>
       <div class="peerright">
-        <a class="btn" href="/open?url=${encodeURIComponent('{{.BaseURL}}/p/' + peer.ID + '/')}" rel="noopener">
+        <a class="btn" href="{{.BaseURL}}/p/${peer.ID}/" onclick="return openExternal(this.href)" rel="noopener">
           Open Site
         </a>
       </div>

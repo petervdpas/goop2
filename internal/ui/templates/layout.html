@@ -20,6 +20,13 @@
 
     <link rel="stylesheet" href="/assets/app.css" />
     <script src="/assets/app.js"></script>
+    <script>
+    function openExternal(url){
+      var b=new URLSearchParams(location.search).get('bridge');
+      if(b){fetch(b+'/open?url='+encodeURIComponent(url),{method:'POST'});return false;}
+      location.href='/open?url='+encodeURIComponent(url);return false;
+    }
+    </script>
     
     {{if .SelfID}}
     <!-- Global chat notifications -->
@@ -187,7 +194,7 @@
           <span class="muted small">ephemeral web</span>
           {{if .Debug}}
           <span class="muted small">·</span>
-          <a href="javascript:void(0)" onclick="(function(){var b=new URLSearchParams(location.search).get('bridge');if(b){fetch(b+'/open?url='+encodeURIComponent(location.href),{method:'POST'})}})();" class="muted small" style="text-decoration: none;" title="Open in browser">Debug</a>
+          <a href="#" onclick="return openExternal(location.href)" class="muted small" style="text-decoration: none;" title="Open in browser">Debug</a>
           {{end}}
         </div>
       </footer>
