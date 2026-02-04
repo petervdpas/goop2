@@ -70,6 +70,7 @@
         <li class="settings-nav-item" data-section="network">Network</li>
         {{end}}
         <li class="settings-nav-item" data-section="rendezvous">Rendezvous</li>
+        <li class="settings-nav-item" data-section="server">Server</li>
         {{if not .RendezvousOnly}}
         <li class="settings-nav-item" data-section="scripting">Scripting</li>
         <li class="settings-nav-item" data-section="data">Data</li>
@@ -185,8 +186,23 @@
         <div class="settings-section" data-section="rendezvous">
           <h3 class="settings-section-title">Rendezvous</h3>
 
+          <div class="field">
+            <label>WAN rendezvous</label>
+            <input name="presence_rendezvous_wan"
+                   value="{{.Cfg.Presence.RendezvousWAN}}"
+                   placeholder="https://rendezvous.example.org">
+            <div class="hint">
+              Optional. Join WAN presence mesh (LAN + WAN).
+            </div>
+          </div>
+        </div>
+
+        <!-- Server Setup -->
+        <div class="settings-section" data-section="server">
+          <h3 class="settings-section-title">Server Setup</h3>
+
           <div class="rv-local rv-local--title-only">
-            <div class="rv-local-title">Setup as Rendezvous Server</div>
+            <div class="rv-local-title">Run as Rendezvous Server</div>
 
             <div class="rv-local-toggle">
               <span class="muted small">Off</span>
@@ -202,8 +218,8 @@
             </div>
           </div>
 
-          <div id="rv-server-opts" class="rv-local" style="margin-top:10px;{{if not .Cfg.Presence.RendezvousOnly}} display:none{{end}}">
-            <div class="rv-local-row">
+          <div id="rv-server-opts" style="margin-top:10px;{{if not .Cfg.Presence.RendezvousOnly}} display:none{{end}}">
+            <div class="rv-local rv-local-row">
               <div class="field rv-port-field">
                 <label>Port</label>
                 <input id="rv_port"
@@ -225,27 +241,17 @@
                 </a>
               </div>
             </div>
-          </div>
 
-          <div class="field" style="margin-top: 12px;">
-            <label>WAN rendezvous</label>
-            <input name="presence_rendezvous_wan"
-                   value="{{.Cfg.Presence.RendezvousWAN}}"
-                   placeholder="https://rendezvous.example.org">
-            <div class="hint">
-              Optional. Join WAN presence mesh (LAN + WAN).
-            </div>
-          </div>
-
-          <div class="field" style="margin-top: 12px;">
-            <label>Admin password</label>
-            <input name="presence_admin_password"
-                   type="password"
-                   value="{{.Cfg.Presence.AdminPassword}}"
-                   placeholder="(empty = admin panel disabled)">
-            <div class="hint">
-              Password for the <code>/admin</code> monitoring panel (HTTP Basic Auth, user: <code>admin</code>).
-              Leave empty to disable the admin panel.
+            <div class="field" style="margin-top: 12px;">
+              <label>Admin password</label>
+              <input name="presence_admin_password"
+                     type="password"
+                     value="{{.Cfg.Presence.AdminPassword}}"
+                     placeholder="(empty = admin panel disabled)">
+              <div class="hint">
+                Password for the <code>/admin</code> monitoring panel (HTTP Basic Auth, user: <code>admin</code>).
+                Leave empty to disable the admin panel.
+              </div>
             </div>
           </div>
         </div>
