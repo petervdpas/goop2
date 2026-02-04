@@ -473,14 +473,6 @@ func (s *Store) cleanAbs(rel string) (string, error) {
 		return "", ErrOutsideRoot
 	}
 
-	// Block access to lua/ directory (scripts are not site content)
-	if abs != rootClean {
-		clean := filepath.ToSlash(strings.TrimPrefix(abs, rootPrefix))
-		if clean == "lua" || strings.HasPrefix(clean, "lua/") {
-			return "", ErrForbidden
-		}
-	}
-
 	// prevent symlink escape on existing paths
 	if p, err := filepath.EvalSymlinks(abs); err == nil {
 		if p != rootClean && !strings.HasPrefix(p, rootPrefix) {

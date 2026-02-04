@@ -10,7 +10,7 @@
   align-items: stretch;
   min-height: 0;
   min-width: 0;
-  height: calc(100dvh - var(--footer-h) - (var(--content-pad) * 2) - 96px);
+  height: calc(100dvh - var(--footer-h) - (var(--content-pad) * 2) - 130px);
 }
 
 /* -----------------------------

@@ -44,9 +44,7 @@
     {{end}}
   </div>
 
-  <h1 id="settings" style="margin-top: 18px;">Settings</h1>
-
-  <p class="muted small">
+  <p class="muted small" style="margin-top: 18px;">
     Config file: <code>{{.CfgPath}}</code><br>
     Site folder: <code>{{.Cfg.Paths.SiteRoot}}</code>
   </p>
@@ -59,198 +57,264 @@
     <div class="banner err">{{.Error}}</div>
   {{end}}
 
-  <form class="form" method="post" action="/settings/save">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-
-    <div class="field">
-      <label>Label</label>
-      <input name="profile_label"
-             value="{{.Cfg.Profile.Label}}"
-             placeholder="Peer-A">
+  <div class="settings-page">
+    <!-- ── Sidebar ── -->
+    <div class="settings-sidebar panel">
+      <div class="settings-sidebar-head">
+        <span class="settings-sidebar-title">Settings</span>
+      </div>
+      <ul class="settings-nav">
+        <li class="settings-nav-item active" data-section="profile">Profile</li>
+        <li class="settings-nav-item" data-section="viewer">Viewer</li>
+        {{if not .RendezvousOnly}}
+        <li class="settings-nav-item" data-section="network">Network</li>
+        {{end}}
+        <li class="settings-nav-item" data-section="rendezvous">Rendezvous</li>
+        {{if not .RendezvousOnly}}
+        <li class="settings-nav-item" data-section="scripting">Scripting</li>
+        <li class="settings-nav-item" data-section="data">Data</li>
+        {{end}}
+      </ul>
     </div>
 
-    <div class="field">
-      <label>Email</label>
-      <input name="profile_email"
-             type="email"
-             value="{{.Cfg.Profile.Email}}"
-             placeholder="you@example.com">
-      <div class="hint">
-        Your email is shared with other peers as part of your identity.
-      </div>
-    </div>
+    <!-- ── Main area ── -->
+    <div class="settings-main panel">
+      <form method="post" action="/settings/save">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
 
-    <div class="field">
-      <label>Viewer HTTP addr</label>
-      <input name="viewer_http_addr"
-             value="{{.Cfg.Viewer.HTTPAddr}}"
-             placeholder=":7777">
-      <div class="hint">
-        Empty disables the viewer (UI will not start with -ui).
-      </div>
-    </div>
+        <!-- Profile -->
+        <div class="settings-section active" data-section="profile">
+          <h3 class="settings-section-title">Profile</h3>
 
-    <div class="field">
-      <label>Debug mode</label>
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <label class="switch" title="Enable debug mode">
-          <input type="checkbox"
-                 name="viewer_debug"
-                 {{if .Cfg.Viewer.Debug}}checked{{end}}>
-          <span class="slider"></span>
-        </label>
-        <span class="muted small">Show console debug indicator (F12)</span>
-      </div>
-    </div>
+          <div class="field">
+            <label>Label</label>
+            <input name="profile_label"
+                   value="{{.Cfg.Profile.Label}}"
+                   placeholder="Peer-A">
+          </div>
 
-    <div class="field" style="max-width: 200px;">
-      <label>Theme</label>
-      <select name="viewer_theme">
-        <option value="dark" {{if eq .Cfg.Viewer.Theme "dark"}}selected{{end}}>Dark</option>
-        <option value="light" {{if eq .Cfg.Viewer.Theme "light"}}selected{{end}}>Light</option>
-      </select>
-    </div>
-
-    <div class="grid2">
-      <div class="field">
-        <label>P2P listen port</label>
-        <input name="p2p_listen_port"
-               value="{{.Cfg.P2P.ListenPort}}"
-               placeholder="0">
-        <div class="hint">0 = random</div>
-      </div>
-
-      <div class="field">
-        <label>mDNS tag</label>
-        <input name="p2p_mdns_tag"
-               value="{{.Cfg.P2P.MdnsTag}}"
-               placeholder="goop-mdns">
-      </div>
-    </div>
-
-    <div class="grid2">
-      <div class="field">
-        <label>Presence TTL seconds</label>
-        <input name="presence_ttl_sec"
-               value="{{.Cfg.Presence.TTLSec}}"
-               placeholder="20">
-      </div>
-
-      <div class="field">
-        <label>Presence heartbeat seconds</label>
-        <input name="presence_heartbeat_sec"
-               value="{{.Cfg.Presence.HeartbeatSec}}"
-               placeholder="5">
-      </div>
-    </div>
-
-    <div class="card" style="margin-top: 12px;">
-      <h3>Rendezvous</h3>
-
-      <div class="rv-local rv-local--title-only">
-        <div class="rv-local-title">Setup as Rendezvous Server</div>
-
-        <div class="rv-local-toggle">
-          <span class="muted small">Off</span>
-          <label class="switch" title="Run as a dedicated rendezvous server (disables P2P)">
-            <input id="rv_host"
-                   type="checkbox"
-                   name="presence_rendezvous_server"
-                   {{if .Cfg.Presence.RendezvousOnly}}checked{{end}}
-                   onchange="document.getElementById('rv-server-opts').style.display=this.checked?'':'none'">
-            <span class="slider"></span>
-          </label>
-          <span class="muted small">On</span>
-        </div>
-      </div>
-
-      <div id="rv-server-opts" class="rv-local" style="margin-top:10px;{{if not .Cfg.Presence.RendezvousOnly}} display:none{{end}}">
-        <div class="rv-local-row">
-          <div class="field rv-port-field">
-            <label>Port</label>
-            <input id="rv_port"
-                   name="presence_rendezvous_port"
-                   value="{{.Cfg.Presence.RendezvousPort}}"
-                   placeholder="8787">
+          <div class="field">
+            <label>Email</label>
+            <input name="profile_email"
+                   type="email"
+                   value="{{.Cfg.Profile.Email}}"
+                   placeholder="you@example.com">
             <div class="hint">
-              Local service runs at <code>127.0.0.1:PORT</code>
-              (publish later via Caddy).
+              Your email is shared with other peers as part of your identity.
+            </div>
+          </div>
+        </div>
+
+        <!-- Viewer -->
+        <div class="settings-section" data-section="viewer">
+          <h3 class="settings-section-title">Viewer</h3>
+
+          <div class="field">
+            <label>Viewer HTTP addr</label>
+            <input name="viewer_http_addr"
+                   value="{{.Cfg.Viewer.HTTPAddr}}"
+                   placeholder=":7777">
+            <div class="hint">
+              Empty disables the viewer (UI will not start with -ui).
             </div>
           </div>
 
-          <div class="rv-open">
-            <a id="rv-open-link"
-               class="btn secondary"
-               href="/open?url={{printf "http://127.0.0.1:%d/" .Cfg.Presence.RendezvousPort | urlquery}}"
-               rel="noopener">
-              Open rendezvous
-            </a>
+          <div class="field">
+            <label>Debug mode</label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <label class="switch" title="Enable debug mode">
+                <input type="checkbox"
+                       name="viewer_debug"
+                       {{if .Cfg.Viewer.Debug}}checked{{end}}>
+                <span class="slider"></span>
+              </label>
+              <span class="muted small">Show console debug indicator (F12)</span>
+            </div>
+          </div>
+
+          <div class="field" style="max-width: 200px;">
+            <label>Theme</label>
+            <select name="viewer_theme">
+              <option value="dark" {{if eq .Cfg.Viewer.Theme "dark"}}selected{{end}}>Dark</option>
+              <option value="light" {{if eq .Cfg.Viewer.Theme "light"}}selected{{end}}>Light</option>
+            </select>
           </div>
         </div>
-      </div>
 
-      <div class="field" style="margin-top: 12px;">
-        <label>WAN rendezvous</label>
-        <input name="presence_rendezvous_wan"
-               value="{{.Cfg.Presence.RendezvousWAN}}"
-               placeholder="https://rendezvous.example.org">
-        <div class="hint">
-          Optional. Join WAN presence mesh (LAN + WAN).
+        <!-- Network (peer only) -->
+        {{if not .RendezvousOnly}}
+        <div class="settings-section" data-section="network">
+          <h3 class="settings-section-title">Network</h3>
+
+          <div class="grid2">
+            <div class="field">
+              <label>P2P listen port</label>
+              <input name="p2p_listen_port"
+                     value="{{.Cfg.P2P.ListenPort}}"
+                     placeholder="0">
+              <div class="hint">0 = random</div>
+            </div>
+
+            <div class="field">
+              <label>mDNS tag</label>
+              <input name="p2p_mdns_tag"
+                     value="{{.Cfg.P2P.MdnsTag}}"
+                     placeholder="goop-mdns">
+            </div>
+          </div>
+
+          <div class="grid2">
+            <div class="field">
+              <label>Presence TTL seconds</label>
+              <input name="presence_ttl_sec"
+                     value="{{.Cfg.Presence.TTLSec}}"
+                     placeholder="20">
+            </div>
+
+            <div class="field">
+              <label>Presence heartbeat seconds</label>
+              <input name="presence_heartbeat_sec"
+                     value="{{.Cfg.Presence.HeartbeatSec}}"
+                     placeholder="5">
+            </div>
+          </div>
+        </div>
+        {{end}}
+
+        <!-- Rendezvous -->
+        <div class="settings-section" data-section="rendezvous">
+          <h3 class="settings-section-title">Rendezvous</h3>
+
+          <div class="rv-local rv-local--title-only">
+            <div class="rv-local-title">Setup as Rendezvous Server</div>
+
+            <div class="rv-local-toggle">
+              <span class="muted small">Off</span>
+              <label class="switch" title="Run as a dedicated rendezvous server (disables P2P)">
+                <input id="rv_host"
+                       type="checkbox"
+                       name="presence_rendezvous_server"
+                       {{if .Cfg.Presence.RendezvousOnly}}checked{{end}}
+                       onchange="document.getElementById('rv-server-opts').style.display=this.checked?'':'none'">
+                <span class="slider"></span>
+              </label>
+              <span class="muted small">On</span>
+            </div>
+          </div>
+
+          <div id="rv-server-opts" class="rv-local" style="margin-top:10px;{{if not .Cfg.Presence.RendezvousOnly}} display:none{{end}}">
+            <div class="rv-local-row">
+              <div class="field rv-port-field">
+                <label>Port</label>
+                <input id="rv_port"
+                       name="presence_rendezvous_port"
+                       value="{{.Cfg.Presence.RendezvousPort}}"
+                       placeholder="8787">
+                <div class="hint">
+                  Local service runs at <code>127.0.0.1:PORT</code>
+                  (publish later via Caddy).
+                </div>
+              </div>
+
+              <div class="rv-open">
+                <a id="rv-open-link"
+                   class="btn secondary"
+                   href="/open?url={{printf "http://127.0.0.1:%d/" .Cfg.Presence.RendezvousPort | urlquery}}"
+                   rel="noopener">
+                  Open rendezvous
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div class="field" style="margin-top: 12px;">
+            <label>WAN rendezvous</label>
+            <input name="presence_rendezvous_wan"
+                   value="{{.Cfg.Presence.RendezvousWAN}}"
+                   placeholder="https://rendezvous.example.org">
+            <div class="hint">
+              Optional. Join WAN presence mesh (LAN + WAN).
+            </div>
+          </div>
+
+          <div class="field" style="margin-top: 12px;">
+            <label>Admin password</label>
+            <input name="presence_admin_password"
+                   type="password"
+                   value="{{.Cfg.Presence.AdminPassword}}"
+                   placeholder="(empty = admin panel disabled)">
+            <div class="hint">
+              Password for the <code>/admin</code> monitoring panel (HTTP Basic Auth, user: <code>admin</code>).
+              Leave empty to disable the admin panel.
+            </div>
+          </div>
+        </div>
+
+        <!-- Scripting (peer only) -->
+        {{if not .RendezvousOnly}}
+        <div class="settings-section" data-section="scripting">
+          <h3 class="settings-section-title">Lua Scripting</h3>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="muted small">Off</span>
+            <label class="switch" title="Enable Lua chat scripts">
+              <input type="checkbox" name="lua_enabled"
+                     {{if .Cfg.Lua.Enabled}}checked{{end}}>
+              <span class="slider"></span>
+            </label>
+            <span class="muted small">On</span>
+          </div>
+          <div class="hint">
+            When enabled, peers can run !commands defined in your <code>{{.Cfg.Lua.ScriptDir}}</code> folder.
+            {{if .Cfg.Lua.Enabled}}<a href="/lua">Manage scripts</a>{{end}}
+          </div>
+        </div>
+        {{end}}
+
+        <!-- Save bar -->
+        <div class="settings-save-bar" id="settings-save-bar">
+          <button class="btn" type="submit">Save</button>
+          <span class="muted small">Changing networking or viewer settings may require a restart.</span>
+        </div>
+      </form>
+
+      <!-- Data (peer only, outside form) -->
+      {{if not .RendezvousOnly}}
+      <div class="settings-section" data-section="data">
+        <h3 class="settings-section-title">Import / Export</h3>
+        <p class="muted small">Export your site as a .zip archive (files, database, lua scripts) or import one to restore.</p>
+        <div style="display:flex;gap:0.75rem;margin-top:0.5rem;flex-wrap:wrap;">
+          <button type="button" class="btn secondary" id="export-btn">Export site (.zip)</button>
+          <button type="button" class="btn secondary" id="import-btn">Import site (.zip)</button>
+          <input type="file" id="import-file" accept=".zip" style="display:none">
         </div>
       </div>
-
-      <div class="field" style="margin-top: 12px;">
-        <label>Admin password</label>
-        <input name="presence_admin_password"
-               type="password"
-               value="{{.Cfg.Presence.AdminPassword}}"
-               placeholder="(empty = admin panel disabled)">
-        <div class="hint">
-          Password for the <code>/admin</code> monitoring panel (HTTP Basic Auth, user: <code>admin</code>).
-          Leave empty to disable the admin panel.
-        </div>
-      </div>
+      {{end}}
     </div>
-
-    <div class="card" style="margin-top: 12px;">
-      <h3>Lua Scripting</h3>
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <span class="muted small">Off</span>
-        <label class="switch" title="Enable Lua chat scripts">
-          <input type="checkbox" name="lua_enabled"
-                 {{if .Cfg.Lua.Enabled}}checked{{end}}>
-          <span class="slider"></span>
-        </label>
-        <span class="muted small">On</span>
-      </div>
-      <div class="hint">
-        When enabled, peers can run !commands defined in your <code>{{.Cfg.Lua.ScriptDir}}</code> folder.
-        {{if .Cfg.Lua.Enabled}}<a href="/lua">Manage scripts</a>{{end}}
-      </div>
-    </div>
-
-    <div class="actions">
-      <button class="btn" type="submit">Save</button>
-    </div>
-  </form>
-
-  <p class="muted small">
-    Note: Changing networking or viewer settings may require restarting this peer.
-  </p>
-
-  {{if not .RendezvousOnly}}
-  <h1 style="margin-top: 18px;">Import / Export</h1>
-  <p class="muted small">Export your site as a .zip archive (files, database, lua scripts) or import one to restore.</p>
-  <div style="display:flex;gap:0.75rem;margin-top:0.5rem;flex-wrap:wrap;">
-    <button type="button" class="btn secondary" id="export-btn">Export site (.zip)</button>
-    <button type="button" class="btn secondary" id="import-btn">Import site (.zip)</button>
-    <input type="file" id="import-file" accept=".zip" style="display:none">
   </div>
-  {{end}}
 </div>
 
 <script>
 (function() {
+  // ── Settings sidebar navigation ──
+  var navItems = document.querySelectorAll('.settings-nav-item');
+  var sections = document.querySelectorAll('.settings-section');
+  var saveBar  = document.getElementById('settings-save-bar');
+
+  navItems.forEach(function(item) {
+    item.addEventListener('click', function() {
+      var target = item.getAttribute('data-section');
+      navItems.forEach(function(n) { n.classList.remove('active'); });
+      item.classList.add('active');
+      sections.forEach(function(s) {
+        s.classList.toggle('active', s.getAttribute('data-section') === target);
+      });
+      if (saveBar) {
+        saveBar.style.display = (target === 'data') ? 'none' : '';
+      }
+    });
+  });
+
+  // ── Avatar upload ──
   var fileInput = document.getElementById('avatar-file-input');
   var chooseBtn = document.getElementById('avatar-choose-btn');
   var removeBtn = document.getElementById('avatar-remove-btn');

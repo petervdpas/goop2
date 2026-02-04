@@ -1,0 +1,108 @@
+/* internal/ui/assets/css/68-settings.css */
+
+/* -----------------------------
+   Settings page layout
+------------------------------ */
+.settings-page{
+  display:grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
+  min-height: 300px;
+  min-width: 0;
+  height: calc(100dvh - var(--footer-h) - (var(--content-pad) * 2) - 330px);
+}
+
+/* -----------------------------
+   Sidebar
+------------------------------ */
+.settings-sidebar{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  min-width:0;
+  overflow:hidden;
+}
+
+.settings-sidebar-head{
+  display:flex;
+  align-items:center;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 10px;
+}
+
+.settings-sidebar-title{
+  font-weight: 750;
+}
+
+.settings-nav{
+  list-style:none;
+  padding:0;
+  margin:0;
+  flex: 1 1 auto;
+  overflow-y:auto;
+  padding-right: 6px;
+}
+
+.settings-nav-item{
+  display:flex;
+  align-items:center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  cursor:pointer;
+  user-select:none;
+  transition: background var(--ease), border-color var(--ease);
+  border: 1px solid transparent;
+  font-weight: 600;
+}
+
+.settings-nav-item:hover{
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.settings-nav-item.active{
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+/* -----------------------------
+   Main area
+------------------------------ */
+.settings-main{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  min-width:0;
+  overflow-y:auto;
+}
+
+/* -----------------------------
+   Sections
+------------------------------ */
+.settings-section{
+  display:none;
+}
+
+.settings-section.active{
+  display:block;
+}
+
+.settings-section-title{
+  font-weight: 750;
+  font-size: 15px;
+  margin: 0 0 14px 0;
+}
+
+/* -----------------------------
+   Save bar
+------------------------------ */
+.settings-save-bar{
+  display:flex;
+  align-items:center;
+  gap: 12px;
+  padding-top: 14px;
+  margin-top: auto;
+  border-top: 1px solid var(--line);
+}

@@ -12,7 +12,7 @@
 }
 
 .page-editor .ed{
-  height: calc(100dvh - var(--footer-h) - (var(--content-pad) * 2) - 96px);
+  height: calc(100dvh - var(--footer-h) - (var(--content-pad) * 2) - 110px);
   min-height: 0;
 }
 
@@ -30,6 +30,7 @@
   flex-direction:column;
   gap: 12px;
   min-height:0;
+  overflow:hidden;
 }
 
 .ed-left, .ed-right{
