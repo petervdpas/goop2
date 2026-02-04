@@ -76,8 +76,10 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			cfg.Viewer.Theme = theme
 		}
 
-		cfg.P2P.MdnsTag = getTrimmedPostFormValue(r.PostForm, "p2p_mdns_tag")
-
+		// P2P / presence fields are only in the form when not in rendezvous-only mode.
+		if v := getTrimmedPostFormValue(r.PostForm, "p2p_mdns_tag"); v != "" {
+			cfg.P2P.MdnsTag = v
+		}
 		if p := getTrimmedPostFormValue(r.PostForm, "p2p_listen_port"); p != "" {
 			cfg.P2P.ListenPort = atoiOrNeg(p)
 		}

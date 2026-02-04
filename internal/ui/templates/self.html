@@ -66,9 +66,7 @@
       <ul class="settings-nav">
         <li class="settings-nav-item active" data-section="profile">Profile</li>
         <li class="settings-nav-item" data-section="viewer">Viewer</li>
-        {{if not .RendezvousOnly}}
         <li class="settings-nav-item" data-section="network">Network</li>
-        {{end}}
         <li class="settings-nav-item" data-section="rendezvous">Rendezvous</li>
         <li class="settings-nav-item" data-section="server">Server</li>
         <li class="settings-nav-item" data-section="admin" id="nav-admin"
@@ -151,8 +149,7 @@
           </div>
         </div>
 
-        <!-- Network (peer only) -->
-        {{if not .RendezvousOnly}}
+        <!-- Network -->
         <div class="settings-section" data-section="network">
           <h3 class="settings-section-title">Network</h3>
 
@@ -189,7 +186,6 @@
             </div>
           </div>
         </div>
-        {{end}}
 
         <!-- Rendezvous -->
         <div class="settings-section" data-section="rendezvous">

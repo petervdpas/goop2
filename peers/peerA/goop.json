@@ -17,6 +17,7 @@
     "heartbeat_seconds": 5,
     "rendezvous_host": true,
     "rendezvous_port": 8787,
+    "rendezvous_bind": "127.0.0.1",
     "rendezvous_wan": "",
     "rendezvous_only": true,
     "admin_password": "welcome",
