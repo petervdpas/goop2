@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log"
 	"sync"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -44,6 +45,19 @@ func openPeerDB(path string) (*peerDB, error) {
 		last_seen      INTEGER DEFAULT 0,
 		bytes_sent     INTEGER DEFAULT 0,
 		bytes_received INTEGER DEFAULT 0
+	)`)
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+
+	// Registrations table for email-based access control
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS registrations (
+		email          TEXT PRIMARY KEY,
+		token          TEXT NOT NULL,
+		created_at     INTEGER NOT NULL,
+		verified_at    INTEGER DEFAULT 0,
+		metadata       TEXT DEFAULT '{}'
 	)`)
 	if err != nil {
 		db.Close()
@@ -116,4 +130,113 @@ func (p *peerDB) loadAll() ([]peerRow, error) {
 // close closes the database.
 func (p *peerDB) close() error {
 	return p.db.Close()
+}
+
+// Registration represents a registered email.
+type Registration struct {
+	Email      string `json:"email"`
+	Token      string `json:"-"`
+	CreatedAt  int64  `json:"created_at"`
+	VerifiedAt int64  `json:"verified_at"`
+	Metadata   string `json:"metadata"`
+}
+
+// IsVerified returns true if the registration has been verified.
+func (r Registration) IsVerified() bool {
+	return r.VerifiedAt > 0
+}
+
+// createRegistration creates a new pending registration.
+func (p *peerDB) createRegistration(email, token string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	now := timeNowMillis()
+	_, err := p.db.Exec(`INSERT INTO registrations (email, token, created_at) VALUES (?, ?, ?)
+		ON CONFLICT(email) DO UPDATE SET token=excluded.token, created_at=excluded.created_at, verified_at=0`,
+		email, token, now)
+	return err
+}
+
+// verifyRegistration marks a registration as verified if the token matches.
+func (p *peerDB) verifyRegistration(token string) (string, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	var email string
+	err := p.db.QueryRow(`SELECT email FROM registrations WHERE token = ? AND verified_at = 0`, token).Scan(&email)
+	if err != nil {
+		return "", false
+	}
+
+	now := timeNowMillis()
+	_, err = p.db.Exec(`UPDATE registrations SET verified_at = ? WHERE token = ?`, now, token)
+	if err != nil {
+		return "", false
+	}
+
+	return email, true
+}
+
+// isEmailVerified checks if an email is verified.
+func (p *peerDB) isEmailVerified(email string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	var verifiedAt int64
+	err := p.db.QueryRow(`SELECT verified_at FROM registrations WHERE email = ?`, email).Scan(&verifiedAt)
+	if err != nil {
+		return false
+	}
+	return verifiedAt > 0
+}
+
+// getRegistration returns a registration by email.
+func (p *peerDB) getRegistration(email string) (*Registration, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	var r Registration
+	err := p.db.QueryRow(`SELECT email, token, created_at, verified_at, metadata FROM registrations WHERE email = ?`, email).
+		Scan(&r.Email, &r.Token, &r.CreatedAt, &r.VerifiedAt, &r.Metadata)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// listRegistrations returns all registrations.
+func (p *peerDB) listRegistrations() ([]Registration, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	rows, err := p.db.Query(`SELECT email, token, created_at, verified_at, metadata FROM registrations ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []Registration
+	for rows.Next() {
+		var r Registration
+		if err := rows.Scan(&r.Email, &r.Token, &r.CreatedAt, &r.VerifiedAt, &r.Metadata); err != nil {
+			return nil, err
+		}
+		result = append(result, r)
+	}
+	return result, rows.Err()
+}
+
+// deleteRegistration removes a registration.
+func (p *peerDB) deleteRegistration(email string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	_, err := p.db.Exec(`DELETE FROM registrations WHERE email = ?`, email)
+	return err
+}
+
+// timeNowMillis returns current time in milliseconds.
+func timeNowMillis() int64 {
+	return time.Now().UnixMilli()
 }

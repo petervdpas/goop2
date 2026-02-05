@@ -3,7 +3,9 @@ package rendezvous
 
 import (
 	"context"
+	"crypto/rand"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -34,6 +36,10 @@ type Server struct {
 	adminPassword string
 	srv           *http.Server
 
+	// registration settings
+	registrationRequired bool
+	registrationWebhook  string
+
 	mu        sync.Mutex
 	clients   map[chan []byte]struct{}
 	clientIPs map[chan []byte]string // channel -> remote IP (for per-IP tracking)
@@ -46,13 +52,14 @@ type Server struct {
 	logs    []string
 	maxLogs int
 
-	tmpl      *template.Template
-	adminTmpl *template.Template
-	docsTmpl  *template.Template
-	style     []byte
-	docsCSS   []byte
-	favicon   []byte
-	docsSite  *DocSite
+	tmpl         *template.Template
+	adminTmpl    *template.Template
+	docsTmpl     *template.Template
+	registerTmpl *template.Template
+	style        []byte
+	docsCSS      []byte
+	favicon      []byte
+	docsSite     *DocSite
 
 	templateStore *TemplateStore
 	peerDB        *peerDB // nil when persistence is disabled
@@ -75,11 +82,12 @@ type peerRow struct {
 }
 
 type indexVM struct {
-	Title          string
-	Endpoint       string
-	ConnectURLs    []string
-	StoreTemplates []StoreMeta
-	HasAdmin       bool
+	Title                string
+	Endpoint             string
+	ConnectURLs          []string
+	StoreTemplates       []StoreMeta
+	HasAdmin             bool
+	RegistrationRequired bool
 }
 
 type adminVM struct {
@@ -97,7 +105,7 @@ type docsVM struct {
 	Next    *DocPage
 }
 
-func New(addr string, templatesDir string, peerDBPath string, adminPassword string, externalURL string) *Server {
+func New(addr string, templatesDir string, peerDBPath string, adminPassword string, externalURL string, registrationRequired bool, registrationWebhook string) *Server {
 	funcs := template.FuncMap{
 		"statusClass": func(t string) string {
 			switch t {
@@ -144,6 +152,12 @@ func New(addr string, templatesDir string, peerDBPath string, adminPassword stri
 		panic(err)
 	}
 
+	registerTmpl, err := template.New("register.html").Funcs(funcs).ParseFS(embedded, "assets/register.html")
+	if err != nil {
+		// Not fatal - registration template is optional
+		registerTmpl = nil
+	}
+
 	css, err := embedded.ReadFile("assets/style.css")
 	if err != nil {
 		css = []byte("/* missing style.css */")
@@ -160,22 +174,25 @@ func New(addr string, templatesDir string, peerDBPath string, adminPassword stri
 	}
 
 	s := &Server{
-		addr:          addr,
-		externalURL:   strings.TrimRight(externalURL, "/"),
-		adminPassword: adminPassword,
-		clients:       map[chan []byte]struct{}{},
-		clientIPs:     map[chan []byte]string{},
-		peers:         map[string]peerRow{},
-		logs:          make([]string, 0, 500),
-		maxLogs:       500,
-		tmpl:          tmpl,
-		adminTmpl:     adminTmpl,
-		docsTmpl:      docsTmpl,
-		style:         css,
-		docsCSS:       docsCSSData,
-		favicon:       faviconData,
-		docsSite:      newDocSite(),
-		rateWindow:    map[string][]time.Time{},
+		addr:                 addr,
+		externalURL:          strings.TrimRight(externalURL, "/"),
+		adminPassword:        adminPassword,
+		registrationRequired: registrationRequired,
+		registrationWebhook:  registrationWebhook,
+		clients:              map[chan []byte]struct{}{},
+		clientIPs:            map[chan []byte]string{},
+		peers:                map[string]peerRow{},
+		logs:                 make([]string, 0, 500),
+		maxLogs:              500,
+		tmpl:                 tmpl,
+		adminTmpl:            adminTmpl,
+		docsTmpl:             docsTmpl,
+		registerTmpl:         registerTmpl,
+		style:                css,
+		docsCSS:              docsCSSData,
+		favicon:              faviconData,
+		docsSite:             newDocSite(),
+		rateWindow:           map[string][]time.Time{},
 	}
 
 	// Open peer DB if path provided (for multi-instance persistence)
@@ -225,6 +242,11 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/admin", s.handleAdmin)
 	mux.HandleFunc("/peers.json", s.handlePeersJSON)
 	mux.HandleFunc("/logs.json", s.handleLogsJSON)
+	mux.HandleFunc("/registrations.json", s.handleRegistrationsJSON)
+
+	// Registration endpoints
+	mux.HandleFunc("/register", s.handleRegister)
+	mux.HandleFunc("/verify", s.handleVerify)
 
 	// SSE: stream messages to subscribers
 	mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
@@ -307,6 +329,16 @@ func (s *Server) Start(ctx context.Context) error {
 			return
 		}
 
+		// Check registration if required
+		isRegistered := true
+		if s.registrationRequired && s.peerDB != nil {
+			if pm.Email == "" {
+				isRegistered = false
+			} else {
+				isRegistered = s.peerDB.isEmailVerified(pm.Email)
+			}
+		}
+
 		// normalize timestamp if caller didn't set it
 		if pm.TS == 0 {
 			pm.TS = proto.NowMillis()
@@ -317,10 +349,14 @@ func (s *Server) Start(ctx context.Context) error {
 		msgSize := int64(len(b))
 
 		// update peer snapshot for / and /peers.json
-		s.upsertPeer(pm, msgSize)
-		s.addLog(fmt.Sprintf("Received %s from %s: %q", pm.Type, pm.PeerID, pm.Content))
-
-		s.broadcast(b)
+		// Only store if registered (or registration not required)
+		if isRegistered {
+			s.upsertPeer(pm, msgSize)
+			s.addLog(fmt.Sprintf("Received %s from %s: %q", pm.Type, pm.PeerID, pm.Content))
+			s.broadcast(b)
+		} else {
+			s.addLog(fmt.Sprintf("Rejected unregistered peer: %s (email: %q)", pm.PeerID, pm.Email))
+		}
 
 		w.WriteHeader(http.StatusNoContent)
 	})
@@ -784,11 +820,12 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("content-type", "text/html; charset=utf-8")
 	_ = s.tmpl.Execute(w, indexVM{
-		Title:          "Goop² Rendezvous",
-		Endpoint:       s.URL(),
-		ConnectURLs:    s.connectURLs(),
-		StoreTemplates: storeTemplates,
-		HasAdmin:       s.adminPassword != "",
+		Title:                "Goop² Rendezvous",
+		Endpoint:             s.URL(),
+		ConnectURLs:          s.connectURLs(),
+		StoreTemplates:       storeTemplates,
+		HasAdmin:             s.adminPassword != "",
+		RegistrationRequired: s.registrationRequired,
 	})
 }
 
@@ -960,4 +997,204 @@ func validatePresence(pm proto.PresenceMsg) error {
 	}
 
 	return nil
+}
+
+// ─── Registration handlers ───
+
+type registerVM struct {
+	Title    string
+	Email    string
+	Error    string
+	Success  bool
+	Verified bool
+}
+
+func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
+	if s.registerTmpl == nil {
+		http.Error(w, "registration not available", http.StatusNotFound)
+		return
+	}
+
+	if s.peerDB == nil {
+		http.Error(w, "registration requires database", http.StatusServiceUnavailable)
+		return
+	}
+
+	vm := registerVM{Title: "Register — Goop² Rendezvous"}
+
+	if r.Method == http.MethodPost {
+		if err := r.ParseForm(); err != nil {
+			vm.Error = "Invalid form data"
+			s.renderRegister(w, vm)
+			return
+		}
+
+		email := strings.TrimSpace(r.FormValue("email"))
+		if email == "" {
+			vm.Error = "Email is required"
+			vm.Email = email
+			s.renderRegister(w, vm)
+			return
+		}
+
+		// Basic email validation
+		if !strings.Contains(email, "@") || !strings.Contains(email, ".") {
+			vm.Error = "Please enter a valid email address"
+			vm.Email = email
+			s.renderRegister(w, vm)
+			return
+		}
+
+		// Check if already verified
+		if s.peerDB.isEmailVerified(email) {
+			vm.Error = "This email is already registered and verified"
+			vm.Email = email
+			s.renderRegister(w, vm)
+			return
+		}
+
+		// Generate verification token
+		token := generateToken()
+
+		// Save registration
+		if err := s.peerDB.createRegistration(email, token); err != nil {
+			vm.Error = "Failed to create registration"
+			vm.Email = email
+			s.renderRegister(w, vm)
+			return
+		}
+
+		// Build verification URL
+		baseURL := s.externalURL
+		if baseURL == "" {
+			baseURL = "http://" + r.Host
+		}
+		verifyURL := baseURL + "/verify?token=" + token
+
+		// Log the verification link (for development)
+		log.Printf("────────────────────────────────────────────────────────")
+		log.Printf("📧 VERIFICATION LINK for %s:", email)
+		log.Printf("   %s", verifyURL)
+		log.Printf("────────────────────────────────────────────────────────")
+
+		s.addLog(fmt.Sprintf("Registration requested: %s", email))
+
+		vm.Success = true
+		vm.Email = email
+		s.renderRegister(w, vm)
+		return
+	}
+
+	// GET: show registration form
+	s.renderRegister(w, vm)
+}
+
+func (s *Server) renderRegister(w http.ResponseWriter, vm registerVM) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.registerTmpl.Execute(w, vm); err != nil {
+		log.Printf("register template error: %v", err)
+	}
+}
+
+func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if s.peerDB == nil {
+		http.Error(w, "verification requires database", http.StatusServiceUnavailable)
+		return
+	}
+
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		http.Error(w, "missing token", http.StatusBadRequest)
+		return
+	}
+
+	email, ok := s.peerDB.verifyRegistration(token)
+	if !ok {
+		http.Error(w, "invalid or expired token", http.StatusBadRequest)
+		return
+	}
+
+	s.addLog(fmt.Sprintf("Email verified: %s", email))
+	log.Printf("✓ Email verified: %s", email)
+
+	// Call webhook if configured
+	if s.registrationWebhook != "" {
+		go s.callRegistrationWebhook(email)
+	}
+
+	// Show success page
+	if s.registerTmpl != nil {
+		vm := registerVM{
+			Title:    "Verified — Goop² Rendezvous",
+			Email:    email,
+			Success:  true,
+			Verified: true,
+		}
+		s.renderRegister(w, vm)
+		return
+	}
+
+	// Fallback text response
+	w.Header().Set("Content-Type", "text/plain")
+	fmt.Fprintf(w, "Email %s verified successfully!\n", email)
+}
+
+func (s *Server) handleRegistrationsJSON(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.requireAdmin(w, r) {
+		return
+	}
+	if s.peerDB == nil {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("[]"))
+		return
+	}
+
+	regs, err := s.peerDB.listRegistrations()
+	if err != nil {
+		http.Error(w, "database error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(regs)
+}
+
+func (s *Server) callRegistrationWebhook(email string) {
+	payload := map[string]interface{}{
+		"email":       email,
+		"verified_at": time.Now().UnixMilli(),
+	}
+
+	body, _ := json.Marshal(payload)
+	resp, err := http.Post(s.registrationWebhook, "application/json", strings.NewReader(string(body)))
+	if err != nil {
+		log.Printf("webhook error: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		log.Printf("webhook returned status %d", resp.StatusCode)
+	} else {
+		log.Printf("webhook called successfully for %s", email)
+	}
+}
+
+// generateToken creates a random URL-safe token.
+func generateToken() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback to timestamp-based token
+		return fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+	return base64.URLEncoding.EncodeToString(b)
 }

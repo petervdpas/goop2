@@ -71,8 +71,10 @@
         <li class="settings-nav-item" data-section="network">Network</li>
         <li class="settings-nav-item" data-section="rendezvous">Rendezvous</li>
         <li class="settings-nav-item" data-section="server">Server</li>
-        <li class="settings-nav-item" data-section="admin" id="nav-admin"
+        <li class="settings-nav-item rv-server-nav" data-section="admin" id="nav-admin"
             style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">Admin</li>
+        <li class="settings-nav-item rv-server-nav" data-section="registration" id="nav-registration"
+            style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">Registration</li>
         {{if not .RendezvousOnly}}
         <li class="settings-nav-item" data-section="scripting">Scripting</li>
         <li class="settings-nav-item" data-section="data">Data</li>
@@ -218,7 +220,7 @@
                        type="checkbox"
                        name="presence_rendezvous_server"
                        {{if .Cfg.Presence.RendezvousOnly}}checked{{end}}
-                       onchange="var on=this.checked;document.getElementById('rv-server-opts').style.display=on?'':'none';document.getElementById('nav-admin').style.display=on?'':'none'">
+                       onchange="var on=this.checked;document.getElementById('rv-server-opts').style.display=on?'':'none';document.querySelectorAll('.rv-server-section').forEach(el=>el.style.display=on?'':'none');document.querySelectorAll('.rv-server-nav').forEach(el=>el.style.display=on?'':'none')">
                 <span class="slider"></span>
               </label>
               <span class="muted small">On</span>
@@ -245,16 +247,6 @@
                        value="{{.Cfg.Presence.RendezvousPort}}"
                        placeholder="8787">
               </div>
-
-              <div class="rv-open">
-                <a id="rv-open-link"
-                   class="btn secondary"
-                   href="#"
-                   rel="noopener"
-                   onclick="var u='http://'+location.hostname+':'+document.querySelector('[name=presence_rendezvous_port]').value+'/';return openExternal(u)">
-                  Open rendezvous
-                </a>
-              </div>
             </div>
 
             <div class="field" style="margin-top:10px">
@@ -271,7 +263,7 @@
         </div>
 
         <!-- Admin (visible when server is enabled) -->
-        <div class="settings-section" data-section="admin">
+        <div class="settings-section rv-server-section" data-section="admin" style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">
           <h3 class="settings-section-title">Admin</h3>
 
           <div class="field">
@@ -283,6 +275,37 @@
             <div class="hint">
               Password for the <code>/admin</code> monitoring panel (HTTP Basic Auth, user: <code>admin</code>).
               Leave empty to disable the admin panel.
+            </div>
+          </div>
+        </div>
+
+        <!-- Registration (visible when server is enabled) -->
+        <div class="settings-section rv-server-section" data-section="registration" style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">
+          <h3 class="settings-section-title">Registration</h3>
+
+          <div class="field">
+            <label>Require email registration</label>
+            <div style="display: flex; align-items: center; gap: 8px; margin-top:6px">
+              <span class="muted small">Off</span>
+              <label class="switch" title="Only verified emails can be discovered">
+                <input type="checkbox" name="presence_registration_required"
+                       {{if .Cfg.Presence.RegistrationRequired}}checked{{end}}>
+                <span class="slider"></span>
+              </label>
+              <span class="muted small">On</span>
+            </div>
+            <div class="hint">
+              When enabled, only peers with verified email addresses will be visible to others.
+            </div>
+          </div>
+
+          <div class="field" style="margin-top:10px">
+            <label>Registration webhook</label>
+            <input name="presence_registration_webhook"
+                   value="{{.Cfg.Presence.RegistrationWebhook}}"
+                   placeholder="https://your-api.com/webhook">
+            <div class="hint">
+              Optional. Called when an email is verified (for monetization).
             </div>
           </div>
         </div>

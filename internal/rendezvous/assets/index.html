@@ -21,8 +21,9 @@
         <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
           <span class="theme-icon">🌙</span>
         </button>
+        {{if .RegistrationRequired}}<a class="nav-link accent" href="/register">Register</a>{{end}}
         <a class="nav-link" href="/docs">Docs</a>
-        {{if .HasAdmin}}<a class="nav-link accent" href="/admin">Admin</a>{{end}}
+        {{if .HasAdmin}}<a class="nav-link" href="/admin">Admin</a>{{end}}
         <a class="nav-link" href="/healthz" target="_blank">Health</a>
       </div>
     </header>
@@ -35,6 +36,12 @@
       <div class="connect-url" onclick="navigator.clipboard.writeText('{{.}}').then(()=>{this.classList.add('copied');setTimeout(()=>this.classList.remove('copied'),1200)})">
         <code>{{.}}</code>
         <span class="copy-hint">click to copy</span>
+      </div>
+      {{end}}
+      {{if .RegistrationRequired}}
+      <div class="registration-notice">
+        <span class="notice-icon">🔐</span>
+        <span>This server requires <a href="/register">email registration</a> to be discoverable by other peers.</span>
       </div>
       {{end}}
     </div>

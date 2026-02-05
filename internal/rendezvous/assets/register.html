@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{.Title}}</title>
+  <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+  <link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="header-left">
+        <div class="logo">📡</div>
+        <div>
+          <h1>Goop² Rendezvous</h1>
+          <p class="subtitle">Peer registration</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+          <span class="theme-icon">🌙</span>
+        </button>
+        <a class="nav-link" href="/">Home</a>
+      </div>
+    </header>
+
+    <div class="register-box glass">
+      {{if .Success}}
+      <div class="register-success">
+        <div class="success-icon">✓</div>
+        <h2>{{if .Verified}}Email Verified{{else}}Check Your Email{{end}}</h2>
+        {{if .Verified}}
+        <p>Your email <strong>{{.Email}}</strong> has been verified.</p>
+        <p>You can now connect to this rendezvous server with your peer.</p>
+        {{else}}
+        <p>A verification link has been sent to <strong>{{.Email}}</strong>.</p>
+        <p>Click the link in the email to complete registration.</p>
+        {{end}}
+        <a href="/" class="btn primary">Back to Home</a>
+      </div>
+      {{else}}
+      <h2>Register to Join</h2>
+      <p class="register-hint">This rendezvous server requires email registration. Enter your email to receive a verification link.</p>
+
+      {{if .Error}}
+      <div class="register-error">{{.Error}}</div>
+      {{end}}
+
+      <form method="POST" action="/register" class="register-form">
+        <div class="form-field">
+          <label for="email">Email Address</label>
+          <input type="email" id="email" name="email" required placeholder="you@example.com" value="{{.Email}}" autocomplete="email" />
+        </div>
+        <button type="submit" class="btn primary">Send Verification Link</button>
+      </form>
+      {{end}}
+    </div>
+
+    <footer class="footer">
+      <p>Goop² — peer-to-peer content publishing</p>
+    </footer>
+  </div>
+
+  <script>
+    const toggle = document.getElementById('themeToggle');
+    const icon = toggle.querySelector('.theme-icon');
+    const saved = localStorage.getItem('theme');
+    if (saved === 'light') { document.body.classList.add('light'); icon.textContent = '☀️'; }
+    toggle.addEventListener('click', () => {
+      document.body.classList.toggle('light');
+      const isLight = document.body.classList.contains('light');
+      icon.textContent = isLight ? '☀️' : '🌙';
+      localStorage.setItem('theme', isLight ? 'light' : 'dark');
+    });
+  </script>
+</body>
+</html>

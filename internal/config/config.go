@@ -79,6 +79,15 @@ type Presence struct {
 	// When set, this URL is shown to users instead of auto-discovered LAN IPs.
 	// Required for servers behind NAT or reverse proxies.
 	ExternalURL string `json:"external_url"`
+
+	// If true, only peers with verified email registrations can be discovered.
+	// Requires PeerDBPath to be set for storing registrations.
+	RegistrationRequired bool `json:"registration_required"`
+
+	// Optional webhook URL called when a registration is verified.
+	// POST with JSON body: {"email": "...", "verified_at": ...}
+	// Use this for monetization integration (e.g., check payment status).
+	RegistrationWebhook string `json:"registration_webhook"`
 }
 
 type Profile struct {

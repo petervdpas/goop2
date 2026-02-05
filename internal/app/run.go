@@ -81,7 +81,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			peerDBPath = util.ResolvePath(o.PeerDir, cfg.Presence.PeerDBPath)
 		}
 
-		rv = rendezvous.New(addr, templatesDir, peerDBPath, cfg.Presence.AdminPassword, cfg.Presence.ExternalURL)
+		rv = rendezvous.New(addr, templatesDir, peerDBPath, cfg.Presence.AdminPassword, cfg.Presence.ExternalURL, cfg.Presence.RegistrationRequired, cfg.Presence.RegistrationWebhook)
 		if err := rv.Start(ctx); err != nil {
 			return err
 		}
