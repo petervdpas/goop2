@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -53,7 +54,21 @@ func openSystemBrowser(url string) error {
 	case "windows":
 		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
 	default:
-		// linux, bsd
+		// linux, bsd — when running as root via sudo, run xdg-open
+		// as the original user so it can reach their desktop session.
+		if os.Getuid() == 0 {
+			if sudoUser := os.Getenv("SUDO_USER"); sudoUser != "" {
+				args := []string{"-u", sudoUser}
+				for _, key := range []string{"DISPLAY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"} {
+					if val := os.Getenv(key); val != "" {
+						args = append(args, key+"="+val)
+					}
+				}
+				args = append(args, "xdg-open", url)
+				cmd = exec.Command("sudo", args...)
+				break
+			}
+		}
 		cmd = exec.Command("xdg-open", url)
 	}
 
