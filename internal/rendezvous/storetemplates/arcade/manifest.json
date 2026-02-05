@@ -1,8 +1,8 @@
 {
-  "name": "Arcade",
-  "description": "Lightweight 2D game engine with sample platformer. Build your own games!",
+  "name": "Space Invaders",
+  "description": "Classic arcade shooter. Defend Earth from alien invaders!",
   "category": "games",
-  "icon": "🕹️",
+  "icon": "👾",
   "tables": {
     "high_scores": { "insert_policy": "open" },
     "levels": { "insert_policy": "owner" }
