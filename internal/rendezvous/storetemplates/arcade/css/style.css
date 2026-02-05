@@ -1,0 +1,243 @@
+/* Arcade template */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg: #0f0f1a;
+  --panel: #1a1a2e;
+  --text: #e0e0e0;
+  --muted: #7a8194;
+  --accent: #16c784;
+  --accent-dark: #0f9960;
+  --border: #2a2a4a;
+  --danger: #dc2626;
+  --sans: 'Inter', system-ui, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+.arcade {
+  max-width: 400px;
+  margin: 0 auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.arcade-header {
+  text-align: center;
+}
+
+.arcade-title {
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.arcade-subtitle {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* Game canvas */
+.game-container {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+}
+
+#game-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #000;
+  border: 3px solid var(--accent);
+  border-radius: 6px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  outline: none;
+}
+
+#game-canvas:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(22, 199, 132, 0.3);
+}
+
+/* Buttons */
+.arcade-ui {
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 320px;
+}
+
+.btn {
+  flex: 1;
+  padding: 0.65rem 1rem;
+  border: none;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-align: center;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.btn:hover { opacity: 0.9; }
+.btn:active { transform: scale(0.98); }
+.btn:disabled { opacity: 0.5; cursor: default; }
+
+.btn-primary {
+  background: var(--accent);
+  color: #000;
+}
+
+.btn-secondary {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Modal */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1rem;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-content {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 320px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.modal-content h2 {
+  margin: 0 0 1rem;
+  font-size: 1.2rem;
+  color: var(--accent);
+  text-align: center;
+}
+
+/* Leaderboard */
+.scores-list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.scores-list li {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.scores-list li::before {
+  content: counter(list-item) '.';
+  counter-increment: list-item;
+  margin-right: 0.75rem;
+  color: var(--muted);
+  font-weight: 600;
+  min-width: 1.5rem;
+}
+
+.scores-list {
+  counter-reset: list-item;
+}
+
+.scores-list .name {
+  flex: 1;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scores-list .score {
+  font-weight: 700;
+  color: var(--accent);
+  margin-left: 0.5rem;
+}
+
+.scores-list .time {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+}
+
+.empty {
+  text-align: center;
+  color: var(--muted);
+  font-style: italic;
+  padding: 1rem;
+}
+
+/* Mobile touch controls hint */
+@media (max-width: 480px) {
+  .arcade-subtitle {
+    font-size: 0.75rem;
+  }
+
+  .arcade-subtitle::after {
+    content: ' (tap sides to move, tap top to jump)';
+  }
+}
+
+/* Touch area overlay for mobile (optional enhancement) */
+.touch-controls {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: none;
+  pointer-events: none;
+}
+
+@media (hover: none) {
+  .touch-controls {
+    display: block;
+  }
+}

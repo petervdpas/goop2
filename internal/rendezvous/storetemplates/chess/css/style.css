@@ -29,7 +29,7 @@ html, body {
 }
 
 .chess {
-  max-width: 600px;
+  max-width: 520px;
   margin: 0 auto;
   padding: 1.5rem 1rem 3rem;
 }
@@ -119,6 +119,36 @@ html, body {
 }
 
 .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+
+.btn-sm.btn-join {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.btn-sm.btn-join:hover {
+  background: #4a5aa8;
+  border-color: #4a5aa8;
+}
+
+.btn-cancel {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+  font-family: var(--sans);
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.btn-cancel:hover {
+  border-color: #dc2626;
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.1);
+}
 
 /* -- Panel card -- */
 .chess-panel {
@@ -225,7 +255,7 @@ html, body {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   grid-template-rows: repeat(8, 1fr);
-  width: min(100%, 400px);
+  width: min(100%, 480px);
   aspect-ratio: 1;
   border: 3px solid var(--dark-sq);
   border-radius: 4px;

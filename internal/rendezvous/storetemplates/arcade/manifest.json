@@ -1,0 +1,10 @@
+{
+  "name": "Arcade",
+  "description": "Lightweight 2D game engine with sample platformer. Build your own games!",
+  "category": "games",
+  "icon": "🕹️",
+  "tables": {
+    "high_scores": { "insert_policy": "open" },
+    "levels": { "insert_policy": "owner" }
+  }
+}

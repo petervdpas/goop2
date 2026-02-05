@@ -3,8 +3,10 @@
 function call(request)
     local action = request.params.action
 
-    if action == "new" then
-        return new_game()
+    if action == "wait_for_game" then
+        return wait_for_game()
+    elseif action == "join_game" then
+        return join_game(request.params.game_id)
     elseif action == "new_pve" then
         return new_pve_game()
     elseif action == "state" then
@@ -18,27 +20,73 @@ function call(request)
     end
 end
 
-function new_game()
-    -- Visitor challenges the host
+function wait_for_game()
+    -- Check if already in a game
     local existing = goop.db.query(
-        "SELECT _id FROM games WHERE challenger = ? AND status IN ('waiting', 'playing') AND mode = 'pvp'",
-        goop.peer.id
+        "SELECT _id FROM games WHERE (_owner = ? OR challenger = ?) AND status IN ('waiting', 'playing') AND mode = 'pvp'",
+        goop.peer.id, goop.peer.id
     )
     if existing and #existing > 0 then
         return { error = "you already have an active game", game_id = existing[1]._id }
     end
 
+    -- Create a waiting game (owner is the one waiting, challenger is empty)
     goop.db.exec(
-        "INSERT INTO games (_owner, challenger, challenger_label, mode, status) VALUES (?, ?, ?, 'pvp', 'waiting')",
-        goop.self.id, goop.peer.id, goop.peer.label
+        "INSERT INTO games (_owner, _owner_label, challenger, challenger_label, mode, status) VALUES (?, ?, '', '', 'pvp', 'waiting')",
+        goop.peer.id, goop.peer.label or "Anonymous"
     )
 
     local id = goop.db.scalar(
-        "SELECT MAX(_id) FROM games WHERE challenger = ? AND mode = 'pvp'",
+        "SELECT MAX(_id) FROM games WHERE _owner = ? AND mode = 'pvp'",
         goop.peer.id
     )
 
-    return { game_id = id, your_color = "b", status = "waiting" }
+    return { game_id = id, your_color = "w", status = "waiting" }
+end
+
+function join_game(game_id)
+    if not game_id then
+        error("game_id required")
+    end
+
+    -- Get the waiting game
+    local rows = goop.db.query(
+        "SELECT _id, _owner, _owner_label, status FROM games WHERE _id = ? AND status = 'waiting' AND mode = 'pvp'",
+        game_id
+    )
+    if not rows or #rows == 0 then
+        return { error = "game not found or already started" }
+    end
+    local g = rows[1]
+
+    -- Can't join your own game
+    if g._owner == goop.peer.id then
+        return { error = "cannot join your own game" }
+    end
+
+    -- Check if joining player already has an active game
+    local existing = goop.db.query(
+        "SELECT _id FROM games WHERE (_owner = ? OR challenger = ?) AND status IN ('waiting', 'playing') AND mode = 'pvp' AND _id != ?",
+        goop.peer.id, goop.peer.id, game_id
+    )
+    if existing and #existing > 0 then
+        return { error = "you already have an active game", game_id = existing[1]._id }
+    end
+
+    -- Join the game
+    goop.db.exec(
+        "UPDATE games SET challenger = ?, challenger_label = ?, status = 'playing', _updated_at = CURRENT_TIMESTAMP WHERE _id = ?",
+        goop.peer.id, goop.peer.label or "Anonymous", game_id
+    )
+
+    return {
+        game_id = game_id,
+        your_color = "b",
+        status = "playing",
+        fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        mode = "pvp",
+        opponent_label = g._owner_label or "Anonymous"
+    }
 end
 
 function new_pve_game()
@@ -114,10 +162,16 @@ end
 
 function lobby()
     local games = goop.db.query(
-        "SELECT _id, _owner, challenger, challenger_label, board, status, winner, mode, _created_at FROM games ORDER BY _id DESC LIMIT 20"
+        "SELECT _id, _owner, _owner_label, challenger, challenger_label, board, status, winner, mode, _created_at FROM games ORDER BY _id DESC LIMIT 20"
     )
 
-    -- Include stats
+    -- Get waiting games (players looking for opponents) - exclude self
+    local waiting = goop.db.query(
+        "SELECT _id, _owner, _owner_label, _created_at FROM games WHERE status = 'waiting' AND mode = 'pvp' AND _owner != ? ORDER BY _created_at ASC",
+        goop.peer.id
+    )
+
+    -- Include stats for the site owner
     local wins = goop.db.scalar(
         "SELECT COUNT(*) FROM games WHERE winner = ? AND status = 'finished'",
         goop.self.id
@@ -132,6 +186,7 @@ function lobby()
 
     return {
         games = games or {},
+        waiting = waiting or {},
         stats = { wins = wins, losses = losses, draws = draws }
     }
 end

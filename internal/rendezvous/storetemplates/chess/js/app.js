@@ -23,9 +23,7 @@
     isOwner = true;
   }
 
-  subtitle.textContent = isOwner
-    ? "Challenge visitors or play against the computer."
-    : "Challenge the host or play against the computer.";
+  subtitle.textContent = "Find an opponent or play against the computer.";
 
   showLobby();
 
@@ -68,6 +66,7 @@
     }
 
     var games = lobby.games || [];
+    var waiting = lobby.waiting || [];
     var stats = lobby.stats || {};
 
     // Check if I have an active game
@@ -84,10 +83,8 @@
 
     // Action buttons
     html += '<div class="chess-actions">';
-    if (!isOwner) {
-      html += '<button class="btn btn-primary" id="btn-challenge">Challenge Host</button>';
-    }
-    html += '<button class="btn ' + (isOwner ? 'btn-primary' : 'btn-secondary') + '" id="btn-pve">Play vs Computer</button>';
+    html += '<button class="btn btn-primary" id="btn-find">Find Opponent</button>';
+    html += '<button class="btn btn-secondary" id="btn-pve">Play vs Computer</button>';
     html += '</div>';
 
     // Stats
@@ -97,29 +94,21 @@
     html += '<span><span class="stat-val">' + (stats.draws || 0) + '</span> draws</span>';
     html += '</div>';
 
-    // Pending challenges (owner only)
-    if (isOwner) {
-      var pending = [];
-      for (var j = 0; j < games.length; j++) {
-        if (games[j].status === "waiting" && games[j].mode === "pvp") {
-          pending.push(games[j]);
-        }
+    // Waiting players (others looking for a game)
+    if (waiting.length > 0) {
+      html += '<div class="chess-panel">';
+      html += '<h2>Players Looking for Game</h2>';
+      html += '<ul class="chess-challenges">';
+      for (var k = 0; k < waiting.length; k++) {
+        var wg = waiting[k];
+        var label = esc(wg._owner_label || 'Anonymous');
+        html += '<li class="chess-challenge-item">';
+        html += '<span><span class="name">' + label + '</span>';
+        html += '<span class="time">' + timeAgo(wg._created_at) + '</span></span>';
+        html += '<button class="btn-sm btn-join" data-join="' + wg._id + '">Play</button>';
+        html += '</li>';
       }
-      if (pending.length > 0) {
-        html += '<div class="chess-panel">';
-        html += '<h2>Pending Challenges</h2>';
-        html += '<ul class="chess-challenges">';
-        for (var k = 0; k < pending.length; k++) {
-          var pg = pending[k];
-          var label = esc(pg.challenger_label || pg.challenger.substring(0, 12) + '...');
-          html += '<li class="chess-challenge-item">';
-          html += '<span><span class="name">' + label + '</span>';
-          html += '<span class="time">' + timeAgo(pg._created_at) + '</span></span>';
-          html += '<button class="btn-sm" data-accept="' + pg._id + '">Play</button>';
-          html += '</li>';
-        }
-        html += '</ul></div>';
-      }
+      html += '</ul></div>';
     }
 
     // Recent games
@@ -188,34 +177,50 @@
       };
     }
 
-    var btnChallenge = document.getElementById("btn-challenge");
-    if (btnChallenge) {
-      btnChallenge.onclick = async function () {
-        btnChallenge.disabled = true;
+    var btnFind = document.getElementById("btn-find");
+    if (btnFind) {
+      btnFind.onclick = async function () {
+        btnFind.disabled = true;
         try {
-          var result = await db.call("chess", { action: "new" });
+          var result = await db.call("chess", { action: "wait_for_game" });
           if (result.error) {
             Goop.ui.toast({ title: "Error", message: result.error });
             if (result.game_id) {
               showGame(result.game_id);
               return;
             }
-            btnChallenge.disabled = false;
+            btnFind.disabled = false;
           } else {
             showGame(result.game_id);
           }
         } catch (e) {
-          Goop.ui.toast({ title: "Error", message: e.message || "Error creating challenge." });
-          btnChallenge.disabled = false;
+          Goop.ui.toast({ title: "Error", message: e.message || "Error finding game." });
+          btnFind.disabled = false;
         }
       };
     }
 
-    // Accept handlers
-    root.querySelectorAll("[data-accept]").forEach(function (btn) {
-      btn.onclick = function () {
-        var gid = parseInt(btn.getAttribute("data-accept"));
-        showGame(gid);
+    // Join waiting game handlers
+    root.querySelectorAll("[data-join]").forEach(function (btn) {
+      btn.onclick = async function () {
+        btn.disabled = true;
+        var gid = parseInt(btn.getAttribute("data-join"));
+        try {
+          var result = await db.call("chess", { action: "join_game", game_id: gid });
+          if (result.error) {
+            Goop.ui.toast({ title: "Error", message: result.error });
+            if (result.game_id) {
+              showGame(result.game_id);
+              return;
+            }
+            btn.disabled = false;
+          } else {
+            showGame(result.game_id);
+          }
+        } catch (e) {
+          Goop.ui.toast({ title: "Error", message: e.message || "Error joining game." });
+          btn.disabled = false;
+        }
       };
     });
   }
@@ -254,13 +259,13 @@
     if (state.status === "waiting") {
       html += '<div class="chess-waiting">';
       html += '<div class="spinner"></div>';
-      html += '<p>Waiting for host to make a move&hellip;</p>';
-      html += '<button class="btn btn-secondary btn-sm" id="btn-resign">Cancel</button>';
+      html += '<p>Waiting for opponent&hellip;</p>';
+      html += '<button class="btn-cancel" id="btn-cancel">Cancel</button>';
       html += '</div>';
       root.innerHTML = html;
-      var btnResign = document.getElementById("btn-resign");
-      if (btnResign) {
-        btnResign.onclick = async function () {
+      var btnCancel = document.getElementById("btn-cancel");
+      if (btnCancel) {
+        btnCancel.onclick = async function () {
           await db.call("chess", { action: "resign", game_id: state.game_id });
           showLobby();
         };
