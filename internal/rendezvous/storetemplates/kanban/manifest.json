@@ -1,0 +1,10 @@
+{
+  "name": "Kanban",
+  "description": "Shared team kanban board with real-time sync. Requires group join for collaboration.",
+  "category": "productivity",
+  "icon": "📋",
+  "tables": {
+    "columns": { "insert_policy": "owner" },
+    "cards": { "insert_policy": "public" }
+  }
+}

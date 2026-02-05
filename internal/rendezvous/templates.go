@@ -16,7 +16,7 @@ import (
 	"sync"
 )
 
-//go:embed all:storetemplates/corkboard all:storetemplates/quiz all:storetemplates/photobook
+//go:embed all:storetemplates/corkboard all:storetemplates/quiz all:storetemplates/photobook all:storetemplates/chess all:storetemplates/kanban
 var defaultStoreFS embed.FS
 
 // StoreMeta holds metadata for a store template.

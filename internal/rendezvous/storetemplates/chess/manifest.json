@@ -1,0 +1,9 @@
+{
+  "name": "Chess",
+  "description": "Classic chess game. Challenge visitors or play against the computer.",
+  "category": "games",
+  "icon": "♟️",
+  "tables": {
+    "games": { "insert_policy": "open" }
+  }
+}
