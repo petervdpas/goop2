@@ -1,3 +1,5 @@
 #!/usr/bin/env bash
-cd /opt/goop2 || exit 1
+GOOP2_DATA="${XDG_DATA_HOME:-$HOME/.local/share}/goop2"
+mkdir -p "$GOOP2_DATA"
+cd "$GOOP2_DATA" || exit 1
 exec /opt/goop2/goop2 "$@"
