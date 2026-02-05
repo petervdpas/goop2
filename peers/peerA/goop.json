@@ -22,7 +22,8 @@
     "rendezvous_only": true,
     "admin_password": "welcome",
     "templates_dir": "templates",
-    "peer_db_path": ""
+    "peer_db_path": "",
+    "external_url": "https://goop2.com"
   },
   "profile": {
     "label": "Peer-A",

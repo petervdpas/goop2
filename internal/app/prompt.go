@@ -32,6 +32,10 @@ func PromptInteractive(peerDir, cfgPath string, cfg config.Config) config.Config
 	cfg.Presence.RendezvousWAN = askString(in, "WAN rendezvous URL (empty=off)", cfg.Presence.RendezvousWAN)
 	cfg.Presence.RendezvousOnly = askBool(in, "Rendezvous-only (no peer)", cfg.Presence.RendezvousOnly)
 
+	if cfg.Presence.RendezvousOnly {
+		cfg.Presence.ExternalURL = askString(in, "External URL (empty=auto-detect)", cfg.Presence.ExternalURL)
+	}
+
 	if !cfg.Presence.RendezvousOnly {
 		cfg.Presence.TTLSec = askInt(in, "Presence TTL seconds", cfg.Presence.TTLSec)
 		cfg.Presence.HeartbeatSec = askInt(in, "Presence heartbeat seconds", cfg.Presence.HeartbeatSec)

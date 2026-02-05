@@ -30,6 +30,7 @@ const (
 
 type Server struct {
 	addr          string
+	externalURL   string // public URL for servers behind NAT/reverse proxy
 	adminPassword string
 	srv           *http.Server
 
@@ -96,7 +97,7 @@ type docsVM struct {
 	Next    *DocPage
 }
 
-func New(addr string, templatesDir string, peerDBPath string, adminPassword string) *Server {
+func New(addr string, templatesDir string, peerDBPath string, adminPassword string, externalURL string) *Server {
 	funcs := template.FuncMap{
 		"statusClass": func(t string) string {
 			switch t {
@@ -160,6 +161,7 @@ func New(addr string, templatesDir string, peerDBPath string, adminPassword stri
 
 	s := &Server{
 		addr:          addr,
+		externalURL:   strings.TrimRight(externalURL, "/"),
 		adminPassword: adminPassword,
 		clients:       map[chan []byte]struct{}{},
 		clientIPs:     map[chan []byte]string{},
@@ -362,9 +364,15 @@ func (s *Server) URL() string {
 }
 
 // connectURLs returns HTTP URLs that remote peers can use to reach this
-// rendezvous server. It discovers non-loopback IPv4 addresses and pairs
-// them with the server's listen port.
+// rendezvous server. If an external URL is configured, it returns that.
+// Otherwise, it discovers non-loopback IPv4 addresses and pairs them with
+// the server's listen port.
 func (s *Server) connectURLs() []string {
+	// If external URL is configured, use it instead of auto-discovery
+	if s.externalURL != "" {
+		return []string{s.externalURL}
+	}
+
 	_, port, _ := net.SplitHostPort(s.addr)
 	if port == "" {
 		port = "8787"

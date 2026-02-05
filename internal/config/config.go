@@ -74,6 +74,11 @@ type Presence struct {
 	// rendezvous server restarts and sharing state between multiple instances.
 	// Relative to the peer directory. Empty means in-memory only (default).
 	PeerDBPath string `json:"peer_db_path"`
+
+	// Public URL for the rendezvous server (e.g., "https://goop2.com").
+	// When set, this URL is shown to users instead of auto-discovered LAN IPs.
+	// Required for servers behind NAT or reverse proxies.
+	ExternalURL string `json:"external_url"`
 }
 
 type Profile struct {

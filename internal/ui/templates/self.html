@@ -256,6 +256,17 @@
                 </a>
               </div>
             </div>
+
+            <div class="field" style="margin-top:10px">
+              <label>External URL</label>
+              <input name="presence_external_url"
+                     value="{{.Cfg.Presence.ExternalURL}}"
+                     placeholder="https://example.com">
+              <div class="hint">
+                Public URL for servers behind NAT or reverse proxy.
+                Shown to users instead of auto-discovered LAN IPs.
+              </div>
+            </div>
           </div>
         </div>
 

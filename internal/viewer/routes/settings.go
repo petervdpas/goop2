@@ -106,6 +106,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		cfg.Presence.RendezvousBind = getTrimmedPostFormValue(r.PostForm, "presence_rendezvous_bind")
 		cfg.Presence.RendezvousWAN = getTrimmedPostFormValue(r.PostForm, "presence_rendezvous_wan")
 		cfg.Presence.AdminPassword = getTrimmedPostFormValue(r.PostForm, "presence_admin_password")
+		cfg.Presence.ExternalURL = getTrimmedPostFormValue(r.PostForm, "presence_external_url")
 
 		switch strings.ToLower(getTrimmedPostFormValue(r.PostForm, "lua_enabled")) {
 		case "on", "1", "true", "yes":
