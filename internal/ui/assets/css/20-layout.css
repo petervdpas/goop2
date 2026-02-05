@@ -4,10 +4,12 @@
    App layout
 ------------------------------ */
 .app{
-  height:100%;
+  height:100dvh;
+  max-height:100dvh;
   display:flex;
   flex-direction:column;
   min-height:0;
+  overflow:hidden;
 }
 
 .topbar{
@@ -107,7 +109,9 @@
   flex: 1 1 auto;
   min-height: 0;
   padding: var(--content-pad);
-  overflow: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .footer{

@@ -4,6 +4,7 @@ package rendezvous
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"embed"
 	"encoding/base64"
 	"encoding/json"
@@ -13,6 +14,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/smtp"
 	"sort"
 	"strings"
 	"sync"
@@ -39,6 +41,13 @@ type Server struct {
 	// registration settings
 	registrationRequired bool
 	registrationWebhook  string
+
+	// SMTP settings for sending verification emails
+	smtpHost     string
+	smtpPort     int
+	smtpUsername string
+	smtpPassword string
+	smtpFrom     string
 
 	mu        sync.Mutex
 	clients   map[chan []byte]struct{}
@@ -81,6 +90,15 @@ type peerRow struct {
 	BytesReceived int64  `json:"bytes_received"`
 }
 
+// SMTPConfig holds SMTP settings for sending verification emails.
+type SMTPConfig struct {
+	Host     string // SMTP server host (e.g., "smtp.protonmail.ch")
+	Port     int    // SMTP server port (e.g., 587 for STARTTLS)
+	Username string // SMTP username (e.g., "admin@goop2.com")
+	Password string // SMTP password or token
+	From     string // From address (defaults to Username if empty)
+}
+
 type indexVM struct {
 	Title                string
 	Endpoint             string
@@ -105,7 +123,7 @@ type docsVM struct {
 	Next    *DocPage
 }
 
-func New(addr string, templatesDir string, peerDBPath string, adminPassword string, externalURL string, registrationRequired bool, registrationWebhook string) *Server {
+func New(addr string, templatesDir string, peerDBPath string, adminPassword string, externalURL string, registrationRequired bool, registrationWebhook string, smtp SMTPConfig) *Server {
 	funcs := template.FuncMap{
 		"statusClass": func(t string) string {
 			switch t {
@@ -173,12 +191,22 @@ func New(addr string, templatesDir string, peerDBPath string, adminPassword stri
 		faviconData = nil
 	}
 
+	smtpFrom := smtp.From
+	if smtpFrom == "" {
+		smtpFrom = smtp.Username
+	}
+
 	s := &Server{
 		addr:                 addr,
 		externalURL:          strings.TrimRight(externalURL, "/"),
 		adminPassword:        adminPassword,
 		registrationRequired: registrationRequired,
 		registrationWebhook:  registrationWebhook,
+		smtpHost:             smtp.Host,
+		smtpPort:             smtp.Port,
+		smtpUsername:         smtp.Username,
+		smtpPassword:         smtp.Password,
+		smtpFrom:             smtpFrom,
 		clients:              map[chan []byte]struct{}{},
 		clientIPs:            map[chan []byte]string{},
 		peers:                map[string]peerRow{},
@@ -396,6 +424,9 @@ func (s *Server) Start(ctx context.Context) error {
 }
 
 func (s *Server) URL() string {
+	if s.externalURL != "" {
+		return s.externalURL
+	}
 	return "http://" + s.addr
 }
 
@@ -1071,11 +1102,24 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		}
 		verifyURL := baseURL + "/verify?token=" + token
 
-		// Log the verification link (for development)
-		log.Printf("────────────────────────────────────────────────────────")
-		log.Printf("📧 VERIFICATION LINK for %s:", email)
-		log.Printf("   %s", verifyURL)
-		log.Printf("────────────────────────────────────────────────────────")
+		// Send verification email if SMTP is configured, otherwise log the link
+		if s.smtpConfigured() {
+			go func() {
+				if err := s.sendVerificationEmail(email, verifyURL); err != nil {
+					log.Printf("Failed to send verification email to %s: %v", email, err)
+					s.addLog(fmt.Sprintf("Email send failed for %s: %v", email, err))
+				} else {
+					log.Printf("Verification email sent to %s", email)
+					s.addLog(fmt.Sprintf("Verification email sent to %s", email))
+				}
+			}()
+		} else {
+			// Log the verification link (for development/no SMTP)
+			log.Printf("────────────────────────────────────────────────────────")
+			log.Printf("📧 VERIFICATION LINK for %s:", email)
+			log.Printf("   %s", verifyURL)
+			log.Printf("────────────────────────────────────────────────────────")
+		}
 
 		s.addLog(fmt.Sprintf("Registration requested: %s", email))
 
@@ -1166,6 +1210,114 @@ func (s *Server) handleRegistrationsJSON(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(regs)
+}
+
+// smtpConfigured returns true if SMTP settings are present.
+func (s *Server) smtpConfigured() bool {
+	return s.smtpHost != "" && s.smtpUsername != "" && s.smtpPassword != ""
+}
+
+// sendVerificationEmail sends a verification email via SMTP.
+func (s *Server) sendVerificationEmail(to, verifyURL string) error {
+	if !s.smtpConfigured() {
+		return fmt.Errorf("SMTP not configured")
+	}
+
+	from := s.smtpFrom
+	subject := "Verify your email for Goop2"
+	body := fmt.Sprintf(`Hello,
+
+Please verify your email address by clicking the link below:
+
+%s
+
+This link will expire in 24 hours.
+
+If you didn't request this, you can ignore this email.
+
+--
+Goop2 Rendezvous Server`, verifyURL)
+
+	// Build the email message
+	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s",
+		from, to, subject, body)
+
+	// Connect to SMTP server
+	addr := fmt.Sprintf("%s:%d", s.smtpHost, s.smtpPort)
+
+	// Use TLS for port 465, STARTTLS for others (like 587)
+	if s.smtpPort == 465 {
+		// Implicit TLS
+		tlsConfig := &tls.Config{ServerName: s.smtpHost}
+		conn, err := tls.Dial("tcp", addr, tlsConfig)
+		if err != nil {
+			return fmt.Errorf("TLS dial failed: %w", err)
+		}
+		defer conn.Close()
+
+		client, err := smtp.NewClient(conn, s.smtpHost)
+		if err != nil {
+			return fmt.Errorf("SMTP client failed: %w", err)
+		}
+		defer client.Close()
+
+		if err := s.smtpSendMail(client, from, to, msg); err != nil {
+			return err
+		}
+	} else {
+		// STARTTLS (port 587)
+		client, err := smtp.Dial(addr)
+		if err != nil {
+			return fmt.Errorf("SMTP dial failed: %w", err)
+		}
+		defer client.Close()
+
+		// Try STARTTLS if available
+		if ok, _ := client.Extension("STARTTLS"); ok {
+			tlsConfig := &tls.Config{ServerName: s.smtpHost}
+			if err := client.StartTLS(tlsConfig); err != nil {
+				return fmt.Errorf("STARTTLS failed: %w", err)
+			}
+		}
+
+		if err := s.smtpSendMail(client, from, to, msg); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// smtpSendMail handles the SMTP conversation after connection is established.
+func (s *Server) smtpSendMail(client *smtp.Client, from, to, msg string) error {
+	// Authenticate
+	auth := smtp.PlainAuth("", s.smtpUsername, s.smtpPassword, s.smtpHost)
+	if err := client.Auth(auth); err != nil {
+		return fmt.Errorf("SMTP auth failed: %w", err)
+	}
+
+	// Set sender and recipient
+	if err := client.Mail(from); err != nil {
+		return fmt.Errorf("SMTP MAIL failed: %w", err)
+	}
+	if err := client.Rcpt(to); err != nil {
+		return fmt.Errorf("SMTP RCPT failed: %w", err)
+	}
+
+	// Send message body
+	wc, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("SMTP DATA failed: %w", err)
+	}
+	if _, err := wc.Write([]byte(msg)); err != nil {
+		wc.Close()
+		return fmt.Errorf("SMTP write failed: %w", err)
+	}
+	if err := wc.Close(); err != nil {
+		return fmt.Errorf("SMTP close failed: %w", err)
+	}
+
+	return client.Quit()
 }
 
 func (s *Server) callRegistrationWebhook(email string) {

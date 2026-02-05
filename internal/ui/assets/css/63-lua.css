@@ -1,10 +1,6 @@
 /* Lua page layout — match editor page sizing */
-.page-lua{
-  min-height: 0;
-}
-
 .page-lua .ed{
-  height: calc(100dvh - var(--footer-h) - (var(--content-pad) * 2) - 96px - 1em);
+  flex: 1 1 auto;
   min-height: 0;
 }
 

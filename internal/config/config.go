@@ -88,6 +88,14 @@ type Presence struct {
 	// POST with JSON body: {"email": "...", "verified_at": ...}
 	// Use this for monetization integration (e.g., check payment status).
 	RegistrationWebhook string `json:"registration_webhook"`
+
+	// SMTP configuration for sending registration verification emails.
+	// If not configured, verification links are logged to console instead.
+	SMTPHost     string `json:"smtp_host"`      // e.g., "smtp.protonmail.ch"
+	SMTPPort     int    `json:"smtp_port"`      // e.g., 587 for STARTTLS
+	SMTPUsername string `json:"smtp_username"`  // e.g., "admin@goop2.com"
+	SMTPPassword string `json:"smtp_password"`  // SMTP token/password
+	SMTPFrom     string `json:"smtp_from"`      // From address (defaults to SMTPUsername)
 }
 
 type Profile struct {

@@ -17,11 +17,20 @@
     "heartbeat_seconds": 5,
     "rendezvous_host": false,
     "rendezvous_port": 8787,
-    "rendezvous_wan": "http://127.0.0.1:8787/",
+    "rendezvous_bind": "127.0.0.1",
+    "rendezvous_wan": "https://goop2.com",
     "rendezvous_only": false,
     "admin_password": "",
     "templates_dir": "templates",
-    "peer_db_path": ""
+    "peer_db_path": "",
+    "external_url": "",
+    "registration_required": false,
+    "registration_webhook": "",
+    "smtp_host": "",
+    "smtp_port": 0,
+    "smtp_username": "",
+    "smtp_password": "",
+    "smtp_from": ""
   },
   "profile": {
     "label": "Walrus",

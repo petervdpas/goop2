@@ -1,16 +1,32 @@
 /* internal/ui/assets/css/68-settings.css */
 
 /* -----------------------------
+   Self page compact header
+------------------------------ */
+.page-self h1{
+  margin-bottom: 8px;
+}
+
+.page-self .identity-card{
+  margin: 0 0 8px 0;
+}
+
+.page-self .identity-card + p{
+  margin-top: 8px;
+  margin-bottom: 12px;
+}
+
+/* -----------------------------
    Settings page layout
 ------------------------------ */
 .settings-page{
-  display:grid;
+  flex: 1 1 auto;
+  display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
   gap: 18px;
   align-items: stretch;
-  min-height: 300px;
+  min-height: 0;
   min-width: 0;
-  height: calc(100dvh - var(--footer-h) - (var(--content-pad) * 2) - 330px);
 }
 
 /* -----------------------------

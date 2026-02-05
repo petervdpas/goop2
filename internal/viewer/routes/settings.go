@@ -3,6 +3,7 @@ package routes
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"goop/internal/config"
@@ -108,6 +109,15 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		cfg.Presence.AdminPassword = getTrimmedPostFormValue(r.PostForm, "presence_admin_password")
 		cfg.Presence.ExternalURL = getTrimmedPostFormValue(r.PostForm, "presence_external_url")
 		cfg.Presence.RegistrationWebhook = getTrimmedPostFormValue(r.PostForm, "presence_registration_webhook")
+
+		// SMTP settings
+		cfg.Presence.SMTPHost = getTrimmedPostFormValue(r.PostForm, "presence_smtp_host")
+		if sp := getTrimmedPostFormValue(r.PostForm, "presence_smtp_port"); sp != "" {
+			cfg.Presence.SMTPPort, _ = strconv.Atoi(sp)
+		}
+		cfg.Presence.SMTPUsername = getTrimmedPostFormValue(r.PostForm, "presence_smtp_username")
+		cfg.Presence.SMTPPassword = getTrimmedPostFormValue(r.PostForm, "presence_smtp_password")
+		cfg.Presence.SMTPFrom = getTrimmedPostFormValue(r.PostForm, "presence_smtp_from")
 
 		switch strings.ToLower(getTrimmedPostFormValue(r.PostForm, "presence_registration_required")) {
 		case "on", "1", "true", "yes":

@@ -9,7 +9,6 @@
   .ed{ grid-template-columns: 1fr; }
   .grid2{ grid-template-columns: 1fr; }
   .content{ padding: var(--content-pad); }
-  .page-editor .ed{ height: calc(100dvh - var(--footer-h) - (var(--content-pad) * 2) - 134px); }
 
   /* restore stacked layout on narrow screens */
   .rv-local{
@@ -28,6 +27,6 @@
   .rv-local-toggle{ width: 100%; justify-content:space-between; }
   .rv-open{ justify-content:flex-start; align-self: auto; }
 
-  .settings-page{ grid-template-columns: 1fr; height: auto; }
+  .settings-page{ grid-template-columns: 1fr; }
   .settings-sidebar{ max-height: 200px; }
 }

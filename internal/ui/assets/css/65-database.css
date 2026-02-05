@@ -4,13 +4,13 @@
    Database page layout
 ------------------------------ */
 .db-page{
+  flex: 1 1 auto;
   display:grid;
   grid-template-columns: 260px minmax(0, 1fr);
   gap: 18px;
   align-items: stretch;
   min-height: 0;
   min-width: 0;
-  height: calc(100dvh - var(--footer-h) - (var(--content-pad) * 2) - 130px);
 }
 
 /* -----------------------------

@@ -75,6 +75,8 @@
             style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">Admin</li>
         <li class="settings-nav-item rv-server-nav" data-section="registration" id="nav-registration"
             style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">Registration</li>
+        <li class="settings-nav-item rv-server-nav" data-section="smtp" id="nav-smtp"
+            style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">SMTP</li>
         {{if not .RendezvousOnly}}
         <li class="settings-nav-item" data-section="scripting">Scripting</li>
         <li class="settings-nav-item" data-section="data">Data</li>
@@ -306,6 +308,57 @@
                    placeholder="https://your-api.com/webhook">
             <div class="hint">
               Optional. Called when an email is verified (for monetization).
+            </div>
+          </div>
+        </div>
+
+        <!-- SMTP (visible when server is enabled) -->
+        <div class="settings-section rv-server-section" data-section="smtp" style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">
+          <h3 class="settings-section-title">SMTP</h3>
+          <p class="muted small" style="margin-bottom:14px">
+            Configure SMTP to send verification emails. If not configured, verification links are logged to the console.
+          </p>
+
+          <div class="grid2">
+            <div class="field">
+              <label>SMTP host</label>
+              <input name="presence_smtp_host"
+                     value="{{.Cfg.Presence.SMTPHost}}"
+                     placeholder="smtp.protonmail.ch">
+            </div>
+            <div class="field">
+              <label>SMTP port</label>
+              <input name="presence_smtp_port"
+                     type="number"
+                     value="{{if .Cfg.Presence.SMTPPort}}{{.Cfg.Presence.SMTPPort}}{{end}}"
+                     placeholder="587">
+              <div class="hint">587 (STARTTLS) or 465 (SSL)</div>
+            </div>
+          </div>
+
+          <div class="grid2">
+            <div class="field">
+              <label>SMTP username</label>
+              <input name="presence_smtp_username"
+                     value="{{.Cfg.Presence.SMTPUsername}}"
+                     placeholder="admin@goop2.com">
+            </div>
+            <div class="field">
+              <label>SMTP password</label>
+              <input name="presence_smtp_password"
+                     type="password"
+                     value="{{.Cfg.Presence.SMTPPassword}}"
+                     placeholder="SMTP token">
+            </div>
+          </div>
+
+          <div class="field">
+            <label>From address</label>
+            <input name="presence_smtp_from"
+                   value="{{.Cfg.Presence.SMTPFrom}}"
+                   placeholder="(defaults to username)">
+            <div class="hint">
+              Optional. Defaults to SMTP username if empty.
             </div>
           </div>
         </div>
