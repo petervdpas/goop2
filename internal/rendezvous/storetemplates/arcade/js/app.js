@@ -13,6 +13,7 @@
   var input = new Input();
   var loop = new GameLoop(60);
   var scenes = new SceneManager();
+  var modalOpen = false;
 
   // Game constants
   var CANVAS_W = 480;
@@ -37,9 +38,9 @@
   var lives = 3;
   var wave = 1;
   var alienDir = 1;
-  var alienSpeed = 30;
+  var alienSpeed = 15;
   var alienDropAmount = 20;
-  var alienShootChance = 0.002;
+  var alienShootChance = 0.0005;
   var gameStartTime = 0;
 
   // Colors
@@ -310,7 +311,7 @@
   function nextWave() {
     wave++;
     alienSpeed += 10;
-    alienShootChance += 0.001;
+    alienShootChance += 0.0003;
     playerBullets = [];
     alienBullets = [];
     createAliens();
@@ -324,8 +325,8 @@
     score = 0;
     lives = 3;
     wave = 1;
-    alienSpeed = 30 + (wave - 1) * 10;
-    alienShootChance = 0.002;
+    alienSpeed = 15 + (wave - 1) * 8;
+    alienShootChance = 0.0005;
     alienDir = 1;
     playerBullets = [];
     alienBullets = [];
@@ -361,7 +362,7 @@
       startBtn.disabled = false;
     },
     update: function(dt) {
-      if (input.justPressed('Space') || input.justPressed('Enter')) {
+      if (!modalOpen && (input.justPressed('Space') || input.justPressed('Enter'))) {
         scenes.switch('game');
       }
     },
@@ -436,7 +437,7 @@
       }
     },
     update: function(dt) {
-      if (input.justPressed('Space') || input.justPressed('Enter')) {
+      if (!modalOpen && (input.justPressed('Space') || input.justPressed('Enter'))) {
         scenes.switch('game');
       }
     },
@@ -459,6 +460,7 @@
   // Leaderboard
   // ========================================================================
   async function showLeaderboard() {
+    modalOpen = true;
     leaderboardModal.classList.remove('hidden');
 
     try {
@@ -471,7 +473,8 @@
         var html = '<ol class="scores-list">';
         for (var i = 0; i < scores.length; i++) {
           var s = scores[i];
-          html += '<li><span class="name">' + esc(s.player_label || 'Anonymous') + '</span>';
+          var name = formatPlayerName(s.player_label, i + 1);
+          html += '<li><span class="name">' + esc(name) + '</span>';
           html += '<span class="score">' + s.score + '</span>';
           html += '<span class="time">Wave ' + (s.level || 1) + '</span></li>';
         }
@@ -481,6 +484,17 @@
     } catch (e) {
       leaderboardList.innerHTML = '<p class="empty">Failed to load scores</p>';
     }
+  }
+
+  function formatPlayerName(label, rank) {
+    if (!label || label.length === 0) {
+      return 'Player ' + rank;
+    }
+    // If it looks like a peer ID (starts with 12D3 or is very long), show as "Player N"
+    if (label.startsWith('12D3') || label.length > 30) {
+      return 'Player ' + rank;
+    }
+    return label;
   }
 
   function esc(s) {
@@ -503,11 +517,13 @@
   };
 
   closeLeaderboard.onclick = function() {
+    modalOpen = false;
     leaderboardModal.classList.add('hidden');
   };
 
   leaderboardModal.onclick = function(e) {
     if (e.target === leaderboardModal) {
+      modalOpen = false;
       leaderboardModal.classList.add('hidden');
     }
   };
