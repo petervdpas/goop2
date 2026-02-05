@@ -71,9 +71,13 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		}
 		addr := fmt.Sprintf("%s:%d", bind, cfg.Presence.RendezvousPort)
 
-		templatesDir := ""
+		// Build list of template directories (backward compat + new array)
+		var templatesDirs []string
 		if cfg.Presence.TemplatesDir != "" {
-			templatesDir = util.ResolvePath(o.PeerDir, cfg.Presence.TemplatesDir)
+			templatesDirs = append(templatesDirs, util.ResolvePath(o.PeerDir, cfg.Presence.TemplatesDir))
+		}
+		for _, dir := range cfg.Presence.TemplatesDirs {
+			templatesDirs = append(templatesDirs, util.ResolvePath(o.PeerDir, dir))
 		}
 
 		peerDBPath := ""
@@ -88,7 +92,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			Password: cfg.Presence.SMTPPassword,
 			From:     cfg.Presence.SMTPFrom,
 		}
-		rv = rendezvous.New(addr, templatesDir, peerDBPath, cfg.Presence.AdminPassword, cfg.Presence.ExternalURL, cfg.Presence.RegistrationRequired, cfg.Presence.RegistrationWebhook, smtpCfg)
+		rv = rendezvous.New(addr, templatesDirs, peerDBPath, cfg.Presence.AdminPassword, cfg.Presence.ExternalURL, cfg.Presence.RegistrationRequired, cfg.Presence.RegistrationWebhook, smtpCfg)
 		if err := rv.Start(ctx); err != nil {
 			return err
 		}

@@ -366,13 +366,11 @@
     // Button handlers
     var btnResign = document.getElementById("btn-resign");
     if (btnResign) {
-      btnResign.onclick = async function () {
-        if (Goop.ui && Goop.ui.confirm) {
-          var ok = await Goop.ui.confirm("Are you sure you want to resign?");
-          if (!ok) return;
-        }
-        await db.call("chess", { action: "resign", game_id: state.game_id || currentGameId });
-        showLobby();
+      btnResign.onclick = function () {
+        showConfirmDialog("Are you sure you want to resign?", async function () {
+          await db.call("chess", { action: "resign", game_id: state.game_id || currentGameId });
+          showLobby();
+        });
       };
     }
 
@@ -660,5 +658,27 @@
     var d = document.createElement("div");
     d.appendChild(document.createTextNode(s));
     return d.innerHTML;
+  }
+
+  function showConfirmDialog(message, onConfirm) {
+    var overlay = document.createElement("div");
+    overlay.className = "promo-overlay";
+
+    var html = '<div class="promo-dialog confirm-dialog">';
+    html += '<h3>' + esc(message) + '</h3>';
+    html += '<div class="confirm-actions">';
+    html += '<button class="btn btn-secondary" id="confirm-cancel">Cancel</button>';
+    html += '<button class="btn btn-danger" id="confirm-ok">Resign</button>';
+    html += '</div></div>';
+    overlay.innerHTML = html;
+    document.body.appendChild(overlay);
+
+    document.getElementById("confirm-cancel").onclick = function () {
+      overlay.remove();
+    };
+    document.getElementById("confirm-ok").onclick = function () {
+      overlay.remove();
+      onConfirm();
+    };
   }
 })();

@@ -123,7 +123,7 @@ type docsVM struct {
 	Next    *DocPage
 }
 
-func New(addr string, templatesDir string, peerDBPath string, adminPassword string, externalURL string, registrationRequired bool, registrationWebhook string, smtp SMTPConfig) *Server {
+func New(addr string, templatesDirs []string, peerDBPath string, adminPassword string, externalURL string, registrationRequired bool, registrationWebhook string, smtp SMTPConfig) *Server {
 	funcs := template.FuncMap{
 		"statusClass": func(t string) string {
 			switch t {
@@ -233,7 +233,7 @@ func New(addr string, templatesDir string, peerDBPath string, adminPassword stri
 		}
 	}
 
-	s.templateStore = NewTemplateStore(templatesDir)
+	s.templateStore = NewTemplateStore(templatesDirs)
 
 	return s
 }

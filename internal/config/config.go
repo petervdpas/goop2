@@ -68,7 +68,14 @@ type Presence struct {
 
 	// Directory containing store templates served by the rendezvous server.
 	// Relative to the peer directory. Empty/missing dir means no store templates.
+	// Deprecated: use TemplatesDirs instead for multiple directories.
 	TemplatesDir string `json:"templates_dir"`
+
+	// Directories containing store templates served by the rendezvous server.
+	// Each path is relative to the peer directory. Later directories override
+	// earlier ones if templates have the same name. Use this to layer custom
+	// templates on top of defaults without rebuilding.
+	TemplatesDirs []string `json:"templates_dirs"`
 
 	// Optional path to a SQLite database for persisting peer state across
 	// rendezvous server restarts and sharing state between multiple instances.

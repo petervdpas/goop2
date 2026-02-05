@@ -49,9 +49,9 @@ type storeTpl struct {
 }
 
 // NewTemplateStore creates a store pre-loaded with the embedded default
-// templates. If dir is non-empty and exists, templates from disk are added
-// (disk wins on name collision).
-func NewTemplateStore(dir string) *TemplateStore {
+// templates. If dirs is non-empty, templates from each disk directory are added
+// in order (later directories win on name collision).
+func NewTemplateStore(dirs []string) *TemplateStore {
 	ts := &TemplateStore{
 		templates: make(map[string]storeTpl),
 	}
@@ -59,9 +59,11 @@ func NewTemplateStore(dir string) *TemplateStore {
 	// Load embedded defaults
 	ts.loadEmbedded()
 
-	// Overlay disk templates (if any)
-	if dir != "" {
-		ts.loadDisk(dir)
+	// Overlay disk templates (if any) - later directories override earlier ones
+	for _, dir := range dirs {
+		if dir != "" {
+			ts.loadDisk(dir)
+		}
 	}
 
 	if len(ts.templates) == 0 {
