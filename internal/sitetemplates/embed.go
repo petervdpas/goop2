@@ -15,7 +15,7 @@ var templateFS embed.FS
 
 // TablePolicy holds per-table configuration from a template manifest.
 type TablePolicy struct {
-	InsertPolicy string `json:"insert_policy"` // "owner", "email", "open"
+	InsertPolicy string `json:"insert_policy"` // "owner", "email", "open", "public"
 }
 
 // TemplateMeta holds template metadata from manifest.json

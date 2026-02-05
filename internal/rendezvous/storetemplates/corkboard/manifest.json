@@ -4,6 +4,6 @@
   "category": "community",
   "icon": "📌",
   "tables": {
-    "notes": { "insert_policy": "open" }
+    "notes": { "insert_policy": "public" }
   }
 }

@@ -216,10 +216,9 @@ func (n *Node) dispatchSchemaOp(req DataRequest) DataResponse {
 	}
 }
 
-// dataOpQuery handles remote read queries. For "owner" policy tables the data
-// belongs exclusively to the site owner and is publicly readable, so no
-// _owner scoping is applied. For other policies each caller sees only their
-// own rows.
+// dataOpQuery handles remote read queries. For "owner" and "public" policy
+// tables the data is publicly readable, so no _owner scoping is applied.
+// For other policies each caller sees only their own rows.
 func (n *Node) dataOpQuery(callerID string, req DataRequest) DataResponse {
 	if req.Table == "" {
 		return DataResponse{Error: "table name required"}
@@ -228,9 +227,9 @@ func (n *Node) dataOpQuery(callerID string, req DataRequest) DataResponse {
 	where := req.Where
 	args := req.Args
 
-	// Owner-only tables are public reads — skip _owner scoping.
+	// Owner-only and public tables have public reads — skip _owner scoping.
 	policy, _ := n.db.GetTableInsertPolicy(req.Table)
-	if policy != "owner" {
+	if policy != "owner" && policy != "public" {
 		// Scope query to caller's own rows: inject _owner = ? condition
 		if where != "" {
 			where = "(" + where + ") AND _owner = ?"
@@ -282,7 +281,7 @@ func (n *Node) dataOpInsert(callerID string, req DataRequest) DataResponse {
 		if !isLocal && ownerEmail == "" {
 			return DataResponse{Error: "insert not allowed: your peer must have an email address configured"}
 		}
-	case "open":
+	case "open", "public":
 		// anyone can insert
 	default:
 		// unknown policy — default to owner-only for safety
