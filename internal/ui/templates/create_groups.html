@@ -8,44 +8,50 @@
     <a class="create-tab active" href="/create/groups">Groups</a>
   </div>
 
-  <h2>Create a Group</h2>
-  <p class="muted small">Create a new group that you will host. Other peers can join via the group protocol.</p>
+  <div class="groups-create-layout">
+    <!-- Left: Create form -->
+    <div class="groups-create-left panel">
+      <h3 class="groups-section-title">Create a Group</h3>
+      <p class="muted small" style="margin-bottom:14px">Create a new group that you will host. Other peers can join via the group protocol.</p>
 
-  <!-- Create form -->
-  <div id="cg-create-form" class="groups-create-form panel">
-    <div class="groups-form-group">
-      <label>Group Name</label>
-      <input type="text" id="cg-name" class="groups-input" placeholder="My Group" />
-    </div>
-    <div class="groups-form-group">
-      <label>Type</label>
-      <div id="cg-apptype" class="gsel" data-value="general">
-        <button type="button" class="gsel-trigger">
-          <span class="gsel-text">General</span>
-          <span class="gsel-arrow">&#9662;</span>
-        </button>
-        <div class="gsel-dropdown">
-          <button type="button" class="gsel-option selected" data-value="general">General</button>
-          <button type="button" class="gsel-option" data-value="chat">Chat</button>
-          <button type="button" class="gsel-option" data-value="files">Files</button>
-          <button type="button" class="gsel-option" data-value="game">Game</button>
-          <button type="button" class="gsel-option" data-value="cluster">Cluster</button>
+      <div id="cg-create-form" class="groups-create-form">
+        <div class="groups-form-group">
+          <label>Group Name</label>
+          <input type="text" id="cg-name" class="groups-input" placeholder="My Group" />
+        </div>
+        <div class="groups-form-group">
+          <label>Type</label>
+          <div id="cg-apptype" class="gsel" data-value="general">
+            <button type="button" class="gsel-trigger">
+              <span class="gsel-text">General</span>
+              <span class="gsel-arrow">&#9662;</span>
+            </button>
+            <div class="gsel-dropdown">
+              <button type="button" class="gsel-option selected" data-value="general">General</button>
+              <button type="button" class="gsel-option" data-value="chat">Chat</button>
+              <button type="button" class="gsel-option" data-value="files">Files</button>
+              <button type="button" class="gsel-option" data-value="game">Game</button>
+              <button type="button" class="gsel-option" data-value="cluster">Cluster</button>
+            </div>
+          </div>
+        </div>
+        <div class="groups-form-group">
+          <label>Max Members <span class="muted small">(0 = unlimited)</span></label>
+          <input type="number" id="cg-maxmembers" class="groups-input" value="0" min="0" />
+        </div>
+        <div class="groups-form-actions">
+          <button id="cg-create-btn" class="groups-action-btn groups-btn-primary">Create Group</button>
         </div>
       </div>
     </div>
-    <div class="groups-form-group">
-      <label>Max Members <span class="muted small">(0 = unlimited)</span></label>
-      <input type="number" id="cg-maxmembers" class="groups-input" value="0" min="0" />
-    </div>
-    <div class="groups-form-actions">
-      <button id="cg-create-btn" class="groups-action-btn groups-btn-primary">Create Group</button>
-    </div>
-  </div>
 
-  <!-- Hosted groups list -->
-  <h3>Hosted Groups</h3>
-  <div id="cg-hosted-list" class="groups-list">
-    <p class="groups-empty">Loading...</p>
+    <!-- Right: Hosted groups list -->
+    <div class="groups-create-right panel">
+      <h3 class="groups-section-title">Hosted Groups</h3>
+      <div id="cg-hosted-list" class="groups-list">
+        <p class="groups-empty">Loading...</p>
+      </div>
+    </div>
   </div>
 </div>
 {{end}}

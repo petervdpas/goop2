@@ -207,11 +207,38 @@
 }
 
 /* -----------------------------
+   Create groups two-column layout
+------------------------------ */
+.groups-create-layout{
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
+  min-height: 0;
+}
+
+.groups-create-left,
+.groups-create-right{
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.groups-create-right{
+  overflow-y: auto;
+}
+
+.groups-create-right .groups-list{
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+
+/* -----------------------------
    Create form
 ------------------------------ */
 .groups-create-form{
-  max-width: 500px;
-  margin-bottom: 24px;
+  max-width: 100%;
 }
 
 .groups-form-group{
@@ -357,6 +384,9 @@
    Responsive
 ------------------------------ */
 @media (max-width: 980px){
+  .groups-create-layout{
+    grid-template-columns: 1fr;
+  }
   .groups-create-form{
     max-width: 100%;
   }
