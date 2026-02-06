@@ -62,10 +62,7 @@
     // Notify listeners in this origin
     window.dispatchEvent(new CustomEvent(EVT, { detail: { theme: t } }));
 
-    // Sync back to Wails/shared ui.json (cross-origin) via bridge
-    postBridgeTheme(t);
-
-    // Save to config file
+    // Save to peer config file (launcher theme is independent via data/ui.json)
     saveThemeToConfig(t);
   }
 

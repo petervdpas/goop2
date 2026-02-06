@@ -20,7 +20,22 @@
      rel="noopener">Open site</a>
 </div>
 
-<h2 style="margin-top:18px;">Chat</h2>
+<div class="chat-header">
+  <h2 style="margin:0;">Chat</h2>
+  <div class="chat-call-actions">
+    <button class="call-btn" id="btn-audio-call" title="Voice call">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.8.3 1.58.52 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.76.22 1.54.4 2.34.52A2 2 0 0 1 22 16.92z"/>
+      </svg>
+    </button>
+    <button class="call-btn" id="btn-video-call" title="Video call">
+      <svg width="20" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="23 7 16 12 23 17 23 7"/>
+        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+      </svg>
+    </button>
+  </div>
+</div>
 <div class="chat-container">
   <div class="chat-messages" id="chat-messages">
     <p class="muted"><i>Loading messages...</i></p>
@@ -121,6 +136,57 @@
     div.textContent = text;
     return div.innerHTML;
   };
+
+  // ── Call buttons ──
+  var audioBtn = document.getElementById('btn-audio-call');
+  var videoBtn = document.getElementById('btn-video-call');
+  var inCall = false;
+
+  function setCallBusy(busy) {
+    inCall = busy;
+    if (audioBtn) { audioBtn.disabled = busy; audioBtn.classList.toggle('busy', busy); }
+    if (videoBtn) { videoBtn.disabled = busy; videoBtn.classList.toggle('busy', busy); }
+  }
+
+  // Check if already in a call with this peer on load
+  if (window.Goop && window.Goop.call) {
+    var existing = Goop.call.activeCalls();
+    for (var i = 0; i < existing.length; i++) {
+      if (existing[i].remotePeer === peerID) {
+        setCallBusy(true);
+        existing[i].onHangup(function() { setCallBusy(false); });
+        break;
+      }
+    }
+  }
+
+  function startCall(constraints) {
+    if (!window.Goop || !window.Goop.callUI) {
+      alert('Call feature not available');
+      return;
+    }
+    if (inCall) return;
+    setCallBusy(true);
+
+    Goop.callUI.startCall(peerID, constraints).then(function(session) {
+      session.onHangup(function() { setCallBusy(false); });
+    }).catch(function(err) {
+      console.error('Call failed:', err);
+      setCallBusy(false);
+    });
+  }
+
+  if (audioBtn) {
+    audioBtn.addEventListener('click', function() {
+      startCall({ audio: true, video: false });
+    });
+  }
+
+  if (videoBtn) {
+    videoBtn.addEventListener('click', function() {
+      startCall({ audio: true, video: true });
+    });
+  }
 
   // Initial load
   loadMessages();

@@ -47,7 +47,7 @@
 
 .topnav .navitem{
   position: relative;
-  padding: 8px 12px;
+  padding: 4px 10px;
   border-radius: 999px;
   color: var(--text);
   text-decoration:none;
@@ -97,6 +97,25 @@
   border: 1px solid var(--line);
   background: var(--glass);
   box-shadow: none;
+}
+
+.settings-btn{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  height: 0;
+  overflow: visible;
+  transition: color var(--ease), transform var(--ease);
+}
+
+.settings-btn:hover{
+  color: var(--accent);
+  transform: rotate(30deg);
 }
 
 .main{

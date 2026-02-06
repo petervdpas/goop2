@@ -78,12 +78,41 @@
   position: absolute;
   top: 8px;
   right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .peerright .btn {
   font-size: 0.8em;
   padding: 3px 10px;
   white-space: nowrap;
+}
+
+.peer-call-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
+  padding: 0;
+}
+.peer-call-btn:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.peer-call-btn.busy,
+.peer-call-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+  pointer-events: none;
 }
 
 /* Peer detail page: compact header card */

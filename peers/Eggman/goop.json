@@ -15,12 +15,12 @@
     "topic": "goop.presence.v1",
     "ttl_seconds": 20,
     "heartbeat_seconds": 5,
-    "rendezvous_host": true,
+    "rendezvous_host": false,
     "rendezvous_port": 8787,
     "rendezvous_bind": "127.0.0.1",
-    "rendezvous_wan": "",
-    "rendezvous_only": true,
-    "admin_password": "welcome",
+    "rendezvous_wan": "http://127.0.0.1:8787/",
+    "rendezvous_only": false,
+    "admin_password": "",
     "templates_dir": "templates",
     "templates_dirs": null,
     "peer_db_path": "",
@@ -34,16 +34,16 @@
     "smtp_from": ""
   },
   "profile": {
-    "label": "Rendezvous",
-    "email": "peter.vdpas@superflux.nl"
+    "label": "Eggman",
+    "email": "humpty@dumpty.com"
   },
   "viewer": {
-    "http_addr": ":7777",
-    "debug": false,
-    "theme": "light"
+    "http_addr": "",
+    "debug": true,
+    "theme": "dark"
   },
   "lua": {
-    "enabled": false,
+    "enabled": true,
     "script_dir": "site/lua",
     "timeout_seconds": 5,
     "max_memory_mb": 10,

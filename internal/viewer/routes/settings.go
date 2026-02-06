@@ -2,6 +2,7 @@
 package routes
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -48,6 +49,47 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		w.WriteHeader(http.StatusOK)
 	})
 
+	// Quick settings API — saves only profile + theme (no CSRF form needed)
+	mux.HandleFunc("/api/settings/quick", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if !isLocalRequest(r) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		var req struct {
+			Label string `json:"label"`
+			Email string `json:"email"`
+			Theme string `json:"theme"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+
+		cfg, err := config.Load(d.CfgPath)
+		if err != nil {
+			http.Error(w, "failed to load config", http.StatusInternalServerError)
+			return
+		}
+
+		cfg.Profile.Label = strings.TrimSpace(req.Label)
+		cfg.Profile.Email = strings.TrimSpace(req.Email)
+		if req.Theme == "light" || req.Theme == "dark" {
+			cfg.Viewer.Theme = req.Theme
+		}
+
+		if err := config.Save(d.CfgPath, cfg); err != nil {
+			http.Error(w, "failed to save", http.StatusInternalServerError)
+			return
+		}
+
+		writeJSON(w, map[string]string{"status": "ok"})
+	})
+
 	mux.HandleFunc("/settings/save", func(w http.ResponseWriter, r *http.Request) {
 		if err := validatePOSTRequest(w, r, csrf); err != nil {
 			return
@@ -59,9 +101,14 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			return
 		}
 
-		cfg.Profile.Label = getTrimmedPostFormValue(r.PostForm, "profile_label")
-		cfg.Profile.Email = getTrimmedPostFormValue(r.PostForm, "profile_email")
+		// Profile (label/email) is managed via /api/settings/quick (navbar popup).
 		cfg.Viewer.HTTPAddr = getTrimmedPostFormValue(r.PostForm, "viewer_http_addr")
+
+		// Handle theme
+		theme := getTrimmedPostFormValue(r.PostForm, "viewer_theme")
+		if theme == "light" || theme == "dark" {
+			cfg.Viewer.Theme = theme
+		}
 
 		// Handle debug checkbox
 		switch strings.ToLower(getTrimmedPostFormValue(r.PostForm, "viewer_debug")) {
@@ -69,12 +116,6 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			cfg.Viewer.Debug = true
 		default:
 			cfg.Viewer.Debug = false
-		}
-
-		// Handle theme
-		theme := getTrimmedPostFormValue(r.PostForm, "viewer_theme")
-		if theme == "light" || theme == "dark" {
-			cfg.Viewer.Theme = theme
 		}
 
 		// P2P / presence fields are only in the form when not in rendezvous-only mode.

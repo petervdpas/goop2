@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Clubhouse</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="/assets/js/goop-data.js"></script>
+  <script src="/assets/js/goop-identity.js"></script>
+  <script src="/assets/js/goop-group.js"></script>
+  <script src="/assets/js/goop-ui.js"></script>
+</head>
+<body>
+
+  <!-- Lobby view -->
+  <div id="lobby">
+    <header class="lobby-header">
+      <h1 class="lobby-title"><span class="lobby-icon">&#127979;</span>Clubhouse</h1>
+      <p class="lobby-subtitle">Real-time chat rooms &mdash; jump in and say hi</p>
+      <button id="btn-new-room" class="btn-new hidden">+ New Room</button>
+    </header>
+
+    <main id="rooms" class="rooms-grid">
+      <p class="loading">Loading rooms&hellip;</p>
+    </main>
+  </div>
+
+  <!-- Chat view -->
+  <div id="chat-view" class="hidden">
+    <header class="chat-header">
+      <button id="btn-back" class="btn-back">&larr; Back</button>
+      <div class="chat-header-info">
+        <h2 id="chat-room-name" class="chat-room-name"></h2>
+        <span id="chat-room-desc" class="chat-room-desc"></span>
+      </div>
+      <button id="btn-close-room" class="btn-close-room hidden">Close Room</button>
+    </header>
+
+    <div class="chat-body">
+      <aside id="members-panel" class="members-panel">
+        <h3 class="members-title">Members</h3>
+        <ul id="members-list" class="members-list"></ul>
+      </aside>
+
+      <div class="chat-main">
+        <div id="messages" class="messages"></div>
+        <div class="input-bar">
+          <input type="text" id="msg-input" class="msg-input" placeholder="Type a message&hellip;" autocomplete="off">
+          <button id="btn-send" class="btn-send">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create room overlay -->
+  <div id="create-overlay" class="create-overlay hidden">
+    <div class="create-card">
+      <h2>New Room</h2>
+      <label>Room Name <input type="text" id="f-name" required></label>
+      <label>Description <input type="text" id="f-desc"></label>
+      <label>Max Members <input type="number" id="f-max" min="0" value="0" placeholder="0 = unlimited"></label>
+      <div class="create-btns">
+        <button id="btn-create-cancel" class="btn-cancel">Cancel</button>
+        <button id="btn-create-save" class="btn-save">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

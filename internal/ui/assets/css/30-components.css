@@ -179,13 +179,50 @@ button:focus-visible{
 /* -----------------------------
    Chat
 ------------------------------ */
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  max-width: 800px;
+}
+.chat-header h2 { flex: 1; }
+.chat-call-actions {
+  display: flex;
+  gap: 6px;
+}
+.call-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--panel2);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.call-btn.busy,
+.call-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+  pointer-events: none;
+}
+.call-btn:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 .chat-container {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel2);
-  margin-top: 16px;
+  margin-top: 8px;
   max-width: 800px;
 }
 

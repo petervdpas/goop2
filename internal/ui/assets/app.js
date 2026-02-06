@@ -19,9 +19,13 @@
     "goop-forms.js",
     "goop-site.js",
     "goop-group.js",
+    "goop-realtime.js",
+    "goop-call.js",
+    "goop-call-ui.js",
     "70-database.js",
     "75-groups.js",
     "76-documents.js",
+    "98-settings-popup.js",
     "99-dialogs.js",
     "99-toast.js",
   ];

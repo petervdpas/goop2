@@ -153,9 +153,35 @@
       '</div>' +
       '<div class="goop-call-status">Connecting...</div>' +
       '<div class="goop-call-controls">' +
-        '<button class="goop-call-btn goop-call-btn-mute" title="Toggle Mute">M</button>' +
-        '<button class="goop-call-btn goop-call-btn-hangup" title="Hang Up">X</button>' +
-        '<button class="goop-call-btn goop-call-btn-video" title="Toggle Video">V</button>' +
+        '<button class="goop-call-btn goop-call-btn-mute" title="Toggle Mute">' +
+          '<svg class="icon-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>' +
+            '<path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/>' +
+            '<line x1="8" y1="23" x2="16" y2="23"/>' +
+          '</svg>' +
+          '<svg class="icon-off" style="display:none;" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<line x1="1" y1="1" x2="23" y2="23"/>' +
+            '<path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/>' +
+            '<path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .76-.13 1.49-.35 2.17"/>' +
+            '<line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>' +
+          '</svg>' +
+        '</button>' +
+        '<button class="goop-call-btn goop-call-btn-hangup" title="Hang Up">' +
+          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45c.76.22 1.54.4 2.34.52A2 2 0 0 1 22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.8.3 1.58.52 2.34a2 2 0 0 1-.45 2.11L8.09 9.91"/>' +
+            '<line x1="23" y1="1" x2="1" y2="23"/>' +
+          '</svg>' +
+        '</button>' +
+        '<button class="goop-call-btn goop-call-btn-video" title="Toggle Video">' +
+          '<svg class="icon-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<polygon points="23 7 16 12 23 17 23 7"/>' +
+            '<rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>' +
+          '</svg>' +
+          '<svg class="icon-off" style="display:none;" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/>' +
+            '<line x1="1" y1="1" x2="23" y2="23"/>' +
+          '</svg>' +
+        '</button>' +
       '</div>';
 
     var remoteVideo = el.querySelector(".goop-call-remote");
@@ -189,13 +215,15 @@
     muteBtn.onclick = function() {
       var enabled = session.toggleAudio();
       muteBtn.classList.toggle("active", !enabled);
-      muteBtn.textContent = enabled ? "M" : "m";
+      muteBtn.querySelector(".icon-on").style.display = enabled ? "" : "none";
+      muteBtn.querySelector(".icon-off").style.display = enabled ? "none" : "";
     };
 
     videoBtn.onclick = function() {
       var enabled = session.toggleVideo();
       videoBtn.classList.toggle("active", !enabled);
-      videoBtn.textContent = enabled ? "V" : "v";
+      videoBtn.querySelector(".icon-on").style.display = enabled ? "" : "none";
+      videoBtn.querySelector(".icon-off").style.display = enabled ? "none" : "";
     };
 
     hangupBtn.onclick = function() {

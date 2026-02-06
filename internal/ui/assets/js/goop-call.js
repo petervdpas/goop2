@@ -133,8 +133,25 @@
 
   // ── WebRTC setup ────────────────────────────────────────────────────────────
 
+  function applyPreferredDevices(constraints) {
+    var c = Object.assign({}, constraints);
+    try {
+      var camId = localStorage.getItem('goop-preferred-camera');
+      var micId = localStorage.getItem('goop-preferred-mic');
+      if (camId && c.video) {
+        c.video = typeof c.video === 'object' ? Object.assign({}, c.video) : {};
+        c.video.deviceId = { ideal: camId };
+      }
+      if (micId && c.audio) {
+        c.audio = typeof c.audio === 'object' ? Object.assign({}, c.audio) : {};
+        c.audio.deviceId = { ideal: micId };
+      }
+    } catch(e) { /* localStorage unavailable */ }
+    return c;
+  }
+
   async function setupPeerConnection(session, constraints) {
-    var stream = await navigator.mediaDevices.getUserMedia(constraints);
+    var stream = await navigator.mediaDevices.getUserMedia(applyPreferredDevices(constraints));
     session.localStream = stream;
 
     var pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });

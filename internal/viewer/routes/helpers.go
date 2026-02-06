@@ -40,6 +40,7 @@ func baseVM(title, active, contentTmpl string, d Deps) viewmodels.BaseVM {
 		Active:         active,
 		ContentTmpl:    contentTmpl,
 		SelfName:       safeCall(d.SelfLabel),
+		SelfEmail:      safeCall(d.SelfEmail),
 		SelfID:         selfID,
 		BaseURL:        d.BaseURL,
 		Debug:          debug,

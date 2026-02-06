@@ -66,8 +66,7 @@
         <span class="settings-sidebar-title">Settings</span>
       </div>
       <ul class="settings-nav">
-        <li class="settings-nav-item active" data-section="profile">Profile</li>
-        <li class="settings-nav-item" data-section="viewer">Viewer</li>
+        <li class="settings-nav-item active" data-section="viewer">Viewer</li>
         <li class="settings-nav-item" data-section="network">Network</li>
         <li class="settings-nav-item" data-section="rendezvous">Rendezvous</li>
         <li class="settings-nav-item" data-section="server">Server</li>
@@ -89,31 +88,8 @@
       <form method="post" action="/settings/save">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
 
-        <!-- Profile -->
-        <div class="settings-section active" data-section="profile">
-          <h3 class="settings-section-title">Profile</h3>
-
-          <div class="field">
-            <label>Label</label>
-            <input name="profile_label"
-                   value="{{.Cfg.Profile.Label}}"
-                   placeholder="Peer-A">
-          </div>
-
-          <div class="field">
-            <label>Email</label>
-            <input name="profile_email"
-                   type="email"
-                   value="{{.Cfg.Profile.Email}}"
-                   placeholder="you@example.com">
-            <div class="hint">
-              Your email is shared with other peers as part of your identity.
-            </div>
-          </div>
-        </div>
-
         <!-- Viewer -->
-        <div class="settings-section" data-section="viewer">
+        <div class="settings-section active" data-section="viewer">
           <h3 class="settings-section-title">Viewer</h3>
 
           <div class="field">
