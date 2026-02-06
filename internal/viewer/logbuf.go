@@ -4,6 +4,7 @@ package viewer
 import (
 	"bytes"
 	"encoding/json"
+	"goop/internal/util"
 	"net/http"
 	"strings"
 	"sync"
@@ -17,8 +18,7 @@ type LogEntry struct {
 
 type LogBuffer struct {
 	mu      sync.Mutex
-	max     int
-	entries []LogEntry
+	entries *util.RingBuffer[LogEntry]
 
 	subs map[chan LogEntry]struct{}
 
@@ -30,8 +30,8 @@ func NewLogBuffer(max int) *LogBuffer {
 		max = 500
 	}
 	return &LogBuffer{
-		max:  max,
-		subs: make(map[chan LogEntry]struct{}),
+		entries: util.NewRingBuffer[LogEntry](max),
+		subs:    make(map[chan LogEntry]struct{}),
 	}
 }
 
@@ -66,10 +66,7 @@ func (b *LogBuffer) Write(p []byte) (int, error) {
 }
 
 func (b *LogBuffer) appendLocked(e LogEntry) {
-	b.entries = append(b.entries, e)
-	if len(b.entries) > b.max {
-		b.entries = b.entries[len(b.entries)-b.max:]
-	}
+	b.entries.Push(e)
 }
 
 func (b *LogBuffer) broadcastLocked(e LogEntry) {
@@ -83,11 +80,7 @@ func (b *LogBuffer) broadcastLocked(e LogEntry) {
 }
 
 func (b *LogBuffer) Snapshot() []LogEntry {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	out := make([]LogEntry, len(b.entries))
-	copy(out, b.entries)
-	return out
+	return b.entries.Snapshot()
 }
 
 func (b *LogBuffer) Subscribe() (ch chan LogEntry, cancel func()) {

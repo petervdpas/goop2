@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"goop/internal/util"
+
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -36,10 +38,9 @@ const (
 type Manager struct {
 	host        host.Host
 	mu          sync.RWMutex
-	messages    []*Message      // in-memory message buffer
-	bufferSize  int             // max messages to keep
-	listeners   []chan *Message // SSE listeners
-	localPeerID string          // our peer ID
+	messages    *util.RingBuffer[*Message] // in-memory message ring buffer
+	listeners   []chan *Message             // SSE listeners
+	localPeerID string                     // our peer ID
 	onCommand   CommandDispatcher
 }
 
@@ -51,8 +52,7 @@ func New(h host.Host, bufferSize int) *Manager {
 
 	m := &Manager{
 		host:        h,
-		messages:    make([]*Message, 0, bufferSize),
-		bufferSize:  bufferSize,
+		messages:    util.NewRingBuffer[*Message](bufferSize),
 		listeners:   make([]chan *Message, 0),
 		localPeerID: h.ID().String(),
 	}
@@ -142,22 +142,14 @@ func (m *Manager) SendBroadcast(ctx context.Context, content string) error {
 
 // GetMessages returns all messages in the buffer
 func (m *Manager) GetMessages() []*Message {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	// Return a copy
-	messages := make([]*Message, len(m.messages))
-	copy(messages, m.messages)
-	return messages
+	return m.messages.Snapshot()
 }
 
 // GetConversation returns messages for a specific peer conversation
 func (m *Manager) GetConversation(peerID string) []*Message {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
+	all := m.messages.Snapshot()
 	conversation := make([]*Message, 0)
-	for _, msg := range m.messages {
+	for _, msg := range all {
 		if msg.Type == MessageTypeDirect &&
 			((msg.From == peerID && msg.To == m.localPeerID) ||
 				(msg.From == m.localPeerID && msg.To == peerID)) {
@@ -169,11 +161,9 @@ func (m *Manager) GetConversation(peerID string) []*Message {
 
 // GetBroadcasts returns all broadcast messages
 func (m *Manager) GetBroadcasts() []*Message {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
+	all := m.messages.Snapshot()
 	broadcasts := make([]*Message, 0)
-	for _, msg := range m.messages {
+	for _, msg := range all {
 		if msg.Type == MessageTypeBroadcast {
 			broadcasts = append(broadcasts, msg)
 		}
@@ -252,18 +242,11 @@ func (m *Manager) handleStream(stream network.Stream) {
 
 // addMessage adds a message to the buffer and notifies listeners
 func (m *Manager) addMessage(msg *Message) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	// Ring buffer handles its own concurrency
+	m.messages.Push(msg)
 
-	// Add to buffer
-	m.messages = append(m.messages, msg)
-
-	// Trim buffer if needed
-	if len(m.messages) > m.bufferSize {
-		m.messages = m.messages[len(m.messages)-m.bufferSize:]
-	}
-
-	// Notify listeners
+	// Notify listeners under manager lock
+	m.mu.RLock()
 	for _, listener := range m.listeners {
 		select {
 		case listener <- msg:
@@ -271,6 +254,7 @@ func (m *Manager) addMessage(msg *Message) {
 			// Listener buffer full, skip
 		}
 	}
+	m.mu.RUnlock()
 }
 
 // Close shuts down the chat manager

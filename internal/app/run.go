@@ -17,6 +17,7 @@ import (
 	luapkg "goop/internal/lua"
 	"goop/internal/p2p"
 	"goop/internal/proto"
+	"goop/internal/realtime"
 	"goop/internal/rendezvous"
 	"goop/internal/state"
 	"goop/internal/storage"
@@ -204,6 +205,10 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	grpMgr := group.New(node.Host, db)
 	log.Printf("👥 Group protocol enabled: /goop/group/1.0.0")
 
+	// ── Realtime channels (wraps group protocol)
+	rtMgr := realtime.New(grpMgr, node.ID())
+	log.Printf("⚡ Realtime channels enabled")
+
 	// ── File sharing store
 	docStore, err := docs.NewStore(o.PeerDir)
 	if err != nil {
@@ -266,6 +271,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			Content:     store,
 			Chat:        chatMgr,
 			Groups:      grpMgr,
+			Realtime:    rtMgr,
 			DB:          db,
 			Docs:        docStore,
 			BaseURL:     url,

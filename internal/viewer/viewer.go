@@ -10,6 +10,7 @@ import (
 	"goop/internal/docs"
 	"goop/internal/group"
 	"goop/internal/p2p"
+	"goop/internal/realtime"
 	"goop/internal/rendezvous"
 	"goop/internal/state"
 	"goop/internal/storage"
@@ -29,8 +30,9 @@ type Viewer struct {
 	Logs    *LogBuffer
 	Content *content.Store
 	Chat    *chat.Manager
-	Groups  *group.Manager
-	DB      *storage.DB // SQLite database for peer data
+	Groups   *group.Manager
+	Realtime *realtime.Manager
+	DB       *storage.DB // SQLite database for peer data
 	Docs    *docs.Store // shared documents store
 
 	AvatarStore *avatar.Store
@@ -98,6 +100,11 @@ func Start(addr string, v Viewer) error {
 	// Register group endpoints if group manager is available
 	if v.Groups != nil {
 		routes.RegisterGroups(mux, v.Groups, v.Node.ID())
+	}
+
+	// Register realtime channel endpoints if realtime manager is available
+	if v.Realtime != nil {
+		routes.RegisterRealtime(mux, v.Realtime, v.Node.ID())
 	}
 
 	// Register data proxy for remote peer data operations

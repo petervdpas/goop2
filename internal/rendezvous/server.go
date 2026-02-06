@@ -54,7 +54,9 @@ type Server struct {
 	clientIPs map[chan []byte]string // channel -> remote IP (for per-IP tracking)
 
 	// simple in-memory peer view for the web page
-	peers map[string]peerRow
+	peers       map[string]peerRow
+	peersDirty  bool       // set when peers map changes; cleared by snapshotPeers
+	cachedPeers []peerRow  // sorted snapshot cache
 
 	// log buffer for web UI
 	logMu   sync.Mutex
@@ -75,7 +77,17 @@ type Server struct {
 
 	// per-IP rate limiter for /publish
 	rateMu     sync.Mutex
-	rateWindow map[string][]time.Time
+	rateWindow map[string]*rateBucket
+}
+
+// rateBucket is a fixed-size ring buffer of timestamps for rate limiting.
+// Avoids per-request slice allocations.
+const rateBucketCap = 60
+
+type rateBucket struct {
+	times [rateBucketCap]time.Time
+	head  int
+	count int
 }
 
 type peerRow struct {
@@ -220,7 +232,7 @@ func New(addr string, templatesDirs []string, peerDBPath string, adminPassword s
 		docsCSS:              docsCSSData,
 		favicon:              faviconData,
 		docsSite:             newDocSite(),
-		rateWindow:           map[string][]time.Time{},
+		rateWindow:           map[string]*rateBucket{},
 	}
 
 	// Open peer DB if path provided (for multi-instance persistence)
@@ -527,7 +539,6 @@ func extractIP(addr string) string {
 
 func (s *Server) broadcast(b []byte) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	msgSize := int64(len(b))
 
@@ -536,8 +547,16 @@ func (s *Server) broadcast(b []byte) {
 		peer.BytesReceived += msgSize
 		s.peers[peerID] = peer
 	}
+	s.peersDirty = true
 
+	// Copy client channels so we can send outside the lock
+	clients := make([]chan []byte, 0, len(s.clients))
 	for ch := range s.clients {
+		clients = append(clients, ch)
+	}
+	s.mu.Unlock()
+
+	for _, ch := range clients {
 		select {
 		case ch <- b:
 		default:
@@ -555,6 +574,7 @@ func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64) {
 	// If peer sends offline, remove them immediately
 	if pm.Type == proto.TypeOffline {
 		delete(s.peers, pm.PeerID)
+		s.peersDirty = true
 		s.addLog(fmt.Sprintf("Peer went offline and removed: %s", pm.PeerID))
 		if s.peerDB != nil {
 			go s.peerDB.remove(pm.PeerID)
@@ -583,6 +603,7 @@ func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64) {
 		BytesReceived: bytesReceived,
 	}
 	s.peers[pm.PeerID] = row
+	s.peersDirty = true
 
 	if s.peerDB != nil {
 		go s.peerDB.upsert(row)
@@ -592,6 +613,10 @@ func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64) {
 func (s *Server) snapshotPeers() []peerRow {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if !s.peersDirty && s.cachedPeers != nil {
+		return s.cachedPeers
+	}
 
 	out := make([]peerRow, 0, len(s.peers))
 	for _, v := range s.peers {
@@ -619,6 +644,8 @@ func (s *Server) snapshotPeers() []peerRow {
 		return out[i].LastSeen > out[j].LastSeen
 	})
 
+	s.cachedPeers = out
+	s.peersDirty = false
 	return out
 }
 
@@ -636,11 +663,16 @@ func (s *Server) cleanupStalePeers(ctx context.Context) {
 			now := time.Now().UnixMilli()
 			staleThreshold := now - (30 * 1000) // 30 seconds
 
+			removed := false
 			for peerID, peer := range s.peers {
 				if peer.LastSeen < staleThreshold {
 					delete(s.peers, peerID)
+					removed = true
 					s.addLog(fmt.Sprintf("Removed stale peer: %s (last seen: %v)", peerID, time.UnixMilli(peer.LastSeen).Format("15:04:05")))
 				}
+			}
+			if removed {
+				s.peersDirty = true
 			}
 			s.mu.Unlock()
 
@@ -667,6 +699,7 @@ func (s *Server) loadPeersFromDB() {
 		s.peers[r.PeerID] = r
 	}
 	if len(rows) > 0 {
+		s.peersDirty = true
 		log.Printf("peerdb: loaded %d peers from database", len(rows))
 	}
 }
@@ -677,30 +710,51 @@ func (s *Server) syncFromDB(ctx context.Context) {
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 
+	var lastKnownMax int64
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			// Quick check: skip full load if DB hasn't changed
+			dbMax, dbCount, err := s.peerDB.maxLastSeenAndCount()
+			if err != nil {
+				continue
+			}
+			s.mu.Lock()
+			memCount := len(s.peers)
+			s.mu.Unlock()
+			if dbMax == lastKnownMax && dbCount == memCount {
+				continue
+			}
+			lastKnownMax = dbMax
+
 			rows, err := s.peerDB.loadAll()
 			if err != nil {
 				continue
 			}
 
 			s.mu.Lock()
+			changed := false
 			dbPeers := make(map[string]struct{}, len(rows))
 			for _, r := range rows {
 				dbPeers[r.PeerID] = struct{}{}
 				existing, ok := s.peers[r.PeerID]
 				if !ok || r.LastSeen > existing.LastSeen {
 					s.peers[r.PeerID] = r
+					changed = true
 				}
 			}
 			// Remove peers that were cleaned up by another instance
 			for peerID := range s.peers {
 				if _, inDB := dbPeers[peerID]; !inDB {
 					delete(s.peers, peerID)
+					changed = true
 				}
+			}
+			if changed {
+				s.peersDirty = true
 			}
 			s.mu.Unlock()
 		}
@@ -897,33 +951,37 @@ func (s *Server) requireAdmin(w http.ResponseWriter, r *http.Request) bool {
 
 // allowPublish checks the per-IP sliding window rate limit (60 req/min).
 func (s *Server) allowPublish(ip string) bool {
-	const maxRequests = 60
 	window := time.Minute
-
 	now := time.Now()
 	cutoff := now.Add(-window)
 
 	s.rateMu.Lock()
 	defer s.rateMu.Unlock()
 
-	times := s.rateWindow[ip]
-
-	// Trim expired entries
-	n := 0
-	for _, t := range times {
-		if t.After(cutoff) {
-			times[n] = t
-			n++
-		}
+	bucket, ok := s.rateWindow[ip]
+	if !ok {
+		bucket = &rateBucket{}
+		s.rateWindow[ip] = bucket
 	}
-	times = times[:n]
 
-	if len(times) >= maxRequests {
-		s.rateWindow[ip] = times
+	// Trim expired entries from the front
+	for bucket.count > 0 {
+		oldest := bucket.times[bucket.head]
+		if oldest.After(cutoff) {
+			break
+		}
+		bucket.head = (bucket.head + 1) % rateBucketCap
+		bucket.count--
+	}
+
+	if bucket.count >= rateBucketCap {
 		return false
 	}
 
-	s.rateWindow[ip] = append(times, now)
+	// Push new timestamp
+	idx := (bucket.head + bucket.count) % rateBucketCap
+	bucket.times[idx] = now
+	bucket.count++
 	return true
 }
 
@@ -934,18 +992,18 @@ func (s *Server) cleanupRateLimiter() {
 	s.rateMu.Lock()
 	defer s.rateMu.Unlock()
 
-	for ip, times := range s.rateWindow {
-		n := 0
-		for _, t := range times {
-			if t.After(cutoff) {
-				times[n] = t
-				n++
+	for ip, bucket := range s.rateWindow {
+		// Trim expired entries from the front
+		for bucket.count > 0 {
+			oldest := bucket.times[bucket.head]
+			if oldest.After(cutoff) {
+				break
 			}
+			bucket.head = (bucket.head + 1) % rateBucketCap
+			bucket.count--
 		}
-		if n == 0 {
+		if bucket.count == 0 {
 			delete(s.rateWindow, ip)
-		} else {
-			s.rateWindow[ip] = times[:n]
 		}
 	}
 }

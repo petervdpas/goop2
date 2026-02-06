@@ -104,6 +104,21 @@ func (p *peerDB) cleanupStale(thresholdMillis int64) {
 	_, _ = p.db.Exec(`DELETE FROM peers WHERE last_seen < ?`, thresholdMillis)
 }
 
+// maxLastSeenAndCount returns the maximum last_seen value and peer count.
+// Used by syncFromDB to skip full loads when nothing changed.
+func (p *peerDB) maxLastSeenAndCount() (int64, int, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	var maxLS sql.NullInt64
+	var count int
+	err := p.db.QueryRow(`SELECT MAX(last_seen), COUNT(*) FROM peers`).Scan(&maxLS, &count)
+	if err != nil {
+		return 0, 0, err
+	}
+	return maxLS.Int64, count, nil
+}
+
 // loadAll returns all peers from SQLite.
 func (p *peerDB) loadAll() ([]peerRow, error) {
 	p.mu.Lock()
