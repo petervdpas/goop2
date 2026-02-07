@@ -68,10 +68,12 @@ type Server struct {
 	tmpl         *template.Template
 	adminTmpl    *template.Template
 	docsTmpl     *template.Template
+	storeTmpl    *template.Template
 	registerTmpl *template.Template
 	style        []byte
 	docsCSS      []byte
 	favicon      []byte
+	splash       []byte
 	docsSite     *DocSite
 
 	templateStore *TemplateStore
@@ -124,9 +126,22 @@ type indexVM struct {
 	Title                string
 	Endpoint             string
 	ConnectURLs          []string
-	StoreTemplates       []StoreMeta
+	HasStore             bool
+	StoreCount           int
 	HasAdmin             bool
 	RegistrationRequired bool
+}
+
+type storeTemplateVM struct {
+	Meta       StoreMeta
+	PriceLabel template.HTML
+}
+
+type storeVM struct {
+	Title      string
+	Templates  []storeTemplateVM
+	CreditData StorePageData
+	HasAdmin   bool
 }
 
 type adminVM struct {
@@ -191,6 +206,11 @@ func New(addr string, templatesDirs []string, peerDBPath string, adminPassword s
 		panic(err)
 	}
 
+	storeTmpl, err := template.New("store.html").Funcs(funcs).ParseFS(embedded, "assets/store.html")
+	if err != nil {
+		panic(err)
+	}
+
 	registerTmpl, err := template.New("register.html").Funcs(funcs).ParseFS(embedded, "assets/register.html")
 	if err != nil {
 		// Not fatal - registration template is optional
@@ -210,6 +230,11 @@ func New(addr string, templatesDirs []string, peerDBPath string, adminPassword s
 	faviconData, err := embedded.ReadFile("assets/favicon.ico")
 	if err != nil {
 		faviconData = nil
+	}
+
+	splashData, err := embedded.ReadFile("assets/goop2-splash.jpg")
+	if err != nil {
+		splashData = nil
 	}
 
 	smtpFrom := smtp.From
@@ -236,10 +261,12 @@ func New(addr string, templatesDirs []string, peerDBPath string, adminPassword s
 		tmpl:                 tmpl,
 		adminTmpl:            adminTmpl,
 		docsTmpl:             docsTmpl,
+		storeTmpl:            storeTmpl,
 		registerTmpl:         registerTmpl,
 		style:                css,
 		docsCSS:              docsCSSData,
 		favicon:              faviconData,
+		splash:               splashData,
 		docsSite:             newDocSite(),
 		relayPort:            relayPort,
 		relayKeyFile:         relayKeyFile,
@@ -305,6 +332,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/assets/style.css", s.handleStyle)
 	mux.HandleFunc("/assets/docs.css", s.handleDocsCSS)
 	mux.HandleFunc("/favicon.ico", s.handleFavicon)
+	mux.HandleFunc("/assets/goop2-splash.jpg", s.handleSplash)
 	mux.HandleFunc("/docs", s.handleDocsRedirect)
 	mux.HandleFunc("/docs/", s.handleDocs)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -438,6 +466,9 @@ func (s *Server) Start(ctx context.Context) error {
 
 		w.WriteHeader(http.StatusNoContent)
 	})
+
+	// Store page
+	mux.HandleFunc("/store", s.handleStore)
 
 	// Credit provider routes (e.g. /api/credits/*)
 	s.credits.RegisterRoutes(mux)
@@ -834,6 +865,20 @@ func (s *Server) handleFavicon(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(s.favicon)
 }
 
+func (s *Server) handleSplash(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.splash == nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	_, _ = w.Write(s.splash)
+}
+
 func (s *Server) handleDocsRedirect(w http.ResponseWriter, r *http.Request) {
 	if len(s.docsSite.Pages) == 0 {
 		http.NotFound(w, r)
@@ -939,9 +984,12 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var storeTemplates []StoreMeta
+	hasStore := false
+	storeCount := 0
 	if s.templateStore != nil {
-		storeTemplates = s.templateStore.List()
+		list := s.templateStore.List()
+		hasStore = len(list) > 0
+		storeCount = len(list)
 	}
 
 	w.Header().Set("content-type", "text/html; charset=utf-8")
@@ -949,9 +997,36 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		Title:                "Goop² Rendezvous",
 		Endpoint:             s.URL(),
 		ConnectURLs:          s.connectURLs(),
-		StoreTemplates:       storeTemplates,
+		HasStore:             hasStore,
+		StoreCount:           storeCount,
 		HasAdmin:             s.adminPassword != "",
 		RegistrationRequired: s.registrationRequired,
+	})
+}
+
+func (s *Server) handleStore(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var templates []storeTemplateVM
+	if s.templateStore != nil {
+		for _, meta := range s.templateStore.List() {
+			info := s.credits.TemplateStoreInfo(r, meta)
+			templates = append(templates, storeTemplateVM{
+				Meta:       meta,
+				PriceLabel: info.PriceLabel,
+			})
+		}
+	}
+
+	w.Header().Set("content-type", "text/html; charset=utf-8")
+	_ = s.storeTmpl.Execute(w, storeVM{
+		Title:      "Template Store — Goop²",
+		Templates:  templates,
+		CreditData: s.credits.StorePageData(r),
+		HasAdmin:   s.adminPassword != "",
 	})
 }
 

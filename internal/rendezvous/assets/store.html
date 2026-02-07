@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{.Title}}</title>
+  <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+  <link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="header-left">
+        <div class="logo">🧩</div>
+        <div>
+          <h1>Goop² Template Store</h1>
+          <p class="subtitle">Ready-made sites for your Goop² peer</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+          <span class="theme-icon">🌙</span>
+        </button>
+        <a class="nav-link" href="/">Goop²</a>
+        <a class="nav-link" href="/docs">Docs</a>
+        {{if .HasAdmin}}<a class="nav-link" href="/admin">Admin</a>{{end}}
+      </div>
+    </header>
+
+    <!-- Credit banner slot (injected by CreditProvider) -->
+    {{.CreditData.Banner}}
+
+    {{if .Templates}}
+    <div class="store-grid">
+      {{range .Templates}}
+      <div class="store-card glass">
+        <div class="store-card-head">
+          <div class="store-card-icon">{{.Meta.Icon}}</div>
+          <div class="store-card-price">{{.PriceLabel}}</div>
+        </div>
+        <div class="store-card-body">
+          <div class="store-card-name">{{.Meta.Name}}</div>
+          <div class="store-card-cat">{{.Meta.Category}}</div>
+          <div class="store-card-desc">{{.Meta.Description}}</div>
+        </div>
+        <div class="store-card-footer">
+          <span class="store-card-dir">{{.Meta.Dir}}</span>
+          <a class="store-card-dl" href="/api/templates/{{.Meta.Dir}}/bundle" title="Download bundle">⬇ Download</a>
+        </div>
+      </div>
+      {{end}}
+    </div>
+    {{else}}
+    <div class="empty-state">
+      <div class="empty-icon">📦</div>
+      <p>No templates available on this server yet.</p>
+    </div>
+    {{end}}
+
+    <!-- Credit packs slot (injected by CreditProvider) -->
+    {{.CreditData.CreditPacks}}
+
+    <footer class="footer">
+      <p>
+        <a href="/">← Back to Goop²</a> &middot;
+        <a href="https://github.com/petervdpas/goop2" target="_blank">Goop² on GitHub</a>
+      </p>
+    </footer>
+
+    <script>
+      (function(){
+        var t = document.getElementById('themeToggle'),
+            i = t.querySelector('.theme-icon'),
+            h = document.documentElement,
+            s = localStorage.getItem('theme') || 'dark';
+        h.setAttribute('data-theme', s);
+        i.textContent = s === 'dark' ? '☀️' : '🌙';
+        t.onclick = function() {
+          s = h.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+          h.setAttribute('data-theme', s);
+          localStorage.setItem('theme', s);
+          i.textContent = s === 'dark' ? '☀️' : '🌙';
+        };
+      })();
+    </script>
+  </div>
+</body>
+</html>

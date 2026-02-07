@@ -10,13 +10,6 @@
 <body>
   <div class="container">
     <header class="header">
-      <div class="header-left">
-        <div class="logo">📡</div>
-        <div>
-          <h1>Goop² Rendezvous</h1>
-          <p class="subtitle">Peer discovery &amp; template distribution for the ephemeral web</p>
-        </div>
-      </div>
       <div class="header-right">
         <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
           <span class="theme-icon">🌙</span>
@@ -24,14 +17,76 @@
         {{if .RegistrationRequired}}<a class="nav-link accent" href="/register">Register</a>{{end}}
         <a class="nav-link" href="/docs">Docs</a>
         {{if .HasAdmin}}<a class="nav-link" href="/admin">Admin</a>{{end}}
-        <a class="nav-link" href="/healthz" target="_blank">Health</a>
       </div>
     </header>
+
+    <!-- Hero: splash + intro side-by-side -->
+    <div class="splash-row">
+      <div class="splash-text">
+        <h2>Welcome to the Ephemeral Web</h2>
+        <p>
+          <strong>Goop²</strong> is a peer-to-peer platform for websites, apps, and services that exist
+          only while their owner is online. No hosting, no accounts &mdash; just direct
+          connections between peers.
+        </p>
+        <p>
+          This is a <strong>rendezvous server</strong> &mdash; a meeting point where peers
+          discover each other across the internet. Connect your Goop² peer to this
+          server to join the network and browse available site templates.
+        </p>
+        <div class="hero-features">
+          <div class="hero-feature">
+            <span class="hero-feature-icon">🔗</span>
+            <span>Direct P2P connections</span>
+          </div>
+          <div class="hero-feature">
+            <span class="hero-feature-icon">💨</span>
+            <span>Content vanishes when you leave</span>
+          </div>
+          <div class="hero-feature">
+            <span class="hero-feature-icon">🧩</span>
+            <span>Install &amp; customize templates</span>
+          </div>
+          <div class="hero-feature">
+            <span class="hero-feature-icon">🔒</span>
+            <span>No accounts or tracking</span>
+          </div>
+        </div>
+        <div class="hero-steps">
+          <div class="hero-step">
+            <span class="hero-step-num">1</span>
+            <span>Download &amp; run <a href="https://github.com/petervdpas/goop2" target="_blank">Goop²</a></span>
+          </div>
+          <div class="hero-step">
+            <span class="hero-step-num">2</span>
+            <span>Paste the server URL into your WAN rendezvous setting</span>
+          </div>
+          <div class="hero-step">
+            <span class="hero-step-num">3</span>
+            <span>Browse templates, build your site, go live</span>
+          </div>
+        </div>
+      </div>
+      <div class="splash-side">
+        <img class="splash-img" src="/assets/goop2-splash.jpg" alt="Goop²" />
+      </div>
+    </div>
+
+    {{if .HasStore}}
+    <div class="store-promo glass">
+      <div class="store-promo-icon">🧩</div>
+      <div class="store-promo-body">
+        <h3>Template Store</h3>
+        <p>{{.StoreCount}} ready-made sites available — chess, kanban, quizzes, and more. Install on your peer with one click.</p>
+      </div>
+      <a class="store-promo-link" href="/store">Browse Templates →</a>
+    </div>
+    {{end}}
 
     {{if .ConnectURLs}}
     <div class="connect-box glass">
       <div class="connect-label">Connect to this server</div>
-      <div class="connect-hint">Paste a URL below into a peer's <strong>WAN rendezvous</strong> setting to join this network</div>
+      <div class="connect-hint">Copy a URL below and paste it into your peer's <strong>WAN rendezvous</strong> setting</div>
       {{range .ConnectURLs}}
       <div class="connect-url" onclick="navigator.clipboard.writeText('{{.}}').then(()=>{this.classList.add('copied');setTimeout(()=>this.classList.remove('copied'),1200)})">
         <code>{{.}}</code>
@@ -47,39 +102,13 @@
     </div>
     {{end}}
 
-    {{if .StoreTemplates}}
-    <div class="welcome-section">
-      <h2 class="section-title">Template Store</h2>
-      <p class="templates-hint">Site templates available to peers connected to this rendezvous server.</p>
-      <div class="rv-tpl-grid">
-        {{range .StoreTemplates}}
-        <div class="rv-tpl-card">
-          <div class="rv-tpl-icon">{{.Icon}}</div>
-          <div class="rv-tpl-body">
-            <div class="rv-tpl-name">{{.Name}}</div>
-            <div class="rv-tpl-cat">{{.Category}}</div>
-            <div class="rv-tpl-desc">{{.Description}}</div>
-          </div>
-          <div class="rv-tpl-footer">
-            <span class="rv-tpl-dir">{{.Dir}}</span>
-            <a class="rv-tpl-dl" href="/api/templates/{{.Dir}}/bundle" title="Download bundle">⬇ bundle</a>
-          </div>
-        </div>
-        {{end}}
-      </div>
-    </div>
-    {{end}}
-
-    <div class="welcome-section">
-      <h2 class="section-title">About Goop²</h2>
-      <p class="about-text">
-        Goop² is a peer-to-peer content publishing system for the ephemeral web.
-        Peers connect via mDNS on local networks or through rendezvous servers like
-        this one for WAN discovery. Each peer hosts its own site content and
-        synchronizes with others in real time.
+    <footer class="footer">
+      <p>
+        Goop² is <a href="https://github.com/petervdpas/goop2" target="_blank">open source</a> &middot;
+        GPLv2 License
       </p>
       <div class="endpoint-chip">{{.Endpoint}}</div>
-    </div>
+    </footer>
 
     <script>
       (function(){
