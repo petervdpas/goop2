@@ -24,6 +24,8 @@ import (
 	"github.com/petervdpas/goop2/internal/util"
 	"github.com/petervdpas/goop2/internal/viewer"
 
+	credits "github.com/petervdpas/goop2-credits"
+
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
@@ -103,6 +105,16 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			relayKeyFile = util.ResolvePath(o.PeerDir, cfg.Presence.RelayKeyFile)
 		}
 		rv = rendezvous.New(addr, templatesDirs, peerDBPath, cfg.Presence.AdminPassword, cfg.Presence.ExternalURL, cfg.Presence.RegistrationRequired, cfg.Presence.RegistrationWebhook, smtpCfg, cfg.Presence.RelayPort, relayKeyFile)
+
+		// Wire credit provider (SQLite-backed credits module)
+		creditDB := util.ResolvePath(o.PeerDir, "data/credits.db")
+		cp, err := credits.New(creditDB)
+		if err != nil {
+			log.Printf("WARNING: credits module: %v (running without credits)", err)
+		} else {
+			rv.SetCreditProvider(cp)
+		}
+
 		if err := rv.Start(ctx); err != nil {
 			return err
 		}

@@ -14,27 +14,18 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/petervdpas/goop2/creditapi"
 )
 
 //go:embed all:storetemplates/corkboard all:storetemplates/quiz all:storetemplates/photobook all:storetemplates/chess all:storetemplates/kanban all:storetemplates/arcade
 var defaultStoreFS embed.FS
 
-// StoreMeta holds metadata for a store template.
-// Mirrors sitetemplates.TemplateMeta to avoid importing the embed-heavy package.
-type StoreMeta struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Category    string                 `json:"category"`
-	Icon        string                 `json:"icon"`
-	Dir         string                 `json:"dir"`
-	Source      string                 `json:"source"`
-	Tables      map[string]TablePolicy `json:"tables,omitempty"`
-}
-
-// TablePolicy holds per-table configuration from a template manifest.
-type TablePolicy struct {
-	InsertPolicy string `json:"insert_policy"`
-}
+// Type aliases — canonical definitions live in creditapi (public package).
+type (
+	StoreMeta   = creditapi.StoreMeta
+	TablePolicy = creditapi.TablePolicy
+)
 
 // TemplateStore loads templates from embedded defaults and an optional disk
 // directory, caches all files in memory.
