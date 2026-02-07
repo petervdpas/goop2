@@ -7,7 +7,6 @@ require (
 	github.com/libp2p/go-libp2p v0.34.0
 	github.com/libp2p/go-libp2p-pubsub v0.11.0
 	github.com/multiformats/go-multiaddr v0.12.4
-	github.com/petervdpas/goop2-credits v0.0.0
 	github.com/wailsapp/wails/v2 v2.11.0
 	github.com/yuin/goldmark v1.7.16
 	github.com/yuin/gopher-lua v1.1.1
@@ -141,7 +140,5 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
-
-replace github.com/petervdpas/goop2-credits => ../goop2-credits
 
 // replace github.com/wailsapp/wails/v2 v2.11.0 => /home/peter/go/pkg/mod
