@@ -27,10 +27,6 @@ nul
 *.test
 *.out
 
-# Go workspace (local only — links private modules)
-go.work
-go.work.sum
-
 # -----------------------------
 # Wails build output
 # -----------------------------
