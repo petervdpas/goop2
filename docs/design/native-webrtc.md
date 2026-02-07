@@ -5,17 +5,20 @@
 WebKitGTK (used by Wails on Linux) does not properly support `getUserMedia()` for camera/microphone access. This is a known limitation that prevents video/audio calls from working on Linux.
 
 **Error observed:**
-```
+
+```bash
 NotAllowedError: The request is not allowed by the user agent or the platform in the current context
 ```
 
 This is not a permissions issue - WebKitGTK simply doesn't implement media device access the same way as Chromium or Firefox.
 
 **Affected platforms:**
+
 - Linux (Wails uses WebKitGTK)
 - Potentially other non-Chromium webviews
 
 **Unaffected platforms:**
+
 - Windows (Wails uses WebView2/Chromium)
 - macOS (Wails uses WebKit, which has better support)
 
@@ -46,7 +49,7 @@ This bypasses the webview entirely for media handling.
 
 ### Current (Browser-Based)
 
-```
+```bash
 ┌─────────────────────────────────────────────────────┐
 │                    Wails App                         │
 │  ┌───────────────────────────────────────────────┐  │
@@ -68,7 +71,7 @@ This bypasses the webview entirely for media handling.
 
 ### Proposed (Go-Native)
 
-```
+```bash
 ┌─────────────────────────────────────────────────────┐
 │                    Wails App                         │
 │  ┌───────────────────────────────────────────────┐  │
@@ -195,7 +198,8 @@ func handleCallSignaling(msg proto.CallMessage) {
 
 This is the challenging part. Options:
 
-**Option A: WebSocket Binary Frames**
+#### Option A: WebSocket Binary Frames
+
 ```go
 // Go side - encode frames and send via WebSocket
 func streamToWebview(track *webrtc.TrackRemote) {
@@ -207,6 +211,7 @@ func streamToWebview(track *webrtc.TrackRemote) {
     }
 }
 ```
+
 ```javascript
 // JavaScript side
 const ws = new WebSocket('ws://localhost:PORT/video-stream');
@@ -217,7 +222,8 @@ ws.onmessage = (e) => {
 };
 ```
 
-**Option B: Local HTTP MJPEG Stream**
+#### Option B: Local HTTP MJPEG Stream
+
 ```go
 // Serve MJPEG stream on local HTTP
 func mjpegHandler(w http.ResponseWriter, r *http.Request) {
@@ -230,11 +236,13 @@ func mjpegHandler(w http.ResponseWriter, r *http.Request) {
     }
 }
 ```
+
 ```html
 <img src="http://localhost:PORT/video-stream/remote">
 ```
 
-**Option C: Canvas + Data URLs**
+#### Option C: Canvas + Data URLs
+
 ```javascript
 // Receive base64 frames, draw to canvas
 Goop.call.onFrame = (base64) => {
@@ -246,7 +254,7 @@ Goop.call.onFrame = (base64) => {
 
 ## Dependencies
 
-```
+```bash
 go get github.com/pion/webrtc/v3
 go get github.com/pion/mediadevices
 ```
@@ -280,6 +288,7 @@ CGO_ENABLED=1 go build
 ### 1. Frame Transport Latency
 
 Sending decoded frames through WebSocket/HTTP adds latency compared to native `<video>` playback. May need to:
+
 - Use efficient encoding (MJPEG vs VP8 re-encode)
 - Optimize frame size
 - Consider lower resolution for remote video
@@ -287,6 +296,7 @@ Sending decoded frames through WebSocket/HTTP adds latency compared to native `<
 ### 2. Audio Routing
 
 Audio is trickier than video - can't easily pipe through HTTP. Options:
+
 - Play audio directly from Go (using portaudio or similar)
 - WebSocket Audio API (experimental)
 - Keep audio separate from video display
@@ -294,6 +304,7 @@ Audio is trickier than video - can't easily pipe through HTTP. Options:
 ### 3. Cross-Platform Builds
 
 Different drivers per platform:
+
 - Linux: v4l2, PulseAudio/ALSA
 - Windows: DirectShow, WASAPI
 - macOS: AVFoundation
@@ -303,6 +314,7 @@ Build tags and conditional compilation needed.
 ### 4. Resource Management
 
 Must properly cleanup:
+
 - MediaDevices streams
 - PeerConnections
 - Goroutines for frame encoding
