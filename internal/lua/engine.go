@@ -305,7 +305,9 @@ func (e *Engine) Dispatch(ctx context.Context, fromPeerID, content string, sende
 
 	// Resolve peer label
 	peerLabel := fromPeerID
-	if sp, ok := e.peers.Get(fromPeerID); ok {
+	if fromPeerID == e.selfID {
+		peerLabel = e.selfLabel()
+	} else if sp, ok := e.peers.Get(fromPeerID); ok {
 		peerLabel = sp.Content
 	}
 
@@ -493,7 +495,9 @@ func (e *Engine) CallFunction(ctx context.Context, callerID, function string, pa
 
 	// Resolve peer label
 	peerLabel := callerID
-	if sp, ok := e.peers.Get(callerID); ok {
+	if callerID == e.selfID {
+		peerLabel = e.selfLabel()
+	} else if sp, ok := e.peers.Get(callerID); ok {
 		peerLabel = sp.Content
 	}
 

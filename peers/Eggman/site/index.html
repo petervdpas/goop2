@@ -2,26 +2,40 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Chess</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arcade</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <link rel="stylesheet" href="css/style.css">
   <script src="/assets/js/goop-data.js"></script>
   <script src="/assets/js/goop-identity.js"></script>
-  <script src="/assets/js/goop-realtime.js"></script>
   <script src="/assets/js/goop-ui.js"></script>
 </head>
 <body>
-  <div class="chess">
-    <header class="chess-header">
-      <h1 class="chess-title">Chess</h1>
-      <p class="chess-subtitle" id="subtitle">Loading&hellip;</p>
+  <div class="arcade">
+    <header class="arcade-header">
+      <h1 class="arcade-title">Space Invaders</h1>
+      <p class="arcade-subtitle">Arrow keys to move, Space to shoot</p>
     </header>
 
-    <main id="chess-root">
-      <p class="loading">Loading&hellip;</p>
-    </main>
+    <div class="game-container">
+      <canvas id="game-canvas" width="480" height="400" tabindex="0"></canvas>
+    </div>
+
+    <div class="arcade-ui">
+      <button id="btn-start" class="btn btn-primary">Start Game</button>
+      <button id="btn-leaderboard" class="btn btn-secondary">Leaderboard</button>
+    </div>
+
+    <!-- Leaderboard modal -->
+    <div id="leaderboard-modal" class="modal hidden">
+      <div class="modal-content">
+        <h2>Leaderboard</h2>
+        <div id="leaderboard-list"></div>
+        <button class="btn btn-secondary" id="close-leaderboard">Close</button>
+      </div>
+    </div>
   </div>
 
+  <script src="/assets/js/goop-engine.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

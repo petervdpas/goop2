@@ -1,754 +1,552 @@
-// Chess app.js
-(async function () {
+// Space Invaders
+(async function() {
   var db = Goop.data;
-  var root = document.getElementById("chess-root");
-  var subtitle = document.getElementById("subtitle");
-  var isOwner = false;
-  var myId = await Goop.identity.id();
-  var pollTimer = null;
-  var currentGameId = null;
-  var selectedSquare = null;
-  var legalMoves = [];
-  var pendingPromotion = null;
-  var rtChannel = null;
-  var ownerPeerId = null;
-  var rtListening = false;
+  var canvas = document.getElementById('game-canvas');
+  var startBtn = document.getElementById('btn-start');
+  var leaderboardBtn = document.getElementById('btn-leaderboard');
+  var leaderboardModal = document.getElementById('leaderboard-modal');
+  var leaderboardList = document.getElementById('leaderboard-list');
+  var closeLeaderboard = document.getElementById('close-leaderboard');
 
-  // Unicode chess pieces
-  var PIECES = {
-    K: "\u2654", Q: "\u2655", R: "\u2656", B: "\u2657", N: "\u2658", P: "\u2659",
-    k: "\u265A", q: "\u265B", r: "\u265C", b: "\u265D", n: "\u265E", p: "\u265F"
+  // Engine components
+  var renderer = new Renderer(canvas);
+  var input = new Input();
+  var loop = new GameLoop(60);
+  var scenes = new SceneManager();
+  var modalOpen = false;
+
+  // Game constants
+  var CANVAS_W = 480;
+  var CANVAS_H = 400;
+  var PLAYER_W = 40;
+  var PLAYER_H = 20;
+  var PLAYER_SPEED = 250;
+  var BULLET_SPEED = 400;
+  var ALIEN_ROWS = 5;
+  var ALIEN_COLS = 8;
+  var ALIEN_W = 32;
+  var ALIEN_H = 24;
+  var ALIEN_GAP_X = 12;
+  var ALIEN_GAP_Y = 10;
+
+  // Game state
+  var player = null;
+  var aliens = [];
+  var playerBullets = [];
+  var alienBullets = [];
+  var score = 0;
+  var lives = 3;
+  var wave = 1;
+  var alienDir = 1;
+  var alienSpeed = 15;
+  var alienDropAmount = 20;
+  var alienShootChance = 0.0005;
+  var gameStartTime = 0;
+
+  // Colors
+  var COLORS = {
+    bg: '#0a0a15',
+    player: '#16c784',
+    bullet: '#fff',
+    alienBullet: '#ff6b6b',
+    alien1: '#ff6b6b',
+    alien2: '#ffd93d',
+    alien3: '#6bcb77',
+    text: '#e0e0e0',
+    muted: '#7a8194'
   };
 
-  // Detect owner vs visitor
-  var match = window.location.pathname.match(/\/p\/([^/]+)/);
-  if (!match || match[1] === myId) {
-    isOwner = true;
+  // ========================================================================
+  // Player
+  // ========================================================================
+  function createPlayer() {
+    return {
+      x: CANVAS_W / 2 - PLAYER_W / 2,
+      y: CANVAS_H - PLAYER_H - 20,
+      w: PLAYER_W,
+      h: PLAYER_H,
+      shootCooldown: 0
+    };
   }
-  if (match) {
-    ownerPeerId = match[1];
+
+  function updatePlayer(dt) {
+    // Movement
+    if (input.isDown('ArrowLeft') || input.isDown('KeyA')) {
+      player.x -= PLAYER_SPEED * dt;
+    }
+    if (input.isDown('ArrowRight') || input.isDown('KeyD')) {
+      player.x += PLAYER_SPEED * dt;
+    }
+
+    // Clamp to screen
+    player.x = Utils.clamp(player.x, 0, CANVAS_W - PLAYER_W);
+
+    // Shooting
+    player.shootCooldown -= dt;
+    if ((input.isDown('Space') || input.isDown('KeyW') || input.isDown('ArrowUp')) && player.shootCooldown <= 0) {
+      playerBullets.push({
+        x: player.x + PLAYER_W / 2 - 2,
+        y: player.y,
+        w: 4,
+        h: 12
+      });
+      player.shootCooldown = 0.3;
+    }
   }
 
-  subtitle.textContent = "Find an opponent or play against the computer.";
+  function drawPlayer() {
+    var ctx = renderer.ctx;
+    var x = player.x;
+    var y = player.y;
 
-  showLobby();
+    // Ship body
+    ctx.fillStyle = COLORS.player;
+    ctx.beginPath();
+    ctx.moveTo(x + PLAYER_W / 2, y);
+    ctx.lineTo(x + PLAYER_W, y + PLAYER_H);
+    ctx.lineTo(x, y + PLAYER_H);
+    ctx.closePath();
+    ctx.fill();
 
-  // -- Realtime channel (P2P instant notifications) --
+    // Cockpit
+    ctx.fillStyle = '#0f9960';
+    ctx.fillRect(x + PLAYER_W / 2 - 4, y + 6, 8, 8);
+  }
 
-  function setupRealtime(state) {
-    if (state.mode !== "pvp") return;
-    if (rtChannel) return;
-    if (state.status !== "playing" && state.status !== "waiting") return;
+  // ========================================================================
+  // Aliens
+  // ========================================================================
+  function createAliens() {
+    aliens = [];
+    var startX = (CANVAS_W - (ALIEN_COLS * (ALIEN_W + ALIEN_GAP_X) - ALIEN_GAP_X)) / 2;
+    var startY = 50;
 
-    if (!isOwner && ownerPeerId) {
-      // Challenger: create channel to site owner
-      Goop.realtime.connect(ownerPeerId).then(function (channel) {
-        rtChannel = channel;
-        channel.onMessage(function (msg) {
-          if (msg.type === "move_made" || msg.type === "resigned") {
-            refreshState();
-          }
+    for (var row = 0; row < ALIEN_ROWS; row++) {
+      for (var col = 0; col < ALIEN_COLS; col++) {
+        aliens.push({
+          x: startX + col * (ALIEN_W + ALIEN_GAP_X),
+          y: startY + row * (ALIEN_H + ALIEN_GAP_Y),
+          w: ALIEN_W,
+          h: ALIEN_H,
+          row: row,
+          alive: true,
+          animFrame: 0
         });
-      }).catch(function () { /* polling is the fallback */ });
-    } else if (isOwner && !rtListening) {
-      // Owner: accept incoming channel from challenger
-      rtListening = true;
-      Goop.realtime.onIncoming(function (info) {
-        if (!currentGameId) return; // no active game
-        Goop.realtime.accept(info.channelId, info.hostPeerId).then(function (channel) {
-          rtChannel = channel;
-          channel.onMessage(function (msg) {
-            if (msg.type === "move_made" || msg.type === "resigned") {
-              refreshState();
-            }
+      }
+    }
+  }
+
+  function updateAliens(dt) {
+    // Find leftmost and rightmost alive aliens
+    var leftMost = CANVAS_W;
+    var rightMost = 0;
+    var lowestY = 0;
+
+    for (var i = 0; i < aliens.length; i++) {
+      var a = aliens[i];
+      if (!a.alive) continue;
+      if (a.x < leftMost) leftMost = a.x;
+      if (a.x + a.w > rightMost) rightMost = a.x + a.w;
+      if (a.y + a.h > lowestY) lowestY = a.y + a.h;
+    }
+
+    // Check if need to reverse direction
+    var needDrop = false;
+    if (alienDir > 0 && rightMost >= CANVAS_W - 10) {
+      alienDir = -1;
+      needDrop = true;
+    } else if (alienDir < 0 && leftMost <= 10) {
+      alienDir = 1;
+      needDrop = true;
+    }
+
+    // Move aliens
+    for (var j = 0; j < aliens.length; j++) {
+      var alien = aliens[j];
+      if (!alien.alive) continue;
+
+      alien.x += alienDir * alienSpeed * dt;
+      if (needDrop) {
+        alien.y += alienDropAmount;
+      }
+
+      // Animation
+      alien.animFrame += dt * 3;
+
+      // Random shooting
+      if (Math.random() < alienShootChance) {
+        alienBullets.push({
+          x: alien.x + ALIEN_W / 2 - 2,
+          y: alien.y + ALIEN_H,
+          w: 4,
+          h: 10
+        });
+      }
+
+      // Check if reached player
+      if (alien.y + alien.h >= player.y) {
+        gameOver();
+        return;
+      }
+    }
+
+    // Check win condition
+    var aliveCount = aliens.filter(function(a) { return a.alive; }).length;
+    if (aliveCount === 0) {
+      nextWave();
+    }
+  }
+
+  function drawAliens() {
+    var ctx = renderer.ctx;
+
+    for (var i = 0; i < aliens.length; i++) {
+      var a = aliens[i];
+      if (!a.alive) continue;
+
+      // Color based on row
+      var color;
+      if (a.row === 0) color = COLORS.alien1;
+      else if (a.row < 3) color = COLORS.alien2;
+      else color = COLORS.alien3;
+
+      ctx.fillStyle = color;
+
+      // Simple alien shape with animation
+      var wobble = Math.sin(a.animFrame) * 2;
+      var x = a.x;
+      var y = a.y;
+
+      // Body
+      ctx.fillRect(x + 4, y + 4, ALIEN_W - 8, ALIEN_H - 8);
+
+      // Eyes
+      ctx.fillStyle = '#000';
+      ctx.fillRect(x + 8, y + 8, 4, 4);
+      ctx.fillRect(x + ALIEN_W - 12, y + 8, 4, 4);
+
+      // Legs/tentacles
+      ctx.fillStyle = color;
+      ctx.fillRect(x + 2 + wobble, y + ALIEN_H - 6, 6, 6);
+      ctx.fillRect(x + ALIEN_W - 8 - wobble, y + ALIEN_H - 6, 6, 6);
+    }
+  }
+
+  // ========================================================================
+  // Bullets
+  // ========================================================================
+  function updateBullets(dt) {
+    // Player bullets
+    for (var i = playerBullets.length - 1; i >= 0; i--) {
+      var b = playerBullets[i];
+      b.y -= BULLET_SPEED * dt;
+
+      // Off screen
+      if (b.y + b.h < 0) {
+        playerBullets.splice(i, 1);
+        continue;
+      }
+
+      // Hit alien
+      for (var j = 0; j < aliens.length; j++) {
+        var a = aliens[j];
+        if (!a.alive) continue;
+
+        if (Collision.rectRect(b, a)) {
+          a.alive = false;
+          playerBullets.splice(i, 1);
+
+          // Score based on row (top = more points)
+          var points = (ALIEN_ROWS - a.row) * 10;
+          score += points;
+          break;
+        }
+      }
+    }
+
+    // Alien bullets
+    for (var k = alienBullets.length - 1; k >= 0; k--) {
+      var ab = alienBullets[k];
+      ab.y += BULLET_SPEED * 0.6 * dt;
+
+      // Off screen
+      if (ab.y > CANVAS_H) {
+        alienBullets.splice(k, 1);
+        continue;
+      }
+
+      // Hit player
+      if (Collision.rectRect(ab, player)) {
+        alienBullets.splice(k, 1);
+        lives--;
+
+        if (lives <= 0) {
+          gameOver();
+        }
+      }
+    }
+  }
+
+  function drawBullets() {
+    var ctx = renderer.ctx;
+
+    // Player bullets
+    ctx.fillStyle = COLORS.bullet;
+    for (var i = 0; i < playerBullets.length; i++) {
+      var b = playerBullets[i];
+      ctx.fillRect(b.x, b.y, b.w, b.h);
+    }
+
+    // Alien bullets
+    ctx.fillStyle = COLORS.alienBullet;
+    for (var j = 0; j < alienBullets.length; j++) {
+      var ab = alienBullets[j];
+      ctx.fillRect(ab.x, ab.y, ab.w, ab.h);
+    }
+  }
+
+  // ========================================================================
+  // Game flow
+  // ========================================================================
+  function nextWave() {
+    wave++;
+    alienSpeed += 10;
+    alienShootChance += 0.0003;
+    playerBullets = [];
+    alienBullets = [];
+    createAliens();
+  }
+
+  function gameOver() {
+    scenes.switch('gameover');
+  }
+
+  function resetGame() {
+    score = 0;
+    lives = 3;
+    wave = 1;
+    alienSpeed = 15 + (wave - 1) * 8;
+    alienShootChance = 0.0005;
+    alienDir = 1;
+    playerBullets = [];
+    alienBullets = [];
+    player = createPlayer();
+    createAliens();
+    gameStartTime = Date.now();
+  }
+
+  // ========================================================================
+  // UI Drawing
+  // ========================================================================
+  function drawUI() {
+    // Score
+    renderer.drawText('SCORE: ' + score, 10, 10, '14px monospace', COLORS.text);
+
+    // Wave
+    renderer.drawText('WAVE ' + wave, CANVAS_W / 2 - 30, 10, '14px monospace', COLORS.muted);
+
+    // Lives
+    var livesText = 'LIVES: ';
+    for (var i = 0; i < lives; i++) {
+      livesText += '\u2665 ';
+    }
+    renderer.drawText(livesText, CANVAS_W - 100, 10, '14px monospace', COLORS.player);
+  }
+
+  // ========================================================================
+  // Scenes
+  // ========================================================================
+  scenes.add('title', {
+    enter: function() {
+      startBtn.textContent = 'Start Game';
+      startBtn.disabled = false;
+    },
+    update: function(dt) {
+      if (!modalOpen && (input.justPressed('Space') || input.justPressed('Enter'))) {
+        scenes.switch('game');
+      }
+    },
+    render: function(r) {
+      r.clear(COLORS.bg);
+
+      r.drawTextCentered('SPACE INVADERS', 80, 'bold 36px monospace', COLORS.player);
+      r.drawTextCentered('Defend Earth!', 120, '14px monospace', COLORS.muted);
+
+      // Draw sample aliens
+      var ctx = r.ctx;
+      var startX = CANVAS_W / 2 - 80;
+      ctx.fillStyle = COLORS.alien1;
+      ctx.fillRect(startX, 160, 28, 20);
+      ctx.fillStyle = COLORS.alien2;
+      ctx.fillRect(startX + 50, 160, 28, 20);
+      ctx.fillStyle = COLORS.alien3;
+      ctx.fillRect(startX + 100, 160, 28, 20);
+
+      r.drawTextCentered('= 50    = 30    = 10', 200, '12px monospace', COLORS.text);
+
+      r.drawTextCentered('Arrow keys to move', 260, '12px monospace', COLORS.muted);
+      r.drawTextCentered('SPACE to shoot', 280, '12px monospace', COLORS.muted);
+
+      r.drawTextCentered('Press SPACE to start', 340, '14px monospace', COLORS.player);
+    }
+  });
+
+  scenes.add('game', {
+    enter: function() {
+      startBtn.textContent = 'Restart';
+      resetGame();
+    },
+    update: function(dt) {
+      updatePlayer(dt);
+      updateAliens(dt);
+      updateBullets(dt);
+    },
+    render: function(r) {
+      r.clear(COLORS.bg);
+      drawAliens();
+      drawPlayer();
+      drawBullets();
+      drawUI();
+    }
+  });
+
+  scenes.add('gameover', {
+    finalScore: 0,
+    finalWave: 1,
+    submitted: false,
+
+    enter: async function() {
+      this.finalScore = score;
+      this.finalWave = wave;
+      this.submitted = false;
+      startBtn.textContent = 'Play Again';
+
+      // Submit score
+      if (this.finalScore > 0) {
+        try {
+          await db.call('arcade', {
+            action: 'submit_score',
+            score: this.finalScore,
+            level: this.finalWave,
+            time_ms: Date.now() - gameStartTime
           });
-        }).catch(function () { /* ignore */ });
-      });
-    }
-  }
-
-  function notifyOpponent(type) {
-    if (rtChannel) {
-      rtChannel.send({ type: type }).catch(function () {});
-    }
-  }
-
-  async function refreshState() {
-    if (!currentGameId) return;
-    try {
-      var state = await db.call("chess", { action: "state", game_id: currentGameId });
-      renderGame(state);
-      if (state.status !== "playing" && state.status !== "waiting") {
-        cleanupRealtime();
-      }
-    } catch (e) { /* ignore */ }
-  }
-
-  function cleanupRealtime() {
-    if (rtChannel) {
-      rtChannel.close().catch(function () {});
-      rtChannel = null;
-    }
-  }
-
-  // -- Polling --
-  function startPolling(gameId) {
-    stopPolling();
-    pollTimer = setInterval(async function () {
-      try {
-        var state = await db.call("chess", { action: "state", game_id: gameId });
-        if (state.status !== "playing" && state.status !== "waiting") {
-          stopPolling();
-        }
-        renderGame(state);
-      } catch (e) {
-        // ignore transient errors
-      }
-    }, 2000);
-  }
-
-  function stopPolling() {
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
-  }
-
-  // -- Lobby --
-  async function showLobby() {
-    stopPolling();
-    cleanupRealtime();
-    currentGameId = null;
-    selectedSquare = null;
-    legalMoves = [];
-
-    var lobby;
-    try {
-      lobby = await db.call("chess", { action: "lobby" });
-    } catch (e) {
-      root.innerHTML = '<p class="chess-empty">Could not load lobby.</p>';
-      return;
-    }
-
-    var games = lobby.games || [];
-    var waiting = lobby.waiting || [];
-    var stats = lobby.stats || {};
-
-    // Check if I have an active game
-    for (var i = 0; i < games.length; i++) {
-      var g = games[i];
-      if ((g.status === "playing" || g.status === "waiting") &&
-          (g._owner === myId || g.challenger === myId)) {
-        showGame(g._id);
-        return;
-      }
-    }
-
-    var html = '<div class="chess-lobby">';
-
-    // Action buttons
-    html += '<div class="chess-actions">';
-    html += '<button class="btn btn-primary" id="btn-find">Find Opponent</button>';
-    html += '<button class="btn btn-secondary" id="btn-pve">Play vs Computer</button>';
-    html += '</div>';
-
-    // Stats
-    html += '<div class="chess-stats">';
-    html += '<span><span class="stat-val">' + (stats.wins || 0) + '</span> wins</span>';
-    html += '<span><span class="stat-val">' + (stats.losses || 0) + '</span> losses</span>';
-    html += '<span><span class="stat-val">' + (stats.draws || 0) + '</span> draws</span>';
-    html += '</div>';
-
-    // Waiting players (others looking for a game)
-    if (waiting.length > 0) {
-      html += '<div class="chess-panel">';
-      html += '<h2>Players Looking for Game</h2>';
-      html += '<ul class="chess-challenges">';
-      for (var k = 0; k < waiting.length; k++) {
-        var wg = waiting[k];
-        var label = esc(wg._owner_label || 'Anonymous');
-        html += '<li class="chess-challenge-item">';
-        html += '<span><span class="name">' + label + '</span>';
-        html += '<span class="time">' + timeAgo(wg._created_at) + '</span></span>';
-        html += '<button class="btn-sm btn-join" data-join="' + wg._id + '">Play</button>';
-        html += '</li>';
-      }
-      html += '</ul></div>';
-    }
-
-    // Recent games
-    var finished = [];
-    for (var m = 0; m < games.length; m++) {
-      var fg = games[m];
-      if (fg.status !== "waiting" && fg.status !== "playing") {
-        finished.push(fg);
-      }
-    }
-
-    if (finished.length > 0) {
-      html += '<div class="chess-panel">';
-      html += '<h2>Recent Games</h2>';
-      html += '<table class="chess-history"><thead><tr>';
-      html += '<th>Opponent</th><th>Result</th><th>Mode</th><th></th>';
-      html += '</tr></thead><tbody>';
-      for (var n = 0; n < finished.length && n < 10; n++) {
-        var hg = finished[n];
-        var opponent = hg.mode === "pve" ? "Computer"
-          : esc(hg.challenger_label || hg.challenger.substring(0, 12) + '...');
-        var resultCls = "", resultTxt = "";
-        if (hg.status === "draw") {
-          resultCls = "result-draw";
-          resultTxt = "draw";
-        } else if (hg.winner === myId) {
-          resultCls = "result-win";
-          resultTxt = "won";
-        } else {
-          resultCls = "result-loss";
-          resultTxt = "lost";
-        }
-        html += '<tr>';
-        html += '<td>' + opponent + '</td>';
-        html += '<td class="' + resultCls + '">' + resultTxt + '</td>';
-        html += '<td>' + (hg.mode === "pve" ? "vs AI" : "PvP") + '</td>';
-        html += '<td>' + timeAgo(hg._created_at) + '</td>';
-        html += '</tr>';
-      }
-      html += '</tbody></table></div>';
-    } else {
-      html += '<div class="chess-panel"><p class="chess-empty">No games played yet.</p></div>';
-    }
-
-    html += '</div>';
-    root.innerHTML = html;
-
-    // Button handlers
-    var btnPve = document.getElementById("btn-pve");
-    if (btnPve) {
-      btnPve.onclick = async function () {
-        btnPve.disabled = true;
-        try {
-          var result = await db.call("chess", { action: "new_pve" });
-          if (result.error) {
-            Goop.ui.toast({ title: "Error", message: result.error });
-            btnPve.disabled = false;
-          } else {
-            currentGameId = result.game_id;
-            renderGame(result);
-          }
+          this.submitted = true;
         } catch (e) {
-          Goop.ui.toast({ title: "Error", message: e.message || "Error starting game." });
-          btnPve.disabled = false;
+          console.log('Failed to submit score:', e);
         }
-      };
+      }
+    },
+    update: function(dt) {
+      if (!modalOpen && (input.justPressed('Space') || input.justPressed('Enter'))) {
+        scenes.switch('game');
+      }
+    },
+    render: function(r) {
+      r.clear(COLORS.bg);
+
+      r.drawTextCentered('GAME OVER', 100, 'bold 32px monospace', COLORS.alien1);
+      r.drawTextCentered('Score: ' + this.finalScore, 160, '20px monospace', COLORS.text);
+      r.drawTextCentered('Wave: ' + this.finalWave, 190, '16px monospace', COLORS.muted);
+
+      if (this.submitted) {
+        r.drawTextCentered('Score submitted!', 240, '12px monospace', COLORS.player);
+      }
+
+      r.drawTextCentered('Press SPACE to play again', 300, '14px monospace', COLORS.muted);
     }
+  });
 
-    var btnFind = document.getElementById("btn-find");
-    if (btnFind) {
-      btnFind.onclick = async function () {
-        btnFind.disabled = true;
-        try {
-          var result = await db.call("chess", { action: "wait_for_game" });
-          if (result.error) {
-            Goop.ui.toast({ title: "Error", message: result.error });
-            if (result.game_id) {
-              showGame(result.game_id);
-              return;
-            }
-            btnFind.disabled = false;
-          } else {
-            showGame(result.game_id);
-          }
-        } catch (e) {
-          Goop.ui.toast({ title: "Error", message: e.message || "Error finding game." });
-          btnFind.disabled = false;
-        }
-      };
-    }
-
-    // Join waiting game handlers
-    root.querySelectorAll("[data-join]").forEach(function (btn) {
-      btn.onclick = async function () {
-        btn.disabled = true;
-        var gid = parseInt(btn.getAttribute("data-join"));
-        try {
-          var result = await db.call("chess", { action: "join_game", game_id: gid });
-          if (result.error) {
-            Goop.ui.toast({ title: "Error", message: result.error });
-            if (result.game_id) {
-              showGame(result.game_id);
-              return;
-            }
-            btn.disabled = false;
-          } else {
-            showGame(result.game_id);
-          }
-        } catch (e) {
-          Goop.ui.toast({ title: "Error", message: e.message || "Error joining game." });
-          btn.disabled = false;
-        }
-      };
-    });
-  }
-
-  // -- Game view --
-  async function showGame(gameId) {
-    stopPolling();
-    currentGameId = gameId;
-    selectedSquare = null;
-    legalMoves = [];
+  // ========================================================================
+  // Leaderboard
+  // ========================================================================
+  async function showLeaderboard() {
+    modalOpen = true;
+    leaderboardModal.classList.remove('hidden');
 
     try {
-      var state = await db.call("chess", { action: "state", game_id: gameId });
-      renderGame(state);
+      var result = await db.call('arcade', { action: 'get_leaderboard', limit: 10 });
+      var scores = result.scores || [];
 
-      if (state.mode === "pvp" && (state.status === "playing" || state.status === "waiting")) {
-        startPolling(gameId);
-        setupRealtime(state);
+      if (scores.length === 0) {
+        leaderboardList.innerHTML = '<p class="empty">No scores yet!</p>';
+      } else {
+        var html = '<ol class="scores-list">';
+        for (var i = 0; i < scores.length; i++) {
+          var s = scores[i];
+          var name = formatPlayerName(s.player_label, i + 1);
+          html += '<li><span class="name">' + esc(name) + '</span>';
+          html += '<span class="score">' + s.score + '</span>';
+          html += '<span class="time">Wave ' + (s.level || 1) + '</span></li>';
+        }
+        html += '</ol>';
+        leaderboardList.innerHTML = html;
       }
     } catch (e) {
-      root.innerHTML = '<p class="chess-empty">Could not load game.</p>';
+      leaderboardList.innerHTML = '<p class="empty">Failed to load scores</p>';
     }
   }
 
-  function renderGame(state) {
-    var fen = state.fen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-    var board = parseFen(fen);
-    var yourColor = state.your_color;
-    var turn = state.turn || "w";
-    var isYourTurn = (state.status === "playing" && turn === yourColor);
-    var gameOver = (state.status !== "playing" && state.status !== "waiting");
-    var inCheck = state.in_check;
-
-    var html = '<div class="chess-game">';
-
-    // Waiting state
-    if (state.status === "waiting") {
-      html += '<div class="chess-waiting">';
-      html += '<div class="spinner"></div>';
-      html += '<p>Waiting for opponent&hellip;</p>';
-      html += '<button class="btn-cancel" id="btn-cancel">Cancel</button>';
-      html += '</div>';
-      root.innerHTML = html;
-      var btnCancel = document.getElementById("btn-cancel");
-      if (btnCancel) {
-        btnCancel.onclick = async function () {
-          await db.call("chess", { action: "resign", game_id: state.game_id });
-          showLobby();
-        };
-      }
-      return;
+  function formatPlayerName(label, rank) {
+    if (!label || label.length === 0) {
+      return 'Player ' + rank;
     }
-
-    // Result banner
-    if (gameOver) {
-      var resultCls = "draw";
-      var resultMsg = "Draw!";
-      if (state.winner === myId) {
-        resultCls = "win";
-        resultMsg = "You won!";
-      } else if (state.winner && state.winner !== myId) {
-        resultCls = "loss";
-        var opponentName = (state.mode === "pve") ? "Computer" : "Opponent";
-        resultMsg = opponentName + " won!";
-      }
-      html += '<div class="chess-result ' + resultCls + '">' + resultMsg + '</div>';
-    } else {
-      // Turn indicator
-      var opLabel = (state.mode === "pve") ? "Computer" : "Opponent";
-      var turnLabel = isYourTurn ? "Your turn" : opLabel + "'s turn";
-      var colorLabel = yourColor === "w" ? "White" : "Black";
-      html += '<div class="chess-status">';
-      html += 'You: ' + colorLabel + ' &mdash; ' + turnLabel;
-      if (inCheck) html += ' <strong style="color:#dc2626">(Check!)</strong>';
-      html += '</div>';
+    // If it looks like a peer ID (starts with 12D3 or is very long), show as "Player N"
+    if (label.startsWith('12D3') || label.length > 30) {
+      return 'Player ' + rank;
     }
-
-    // Board - render from white's perspective if playing white, otherwise flip
-    var flipped = (yourColor === "b");
-    html += '<div class="chess-board">';
-
-    for (var row = 0; row < 8; row++) {
-      for (var col = 0; col < 8; col++) {
-        var rank = flipped ? (row + 1) : (8 - row);
-        var file = flipped ? (8 - col) : (col + 1);
-        var sq = String.fromCharCode(96 + file) + rank;
-        var piece = board[sq];
-        var isLight = (rank + file) % 2 === 0;
-        var cls = "chess-cell " + (isLight ? "light" : "dark");
-
-        if (sq === selectedSquare) cls += " selected";
-        if (legalMoves.indexOf(sq) !== -1) {
-          cls += piece ? " legal-capture" : " legal-move";
-        }
-
-        // Highlight king in check
-        if (inCheck && piece && piece.toLowerCase() === "k" && pieceColor(piece) === turn) {
-          cls += " in-check";
-        }
-
-        var pieceHtml = "";
-        if (piece) {
-          var pColor = pieceColor(piece) === "w" ? "white" : "black";
-          pieceHtml = '<span class="piece ' + pColor + '">' + PIECES[piece] + '</span>';
-        }
-
-        html += '<div class="' + cls + '" data-sq="' + sq + '">' + pieceHtml + '</div>';
-      }
-    }
-    html += '</div>';
-
-    // Actions
-    if (gameOver) {
-      html += '<div class="chess-game-actions">';
-      if (state.mode === "pve") {
-        html += '<button class="btn btn-primary" id="btn-rematch-pve">Play Again</button>';
-      }
-      html += '<button class="btn btn-secondary" id="btn-back">Back to Lobby</button>';
-      html += '</div>';
-    } else {
-      html += '<div class="chess-game-actions">';
-      html += '<button class="btn btn-danger btn-sm" id="btn-resign">Resign</button>';
-      html += '</div>';
-    }
-
-    // Move history
-    if (state.moves) {
-      html += '<div class="chess-moves">' + esc(state.moves) + '</div>';
-    }
-
-    html += '</div>';
-    root.innerHTML = html;
-
-    // Click handlers for cells
-    if (!gameOver && isYourTurn) {
-      root.querySelectorAll(".chess-cell").forEach(function (cell) {
-        cell.onclick = function () {
-          var sq = cell.getAttribute("data-sq");
-          handleCellClick(sq, board, yourColor, state);
-        };
-      });
-    }
-
-    // Button handlers
-    var btnResign = document.getElementById("btn-resign");
-    if (btnResign) {
-      btnResign.onclick = function () {
-        showConfirmDialog("Are you sure you want to resign?", async function () {
-          await db.call("chess", { action: "resign", game_id: state.game_id || currentGameId });
-          notifyOpponent("resigned");
-          showLobby();
-        });
-      };
-    }
-
-    var btnRematchPve = document.getElementById("btn-rematch-pve");
-    if (btnRematchPve) {
-      btnRematchPve.onclick = async function () {
-        btnRematchPve.disabled = true;
-        try {
-          var result = await db.call("chess", { action: "new_pve" });
-          if (result.error) {
-            Goop.ui.toast({ title: "Error", message: result.error });
-            btnRematchPve.disabled = false;
-          } else {
-            currentGameId = result.game_id;
-            renderGame(result);
-          }
-        } catch (e) {
-          Goop.ui.toast({ title: "Error", message: e.message || "Error starting game." });
-          btnRematchPve.disabled = false;
-        }
-      };
-    }
-
-    var btnBack = document.getElementById("btn-back");
-    if (btnBack) {
-      btnBack.onclick = function () { showLobby(); };
-    }
-  }
-
-  async function handleCellClick(sq, board, yourColor, state) {
-    var piece = board[sq];
-
-    if (selectedSquare) {
-      // Check if clicking on a legal move
-      if (legalMoves.indexOf(sq) !== -1) {
-        // Check for pawn promotion
-        var movingPiece = board[selectedSquare];
-        var rank = parseInt(sq[1]);
-        if (movingPiece && movingPiece.toLowerCase() === "p" &&
-            ((yourColor === "w" && rank === 8) || (yourColor === "b" && rank === 1))) {
-          showPromotionDialog(selectedSquare, sq, yourColor, state);
-          return;
-        }
-
-        await makeMove(selectedSquare, sq, null, state);
-        return;
-      }
-
-      // Clicking on own piece - select it instead
-      if (piece && pieceColor(piece) === yourColor) {
-        selectedSquare = sq;
-        legalMoves = await getLegalMoves(sq, state);
-        renderGame(state);
-        return;
-      }
-
-      // Clicking elsewhere - deselect
-      selectedSquare = null;
-      legalMoves = [];
-      renderGame(state);
-      return;
-    }
-
-    // No selection - select own piece
-    if (piece && pieceColor(piece) === yourColor) {
-      selectedSquare = sq;
-      legalMoves = await getLegalMoves(sq, state);
-      renderGame(state);
-    }
-  }
-
-  function showPromotionDialog(from, to, color, state) {
-    var overlay = document.createElement("div");
-    overlay.className = "promo-overlay";
-
-    var pieces = color === "w" ? ["Q", "R", "B", "N"] : ["q", "r", "b", "n"];
-    var promoTypes = ["q", "r", "b", "n"];
-
-    var html = '<div class="promo-dialog">';
-    html += '<h3>Promote to:</h3>';
-    html += '<div class="promo-pieces">';
-    for (var i = 0; i < pieces.length; i++) {
-      var pColor = color === "w" ? "white" : "black";
-      html += '<div class="promo-piece" data-promo="' + promoTypes[i] + '">';
-      html += '<span class="piece ' + pColor + '">' + PIECES[pieces[i]] + '</span>';
-      html += '</div>';
-    }
-    html += '</div></div>';
-    overlay.innerHTML = html;
-    document.body.appendChild(overlay);
-
-    overlay.querySelectorAll(".promo-piece").forEach(function (el) {
-      el.onclick = async function () {
-        var promo = el.getAttribute("data-promo");
-        overlay.remove();
-        await makeMove(from, to, promo, state);
-      };
-    });
-  }
-
-  async function makeMove(from, to, promotion, state) {
-    selectedSquare = null;
-    legalMoves = [];
-
-    try {
-      var result = await db.call("move", {
-        game_id: state.game_id || currentGameId,
-        from: from,
-        to: to,
-        promotion: promotion
-      });
-
-      if (result.error) {
-        Goop.ui.toast({ title: "Error", message: result.error });
-        renderGame(state);
-        return;
-      }
-
-      if (!result.game_id) result.game_id = state.game_id || currentGameId;
-      if (!result.challenger_label) result.challenger_label = state.challenger_label;
-      renderGame(result);
-
-      // Notify opponent instantly via realtime channel
-      notifyOpponent("move_made");
-
-      // Start polling for opponent's move in PvP
-      if (result.mode === "pvp" && result.status === "playing") {
-        startPolling(result.game_id);
-      }
-    } catch (e) {
-      Goop.ui.toast({ title: "Error", message: e.message || "Error making move." });
-      renderGame(state);
-    }
-  }
-
-  async function getLegalMoves(sq, state) {
-    // For now, we'll calculate legal moves client-side based on piece type
-    // This is a simplified version - the server validates actual moves
-    var fen = state.fen;
-    var board = parseFen(fen);
-    var piece = board[sq];
-    if (!piece) return [];
-
-    var moves = [];
-    var color = pieceColor(piece);
-    var pieceType = piece.toLowerCase();
-    var file = sq.charCodeAt(0) - 96;
-    var rank = parseInt(sq[1]);
-
-    if (pieceType === "p") {
-      var dir = color === "w" ? 1 : -1;
-      var startRank = color === "w" ? 2 : 7;
-
-      // Forward
-      var fwd = toSq(file, rank + dir);
-      if (fwd && !board[fwd]) {
-        moves.push(fwd);
-        // Double push
-        if (rank === startRank) {
-          var fwd2 = toSq(file, rank + 2 * dir);
-          if (fwd2 && !board[fwd2]) moves.push(fwd2);
-        }
-      }
-      // Captures
-      [-1, 1].forEach(function (df) {
-        var cap = toSq(file + df, rank + dir);
-        if (cap && board[cap] && pieceColor(board[cap]) !== color) {
-          moves.push(cap);
-        }
-        // En passant (simplified check)
-        var fenParts = fen.split(" ");
-        if (fenParts[3] && fenParts[3] === cap) {
-          moves.push(cap);
-        }
-      });
-    } else if (pieceType === "n") {
-      [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]].forEach(function (d) {
-        var nsq = toSq(file + d[0], rank + d[1]);
-        if (nsq && (!board[nsq] || pieceColor(board[nsq]) !== color)) {
-          moves.push(nsq);
-        }
-      });
-    } else if (pieceType === "b") {
-      [[1,1],[1,-1],[-1,1],[-1,-1]].forEach(function (d) {
-        addSliding(board, file, rank, d[0], d[1], color, moves);
-      });
-    } else if (pieceType === "r") {
-      [[1,0],[-1,0],[0,1],[0,-1]].forEach(function (d) {
-        addSliding(board, file, rank, d[0], d[1], color, moves);
-      });
-    } else if (pieceType === "q") {
-      [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]].forEach(function (d) {
-        addSliding(board, file, rank, d[0], d[1], color, moves);
-      });
-    } else if (pieceType === "k") {
-      [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]].forEach(function (d) {
-        var ksq = toSq(file + d[0], rank + d[1]);
-        if (ksq && (!board[ksq] || pieceColor(board[ksq]) !== color)) {
-          moves.push(ksq);
-        }
-      });
-      // Castling (simplified)
-      var fenParts = fen.split(" ");
-      var castling = fenParts[2] || "";
-      var backRank = color === "w" ? 1 : 8;
-      if (rank === backRank && file === 5) {
-        if ((color === "w" && castling.indexOf("K") !== -1) ||
-            (color === "b" && castling.indexOf("k") !== -1)) {
-          if (!board[toSq(6, backRank)] && !board[toSq(7, backRank)]) {
-            moves.push(toSq(7, backRank));
-          }
-        }
-        if ((color === "w" && castling.indexOf("Q") !== -1) ||
-            (color === "b" && castling.indexOf("q") !== -1)) {
-          if (!board[toSq(2, backRank)] && !board[toSq(3, backRank)] && !board[toSq(4, backRank)]) {
-            moves.push(toSq(3, backRank));
-          }
-        }
-      }
-    }
-
-    return moves;
-  }
-
-  function addSliding(board, file, rank, df, dr, color, moves) {
-    var f = file + df;
-    var r = rank + dr;
-    while (f >= 1 && f <= 8 && r >= 1 && r <= 8) {
-      var sq = toSq(f, r);
-      var target = board[sq];
-      if (target) {
-        if (pieceColor(target) !== color) moves.push(sq);
-        break;
-      }
-      moves.push(sq);
-      f += df;
-      r += dr;
-    }
-  }
-
-  function toSq(file, rank) {
-    if (file < 1 || file > 8 || rank < 1 || rank > 8) return null;
-    return String.fromCharCode(96 + file) + rank;
-  }
-
-  function parseFen(fen) {
-    var board = {};
-    var parts = fen.split(" ");
-    var position = parts[0];
-    var ranks = position.split("/");
-
-    for (var i = 0; i < 8; i++) {
-      var rankData = ranks[i];
-      var file = 1;
-      for (var j = 0; j < rankData.length; j++) {
-        var c = rankData[j];
-        if (c >= "1" && c <= "8") {
-          file += parseInt(c);
-        } else {
-          var sq = String.fromCharCode(96 + file) + (8 - i);
-          board[sq] = c;
-          file++;
-        }
-      }
-    }
-
-    return board;
-  }
-
-  function pieceColor(piece) {
-    if (!piece) return null;
-    return piece === piece.toUpperCase() ? "w" : "b";
-  }
-
-  function timeAgo(ts) {
-    if (!ts) return "";
-    var now = new Date();
-    var then = new Date(ts.replace(" ", "T") + "Z");
-    var diff = Math.floor((now - then) / 1000);
-    if (diff < 60) return "just now";
-    if (diff < 3600) return Math.floor(diff / 60) + "m ago";
-    if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
-    return Math.floor(diff / 86400) + "d ago";
+    return label;
   }
 
   function esc(s) {
-    if (!s) return "";
-    var d = document.createElement("div");
+    if (!s) return '';
+    var d = document.createElement('div');
     d.appendChild(document.createTextNode(s));
     return d.innerHTML;
   }
 
-  function showConfirmDialog(message, onConfirm) {
-    var overlay = document.createElement("div");
-    overlay.className = "promo-overlay";
+  // ========================================================================
+  // UI Event handlers
+  // ========================================================================
+  startBtn.onclick = function() {
+    scenes.switch('game');
+    canvas.focus();
+  };
 
-    var html = '<div class="promo-dialog confirm-dialog">';
-    html += '<h3>' + esc(message) + '</h3>';
-    html += '<div class="confirm-actions">';
-    html += '<button class="btn btn-secondary" id="confirm-cancel">Cancel</button>';
-    html += '<button class="btn btn-danger" id="confirm-ok">Resign</button>';
-    html += '</div></div>';
-    overlay.innerHTML = html;
-    document.body.appendChild(overlay);
+  leaderboardBtn.onclick = function() {
+    showLeaderboard();
+  };
 
-    document.getElementById("confirm-cancel").onclick = function () {
-      overlay.remove();
-    };
-    document.getElementById("confirm-ok").onclick = function () {
-      overlay.remove();
-      onConfirm();
-    };
+  closeLeaderboard.onclick = function() {
+    modalOpen = false;
+    leaderboardModal.classList.add('hidden');
+  };
+
+  leaderboardModal.onclick = function(e) {
+    if (e.target === leaderboardModal) {
+      modalOpen = false;
+      leaderboardModal.classList.add('hidden');
+    }
+  };
+
+  // ========================================================================
+  // Initialize
+  // ========================================================================
+  function init() {
+    input.bind(canvas);
+    canvas.focus();
+
+    scenes.switch('title');
+
+    loop.start(
+      function(dt) {
+        scenes.update(dt);
+        input.update();
+      },
+      function() {
+        scenes.render(renderer);
+      }
+    );
   }
+
+  init();
 })();
