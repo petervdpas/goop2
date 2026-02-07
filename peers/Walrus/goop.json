@@ -18,7 +18,7 @@
     "rendezvous_host": false,
     "rendezvous_port": 8787,
     "rendezvous_bind": "127.0.0.1",
-    "rendezvous_wan": "http://127.0.0.1:8787/",
+    "rendezvous_wan": "https://goop2.com",
     "rendezvous_only": false,
     "admin_password": "",
     "templates_dir": "templates",
@@ -27,6 +27,8 @@
     "external_url": "",
     "registration_required": false,
     "registration_webhook": "",
+    "relay_port": 0,
+    "relay_key_file": "data/relay.key",
     "smtp_host": "",
     "smtp_port": 0,
     "smtp_username": "",
@@ -42,7 +44,8 @@
     "debug": false,
     "theme": "dark",
     "preferred_cam": "",
-    "preferred_mic": ""
+    "preferred_mic": "",
+    "video_disabled": false
   },
   "lua": {
     "enabled": true,
