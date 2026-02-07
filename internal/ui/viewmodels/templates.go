@@ -3,8 +3,8 @@
 package viewmodels
 
 import (
-	"goop/internal/rendezvous"
-	"goop/internal/sitetemplates"
+	"github.com/petervdpas/goop2/internal/rendezvous"
+	"github.com/petervdpas/goop2/internal/sitetemplates"
 )
 
 type TemplatesVM struct {

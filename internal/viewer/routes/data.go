@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"goop/internal/storage"
+	"github.com/petervdpas/goop2/internal/storage"
 )
 
 // RegisterData adds data/storage API endpoints

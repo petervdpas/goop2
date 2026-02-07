@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"goop/internal/storage"
+	"github.com/petervdpas/goop2/internal/storage"
 
 	lua "github.com/yuin/gopher-lua"
 )

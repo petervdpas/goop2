@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"goop/internal/group"
+	"github.com/petervdpas/goop2/internal/group"
 )
 
 // Channel represents an active realtime channel between two peers.

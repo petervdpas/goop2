@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	"goop/internal/realtime"
+	"github.com/petervdpas/goop2/internal/realtime"
 )
 
 // RegisterRealtime adds realtime channel HTTP API endpoints.

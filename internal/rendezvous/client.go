@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"goop/internal/proto"
+	"github.com/petervdpas/goop2/internal/proto"
 )
 
 type Client struct {

@@ -13,10 +13,10 @@ import (
 	"sync"
 	"time"
 
-	"goop/internal/config"
-	"goop/internal/state"
-	"goop/internal/storage"
-	"goop/internal/util"
+	"github.com/petervdpas/goop2/internal/config"
+	"github.com/petervdpas/goop2/internal/state"
+	"github.com/petervdpas/goop2/internal/storage"
+	"github.com/petervdpas/goop2/internal/util"
 
 	"github.com/fsnotify/fsnotify"
 	lua "github.com/yuin/gopher-lua"

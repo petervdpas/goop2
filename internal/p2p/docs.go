@@ -17,8 +17,8 @@ import (
 	"strconv"
 	"strings"
 
-	"goop/internal/docs"
-	"goop/internal/proto"
+	"github.com/petervdpas/goop2/internal/docs"
+	"github.com/petervdpas/goop2/internal/proto"
 
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"

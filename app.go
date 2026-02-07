@@ -16,9 +16,9 @@ import (
 	"sync"
 	"time"
 
-	goopapp "goop/internal/app"
-	"goop/internal/config"
-	"goop/internal/util"
+	goopapp "github.com/petervdpas/goop2/internal/app"
+	"github.com/petervdpas/goop2/internal/config"
+	"github.com/petervdpas/goop2/internal/util"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )

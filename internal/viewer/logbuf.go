@@ -4,7 +4,7 @@ package viewer
 import (
 	"bytes"
 	"encoding/json"
-	"goop/internal/util"
+	"github.com/petervdpas/goop2/internal/util"
 	"net/http"
 	"strings"
 	"sync"

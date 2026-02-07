@@ -12,8 +12,8 @@ import (
 	"runtime"
 	"strings"
 
-	"goop/internal/config"
-	"goop/internal/ui/viewmodels"
+	"github.com/petervdpas/goop2/internal/config"
+	"github.com/petervdpas/goop2/internal/ui/viewmodels"
 )
 
 func baseVM(title, active, contentTmpl string, d Deps) viewmodels.BaseVM {

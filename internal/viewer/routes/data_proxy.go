@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"goop/internal/p2p"
-	"goop/internal/storage"
+	"github.com/petervdpas/goop2/internal/p2p"
+	"github.com/petervdpas/goop2/internal/storage"
 )
 
 // RegisterDataProxy mounts the /api/p/ prefix that relays data API calls

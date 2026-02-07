@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	"goop/internal/state"
+	"github.com/petervdpas/goop2/internal/state"
 )
 
 type PeerRow struct {

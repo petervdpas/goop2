@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"goop/internal/avatar"
+	"github.com/petervdpas/goop2/internal/avatar"
 )
 
 func registerAvatarRoutes(mux *http.ServeMux, d Deps) {

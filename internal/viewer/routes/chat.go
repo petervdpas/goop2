@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"goop/internal/chat"
+	"github.com/petervdpas/goop2/internal/chat"
 )
 
 // RegisterChat adds chat-related HTTP endpoints

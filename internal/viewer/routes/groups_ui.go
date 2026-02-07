@@ -3,8 +3,8 @@ package routes
 import (
 	"net/http"
 
-	"goop/internal/ui/render"
-	"goop/internal/ui/viewmodels"
+	"github.com/petervdpas/goop2/internal/ui/render"
+	"github.com/petervdpas/goop2/internal/ui/viewmodels"
 )
 
 func registerGroupsUIRoutes(mux *http.ServeMux, d Deps) {

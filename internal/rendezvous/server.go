@@ -20,8 +20,8 @@ import (
 	"sync"
 	"time"
 
-	"goop/internal/proto"
-	"goop/internal/util"
+	"github.com/petervdpas/goop2/internal/proto"
+	"github.com/petervdpas/goop2/internal/util"
 
 	"github.com/libp2p/go-libp2p/core/host"
 )
@@ -75,7 +75,8 @@ type Server struct {
 	docsSite     *DocSite
 
 	templateStore *TemplateStore
-	peerDB        *peerDB // nil when persistence is disabled
+	peerDB        *peerDB         // nil when persistence is disabled
+	credits       CreditProvider  // default: NoCredits{}
 
 	// Circuit relay v2
 	relayHost    host.Host  // nil when relay is disabled
@@ -256,8 +257,15 @@ func New(addr string, templatesDirs []string, peerDBPath string, adminPassword s
 	}
 
 	s.templateStore = NewTemplateStore(templatesDirs)
+	s.credits = NoCredits{}
 
 	return s
+}
+
+// SetCreditProvider replaces the default NoCredits provider.
+// Must be called before Start.
+func (s *Server) SetCreditProvider(cp CreditProvider) {
+	s.credits = cp
 }
 
 func (s *Server) Start(ctx context.Context) error {
@@ -430,6 +438,9 @@ func (s *Server) Start(ctx context.Context) error {
 
 		w.WriteHeader(http.StatusNoContent)
 	})
+
+	// Credit provider routes (e.g. /api/credits/*)
+	s.credits.RegisterRoutes(mux)
 
 	// Template store API
 	if s.templateStore != nil {
@@ -1074,9 +1085,13 @@ func (s *Server) handleTemplateRoutes(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(meta)
 
 	case "bundle":
-		_, ok := s.templateStore.GetManifest(dir)
+		meta, ok := s.templateStore.GetManifest(dir)
 		if !ok {
 			http.NotFound(w, r)
+			return
+		}
+		if !s.credits.TemplateAccessAllowed(r, meta) {
+			http.Error(w, "payment required", http.StatusPaymentRequired)
 			return
 		}
 		w.Header().Set("Content-Type", "application/gzip")

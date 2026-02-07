@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"goop/internal/proto"
-	"goop/internal/storage"
+	"github.com/petervdpas/goop2/internal/proto"
+	"github.com/petervdpas/goop2/internal/storage"
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"

@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"goop/internal/avatar"
-	"goop/internal/proto"
+	"github.com/petervdpas/goop2/internal/avatar"
+	"github.com/petervdpas/goop2/internal/proto"
 
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"

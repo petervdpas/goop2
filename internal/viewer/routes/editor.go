@@ -7,9 +7,9 @@ import (
 	"path"
 	"strings"
 
-	"goop/internal/content"
-	"goop/internal/ui/render"
-	"goop/internal/ui/viewmodels"
+	"github.com/petervdpas/goop2/internal/content"
+	"github.com/petervdpas/goop2/internal/ui/render"
+	"github.com/petervdpas/goop2/internal/ui/viewmodels"
 )
 
 func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {

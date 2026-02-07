@@ -10,11 +10,11 @@ import (
 	"regexp"
 	"strings"
 
-	"goop/internal/config"
-	"goop/internal/luaprefabs"
-	"goop/internal/ui/render"
-	"goop/internal/ui/viewmodels"
-	"goop/internal/util"
+	"github.com/petervdpas/goop2/internal/config"
+	"github.com/petervdpas/goop2/internal/luaprefabs"
+	"github.com/petervdpas/goop2/internal/ui/render"
+	"github.com/petervdpas/goop2/internal/ui/viewmodels"
+	"github.com/petervdpas/goop2/internal/util"
 )
 
 var validScriptName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)

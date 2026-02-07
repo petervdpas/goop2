@@ -1,7 +1,7 @@
 package lua
 
 import (
-	"goop/internal/storage"
+	"github.com/petervdpas/goop2/internal/storage"
 
 	lua "github.com/yuin/gopher-lua"
 )

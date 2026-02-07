@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"goop/internal/docs"
+	"github.com/petervdpas/goop2/internal/docs"
 )
 
 func registerDocsRoutes(mux *http.ServeMux, d Deps) {

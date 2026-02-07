@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"goop/internal/util"
+	"github.com/petervdpas/goop2/internal/util"
 	"net"
 	"net/url"
 	"os"

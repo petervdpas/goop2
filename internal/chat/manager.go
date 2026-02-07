@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"goop/internal/util"
+	"github.com/petervdpas/goop2/internal/util"
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"

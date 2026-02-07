@@ -2,7 +2,7 @@
 
 package viewmodels
 
-import "goop/internal/config"
+import "github.com/petervdpas/goop2/internal/config"
 
 type SettingsVM struct {
 	BaseVM

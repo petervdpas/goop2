@@ -16,11 +16,11 @@ import (
 	"strings"
 	"time"
 
-	"goop/internal/rendezvous"
-	"goop/internal/sitetemplates"
-	"goop/internal/storage"
-	"goop/internal/ui/render"
-	"goop/internal/ui/viewmodels"
+	"github.com/petervdpas/goop2/internal/rendezvous"
+	"github.com/petervdpas/goop2/internal/sitetemplates"
+	"github.com/petervdpas/goop2/internal/storage"
+	"github.com/petervdpas/goop2/internal/ui/render"
+	"github.com/petervdpas/goop2/internal/ui/viewmodels"
 )
 
 func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {

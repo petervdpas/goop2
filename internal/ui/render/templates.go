@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"goop/internal/ui"
+	"github.com/petervdpas/goop2/internal/ui"
 )
 
 var (

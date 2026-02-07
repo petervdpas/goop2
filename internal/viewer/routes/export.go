@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"goop/internal/config"
+	"github.com/petervdpas/goop2/internal/config"
 )
 
 // ExportManifest is written as manifest.json inside the export zip.

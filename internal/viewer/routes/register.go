@@ -4,14 +4,14 @@ package routes
 import (
 	"net/http"
 
-	"goop/internal/avatar"
-	"goop/internal/content"
-	"goop/internal/docs"
-	"goop/internal/group"
-	"goop/internal/p2p"
-	"goop/internal/rendezvous"
-	"goop/internal/state"
-	"goop/internal/storage"
+	"github.com/petervdpas/goop2/internal/avatar"
+	"github.com/petervdpas/goop2/internal/content"
+	"github.com/petervdpas/goop2/internal/docs"
+	"github.com/petervdpas/goop2/internal/group"
+	"github.com/petervdpas/goop2/internal/p2p"
+	"github.com/petervdpas/goop2/internal/rendezvous"
+	"github.com/petervdpas/goop2/internal/state"
+	"github.com/petervdpas/goop2/internal/storage"
 )
 
 type Logs interface {

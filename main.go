@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"goop/internal/app"
-	"goop/internal/config"
+	"github.com/petervdpas/goop2/internal/app"
+	"github.com/petervdpas/goop2/internal/config"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"

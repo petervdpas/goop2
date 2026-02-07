@@ -4,19 +4,19 @@ package viewer
 import (
 	"net/http"
 
-	"goop/internal/avatar"
-	"goop/internal/chat"
-	"goop/internal/content"
-	"goop/internal/docs"
-	"goop/internal/group"
-	"goop/internal/p2p"
-	"goop/internal/realtime"
-	"goop/internal/rendezvous"
-	"goop/internal/state"
-	"goop/internal/storage"
-	viewerassets "goop/internal/ui/assets"
-	"goop/internal/ui/render"
-	"goop/internal/viewer/routes"
+	"github.com/petervdpas/goop2/internal/avatar"
+	"github.com/petervdpas/goop2/internal/chat"
+	"github.com/petervdpas/goop2/internal/content"
+	"github.com/petervdpas/goop2/internal/docs"
+	"github.com/petervdpas/goop2/internal/group"
+	"github.com/petervdpas/goop2/internal/p2p"
+	"github.com/petervdpas/goop2/internal/realtime"
+	"github.com/petervdpas/goop2/internal/rendezvous"
+	"github.com/petervdpas/goop2/internal/state"
+	"github.com/petervdpas/goop2/internal/storage"
+	viewerassets "github.com/petervdpas/goop2/internal/ui/assets"
+	"github.com/petervdpas/goop2/internal/ui/render"
+	"github.com/petervdpas/goop2/internal/viewer/routes"
 )
 
 type Viewer struct {

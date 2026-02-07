@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"goop/internal/config"
+	"github.com/petervdpas/goop2/internal/config"
 )
 
 func PromptInteractive(peerDir, cfgPath string, cfg config.Config) config.Config {

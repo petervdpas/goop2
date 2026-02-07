@@ -1,4 +1,4 @@
-module goop
+module github.com/petervdpas/goop2
 
 go 1.24.0
 

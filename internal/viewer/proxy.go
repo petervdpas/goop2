@@ -6,7 +6,7 @@ import (
 	"path"
 	"strings"
 
-	"goop/internal/util"
+	"github.com/petervdpas/goop2/internal/util"
 )
 
 func proxyPeerSite(v Viewer) http.HandlerFunc {

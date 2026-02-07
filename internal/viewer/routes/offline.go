@@ -6,7 +6,7 @@ import (
 	"context"
 	"net/http"
 
-	"goop/internal/proto"
+	"github.com/petervdpas/goop2/internal/proto"
 )
 
 func registerOfflineRoutes(mux *http.ServeMux, d Deps) {

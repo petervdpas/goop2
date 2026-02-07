@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"time"
 
-	"goop/internal/group"
-	"goop/internal/storage"
+	"github.com/petervdpas/goop2/internal/group"
+	"github.com/petervdpas/goop2/internal/storage"
 )
 
 // RegisterGroups adds group-related HTTP API endpoints.

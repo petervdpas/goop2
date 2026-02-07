@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"goop/internal/config"
-	"goop/internal/ui/render"
-	"goop/internal/ui/viewmodels"
+	"github.com/petervdpas/goop2/internal/config"
+	"github.com/petervdpas/goop2/internal/ui/render"
+	"github.com/petervdpas/goop2/internal/ui/viewmodels"
 )
 
 func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
