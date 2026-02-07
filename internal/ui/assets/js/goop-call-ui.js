@@ -45,14 +45,14 @@
       "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;",
       "  color: #e0e0e0; font-size: 13px;",
       "}",
-      ".goop-call-videos { display: flex; gap: 8px; }",
+      ".goop-call-videos { position: relative; }",
       ".goop-call-videos video {",
       "  border-radius: 8px; background: #000; object-fit: cover;",
       "}",
       ".goop-call-remote { width: 240px; height: 180px; }",
       ".goop-call-local {",
-      "  width: 80px; height: 60px; position: absolute; bottom: 60px; right: 20px;",
-      "  border: 2px solid #333; z-index: 1;",
+      "  width: 80px; height: 60px; position: absolute; bottom: 4px; right: 4px;",
+      "  border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; z-index: 1;",
       "}",
       ".goop-call-controls {",
       "  display: flex; gap: 8px; justify-content: center; padding-top: 4px;",
@@ -145,6 +145,123 @@
     if (incomingEl.backdrop.parentNode) incomingEl.backdrop.parentNode.removeChild(incomingEl.backdrop);
     if (incomingEl.modal.parentNode) incomingEl.modal.parentNode.removeChild(incomingEl.modal);
     incomingEl = null;
+  }
+
+  // ── Soft navigation (keeps call alive across page changes) ─────────────────
+
+  var softNavInstalled = false;
+
+  function softNavHandler(e) {
+    var a = e.target.closest ? e.target.closest('a') : null;
+    if (!a) return;
+
+    // Skip if no active call
+    if (!currentSession) return;
+
+    // Skip modifier-key clicks (new tab, etc.)
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+
+    var href = a.getAttribute('href');
+    if (!href) return;
+
+    // Skip non-navigational links
+    if (href.startsWith('#') || href.startsWith('javascript:')) return;
+
+    // Skip external links
+    try {
+      var target = new URL(href, window.location.origin);
+      if (target.origin !== window.location.origin) return;
+    } catch(_) {
+      return;
+    }
+
+    // Skip links with explicit target
+    if (a.target && a.target !== '_self') return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    softNavigateTo(target.href);
+  }
+
+  function softNavigateTo(url) {
+    fetch(url, { credentials: 'same-origin' })
+      .then(function(resp) {
+        if (!resp.ok) {
+          log('warn', 'Soft nav fetch failed: ' + resp.status);
+          return;
+        }
+        return resp.text();
+      })
+      .then(function(html) {
+        if (!html) return;
+
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+
+        // Swap content
+        var newContent = doc.querySelector('.content');
+        var curContent = document.querySelector('.content');
+        if (newContent && curContent) {
+          curContent.innerHTML = newContent.innerHTML;
+
+          // Re-execute inline scripts from new content
+          var scripts = curContent.querySelectorAll('script');
+          for (var i = 0; i < scripts.length; i++) {
+            var oldScript = scripts[i];
+            var newScript = document.createElement('script');
+            if (oldScript.src) {
+              newScript.src = oldScript.src;
+            } else {
+              newScript.textContent = oldScript.textContent;
+            }
+            oldScript.parentNode.replaceChild(newScript, oldScript);
+          }
+        }
+
+        // Update URL
+        history.pushState(null, '', url);
+
+        // Update title
+        var newTitle = doc.querySelector('title');
+        if (newTitle) {
+          document.title = newTitle.textContent;
+        }
+
+        // Update nav active state
+        var navItems = document.querySelectorAll('.topnav .navitem');
+        for (var j = 0; j < navItems.length; j++) {
+          var item = navItems[j];
+          var itemHref = item.getAttribute('href');
+          if (itemHref && new URL(url).pathname.startsWith(itemHref)) {
+            item.classList.add('active');
+          } else {
+            item.classList.remove('active');
+          }
+        }
+      })
+      .catch(function(err) {
+        log('error', 'Soft nav error: ' + err.message);
+      });
+  }
+
+  function softNavPopState() {
+    if (!currentSession) return;
+    softNavigateTo(window.location.href);
+  }
+
+  function installSoftNav() {
+    if (softNavInstalled) return;
+    softNavInstalled = true;
+    document.addEventListener('click', softNavHandler, true);
+    window.addEventListener('popstate', softNavPopState);
+    log('info', 'Soft navigation installed (call active)');
+  }
+
+  function removeSoftNav() {
+    if (!softNavInstalled) return;
+    softNavInstalled = false;
+    document.removeEventListener('click', softNavHandler, true);
+    window.removeEventListener('popstate', softNavPopState);
+    log('info', 'Soft navigation removed');
   }
 
   // ── Active call overlay ─────────────────────────────────────────────────────
@@ -268,14 +385,20 @@
 
     overlayEl = el;
     document.body.appendChild(el);
+    installSoftNav();
   }
 
   function removeOverlay() {
+    var wasActive = !!overlayEl;
     if (overlayEl && overlayEl.parentNode) {
       overlayEl.parentNode.removeChild(overlayEl);
     }
     overlayEl = null;
     currentSession = null;
+    if (wasActive && softNavInstalled) {
+      removeSoftNav();
+      window.location.reload();
+    }
   }
 
   function escapeHtml(s) {
