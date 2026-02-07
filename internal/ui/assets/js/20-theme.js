@@ -36,8 +36,10 @@
 
   async function saveThemeToConfig(theme) {
     try {
-      await fetch("/api/theme?theme=" + encodeURIComponent(theme), {
+      await fetch("/api/settings/quick", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ theme }),
       });
     } catch {
       // ignore: best-effort

@@ -198,6 +198,21 @@ func requireContentStore(w http.ResponseWriter, store any) bool {
 	return true
 }
 
+// isValidTheme returns true for allowed theme values.
+func isValidTheme(s string) bool {
+	return s == "light" || s == "dark"
+}
+
+// formBool parses an HTML checkbox/toggle form value as a bool.
+// Truthy values: "on", "1", "true", "yes" (case-insensitive).
+func formBool(form map[string][]string, key string) bool {
+	switch strings.ToLower(getTrimmedPostFormValue(form, key)) {
+	case "on", "1", "true", "yes":
+		return true
+	}
+	return false
+}
+
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(v)

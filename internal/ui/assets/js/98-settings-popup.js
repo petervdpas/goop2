@@ -62,60 +62,21 @@
 
     // ── Theme section ──
     body.appendChild(sectionLabel('Appearance'));
-
-    var themeWrap = el('div', '', '');
-    var themeLbl = el('label', 'small muted');
-    themeLbl.textContent = 'Theme';
-    themeLbl.style.display = 'block';
-    themeLbl.style.marginBottom = '4px';
-    themeWrap.appendChild(themeLbl);
-
-    if (gsel()) {
-      themeWrap.innerHTML += Goop.select.html({
-        id: 'settings-theme',
-        value: theme,
-        options: [
-          { value: 'dark', label: 'Dark' },
-          { value: 'light', label: 'Light' }
-        ]
-      });
-    }
-    body.appendChild(themeWrap);
+    body.appendChild(selectField('Theme', {
+      id: 'settings-theme', value: theme,
+      options: [{ value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }]
+    }));
 
     // ── Devices section ──
     body.appendChild(sectionLabel('Devices'));
 
-    var camWrap = el('div', '', '');
-    var camLbl = el('label', 'small muted');
-    camLbl.textContent = 'Camera';
-    camLbl.style.display = 'block';
-    camLbl.style.marginBottom = '4px';
-    camWrap.appendChild(camLbl);
-    if (gsel()) {
-      camWrap.innerHTML += Goop.select.html({
-        id: 'settings-camera',
-        value: '',
-        placeholder: 'System default',
-        options: [{ value: '', label: 'System default' }]
-      });
-    }
-    body.appendChild(camWrap);
-
-    var micWrap = el('div', '', '');
-    var micLbl = el('label', 'small muted');
-    micLbl.textContent = 'Microphone';
-    micLbl.style.display = 'block';
-    micLbl.style.marginBottom = '4px';
-    micWrap.appendChild(micLbl);
-    if (gsel()) {
-      micWrap.innerHTML += Goop.select.html({
-        id: 'settings-mic',
-        value: '',
-        placeholder: 'System default',
-        options: [{ value: '', label: 'System default' }]
-      });
-    }
-    body.appendChild(micWrap);
+    var defaultDev = [{ value: '', label: 'System default' }];
+    body.appendChild(selectField('Camera', {
+      id: 'settings-camera', value: '', placeholder: 'System default', options: defaultDev
+    }));
+    body.appendChild(selectField('Microphone', {
+      id: 'settings-mic', value: '', placeholder: 'System default', options: defaultDev
+    }));
 
     dlg.appendChild(body);
 
@@ -179,6 +140,17 @@
     inp.placeholder = placeholder;
     inp.value = value;
     wrap.appendChild(inp);
+    return wrap;
+  }
+
+  function selectField(labelText, selectOpts) {
+    var wrap = el('div', '', '');
+    var lbl = el('label', 'small muted');
+    lbl.textContent = labelText;
+    lbl.style.display = 'block';
+    lbl.style.marginBottom = '4px';
+    wrap.appendChild(lbl);
+    if (gsel()) wrap.innerHTML += Goop.select.html(selectOpts);
     return wrap;
   }
 

@@ -17,39 +17,8 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		http.Redirect(w, r, "/self#settings", http.StatusFound)
 	})
 
-	// API endpoint to save theme (used by header toggle)
-	mux.HandleFunc("/api/theme", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		if !isLocalRequest(r) {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-
-		theme := r.URL.Query().Get("theme")
-		if theme != "light" && theme != "dark" {
-			http.Error(w, "invalid theme", http.StatusBadRequest)
-			return
-		}
-
-		cfg, err := config.Load(d.CfgPath)
-		if err != nil {
-			http.Error(w, "failed to load config", http.StatusInternalServerError)
-			return
-		}
-
-		cfg.Viewer.Theme = theme
-		if err := config.Save(d.CfgPath, cfg); err != nil {
-			http.Error(w, "failed to save config", http.StatusInternalServerError)
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-	})
-
-	// Quick settings API — saves only profile + theme (no CSRF form needed)
+	// Quick settings API — partial update, only non-nil fields are written.
+	// Used by settings popup (all fields), theme toggle (theme only), etc.
 	mux.HandleFunc("/api/settings/quick", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -61,9 +30,9 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 
 		var req struct {
-			Label        string  `json:"label"`
-			Email        string  `json:"email"`
-			Theme        string  `json:"theme"`
+			Label        *string `json:"label"`
+			Email        *string `json:"email"`
+			Theme        *string `json:"theme"`
 			PreferredCam *string `json:"preferred_cam"`
 			PreferredMic *string `json:"preferred_mic"`
 		}
@@ -78,10 +47,14 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			return
 		}
 
-		cfg.Profile.Label = strings.TrimSpace(req.Label)
-		cfg.Profile.Email = strings.TrimSpace(req.Email)
-		if req.Theme == "light" || req.Theme == "dark" {
-			cfg.Viewer.Theme = req.Theme
+		if req.Label != nil {
+			cfg.Profile.Label = strings.TrimSpace(*req.Label)
+		}
+		if req.Email != nil {
+			cfg.Profile.Email = strings.TrimSpace(*req.Email)
+		}
+		if req.Theme != nil && isValidTheme(*req.Theme) {
+			cfg.Viewer.Theme = *req.Theme
 		}
 		if req.PreferredCam != nil {
 			cfg.Viewer.PreferredCam = *req.PreferredCam
@@ -129,22 +102,9 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			return
 		}
 
-		// Profile (label/email) is managed via /api/settings/quick (navbar popup).
+		// Profile, theme, and devices are managed via /api/settings/quick (navbar popup).
 		cfg.Viewer.HTTPAddr = getTrimmedPostFormValue(r.PostForm, "viewer_http_addr")
-
-		// Handle theme
-		theme := getTrimmedPostFormValue(r.PostForm, "viewer_theme")
-		if theme == "light" || theme == "dark" {
-			cfg.Viewer.Theme = theme
-		}
-
-		// Handle debug checkbox
-		switch strings.ToLower(getTrimmedPostFormValue(r.PostForm, "viewer_debug")) {
-		case "on", "1", "true", "yes":
-			cfg.Viewer.Debug = true
-		default:
-			cfg.Viewer.Debug = false
-		}
+		cfg.Viewer.Debug = formBool(r.PostForm, "viewer_debug")
 
 		// P2P / presence fields are only in the form when not in rendezvous-only mode.
 		if v := getTrimmedPostFormValue(r.PostForm, "p2p_mdns_tag"); v != "" {
@@ -160,11 +120,10 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			cfg.Presence.HeartbeatSec = atoiOrNeg(hb)
 		}
 
-		switch strings.ToLower(getTrimmedPostFormValue(r.PostForm, "presence_rendezvous_server")) {
-		case "on", "1", "true", "yes":
+		if formBool(r.PostForm, "presence_rendezvous_server") {
 			cfg.Presence.RendezvousHost = true
 			cfg.Presence.RendezvousOnly = true
-		default:
+		} else {
 			cfg.Presence.RendezvousHost = false
 			cfg.Presence.RendezvousOnly = false
 		}
@@ -188,19 +147,8 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		cfg.Presence.SMTPPassword = getTrimmedPostFormValue(r.PostForm, "presence_smtp_password")
 		cfg.Presence.SMTPFrom = getTrimmedPostFormValue(r.PostForm, "presence_smtp_from")
 
-		switch strings.ToLower(getTrimmedPostFormValue(r.PostForm, "presence_registration_required")) {
-		case "on", "1", "true", "yes":
-			cfg.Presence.RegistrationRequired = true
-		default:
-			cfg.Presence.RegistrationRequired = false
-		}
-
-		switch strings.ToLower(getTrimmedPostFormValue(r.PostForm, "lua_enabled")) {
-		case "on", "1", "true", "yes":
-			cfg.Lua.Enabled = true
-		default:
-			cfg.Lua.Enabled = false
-		}
+		cfg.Presence.RegistrationRequired = formBool(r.PostForm, "presence_registration_required")
+		cfg.Lua.Enabled = formBool(r.PostForm, "lua_enabled")
 
 		if err := config.Save(d.CfgPath, cfg); err != nil {
 			vm := viewmodels.SettingsVM{
