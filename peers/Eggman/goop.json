@@ -40,7 +40,9 @@
   "viewer": {
     "http_addr": "",
     "debug": true,
-    "theme": "dark"
+    "theme": "dark",
+    "preferred_cam": "",
+    "preferred_mic": ""
   },
   "lua": {
     "enabled": true,

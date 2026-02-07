@@ -133,11 +133,13 @@
 
   // ── WebRTC setup ────────────────────────────────────────────────────────────
 
-  function applyPreferredDevices(constraints) {
+  async function applyPreferredDevices(constraints) {
     var c = Object.assign({}, constraints);
     try {
-      var camId = localStorage.getItem('goop-preferred-camera');
-      var micId = localStorage.getItem('goop-preferred-mic');
+      var res = await fetch('/api/settings/quick/get');
+      var cfg = await res.json();
+      var camId = cfg.preferred_cam || '';
+      var micId = cfg.preferred_mic || '';
       if (camId && c.video) {
         c.video = typeof c.video === 'object' ? Object.assign({}, c.video) : {};
         c.video.deviceId = { ideal: camId };
@@ -146,12 +148,12 @@
         c.audio = typeof c.audio === 'object' ? Object.assign({}, c.audio) : {};
         c.audio.deviceId = { ideal: micId };
       }
-    } catch(e) { /* localStorage unavailable */ }
+    } catch(e) { /* config unavailable, use defaults */ }
     return c;
   }
 
   async function setupPeerConnection(session, constraints) {
-    var stream = await navigator.mediaDevices.getUserMedia(applyPreferredDevices(constraints));
+    var stream = await navigator.mediaDevices.getUserMedia(await applyPreferredDevices(constraints));
     session.localStream = stream;
 
     var pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });

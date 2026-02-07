@@ -61,9 +61,11 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 
 		var req struct {
-			Label string `json:"label"`
-			Email string `json:"email"`
-			Theme string `json:"theme"`
+			Label        string  `json:"label"`
+			Email        string  `json:"email"`
+			Theme        string  `json:"theme"`
+			PreferredCam *string `json:"preferred_cam"`
+			PreferredMic *string `json:"preferred_mic"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid json", http.StatusBadRequest)
@@ -81,6 +83,12 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		if req.Theme == "light" || req.Theme == "dark" {
 			cfg.Viewer.Theme = req.Theme
 		}
+		if req.PreferredCam != nil {
+			cfg.Viewer.PreferredCam = *req.PreferredCam
+		}
+		if req.PreferredMic != nil {
+			cfg.Viewer.PreferredMic = *req.PreferredMic
+		}
 
 		if err := config.Save(d.CfgPath, cfg); err != nil {
 			http.Error(w, "failed to save", http.StatusInternalServerError)
@@ -88,6 +96,26 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 
 		writeJSON(w, map[string]string{"status": "ok"})
+	})
+
+	// GET quick settings (used by settings popup + call JS to read device prefs)
+	mux.HandleFunc("/api/settings/quick/get", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		cfg, err := config.Load(d.CfgPath)
+		if err != nil {
+			http.Error(w, "failed to load config", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, map[string]string{
+			"label":         cfg.Profile.Label,
+			"email":         cfg.Profile.Email,
+			"theme":         cfg.Viewer.Theme,
+			"preferred_cam": cfg.Viewer.PreferredCam,
+			"preferred_mic": cfg.Viewer.PreferredMic,
+		})
 	})
 
 	mux.HandleFunc("/settings/save", func(w http.ResponseWriter, r *http.Request) {

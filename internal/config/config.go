@@ -111,9 +111,11 @@ type Profile struct {
 }
 
 type Viewer struct {
-	HTTPAddr string `json:"http_addr"`
-	Debug    bool   `json:"debug"`
-	Theme    string `json:"theme"`
+	HTTPAddr       string `json:"http_addr"`
+	Debug          bool   `json:"debug"`
+	Theme          string `json:"theme"`
+	PreferredCam   string `json:"preferred_cam"`
+	PreferredMic   string `json:"preferred_mic"`
 }
 
 type Lua struct {

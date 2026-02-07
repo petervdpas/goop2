@@ -34,6 +34,7 @@
     backdrop = el('div', 'ed-dlg-backdrop');
     var dlg = el('div', 'ed-dlg');
     dlg.style.width = 'min(440px, 94vw)';
+    dlg.style.overflow = 'visible';
 
     // Head
     var head = el('div', 'ed-dlg-head');
@@ -183,20 +184,39 @@
 
   // ── device enumeration ────────────────────────────────────────────────────
 
+  // Request brief media permission so enumerateDevices returns real IDs/labels.
+  function ensureDevicePermission() {
+    return navigator.mediaDevices.enumerateDevices().then(function(devices) {
+      var hasLabels = devices.some(function(d) { return !!d.label; });
+      if (hasLabels) return; // permission already granted
+      // Briefly grab media to trigger the permission prompt
+      return navigator.mediaDevices.getUserMedia({ audio: true, video: true })
+        .then(function(stream) { stream.getTracks().forEach(function(t) { t.stop(); }); })
+        .catch(function() { /* user denied — we'll just show System default */ });
+    });
+  }
+
   function enumerateDevices(camEl, micEl) {
     if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
     if (!gsel()) return;
 
-    var camPref = '';
-    var micPref = '';
-    try { camPref = localStorage.getItem('goop-preferred-camera') || ''; } catch(e) {}
-    try { micPref = localStorage.getItem('goop-preferred-mic') || ''; } catch(e) {}
+    // Ensure permission first, then enumerate with full labels
+    ensureDevicePermission().then(function() {
+      return Promise.all([
+        fetch('/api/settings/quick/get').then(function(r) { return r.json(); }).catch(function() { return {}; }),
+        navigator.mediaDevices.enumerateDevices()
+      ]);
+    }).then(function(results) {
+      var cfg = results[0];
+      var devices = results[1];
+      var camPref = cfg.preferred_cam || '';
+      var micPref = cfg.preferred_mic || '';
 
-    navigator.mediaDevices.enumerateDevices().then(function(devices) {
       var camOpts = [{ value: '', label: 'System default' }];
       var micOpts = [{ value: '', label: 'System default' }];
 
       devices.forEach(function(dev) {
+        if (!dev.deviceId) return; // skip phantom entries
         var lbl = dev.label || (dev.kind + ' ' + dev.deviceId.substring(0, 8));
         if (dev.kind === 'videoinput') {
           camOpts.push({ value: dev.deviceId, label: lbl });
@@ -225,13 +245,25 @@
     // Determine selected theme
     var themeVal = (gs && refs.themeEl) ? Goop.select.val(refs.themeEl) : (document.documentElement.getAttribute('data-theme') || 'dark');
 
-    // Save profile + theme to server
+    // Get device selections
+    var camVal = (gs && refs.camEl) ? Goop.select.val(refs.camEl) : '';
+    var micVal = (gs && refs.micEl) ? Goop.select.val(refs.micEl) : '';
+
+    var payload = {
+      label: labelVal,
+      email: emailVal,
+      theme: themeVal,
+      preferred_cam: camVal,
+      preferred_mic: micVal
+    };
+
+    // Save all to peer config — close popup only after success
     fetch('/api/settings/quick', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label: labelVal, email: emailVal, theme: themeVal })
+      body: JSON.stringify(payload)
     }).then(function(res) {
-      if (!res.ok) throw new Error('save failed');
+      if (!res.ok) return res.text().then(function(t) { throw new Error(t); });
 
       // Update navbar name
       var meLabel = document.querySelector('.me-label');
@@ -240,21 +272,12 @@
       // Update the cog data attrs for next open
       btn.setAttribute('data-label', labelVal);
       btn.setAttribute('data-email', emailVal);
+
+      closePopup();
     }).catch(function(err) {
       console.error('settings: save failed:', err);
-      alert('Failed to save settings');
-      return;
+      alert('Failed to save settings: ' + err.message);
     });
-
-    // Save device preferences to localStorage
-    if (gs) {
-      var camVal = refs.camEl ? Goop.select.val(refs.camEl) : '';
-      var micVal = refs.micEl ? Goop.select.val(refs.micEl) : '';
-      try { localStorage.setItem('goop-preferred-camera', camVal); } catch(e) {}
-      try { localStorage.setItem('goop-preferred-mic', micVal); } catch(e) {}
-    }
-
-    closePopup();
   }
 
   // ── open/close ──────────────────────────────────────────────────────────────
