@@ -199,16 +199,16 @@
           if (camField) camField.style.opacity = '0.5';
           if (micField) micField.style.opacity = '0.5';
           // Disable the gsel dropdowns
-          var camEl = document.getElementById('settings-camera');
-          var micEl = document.getElementById('settings-mic');
-          if (camEl) {
-            camEl.disabled = true;
-            var camWrap = camEl.closest('.gsel');
+          var camDis = document.getElementById('settings-camera');
+          var micDis = document.getElementById('settings-mic');
+          if (camDis) {
+            camDis.disabled = true;
+            var camWrap = camDis.closest('.gsel');
             if (camWrap) camWrap.style.pointerEvents = 'none';
           }
-          if (micEl) {
-            micEl.disabled = true;
-            var micWrap = micEl.closest('.gsel');
+          if (micDis) {
+            micDis.disabled = true;
+            var micWrap = micDis.closest('.gsel');
             if (micWrap) micWrap.style.pointerEvents = 'none';
           }
           return;
