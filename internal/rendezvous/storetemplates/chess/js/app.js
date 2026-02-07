@@ -10,6 +10,9 @@
   var selectedSquare = null;
   var legalMoves = [];
   var pendingPromotion = null;
+  var rtChannel = null;
+  var ownerPeerId = null;
+  var rtListening = false;
 
   // Unicode chess pieces
   var PIECES = {
@@ -22,10 +25,71 @@
   if (!match || match[1] === myId) {
     isOwner = true;
   }
+  if (match) {
+    ownerPeerId = match[1];
+  }
 
   subtitle.textContent = "Find an opponent or play against the computer.";
 
   showLobby();
+
+  // -- Realtime channel (P2P instant notifications) --
+
+  function setupRealtime(state) {
+    if (state.mode !== "pvp") return;
+    if (rtChannel) return;
+    if (state.status !== "playing" && state.status !== "waiting") return;
+
+    if (!isOwner && ownerPeerId) {
+      // Challenger: create channel to site owner
+      Goop.realtime.connect(ownerPeerId).then(function (channel) {
+        rtChannel = channel;
+        channel.onMessage(function (msg) {
+          if (msg.type === "move_made" || msg.type === "resigned") {
+            refreshState();
+          }
+        });
+      }).catch(function () { /* polling is the fallback */ });
+    } else if (isOwner && !rtListening) {
+      // Owner: accept incoming channel from challenger
+      rtListening = true;
+      Goop.realtime.onIncoming(function (info) {
+        if (!currentGameId) return; // no active game
+        Goop.realtime.accept(info.channelId, info.hostPeerId).then(function (channel) {
+          rtChannel = channel;
+          channel.onMessage(function (msg) {
+            if (msg.type === "move_made" || msg.type === "resigned") {
+              refreshState();
+            }
+          });
+        }).catch(function () { /* ignore */ });
+      });
+    }
+  }
+
+  function notifyOpponent(type) {
+    if (rtChannel) {
+      rtChannel.send({ type: type }).catch(function () {});
+    }
+  }
+
+  async function refreshState() {
+    if (!currentGameId) return;
+    try {
+      var state = await db.call("chess", { action: "state", game_id: currentGameId });
+      renderGame(state);
+      if (state.status !== "playing" && state.status !== "waiting") {
+        cleanupRealtime();
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  function cleanupRealtime() {
+    if (rtChannel) {
+      rtChannel.close().catch(function () {});
+      rtChannel = null;
+    }
+  }
 
   // -- Polling --
   function startPolling(gameId) {
@@ -53,6 +117,7 @@
   // -- Lobby --
   async function showLobby() {
     stopPolling();
+    cleanupRealtime();
     currentGameId = null;
     selectedSquare = null;
     legalMoves = [];
@@ -238,6 +303,7 @@
 
       if (state.mode === "pvp" && (state.status === "playing" || state.status === "waiting")) {
         startPolling(gameId);
+        setupRealtime(state);
       }
     } catch (e) {
       root.innerHTML = '<p class="chess-empty">Could not load game.</p>';
@@ -369,6 +435,7 @@
       btnResign.onclick = function () {
         showConfirmDialog("Are you sure you want to resign?", async function () {
           await db.call("chess", { action: "resign", game_id: state.game_id || currentGameId });
+          notifyOpponent("resigned");
           showLobby();
         });
       };
@@ -492,6 +559,9 @@
       if (!result.game_id) result.game_id = state.game_id || currentGameId;
       if (!result.challenger_label) result.challenger_label = state.challenger_label;
       renderGame(result);
+
+      // Notify opponent instantly via realtime channel
+      notifyOpponent("move_made");
 
       // Start polling for opponent's move in PvP
       if (result.mode === "pvp" && result.status === "playing") {

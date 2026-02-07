@@ -1,439 +1,754 @@
-// Clubhouse app.js — real-time group chat rooms
+// Chess app.js
 (async function () {
   var db = Goop.data;
-
-  // ── DOM refs ──
-  var lobby = document.getElementById("lobby");
-  var roomsEl = document.getElementById("rooms");
-  var btnNewRoom = document.getElementById("btn-new-room");
-
-  var chatView = document.getElementById("chat-view");
-  var chatRoomName = document.getElementById("chat-room-name");
-  var chatRoomDesc = document.getElementById("chat-room-desc");
-  var btnBack = document.getElementById("btn-back");
-  var btnCloseRoom = document.getElementById("btn-close-room");
-  var membersListEl = document.getElementById("members-list");
-  var messagesEl = document.getElementById("messages");
-  var msgInput = document.getElementById("msg-input");
-  var btnSend = document.getElementById("btn-send");
-
-  var createOverlay = document.getElementById("create-overlay");
-  var fName = document.getElementById("f-name");
-  var fDesc = document.getElementById("f-desc");
-  var fMax = document.getElementById("f-max");
-  var btnCreateCancel = document.getElementById("btn-create-cancel");
-  var btnCreateSave = document.getElementById("btn-create-save");
-
-  // ── State ──
+  var root = document.getElementById("chess-root");
+  var subtitle = document.getElementById("subtitle");
   var isOwner = false;
-  var myId = "";
-  var myLabel = "";
-  var hostPeerId = "";
-  var currentRoom = null;     // room row from DB
-  var members = [];           // current member peer IDs
-  var labelMap = {};          // peerId → display label
+  var myId = await Goop.identity.id();
+  var pollTimer = null;
+  var currentGameId = null;
+  var selectedSquare = null;
+  var legalMoves = [];
+  var pendingPromotion = null;
+  var rtChannel = null;
+  var ownerPeerId = null;
+  var rtListening = false;
 
-  function esc(s) {
-    var d = document.createElement("div");
-    d.textContent = s == null ? "" : String(s);
-    return d.innerHTML;
+  // Unicode chess pieces
+  var PIECES = {
+    K: "\u2654", Q: "\u2655", R: "\u2656", B: "\u2657", N: "\u2658", P: "\u2659",
+    k: "\u265A", q: "\u265B", r: "\u265C", b: "\u265D", n: "\u265E", p: "\u265F"
+  };
+
+  // Detect owner vs visitor
+  var match = window.location.pathname.match(/\/p\/([^/]+)/);
+  if (!match || match[1] === myId) {
+    isOwner = true;
+  }
+  if (match) {
+    ownerPeerId = match[1];
   }
 
-  function shortId(id) {
-    return id ? id.slice(-6) : "???";
-  }
+  subtitle.textContent = "Find an opponent or play against the computer.";
 
-  function displayName(peerId) {
-    if (peerId === myId) return "You";
-    if (labelMap[peerId]) return labelMap[peerId];
-    return shortId(peerId);
-  }
+  showLobby();
 
-  // Fetch known peer labels from the local peer store
-  function fetchPeerLabels() {
-    fetch("/api/peers").then(function (r) {
-      if (!r.ok) return;
-      return r.json();
-    }).then(function (peers) {
-      if (!Array.isArray(peers)) return;
-      var changed = false;
-      peers.forEach(function (p) {
-        if (p.ID && p.Content && !labelMap[p.ID]) {
-          labelMap[p.ID] = p.Content;
-          changed = true;
-        }
+  // -- Realtime channel (P2P instant notifications) --
+
+  function setupRealtime(state) {
+    if (state.mode !== "pvp") return;
+    if (rtChannel) return;
+    if (state.status !== "playing" && state.status !== "waiting") return;
+
+    if (!isOwner && ownerPeerId) {
+      // Challenger: create channel to site owner
+      Goop.realtime.connect(ownerPeerId).then(function (channel) {
+        rtChannel = channel;
+        channel.onMessage(function (msg) {
+          if (msg.type === "move_made" || msg.type === "resigned") {
+            refreshState();
+          }
+        });
+      }).catch(function () { /* polling is the fallback */ });
+    } else if (isOwner && !rtListening) {
+      // Owner: accept incoming channel from challenger
+      rtListening = true;
+      Goop.realtime.onIncoming(function (info) {
+        if (!currentGameId) return; // no active game
+        Goop.realtime.accept(info.channelId, info.hostPeerId).then(function (channel) {
+          rtChannel = channel;
+          channel.onMessage(function (msg) {
+            if (msg.type === "move_made" || msg.type === "resigned") {
+              refreshState();
+            }
+          });
+        }).catch(function () { /* ignore */ });
       });
-      if (changed) renderMembers();
-    }).catch(function () {});
+    }
   }
 
-  // ── Owner detection ──
-  try {
-    var me = await Goop.identity.get();
-    myId = me.id;
-    myLabel = me.label || shortId(myId);
-    var match = window.location.pathname.match(/\/p\/([^/]+)/);
-    if (match) {
-      hostPeerId = match[1];
-      if (match[1] === myId) {
-        isOwner = true;
-        btnNewRoom.classList.remove("hidden");
-      }
+  function notifyOpponent(type) {
+    if (rtChannel) {
+      rtChannel.send({ type: type }).catch(function () {});
     }
-  } catch (_) {}
+  }
 
-  // ── Room listing ──
-  async function loadRooms() {
+  async function refreshState() {
+    if (!currentGameId) return;
     try {
-      var rows = await db.query("rooms", { where: "status = 'open'", limit: 50 });
-      renderRooms(rows || []);
-    } catch (err) {
-      roomsEl.innerHTML = '<div class="empty-msg"><p>Could not load rooms.</p></div>';
+      var state = await db.call("chess", { action: "state", game_id: currentGameId });
+      renderGame(state);
+      if (state.status !== "playing" && state.status !== "waiting") {
+        cleanupRealtime();
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  function cleanupRealtime() {
+    if (rtChannel) {
+      rtChannel.close().catch(function () {});
+      rtChannel = null;
     }
   }
 
-  function renderRooms(rooms) {
-    if (rooms.length === 0) {
-      roomsEl.innerHTML = '<div class="empty-msg"><div class="empty-icon">&#128172;</div><p>No rooms yet.</p>' +
-        (isOwner ? '<p>Create one with the button above!</p>' : '') + '</div>';
+  // -- Polling --
+  function startPolling(gameId) {
+    stopPolling();
+    pollTimer = setInterval(async function () {
+      try {
+        var state = await db.call("chess", { action: "state", game_id: gameId });
+        if (state.status !== "playing" && state.status !== "waiting") {
+          stopPolling();
+        }
+        renderGame(state);
+      } catch (e) {
+        // ignore transient errors
+      }
+    }, 2000);
+  }
+
+  function stopPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  // -- Lobby --
+  async function showLobby() {
+    stopPolling();
+    cleanupRealtime();
+    currentGameId = null;
+    selectedSquare = null;
+    legalMoves = [];
+
+    var lobby;
+    try {
+      lobby = await db.call("chess", { action: "lobby" });
+    } catch (e) {
+      root.innerHTML = '<p class="chess-empty">Could not load lobby.</p>';
       return;
     }
 
-    roomsEl.innerHTML = rooms.map(function (r) {
-      var html = '<div class="room-card" data-room-id="' + r._id + '">';
-      html += '<h3 class="room-card-name">' + esc(r.name) + '</h3>';
-      html += '<p class="room-card-desc">' + esc(r.description || "No description") + '</p>';
-      html += '<div class="room-card-footer">';
-      html += '<span class="room-card-status"><span class="status-dot"></span> ' + esc(r.status) + '</span>';
-      html += '<button class="btn-join" data-room-id="' + r._id + '">Join</button>';
-      html += '</div></div>';
-      return html;
-    }).join("");
+    var games = lobby.games || [];
+    var waiting = lobby.waiting || [];
+    var stats = lobby.stats || {};
 
-    roomsEl.querySelectorAll(".btn-join").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        var id = parseInt(btn.getAttribute("data-room-id"), 10);
-        var room = rooms.find(function (r) { return r._id === id; });
-        if (room) enterRoom(room);
-      });
-    });
-  }
-
-  // ── Create room (owner only) ──
-  btnNewRoom.addEventListener("click", function () {
-    fName.value = "";
-    fDesc.value = "";
-    fMax.value = "0";
-    createOverlay.classList.remove("hidden");
-    fName.focus();
-  });
-
-  btnCreateCancel.addEventListener("click", function () {
-    createOverlay.classList.add("hidden");
-  });
-
-  createOverlay.addEventListener("mousedown", function (e) {
-    if (e.target === createOverlay) createOverlay.classList.add("hidden");
-  });
-
-  btnCreateSave.addEventListener("click", async function () {
-    var name = fName.value.trim();
-    if (!name) return;
-    var desc = fDesc.value.trim();
-    var max = parseInt(fMax.value, 10) || 0;
-
-    try {
-      var group = await Goop.group.create(name, "clubhouse", max);
-      await db.insert("rooms", {
-        name: name,
-        description: desc,
-        group_id: group.id,
-        max_members: max,
-        status: "open"
-      });
-      createOverlay.classList.add("hidden");
-      Goop.ui.toast("Room created!");
-      loadRooms();
-    } catch (err) {
-      Goop.ui.toast({ title: "Error", message: err.message });
-    }
-  });
-
-  // ── Enter room ──
-  async function enterRoom(room) {
-    currentRoom = room;
-    members = [];
-    labelMap = {};
-    messagesEl.innerHTML = "";
-    chatRoomName.textContent = room.name;
-    chatRoomDesc.textContent = room.description || "";
-
-    if (isOwner) {
-      btnCloseRoom.classList.remove("hidden");
-    } else {
-      btnCloseRoom.classList.add("hidden");
-    }
-
-    lobby.classList.add("hidden");
-    chatView.classList.remove("hidden");
-
-    // Clean up any stale connection from a previous session
-    try { await Goop.group.leave(); } catch (_) {}
-
-    // Subscribe to SSE first
-    Goop.group.subscribe(handleGroupEvent);
-
-    try {
-      if (isOwner) {
-        await Goop.group.joinOwn(room.group_id);
-        labelMap[myId] = myLabel;
-        // Announce label to members already in the room
-        Goop.group.send({ type: "presence", label: myLabel }, room.group_id).catch(function () {});
-      } else {
-        await Goop.group.join(hostPeerId, room.group_id);
-        // Announce our label so other members see a friendly name
-        Goop.group.send({ type: "presence", label: myLabel }).catch(function () {});
+    // Check if I have an active game
+    for (var i = 0; i < games.length; i++) {
+      var g = games[i];
+      if ((g.status === "playing" || g.status === "waiting") &&
+          (g._owner === myId || g.challenger === myId)) {
+        showGame(g._id);
+        return;
       }
-      appendSystem("You joined the room.");
-      startLabelRefresh();
-    } catch (err) {
-      appendSystem("Failed to join: " + err.message);
     }
 
-    msgInput.focus();
-  }
+    var html = '<div class="chess-lobby">';
 
-  // ── Leave room ──
-  async function leaveRoom() {
-    if (!currentRoom) return;
+    // Action buttons
+    html += '<div class="chess-actions">';
+    html += '<button class="btn btn-primary" id="btn-find">Find Opponent</button>';
+    html += '<button class="btn btn-secondary" id="btn-pve">Play vs Computer</button>';
+    html += '</div>';
 
-    try {
-      if (isOwner) {
-        await Goop.group.leaveOwn(currentRoom.group_id);
-      } else {
-        await Goop.group.leave();
+    // Stats
+    html += '<div class="chess-stats">';
+    html += '<span><span class="stat-val">' + (stats.wins || 0) + '</span> wins</span>';
+    html += '<span><span class="stat-val">' + (stats.losses || 0) + '</span> losses</span>';
+    html += '<span><span class="stat-val">' + (stats.draws || 0) + '</span> draws</span>';
+    html += '</div>';
+
+    // Waiting players (others looking for a game)
+    if (waiting.length > 0) {
+      html += '<div class="chess-panel">';
+      html += '<h2>Players Looking for Game</h2>';
+      html += '<ul class="chess-challenges">';
+      for (var k = 0; k < waiting.length; k++) {
+        var wg = waiting[k];
+        var label = esc(wg._owner_label || 'Anonymous');
+        html += '<li class="chess-challenge-item">';
+        html += '<span><span class="name">' + label + '</span>';
+        html += '<span class="time">' + timeAgo(wg._created_at) + '</span></span>';
+        html += '<button class="btn-sm btn-join" data-join="' + wg._id + '">Play</button>';
+        html += '</li>';
       }
-    } catch (_) {}
-
-    Goop.group.unsubscribe();
-    stopLabelRefresh();
-    currentRoom = null;
-    members = [];
-
-    chatView.classList.add("hidden");
-    lobby.classList.remove("hidden");
-    loadRooms();
-  }
-
-  btnBack.addEventListener("click", leaveRoom);
-
-  // ── Close room (owner only) ──
-  btnCloseRoom.addEventListener("click", async function () {
-    if (!currentRoom) return;
-    var ok = await Goop.ui.confirm("Close this room? All members will be disconnected.");
-    if (!ok) return;
-
-    try {
-      await Goop.group.close(currentRoom.group_id);
-      await db.update("rooms", currentRoom._id, { status: "closed" });
-      Goop.ui.toast("Room closed.");
-    } catch (err) {
-      Goop.ui.toast({ title: "Error", message: err.message });
+      html += '</ul></div>';
     }
 
-    Goop.group.unsubscribe();
-    stopLabelRefresh();
-    currentRoom = null;
-    members = [];
-    chatView.classList.add("hidden");
-    lobby.classList.remove("hidden");
-    loadRooms();
-  });
-
-  // ── Send message ──
-  function sendMessage() {
-    var text = msgInput.value.trim();
-    if (!text || !currentRoom) return;
-    msgInput.value = "";
-
-    var payload = { type: "chat", text: text, label: myLabel };
-
-    if (isOwner) {
-      // Owner: message comes back via SSE, displayed by event handler
-      Goop.group.send(payload, currentRoom.group_id).catch(function (err) {
-        appendSystem("Send failed: " + err.message);
-      });
-    } else {
-      // Visitor: message NOT echoed back — append locally first
-      appendChat(myId, myLabel, text, true);
-      Goop.group.send(payload).catch(function (err) {
-        appendSystem("Send failed: " + err.message);
-      });
+    // Recent games
+    var finished = [];
+    for (var m = 0; m < games.length; m++) {
+      var fg = games[m];
+      if (fg.status !== "waiting" && fg.status !== "playing") {
+        finished.push(fg);
+      }
     }
-  }
 
-  btnSend.addEventListener("click", sendMessage);
-
-  msgInput.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  });
-
-  // ── SSE event handler ──
-  // Server sends: {type, group, from, payload}
-  // welcome payload: {group_name, members: [{peer_id, joined_at}]}
-  // members payload: {members: [{peer_id, joined_at}]}
-  // msg payload: the raw message object from the sender
-
-  function extractMemberIds(payload) {
-    var list = payload && payload.members;
-    if (!Array.isArray(list)) return [];
-    return list.map(function (m) {
-      return typeof m === "string" ? m : m.peer_id;
-    });
-  }
-
-  function handleGroupEvent(evt) {
-    switch (evt.type) {
-      case "welcome":
-        if (evt.payload) {
-          members = extractMemberIds(evt.payload);
-          renderMembers();
-          fetchPeerLabels();
+    if (finished.length > 0) {
+      html += '<div class="chess-panel">';
+      html += '<h2>Recent Games</h2>';
+      html += '<table class="chess-history"><thead><tr>';
+      html += '<th>Opponent</th><th>Result</th><th>Mode</th><th></th>';
+      html += '</tr></thead><tbody>';
+      for (var n = 0; n < finished.length && n < 10; n++) {
+        var hg = finished[n];
+        var opponent = hg.mode === "pve" ? "Computer"
+          : esc(hg.challenger_label || hg.challenger.substring(0, 12) + '...');
+        var resultCls = "", resultTxt = "";
+        if (hg.status === "draw") {
+          resultCls = "result-draw";
+          resultTxt = "draw";
+        } else if (hg.winner === myId) {
+          resultCls = "result-win";
+          resultTxt = "won";
+        } else {
+          resultCls = "result-loss";
+          resultTxt = "lost";
         }
-        break;
+        html += '<tr>';
+        html += '<td>' + opponent + '</td>';
+        html += '<td class="' + resultCls + '">' + resultTxt + '</td>';
+        html += '<td>' + (hg.mode === "pve" ? "vs AI" : "PvP") + '</td>';
+        html += '<td>' + timeAgo(hg._created_at) + '</td>';
+        html += '</tr>';
+      }
+      html += '</tbody></table></div>';
+    } else {
+      html += '<div class="chess-panel"><p class="chess-empty">No games played yet.</p></div>';
+    }
 
-      case "members":
-        if (evt.payload) {
-          var oldCount = members.length;
-          members = extractMemberIds(evt.payload);
-          renderMembers();
-          fetchPeerLabels();
-          if (members.length > oldCount) {
-            appendSystem("A new member joined.");
-          } else if (members.length < oldCount) {
-            appendSystem("A member left.");
+    html += '</div>';
+    root.innerHTML = html;
+
+    // Button handlers
+    var btnPve = document.getElementById("btn-pve");
+    if (btnPve) {
+      btnPve.onclick = async function () {
+        btnPve.disabled = true;
+        try {
+          var result = await db.call("chess", { action: "new_pve" });
+          if (result.error) {
+            Goop.ui.toast({ title: "Error", message: result.error });
+            btnPve.disabled = false;
+          } else {
+            currentGameId = result.game_id;
+            renderGame(result);
+          }
+        } catch (e) {
+          Goop.ui.toast({ title: "Error", message: e.message || "Error starting game." });
+          btnPve.disabled = false;
+        }
+      };
+    }
+
+    var btnFind = document.getElementById("btn-find");
+    if (btnFind) {
+      btnFind.onclick = async function () {
+        btnFind.disabled = true;
+        try {
+          var result = await db.call("chess", { action: "wait_for_game" });
+          if (result.error) {
+            Goop.ui.toast({ title: "Error", message: result.error });
+            if (result.game_id) {
+              showGame(result.game_id);
+              return;
+            }
+            btnFind.disabled = false;
+          } else {
+            showGame(result.game_id);
+          }
+        } catch (e) {
+          Goop.ui.toast({ title: "Error", message: e.message || "Error finding game." });
+          btnFind.disabled = false;
+        }
+      };
+    }
+
+    // Join waiting game handlers
+    root.querySelectorAll("[data-join]").forEach(function (btn) {
+      btn.onclick = async function () {
+        btn.disabled = true;
+        var gid = parseInt(btn.getAttribute("data-join"));
+        try {
+          var result = await db.call("chess", { action: "join_game", game_id: gid });
+          if (result.error) {
+            Goop.ui.toast({ title: "Error", message: result.error });
+            if (result.game_id) {
+              showGame(result.game_id);
+              return;
+            }
+            btn.disabled = false;
+          } else {
+            showGame(result.game_id);
+          }
+        } catch (e) {
+          Goop.ui.toast({ title: "Error", message: e.message || "Error joining game." });
+          btn.disabled = false;
+        }
+      };
+    });
+  }
+
+  // -- Game view --
+  async function showGame(gameId) {
+    stopPolling();
+    currentGameId = gameId;
+    selectedSquare = null;
+    legalMoves = [];
+
+    try {
+      var state = await db.call("chess", { action: "state", game_id: gameId });
+      renderGame(state);
+
+      if (state.mode === "pvp" && (state.status === "playing" || state.status === "waiting")) {
+        startPolling(gameId);
+        setupRealtime(state);
+      }
+    } catch (e) {
+      root.innerHTML = '<p class="chess-empty">Could not load game.</p>';
+    }
+  }
+
+  function renderGame(state) {
+    var fen = state.fen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    var board = parseFen(fen);
+    var yourColor = state.your_color;
+    var turn = state.turn || "w";
+    var isYourTurn = (state.status === "playing" && turn === yourColor);
+    var gameOver = (state.status !== "playing" && state.status !== "waiting");
+    var inCheck = state.in_check;
+
+    var html = '<div class="chess-game">';
+
+    // Waiting state
+    if (state.status === "waiting") {
+      html += '<div class="chess-waiting">';
+      html += '<div class="spinner"></div>';
+      html += '<p>Waiting for opponent&hellip;</p>';
+      html += '<button class="btn-cancel" id="btn-cancel">Cancel</button>';
+      html += '</div>';
+      root.innerHTML = html;
+      var btnCancel = document.getElementById("btn-cancel");
+      if (btnCancel) {
+        btnCancel.onclick = async function () {
+          await db.call("chess", { action: "resign", game_id: state.game_id });
+          showLobby();
+        };
+      }
+      return;
+    }
+
+    // Result banner
+    if (gameOver) {
+      var resultCls = "draw";
+      var resultMsg = "Draw!";
+      if (state.winner === myId) {
+        resultCls = "win";
+        resultMsg = "You won!";
+      } else if (state.winner && state.winner !== myId) {
+        resultCls = "loss";
+        var opponentName = (state.mode === "pve") ? "Computer" : "Opponent";
+        resultMsg = opponentName + " won!";
+      }
+      html += '<div class="chess-result ' + resultCls + '">' + resultMsg + '</div>';
+    } else {
+      // Turn indicator
+      var opLabel = (state.mode === "pve") ? "Computer" : "Opponent";
+      var turnLabel = isYourTurn ? "Your turn" : opLabel + "'s turn";
+      var colorLabel = yourColor === "w" ? "White" : "Black";
+      html += '<div class="chess-status">';
+      html += 'You: ' + colorLabel + ' &mdash; ' + turnLabel;
+      if (inCheck) html += ' <strong style="color:#dc2626">(Check!)</strong>';
+      html += '</div>';
+    }
+
+    // Board - render from white's perspective if playing white, otherwise flip
+    var flipped = (yourColor === "b");
+    html += '<div class="chess-board">';
+
+    for (var row = 0; row < 8; row++) {
+      for (var col = 0; col < 8; col++) {
+        var rank = flipped ? (row + 1) : (8 - row);
+        var file = flipped ? (8 - col) : (col + 1);
+        var sq = String.fromCharCode(96 + file) + rank;
+        var piece = board[sq];
+        var isLight = (rank + file) % 2 === 0;
+        var cls = "chess-cell " + (isLight ? "light" : "dark");
+
+        if (sq === selectedSquare) cls += " selected";
+        if (legalMoves.indexOf(sq) !== -1) {
+          cls += piece ? " legal-capture" : " legal-move";
+        }
+
+        // Highlight king in check
+        if (inCheck && piece && piece.toLowerCase() === "k" && pieceColor(piece) === turn) {
+          cls += " in-check";
+        }
+
+        var pieceHtml = "";
+        if (piece) {
+          var pColor = pieceColor(piece) === "w" ? "white" : "black";
+          pieceHtml = '<span class="piece ' + pColor + '">' + PIECES[piece] + '</span>';
+        }
+
+        html += '<div class="' + cls + '" data-sq="' + sq + '">' + pieceHtml + '</div>';
+      }
+    }
+    html += '</div>';
+
+    // Actions
+    if (gameOver) {
+      html += '<div class="chess-game-actions">';
+      if (state.mode === "pve") {
+        html += '<button class="btn btn-primary" id="btn-rematch-pve">Play Again</button>';
+      }
+      html += '<button class="btn btn-secondary" id="btn-back">Back to Lobby</button>';
+      html += '</div>';
+    } else {
+      html += '<div class="chess-game-actions">';
+      html += '<button class="btn btn-danger btn-sm" id="btn-resign">Resign</button>';
+      html += '</div>';
+    }
+
+    // Move history
+    if (state.moves) {
+      html += '<div class="chess-moves">' + esc(state.moves) + '</div>';
+    }
+
+    html += '</div>';
+    root.innerHTML = html;
+
+    // Click handlers for cells
+    if (!gameOver && isYourTurn) {
+      root.querySelectorAll(".chess-cell").forEach(function (cell) {
+        cell.onclick = function () {
+          var sq = cell.getAttribute("data-sq");
+          handleCellClick(sq, board, yourColor, state);
+        };
+      });
+    }
+
+    // Button handlers
+    var btnResign = document.getElementById("btn-resign");
+    if (btnResign) {
+      btnResign.onclick = function () {
+        showConfirmDialog("Are you sure you want to resign?", async function () {
+          await db.call("chess", { action: "resign", game_id: state.game_id || currentGameId });
+          notifyOpponent("resigned");
+          showLobby();
+        });
+      };
+    }
+
+    var btnRematchPve = document.getElementById("btn-rematch-pve");
+    if (btnRematchPve) {
+      btnRematchPve.onclick = async function () {
+        btnRematchPve.disabled = true;
+        try {
+          var result = await db.call("chess", { action: "new_pve" });
+          if (result.error) {
+            Goop.ui.toast({ title: "Error", message: result.error });
+            btnRematchPve.disabled = false;
+          } else {
+            currentGameId = result.game_id;
+            renderGame(result);
+          }
+        } catch (e) {
+          Goop.ui.toast({ title: "Error", message: e.message || "Error starting game." });
+          btnRematchPve.disabled = false;
+        }
+      };
+    }
+
+    var btnBack = document.getElementById("btn-back");
+    if (btnBack) {
+      btnBack.onclick = function () { showLobby(); };
+    }
+  }
+
+  async function handleCellClick(sq, board, yourColor, state) {
+    var piece = board[sq];
+
+    if (selectedSquare) {
+      // Check if clicking on a legal move
+      if (legalMoves.indexOf(sq) !== -1) {
+        // Check for pawn promotion
+        var movingPiece = board[selectedSquare];
+        var rank = parseInt(sq[1]);
+        if (movingPiece && movingPiece.toLowerCase() === "p" &&
+            ((yourColor === "w" && rank === 8) || (yourColor === "b" && rank === 1))) {
+          showPromotionDialog(selectedSquare, sq, yourColor, state);
+          return;
+        }
+
+        await makeMove(selectedSquare, sq, null, state);
+        return;
+      }
+
+      // Clicking on own piece - select it instead
+      if (piece && pieceColor(piece) === yourColor) {
+        selectedSquare = sq;
+        legalMoves = await getLegalMoves(sq, state);
+        renderGame(state);
+        return;
+      }
+
+      // Clicking elsewhere - deselect
+      selectedSquare = null;
+      legalMoves = [];
+      renderGame(state);
+      return;
+    }
+
+    // No selection - select own piece
+    if (piece && pieceColor(piece) === yourColor) {
+      selectedSquare = sq;
+      legalMoves = await getLegalMoves(sq, state);
+      renderGame(state);
+    }
+  }
+
+  function showPromotionDialog(from, to, color, state) {
+    var overlay = document.createElement("div");
+    overlay.className = "promo-overlay";
+
+    var pieces = color === "w" ? ["Q", "R", "B", "N"] : ["q", "r", "b", "n"];
+    var promoTypes = ["q", "r", "b", "n"];
+
+    var html = '<div class="promo-dialog">';
+    html += '<h3>Promote to:</h3>';
+    html += '<div class="promo-pieces">';
+    for (var i = 0; i < pieces.length; i++) {
+      var pColor = color === "w" ? "white" : "black";
+      html += '<div class="promo-piece" data-promo="' + promoTypes[i] + '">';
+      html += '<span class="piece ' + pColor + '">' + PIECES[pieces[i]] + '</span>';
+      html += '</div>';
+    }
+    html += '</div></div>';
+    overlay.innerHTML = html;
+    document.body.appendChild(overlay);
+
+    overlay.querySelectorAll(".promo-piece").forEach(function (el) {
+      el.onclick = async function () {
+        var promo = el.getAttribute("data-promo");
+        overlay.remove();
+        await makeMove(from, to, promo, state);
+      };
+    });
+  }
+
+  async function makeMove(from, to, promotion, state) {
+    selectedSquare = null;
+    legalMoves = [];
+
+    try {
+      var result = await db.call("move", {
+        game_id: state.game_id || currentGameId,
+        from: from,
+        to: to,
+        promotion: promotion
+      });
+
+      if (result.error) {
+        Goop.ui.toast({ title: "Error", message: result.error });
+        renderGame(state);
+        return;
+      }
+
+      if (!result.game_id) result.game_id = state.game_id || currentGameId;
+      if (!result.challenger_label) result.challenger_label = state.challenger_label;
+      renderGame(result);
+
+      // Notify opponent instantly via realtime channel
+      notifyOpponent("move_made");
+
+      // Start polling for opponent's move in PvP
+      if (result.mode === "pvp" && result.status === "playing") {
+        startPolling(result.game_id);
+      }
+    } catch (e) {
+      Goop.ui.toast({ title: "Error", message: e.message || "Error making move." });
+      renderGame(state);
+    }
+  }
+
+  async function getLegalMoves(sq, state) {
+    // For now, we'll calculate legal moves client-side based on piece type
+    // This is a simplified version - the server validates actual moves
+    var fen = state.fen;
+    var board = parseFen(fen);
+    var piece = board[sq];
+    if (!piece) return [];
+
+    var moves = [];
+    var color = pieceColor(piece);
+    var pieceType = piece.toLowerCase();
+    var file = sq.charCodeAt(0) - 96;
+    var rank = parseInt(sq[1]);
+
+    if (pieceType === "p") {
+      var dir = color === "w" ? 1 : -1;
+      var startRank = color === "w" ? 2 : 7;
+
+      // Forward
+      var fwd = toSq(file, rank + dir);
+      if (fwd && !board[fwd]) {
+        moves.push(fwd);
+        // Double push
+        if (rank === startRank) {
+          var fwd2 = toSq(file, rank + 2 * dir);
+          if (fwd2 && !board[fwd2]) moves.push(fwd2);
+        }
+      }
+      // Captures
+      [-1, 1].forEach(function (df) {
+        var cap = toSq(file + df, rank + dir);
+        if (cap && board[cap] && pieceColor(board[cap]) !== color) {
+          moves.push(cap);
+        }
+        // En passant (simplified check)
+        var fenParts = fen.split(" ");
+        if (fenParts[3] && fenParts[3] === cap) {
+          moves.push(cap);
+        }
+      });
+    } else if (pieceType === "n") {
+      [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]].forEach(function (d) {
+        var nsq = toSq(file + d[0], rank + d[1]);
+        if (nsq && (!board[nsq] || pieceColor(board[nsq]) !== color)) {
+          moves.push(nsq);
+        }
+      });
+    } else if (pieceType === "b") {
+      [[1,1],[1,-1],[-1,1],[-1,-1]].forEach(function (d) {
+        addSliding(board, file, rank, d[0], d[1], color, moves);
+      });
+    } else if (pieceType === "r") {
+      [[1,0],[-1,0],[0,1],[0,-1]].forEach(function (d) {
+        addSliding(board, file, rank, d[0], d[1], color, moves);
+      });
+    } else if (pieceType === "q") {
+      [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]].forEach(function (d) {
+        addSliding(board, file, rank, d[0], d[1], color, moves);
+      });
+    } else if (pieceType === "k") {
+      [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]].forEach(function (d) {
+        var ksq = toSq(file + d[0], rank + d[1]);
+        if (ksq && (!board[ksq] || pieceColor(board[ksq]) !== color)) {
+          moves.push(ksq);
+        }
+      });
+      // Castling (simplified)
+      var fenParts = fen.split(" ");
+      var castling = fenParts[2] || "";
+      var backRank = color === "w" ? 1 : 8;
+      if (rank === backRank && file === 5) {
+        if ((color === "w" && castling.indexOf("K") !== -1) ||
+            (color === "b" && castling.indexOf("k") !== -1)) {
+          if (!board[toSq(6, backRank)] && !board[toSq(7, backRank)]) {
+            moves.push(toSq(7, backRank));
           }
         }
-        break;
-
-      case "msg":
-        if (!evt.payload) break;
-
-        // Track labels from any message that carries one
-        if (evt.from && evt.payload.label) {
-          labelMap[evt.from] = evt.payload.label;
-          renderMembers();
+        if ((color === "w" && castling.indexOf("Q") !== -1) ||
+            (color === "b" && castling.indexOf("q") !== -1)) {
+          if (!board[toSq(2, backRank)] && !board[toSq(3, backRank)] && !board[toSq(4, backRank)]) {
+            moves.push(toSq(3, backRank));
+          }
         }
+      }
+    }
 
-        if (evt.payload.type === "presence") {
-          // Presence is label-only, no visible message
-          break;
-        }
+    return moves;
+  }
 
-        if (evt.payload.type === "chat") {
-          var isSelf = evt.from === myId;
-          // Visitors already appended their own messages locally
-          if (!isOwner && isSelf) break;
-          appendChat(evt.from, evt.payload.label, evt.payload.text, isSelf);
-        }
+  function addSliding(board, file, rank, df, dr, color, moves) {
+    var f = file + df;
+    var r = rank + dr;
+    while (f >= 1 && f <= 8 && r >= 1 && r <= 8) {
+      var sq = toSq(f, r);
+      var target = board[sq];
+      if (target) {
+        if (pieceColor(target) !== color) moves.push(sq);
         break;
-
-      case "close":
-        appendSystem("Room was closed by the host.");
-        setTimeout(function () {
-          Goop.group.unsubscribe();
-          stopLabelRefresh();
-          currentRoom = null;
-          members = [];
-          chatView.classList.add("hidden");
-          lobby.classList.remove("hidden");
-          loadRooms();
-        }, 2000);
-        break;
-
-      case "leave":
-        // A member left — members event will follow
-        break;
-
-      case "error":
-        appendSystem("Error: " + (evt.payload && evt.payload.message || evt.message || "unknown"));
-        break;
+      }
+      moves.push(sq);
+      f += df;
+      r += dr;
     }
   }
 
-  // ── Render helpers ──
-  function renderMembers() {
-    membersListEl.innerHTML = members.map(function (peerId) {
-      var name = displayName(peerId);
-      var cls = peerId === myId ? ' class="member-you"' : '';
-      var avatarUrl = '/api/avatar/peer/' + encodeURIComponent(peerId);
-      return '<li><img class="avatar avatar-xs" src="' + esc(avatarUrl) + '" alt="" style="border-radius:50%;width:24px;height:24px;vertical-align:middle;margin-right:6px;"><span class="member-dot"></span><span' + cls + '>' + esc(name) + '</span></li>';
-    }).join("");
+  function toSq(file, rank) {
+    if (file < 1 || file > 8 || rank < 1 || rank > 8) return null;
+    return String.fromCharCode(96 + file) + rank;
   }
 
-  function timeStr() {
-    var d = new Date();
-    var h = d.getHours(); var m = d.getMinutes();
-    return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
-  }
+  function parseFen(fen) {
+    var board = {};
+    var parts = fen.split(" ");
+    var position = parts[0];
+    var ranks = position.split("/");
 
-  function appendChat(fromId, label, text, isSelf) {
-    var div = document.createElement("div");
-    div.className = "msg " + (isSelf ? "msg-self" : "msg-other");
-
-    var labelText = isSelf ? "You" : esc(label || shortId(fromId));
-    div.innerHTML = '<div class="msg-label">' + labelText + '</div>' +
-                    '<div class="msg-text">' + esc(text) + '</div>' +
-                    '<div class="msg-time">' + timeStr() + '</div>';
-
-    messagesEl.appendChild(div);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-  }
-
-  function appendSystem(text) {
-    var div = document.createElement("div");
-    div.className = "msg-system";
-    div.textContent = text;
-    messagesEl.appendChild(div);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-  }
-
-  // ── Periodic peer label refresh ──
-  var labelInterval = null;
-  function startLabelRefresh() {
-    stopLabelRefresh();
-    labelInterval = setInterval(fetchPeerLabels, 5000);
-  }
-  function stopLabelRefresh() {
-    if (labelInterval) { clearInterval(labelInterval); labelInterval = null; }
-  }
-
-  // ── Clean leave on page/tab close ──
-  function doQuickLeave() {
-    if (!currentRoom) return;
-    var url = isOwner
-      ? "/api/groups/leave-own"
-      : "/api/groups/leave";
-    var body = isOwner
-      ? JSON.stringify({ group_id: currentRoom.group_id })
-      : "{}";
-    // Use sendBeacon for reliability during unload
-    if (navigator.sendBeacon) {
-      navigator.sendBeacon(url, new Blob([body], { type: "application/json" }));
-    } else {
-      var xhr = new XMLHttpRequest();
-      xhr.open("POST", url, false); // sync
-      xhr.setRequestHeader("Content-Type", "application/json");
-      xhr.send(body);
+    for (var i = 0; i < 8; i++) {
+      var rankData = ranks[i];
+      var file = 1;
+      for (var j = 0; j < rankData.length; j++) {
+        var c = rankData[j];
+        if (c >= "1" && c <= "8") {
+          file += parseInt(c);
+        } else {
+          var sq = String.fromCharCode(96 + file) + (8 - i);
+          board[sq] = c;
+          file++;
+        }
+      }
     }
+
+    return board;
   }
 
-  window.addEventListener("beforeunload", doQuickLeave);
-  window.addEventListener("pagehide", doQuickLeave);
+  function pieceColor(piece) {
+    if (!piece) return null;
+    return piece === piece.toUpperCase() ? "w" : "b";
+  }
 
-  // ── Init ──
-  loadRooms();
+  function timeAgo(ts) {
+    if (!ts) return "";
+    var now = new Date();
+    var then = new Date(ts.replace(" ", "T") + "Z");
+    var diff = Math.floor((now - then) / 1000);
+    if (diff < 60) return "just now";
+    if (diff < 3600) return Math.floor(diff / 60) + "m ago";
+    if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
+    return Math.floor(diff / 86400) + "d ago";
+  }
+
+  function esc(s) {
+    if (!s) return "";
+    var d = document.createElement("div");
+    d.appendChild(document.createTextNode(s));
+    return d.innerHTML;
+  }
+
+  function showConfirmDialog(message, onConfirm) {
+    var overlay = document.createElement("div");
+    overlay.className = "promo-overlay";
+
+    var html = '<div class="promo-dialog confirm-dialog">';
+    html += '<h3>' + esc(message) + '</h3>';
+    html += '<div class="confirm-actions">';
+    html += '<button class="btn btn-secondary" id="confirm-cancel">Cancel</button>';
+    html += '<button class="btn btn-danger" id="confirm-ok">Resign</button>';
+    html += '</div></div>';
+    overlay.innerHTML = html;
+    document.body.appendChild(overlay);
+
+    document.getElementById("confirm-cancel").onclick = function () {
+      overlay.remove();
+    };
+    document.getElementById("confirm-ok").onclick = function () {
+      overlay.remove();
+      onConfirm();
+    };
+  }
 })();
