@@ -51,7 +51,7 @@
       "}",
       ".goop-call-remote { width: 240px; height: 180px; }",
       ".goop-call-local {",
-      "  width: 80px; height: 60px; position: absolute; bottom: 4px; right: 4px;",
+      "  width: 80px; height: 60px; position: absolute; bottom: 8px; right: 6px;",
       "  border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; z-index: 1;",
       "}",
       ".goop-call-controls {",
