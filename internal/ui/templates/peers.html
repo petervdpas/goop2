@@ -26,6 +26,13 @@
             <span class="peercontent muted small"><code>{{shortID .ID}}</code> &middot; seen {{rfc3339 .LastSeen}}</span>
           </div>
           <div class="peerright">
+            {{if .VideoDisabled}}
+            <span class="peer-video-disabled" title="Video/audio calls disabled">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#f39c12;">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </span>
+            {{else}}
             <button class="peer-call-btn" data-call-audio="{{.ID}}" title="Voice call">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.8.3 1.58.52 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.76.22 1.54.4 2.34.52A2 2 0 0 1 22 16.92z"/>
@@ -37,6 +44,7 @@
                 <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
               </svg>
             </button>
+            {{end}}
             <a class="btn"
                href="{{printf "%s/p/%s/" $.BaseURL .ID}}"
                onclick="return openExternal(this.href)"
@@ -126,6 +134,13 @@
         <span class="peercontent muted small"><code>${escapeHtml(shortId)}</code> &middot; seen ${escapeHtml(lastSeen)}</span>
       </div>
       <div class="peerright">
+        ${peer.VideoDisabled ? `
+        <span class="peer-video-disabled" title="Video/audio calls disabled">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#f39c12;">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </span>
+        ` : `
         <button class="peer-call-btn" data-call-audio="${escapeHtml(peer.ID)}" title="Voice call">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.8.3 1.58.52 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.76.22 1.54.4 2.34.52A2 2 0 0 1 22 16.92z"/>
@@ -137,6 +152,7 @@
             <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
           </svg>
         </button>
+        `}
         <a class="btn" href="{{.BaseURL}}/p/${peer.ID}/" onclick="return openExternal(this.href)" rel="noopener">
           Open Site
         </a>

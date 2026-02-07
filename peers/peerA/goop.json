@@ -42,7 +42,8 @@
     "debug": false,
     "theme": "light",
     "preferred_cam": "",
-    "preferred_mic": ""
+    "preferred_mic": "",
+    "video_disabled": true
   },
   "lua": {
     "enabled": false,

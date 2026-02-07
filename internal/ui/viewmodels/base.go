@@ -19,4 +19,7 @@ type BaseVM struct {
 
 	// Wails bridge URL for native dialogs (empty when not running in Wails)
 	BridgeURL string
+
+	// Platform detection for UI warnings (e.g. "linux", "windows", "darwin")
+	WhichOS string
 }

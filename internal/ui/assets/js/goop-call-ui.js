@@ -15,6 +15,16 @@
 (() => {
   window.Goop = window.Goop || {};
 
+  // Logging helper
+  function log(level, msg) {
+    if (Goop.log && Goop.log[level]) {
+      Goop.log[level]('call-ui', msg);
+    } else {
+      var fn = console[level] || console.log;
+      fn('[call-ui]', msg);
+    }
+  }
+
   var currentSession = null;
   var overlayEl = null;
   var incomingEl = null;
@@ -93,6 +103,7 @@
   // ── Incoming call modal ─────────────────────────────────────────────────────
 
   function showIncomingCall(info) {
+    log('info', 'Incoming call UI: peerId=' + info.peerId + ', channelId=' + info.channelId);
     injectStyles();
     removeIncoming();
 
@@ -139,6 +150,7 @@
   // ── Active call overlay ─────────────────────────────────────────────────────
 
   function showActiveCall(session) {
+    log('info', 'Showing active call UI for channel: ' + session.channelId);
     injectStyles();
     removeOverlay();
 
@@ -198,7 +210,31 @@
 
     // Show remote video when available
     session.onRemoteStream(function(stream) {
+      var trackInfo = stream.getTracks().map(function(t) { return t.kind + ":" + t.readyState + ":enabled=" + t.enabled; }).join(", ");
+      log('info', 'Remote stream received in UI! tracks=[' + trackInfo + ']');
+
+      log('debug', 'Setting remote video srcObject...');
       remoteVideo.srcObject = stream;
+      log('debug', 'srcObject set, video element: readyState=' + remoteVideo.readyState + ', networkState=' + remoteVideo.networkState);
+
+      // Explicitly try to play in case autoplay is blocked
+      remoteVideo.play().then(function() {
+        log('info', 'Remote video playing successfully');
+      }).catch(function(e) {
+        log('warn', 'Remote video autoplay blocked: ' + e.message);
+      });
+
+      // Monitor video element
+      remoteVideo.onloadedmetadata = function() {
+        log('info', 'Remote video metadata loaded: ' + remoteVideo.videoWidth + 'x' + remoteVideo.videoHeight);
+      };
+      remoteVideo.onplaying = function() {
+        log('info', 'Remote video is now playing');
+      };
+      remoteVideo.onerror = function(e) {
+        log('error', 'Remote video error: ' + (e.message || 'unknown'));
+      };
+
       statusEl.textContent = "Connected";
     });
 
@@ -262,12 +298,13 @@
   Goop.callUI = {
     // Convenience: start a call and show the UI
     startCall: async function(peerId, constraints) {
+      log('info', 'CallUI.startCall: peerId=' + peerId);
       try {
         var session = await Goop.call.start(peerId, constraints);
         showActiveCall(session);
         return session;
       } catch(e) {
-        console.error("Failed to start call:", e);
+        log('error', 'Failed to start call: ' + e.message);
         throw e;
       }
     },

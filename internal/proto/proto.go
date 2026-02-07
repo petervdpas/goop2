@@ -37,12 +37,13 @@ const (
 )
 
 type PresenceMsg struct {
-	Type       string `json:"type"` // online|update|offline
-	PeerID     string `json:"peerId"`
-	Content    string `json:"content,omitempty"`
-	Email      string `json:"email,omitempty"`
-	AvatarHash string `json:"avatarHash,omitempty"`
-	TS         int64  `json:"ts"`
+	Type          string `json:"type"` // online|update|offline
+	PeerID        string `json:"peerId"`
+	Content       string `json:"content,omitempty"`
+	Email         string `json:"email,omitempty"`
+	AvatarHash    string `json:"avatarHash,omitempty"`
+	VideoDisabled bool   `json:"videoDisabled,omitempty"` // Peer has video/audio calls disabled
+	TS            int64  `json:"ts"`
 }
 
 func NowMillis() int64 { return time.Now().UnixMilli() }

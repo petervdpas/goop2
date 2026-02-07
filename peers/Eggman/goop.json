@@ -18,7 +18,7 @@
     "rendezvous_host": false,
     "rendezvous_port": 8787,
     "rendezvous_bind": "127.0.0.1",
-    "rendezvous_wan": "http://127.0.0.1:8787/",
+    "rendezvous_wan": "https://goop2.com",
     "rendezvous_only": false,
     "admin_password": "",
     "templates_dir": "templates",
@@ -38,11 +38,12 @@
     "email": "humpty@dumpty.com"
   },
   "viewer": {
-    "http_addr": "",
-    "debug": true,
+    "http_addr": ":7777",
+    "debug": false,
     "theme": "dark",
-    "preferred_cam": "",
-    "preferred_mic": ""
+    "preferred_cam": "cHdJOK7AdHhAqo2zbcoYZBxEameqar07RjOMDUfrhFM=",
+    "preferred_mic": "U9Qmyevdblbgalaepi9ZBJe7LdFOSf1f162v1etqHhg=",
+    "video_disabled": true
   },
   "lua": {
     "enabled": true,

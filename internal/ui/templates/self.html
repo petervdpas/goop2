@@ -67,6 +67,7 @@
       </div>
       <ul class="settings-nav">
         <li class="settings-nav-item active" data-section="viewer">Viewer</li>
+        <li class="settings-nav-item" data-section="calls">Calls</li>
         <li class="settings-nav-item" data-section="network">Network</li>
         <li class="settings-nav-item" data-section="rendezvous">Rendezvous</li>
         <li class="settings-nav-item" data-section="server">Server</li>
@@ -112,6 +113,34 @@
                 <span class="slider"></span>
               </label>
               <span class="muted small">Show console debug indicator (F12)</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Calls -->
+        <div class="settings-section" data-section="calls">
+          <h3 class="settings-section-title">Video / Audio Calls</h3>
+
+          {{if eq .WhichOS "linux"}}
+          <div class="banner warn small" style="margin-bottom: 10px;">
+            Video/audio calls may not work on Linux due to WebKitGTK limitations. Consider enabling the option below.
+          </div>
+          {{end}}
+
+          <div class="field">
+            <label>Disable video/audio calls</label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <label class="switch" title="Disable video/audio calls">
+                <input type="checkbox"
+                       name="viewer_video_disabled"
+                       {{if .Cfg.Viewer.VideoDisabled}}checked{{end}}>
+                <span class="slider"></span>
+              </label>
+              <span class="muted small">Peers will see that calls are unavailable</span>
+            </div>
+            <div class="hint">
+              Enable this if your platform doesn't support camera/microphone access.
             </div>
           </div>
 

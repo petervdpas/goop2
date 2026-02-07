@@ -35,9 +35,10 @@ type Node struct {
 	topic *pubsub.Topic
 	sub   *pubsub.Subscription
 
-	selfContent func() string
-	selfEmail   func() string
-	peers       *state.PeerTable
+	selfContent       func() string
+	selfEmail         func() string
+	selfVideoDisabled func() bool
+	peers             *state.PeerTable
 
 	// Set by EnableSite in site.go
 	siteRoot string
@@ -101,7 +102,7 @@ func loadOrCreateKey(keyFile string) (crypto.PrivKey, bool, error) {
 	return priv, true, nil
 }
 
-func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerTable, selfContent, selfEmail func() string) (*Node, error) {
+func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerTable, selfContent, selfEmail func() string, selfVideoDisabled func() bool) (*Node, error) {
 	priv, isNew, err := loadOrCreateKey(keyFile)
 	if err != nil {
 		return nil, err
@@ -154,13 +155,14 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 	}
 
 	n := &Node{
-		Host:        h,
-		ps:          ps,
-		topic:       topic,
-		sub:         sub,
-		selfContent: selfContent,
-		selfEmail:   selfEmail,
-		peers:       peers,
+		Host:              h,
+		ps:                ps,
+		topic:             topic,
+		sub:               sub,
+		selfContent:       selfContent,
+		selfEmail:         selfEmail,
+		selfVideoDisabled: selfVideoDisabled,
+		peers:             peers,
 	}
 
 	return n, nil
@@ -190,6 +192,7 @@ func (n *Node) Publish(ctx context.Context, typ string) {
 		msg.Content = n.selfContent()
 		msg.Email = n.selfEmail()
 		msg.AvatarHash = n.AvatarHash()
+		msg.VideoDisabled = n.selfVideoDisabled()
 	}
 
 	b, _ := json.Marshal(msg)
@@ -217,7 +220,7 @@ func (n *Node) RunPresenceLoop(ctx context.Context, onEvent func(msg proto.Prese
 
 			switch pm.Type {
 			case proto.TypeOnline, proto.TypeUpdate:
-				n.peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash)
+				n.peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled)
 			case proto.TypeOffline:
 				n.peers.Remove(pm.PeerID)
 			}

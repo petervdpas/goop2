@@ -19,6 +19,7 @@
     "goop-forms.js",
     "goop-site.js",
     "goop-group.js",
+    "goop-log.js",
     "goop-realtime.js",
     "goop-call.js",
     "goop-call-ui.js",

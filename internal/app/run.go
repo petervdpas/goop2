@@ -114,6 +114,10 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		return cfg.Profile.Email
 	}
 
+	selfVideoDisabled := func() bool {
+		return cfg.Viewer.VideoDisabled
+	}
+
 	if cfg.Presence.RendezvousOnly {
 		log.Printf("mode: rendezvous-only")
 
@@ -156,7 +160,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	peers := state.NewPeerTable()
 
 	keyPath := util.ResolvePath(o.PeerDir, cfg.Identity.KeyFile)
-	node, err := p2p.New(ctx, cfg.P2P.ListenPort, keyPath, peers, selfContent, selfEmail)
+	node, err := p2p.New(ctx, cfg.P2P.ListenPort, keyPath, peers, selfContent, selfEmail, selfVideoDisabled)
 	if err != nil {
 		return err
 	}
@@ -226,7 +230,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			}
 			switch pm.Type {
 			case proto.TypeOnline, proto.TypeUpdate:
-				peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash)
+				peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled)
 			case proto.TypeOffline:
 				peers.Remove(pm.PeerID)
 			}
@@ -241,12 +245,13 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 				ctx2, cancel := context.WithTimeout(pctx, util.ShortTimeout)
 				defer cancel()
 				_ = cc.Publish(ctx2, proto.PresenceMsg{
-					Type:       typ,
-					PeerID:     node.ID(),
-					Content:    selfContent(),
-					Email:      selfEmail(),
-					AvatarHash: avatarStore.Hash(),
-					TS:         proto.NowMillis(),
+					Type:          typ,
+					PeerID:        node.ID(),
+					Content:       selfContent(),
+					Email:         selfEmail(),
+					AvatarHash:    avatarStore.Hash(),
+					VideoDisabled: selfVideoDisabled(),
+					TS:            proto.NowMillis(),
 				})
 			}()
 		}

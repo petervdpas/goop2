@@ -10,11 +10,12 @@ import (
 )
 
 type PeerRow struct {
-	ID         string
-	Content    string
-	Email      string
-	AvatarHash string
-	LastSeen   time.Time
+	ID            string `json:"ID"`
+	Content       string `json:"Content"`
+	Email         string `json:"Email"`
+	AvatarHash    string `json:"AvatarHash"`
+	VideoDisabled bool   `json:"VideoDisabled"`
+	LastSeen      time.Time `json:"LastSeen"`
 }
 
 type PeersVM struct {
@@ -26,11 +27,12 @@ func BuildPeerRows(m map[string]state.SeenPeer) []PeerRow {
 	rows := make([]PeerRow, 0, len(m))
 	for id, sp := range m {
 		rows = append(rows, PeerRow{
-			ID:         id,
-			Content:    sp.Content,
-			Email:      sp.Email,
-			AvatarHash: sp.AvatarHash,
-			LastSeen:   sp.LastSeen,
+			ID:            id,
+			Content:       sp.Content,
+			Email:         sp.Email,
+			AvatarHash:    sp.AvatarHash,
+			VideoDisabled: sp.VideoDisabled,
+			LastSeen:      sp.LastSeen,
 		})
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].ID < rows[j].ID })

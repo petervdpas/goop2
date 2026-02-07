@@ -116,6 +116,7 @@ type Viewer struct {
 	Theme          string `json:"theme"`
 	PreferredCam   string `json:"preferred_cam"`
 	PreferredMic   string `json:"preferred_mic"`
+	VideoDisabled  bool   `json:"video_disabled"` // Disable video/audio calls (e.g., Linux WebKitGTK limitation)
 }
 
 type Lua struct {

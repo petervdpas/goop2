@@ -67,16 +67,34 @@
       options: [{ value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }]
     }));
 
-    // ── Devices section ──
-    body.appendChild(sectionLabel('Devices'));
+    // ── Devices section (hidden if video_disabled) ──
+    var devicesLabel = sectionLabel('Devices');
+    devicesLabel.id = 'settings-devices-label';
+    body.appendChild(devicesLabel);
+
+    // Linux warning
+    var osType = document.body.getAttribute('data-os') || '';
+    if (osType === 'linux') {
+      var linuxWarn = el('div', 'banner warn small');
+      linuxWarn.id = 'settings-linux-warning';
+      linuxWarn.innerHTML = 'Video/audio calls may not work on Linux due to WebKitGTK limitations.';
+      linuxWarn.style.marginBottom = '8px';
+      body.appendChild(linuxWarn);
+    }
 
     var defaultDev = [{ value: '', label: 'System default' }];
-    body.appendChild(selectField('Camera', {
+    var camField = selectField('Camera', {
       id: 'settings-camera', value: '', placeholder: 'System default', options: defaultDev
-    }));
-    body.appendChild(selectField('Microphone', {
+    });
+    camField.id = 'settings-camera-field';
+    body.appendChild(camField);
+
+    var micField = selectField('Microphone', {
       id: 'settings-mic', value: '', placeholder: 'System default', options: defaultDev
-    }));
+    });
+    micField.id = 'settings-mic-field';
+    body.appendChild(micField);
+
 
     dlg.appendChild(body);
 
@@ -169,39 +187,61 @@
   }
 
   function enumerateDevices(camEl, micEl) {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
     if (!gsel()) return;
 
-    // Ensure permission first, then enumerate with full labels
-    ensureDevicePermission().then(function() {
-      return Promise.all([
-        fetch('/api/settings/quick/get').then(function(r) { return r.json(); }).catch(function() { return {}; }),
-        navigator.mediaDevices.enumerateDevices()
-      ]);
-    }).then(function(results) {
-      var cfg = results[0];
-      var devices = results[1];
-      var camPref = cfg.preferred_cam || '';
-      var micPref = cfg.preferred_mic || '';
-
-      var camOpts = [{ value: '', label: 'System default' }];
-      var micOpts = [{ value: '', label: 'System default' }];
-
-      devices.forEach(function(dev) {
-        if (!dev.deviceId) return; // skip phantom entries
-        var lbl = dev.label || (dev.kind + ' ' + dev.deviceId.substring(0, 8));
-        if (dev.kind === 'videoinput') {
-          camOpts.push({ value: dev.deviceId, label: lbl });
-        } else if (dev.kind === 'audioinput') {
-          micOpts.push({ value: dev.deviceId, label: lbl });
+    // First fetch settings to check if video is disabled
+    fetch('/api/settings/quick/get').then(function(r) { return r.json(); }).catch(function() { return {}; })
+      .then(function(cfg) {
+        // Disable devices section if video is disabled
+        if (cfg.video_disabled) {
+          var camField = document.getElementById('settings-camera-field');
+          var micField = document.getElementById('settings-mic-field');
+          if (camField) camField.style.opacity = '0.5';
+          if (micField) micField.style.opacity = '0.5';
+          // Disable the gsel dropdowns
+          var camEl = document.getElementById('settings-camera');
+          var micEl = document.getElementById('settings-mic');
+          if (camEl) {
+            camEl.disabled = true;
+            var camWrap = camEl.closest('.gsel');
+            if (camWrap) camWrap.style.pointerEvents = 'none';
+          }
+          if (micEl) {
+            micEl.disabled = true;
+            var micWrap = micEl.closest('.gsel');
+            if (micWrap) micWrap.style.pointerEvents = 'none';
+          }
+          return;
         }
-      });
 
-      if (camEl) Goop.select.setOpts(camEl, { options: camOpts }, camPref);
-      if (micEl) Goop.select.setOpts(micEl, { options: micOpts }, micPref);
-    }).catch(function(err) {
-      console.warn('settings: cannot enumerate devices:', err);
-    });
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+
+        // Ensure permission first, then enumerate with full labels
+        return ensureDevicePermission().then(function() {
+          return navigator.mediaDevices.enumerateDevices();
+        }).then(function(devices) {
+          var camPref = cfg.preferred_cam || '';
+          var micPref = cfg.preferred_mic || '';
+
+          var camOpts = [{ value: '', label: 'System default' }];
+          var micOpts = [{ value: '', label: 'System default' }];
+
+          devices.forEach(function(dev) {
+            if (!dev.deviceId) return; // skip phantom entries
+            var lbl = dev.label || (dev.kind + ' ' + dev.deviceId.substring(0, 8));
+            if (dev.kind === 'videoinput') {
+              camOpts.push({ value: dev.deviceId, label: lbl });
+            } else if (dev.kind === 'audioinput') {
+              micOpts.push({ value: dev.deviceId, label: lbl });
+            }
+          });
+
+          if (camEl) Goop.select.setOpts(camEl, { options: camOpts }, camPref);
+          if (micEl) Goop.select.setOpts(micEl, { options: micOpts }, micPref);
+        });
+      }).catch(function(err) {
+        console.warn('settings: cannot enumerate devices:', err);
+      });
   }
 
   // ── save ────────────────────────────────────────────────────────────────────

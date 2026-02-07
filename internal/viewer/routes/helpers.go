@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"path"
+	"runtime"
 	"strings"
 
 	"goop/internal/config"
@@ -48,6 +49,7 @@ func baseVM(title, active, contentTmpl string, d Deps) viewmodels.BaseVM {
 		RendezvousOnly: d.RendezvousOnly,
 		RendezvousURL:  d.RendezvousURL,
 		BridgeURL:      d.BridgeURL,
+		WhichOS:        runtime.GOOS,
 	}
 }
 
