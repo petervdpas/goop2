@@ -83,6 +83,18 @@
            ' data-value="' + esc(o.value) + '">' + esc(o.label) + '</button>';
   }
 
+  // Cap dropdown height so it doesn't overflow the viewport.
+  function fitDropdown(el) {
+    var dd = el.querySelector(".gsel-dropdown");
+    if (!dd) return;
+    dd.style.maxHeight = "";  // reset to CSS default
+    var rect = dd.getBoundingClientRect();
+    var space = window.innerHeight - rect.top - 8; // 8px margin
+    if (space < rect.height && space > 60) {
+      dd.style.maxHeight = space + "px";
+    }
+  }
+
   // Initialize a custom select element (bind events).
   // onChange(newValue) is called when the user picks an option.
   function init(el, onChange) {
@@ -98,6 +110,7 @@
         if (other !== el) other.classList.remove("open");
       });
       el.classList.toggle("open");
+      if (el.classList.contains("open")) fitDropdown(el);
     });
 
     el.addEventListener("click", function(e) {
