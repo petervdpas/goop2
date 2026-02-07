@@ -39,6 +39,15 @@
   var activeCalls = {};   // channelId -> CallSession
   var listening = false;
 
+  // Tell the backend to destroy the rt- group so it doesn't linger.
+  function closeChannel(channelId) {
+    fetch("/api/realtime/close", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel_id: channelId })
+    }).catch(function() { /* best-effort */ });
+  }
+
   // ── CallSession ─────────────────────────────────────────────────────────────
 
   function CallSession(channel, isInitiator) {
@@ -101,6 +110,7 @@
 
     this._cleanup();
     this._emitHangup();
+    closeChannel(this.channelId);
   };
 
   CallSession.prototype._cleanup = function() {
@@ -237,6 +247,7 @@
           session._cleanup();
           session._emitHangup();
         }
+        closeChannel(channelId);
         break;
     }
   }
@@ -342,7 +353,7 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ channel_id: channelId, payload: { type: SIG_HANGUP } })
-        });
+        }).then(function() { closeChannel(channelId); });
       }
     };
 

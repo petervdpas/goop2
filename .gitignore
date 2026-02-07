@@ -3,6 +3,7 @@
 # -----------------------------
 .DS_Store
 Thumbs.db
+nul
 *.swp
 *.swo
 *.tmp

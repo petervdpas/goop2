@@ -122,7 +122,7 @@
           <span class="tag">ephemeral web</span>
         </div>
 
-        {{/* Viewer-only chrome: nav + self info */}}
+        {{/* Navigation — varies by mode */}}
         {{if .SelfID}}
           <nav class="topnav">
             <a class="navitem {{if isActive .Active "peers"}}active{{end}}" href="{{.BaseURL}}/peers">Peers</a>
@@ -132,26 +132,15 @@
             <a class="navitem {{if isActive .Active "documents"}}active{{end}}" href="{{.BaseURL}}/documents">Files</a>
             <a class="navitem {{if isActive .Active "logs"}}active{{end}}" href="{{.BaseURL}}/logs">Logs</a>
           </nav>
-
-          <div class="topright">
-            <button class="settings-btn" id="settingsBtn" title="Settings"
-                    data-label="{{.SelfName}}" data-email="{{.SelfEmail}}">
-              <svg width="24" height="24" viewBox="0 0 90.3 90.3" fill="currentColor">
-                <path transform="translate(-10.832,-8.586)" d="M55.984,73c-10.637,0-19.261-8.624-19.261-19.261 0-10.637,8.624-19.261,19.261-19.261 10.638,0,19.261,8.624,19.261,19.261C75.245,64.376,66.622,73,55.984,73 m44.411-11.15c0.478-2.633,0.741-5.34,0.741-8.111 0-2.77-0.263-5.478-0.741-8.11L90.098,43.96c-0.748-2.613-1.783-5.104-3.078-7.433l6.102-8.459 C90.021,23.59,86.132,19.7,81.653,16.599l-8.459,6.102c-2.329-1.294-4.82-2.33-7.433-3.077L64.094,9.326 c-2.632-0.478-5.34-0.74-8.111-0.74-2.77,0-5.478,0.262-8.111,0.74L46.206,19.623c-2.613,0.748-5.104,1.783-7.433,3.077 l-8.459-6.102c-4.479,3.102-8.368,6.991-11.47,11.47l6.102,8.459c-1.294,2.329-2.33,4.82-3.077,7.433L11.572,45.627 c-0.478,2.633-0.741,5.34-0.741,8.11 0,2.771,0.263,5.478,0.741,8.111l10.297,1.667c0.748,2.613,1.783,5.104,3.077,7.433 l-6.102,8.459c3.102,4.479,6.991,8.368,11.47,11.47l8.459-6.102c2.329,1.294,4.82,2.33,7.433,3.078l1.667,10.297 c2.633,0.478,5.34,0.741,8.11,0.741 2.771,0,5.478-0.263,8.111-0.741l1.667-10.297c2.613-0.748,5.104-1.783,7.433-3.077 l8.459,6.102c4.479-3.102,8.368-6.991,11.47-11.47l-6.102-8.459c1.294-2.329,2.33-4.82,3.078-7.433z"/>
-              </svg>
-            </button>
-
-            <div class="me">
-              <span class="me-label">{{.SelfName}}</span>
-            </div>
-          </div>
         {{else if .RendezvousOnly}}
-          {{/* Rendezvous-only chrome: limited nav */}}
           <nav class="topnav">
             <a class="navitem {{if isActive .Active "self"}}active{{end}}" href="{{.BaseURL}}/self">Settings</a>
             <a class="navitem {{if isActive .Active "logs"}}active{{end}}" href="{{.BaseURL}}/logs">Logs</a>
           </nav>
+        {{end}}
 
+        {{/* Right side — shared cog + name for viewer & rendezvous, theme toggle for launcher */}}
+        {{if or .SelfID .RendezvousOnly}}
           <div class="topright">
             <button class="settings-btn" id="settingsBtn" title="Settings"
                     data-label="{{.SelfName}}" data-email="{{.SelfEmail}}">

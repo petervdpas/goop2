@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -47,12 +48,23 @@ type Manager struct {
 }
 
 // New creates a new realtime manager.
+// Any rt- groups left over from a previous session are purged immediately.
 func New(grp *group.Manager, selfID string) *Manager {
 	m := &Manager{
 		grp:       grp,
 		selfID:    selfID,
 		channels:  make(map[string]*Channel),
 		listeners: make(map[chan *Envelope]struct{}),
+	}
+
+	// Purge stale rt- groups that survived a crash or unclean shutdown.
+	if rows, err := grp.ListHostedGroups(); err == nil {
+		for _, g := range rows {
+			if strings.HasPrefix(g.ID, "rt-") {
+				_ = grp.CloseGroup(g.ID)
+				log.Printf("REALTIME: Cleaned up stale channel %s on startup", g.ID)
+			}
+		}
 	}
 
 	// Subscribe to group events and filter for realtime channels
@@ -135,7 +147,8 @@ func (m *Manager) Send(channelID string, payload any) error {
 	return m.grp.SendToGroup(payload)
 }
 
-// CloseChannel closes a realtime channel.
+// CloseChannel closes a realtime channel. Idempotent — returns nil if
+// the channel was already closed (both peers call close on hangup).
 func (m *Manager) CloseChannel(channelID string) error {
 	m.mu.Lock()
 	ch, ok := m.channels[channelID]
@@ -145,7 +158,7 @@ func (m *Manager) CloseChannel(channelID string) error {
 	m.mu.Unlock()
 
 	if !ok {
-		return fmt.Errorf("channel not found: %s", channelID)
+		return nil // already closed
 	}
 
 	if ch.Role == "host" {
