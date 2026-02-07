@@ -250,6 +250,14 @@ func (m *Manager) forwardGroupEvents() {
 			m.mu.Unlock()
 		}
 
+		// Skip own messages — the host receives its own sends via
+		// notifyListeners in SendToGroupAsHost, which would echo
+		// signaling messages (SDP offers, ICE candidates) back to the
+		// sender and corrupt the WebRTC peer connection.
+		if evt.From == m.selfID {
+			continue
+		}
+
 		env := &Envelope{
 			Channel: evt.Group,
 			From:    evt.From,
