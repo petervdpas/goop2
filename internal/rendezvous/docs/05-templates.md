@@ -18,9 +18,11 @@ templates/
       my-function.lua
 ```
 
-When you create a site from a template, Goop2 copies the template files into your `site/` directory and initializes the database schema.
+When you apply a template, Goop2 copies the template files into your `site/` directory and initializes the database schema. You can do this from the viewer's **Templates** page.
 
 ## Built-in templates
+
+These ship with the Goop2 binary and are always available:
 
 ### Blog
 
@@ -38,16 +40,42 @@ A simple survey application. Visitors answer questions and responses are collect
 
 ### Tic-Tac-Toe
 
-A multiplayer tic-tac-toe game. Visitors can challenge each other or play against the computer. Server-side Lua enforces the game rules.
+A multiplayer tic-tac-toe game with server-side Lua enforcing the rules. Visitors can challenge the host to a match.
 
 - **Category**: Games
 - **Insert policy**: `open` for game creation
 
-## Template store
+### Clubhouse
 
-If a rendezvous server has a `templates_dir` configured, it acts as a template store. Peers connected to that rendezvous server can browse and download templates from the store.
+A real-time group chat room. Uses the groups protocol for live messaging between peers.
 
-Templates appear on the rendezvous server's public page under "Template Store". Each template shows its name, category, description, and a download link.
+- **Category**: Community
+
+## Store templates
+
+Additional templates are available through the **template store** on a rendezvous server. These can be browsed and installed from the viewer's Templates page or from the rendezvous server's `/store` page.
+
+Current store templates include:
+
+| Template | Category | Description |
+|----------|----------|-------------|
+| **Chess** | Games | Classic chess with server-side move validation |
+| **Quiz** | Education | Timed quizzes with scoring and leaderboard |
+| **Corkboard** | Community | Pin notes and ads -- a digital bulletin board |
+| **Kanban** | Productivity | Task board with drag-and-drop columns |
+| **Photobook** | Content | Photo gallery with albums |
+| **Arcade** | Games | Retro arcade games |
+
+### Store API
+
+The rendezvous server exposes a REST API for template management:
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/store` | GET | Template store web page |
+| `/api/templates` | GET | JSON list of available templates |
+| `/api/templates/<name>/manifest.json` | GET | Template metadata |
+| `/api/templates/<name>/bundle` | GET | Download template as tar.gz |
 
 ## Insert policies
 
@@ -85,7 +113,8 @@ The same template code handles both cases transparently.
 1. Create a directory in your templates folder (e.g. `templates/my-app/`).
 2. Add a `manifest.json` with metadata and schema.
 3. Write your `index.html`, `style.css`, and `app.js`.
-4. Optionally add `schema.sql` for database tables.
-5. Optionally add Lua functions in `lua/functions/` for server-side logic.
+4. Include `<script src="/assets/js/goop-data.js"></script>` for database access.
+5. Optionally add `schema.sql` for database tables.
+6. Optionally add Lua functions in `lua/functions/` for server-side logic.
 
 Your template will appear in the viewer's template browser and can be shared via the template store.

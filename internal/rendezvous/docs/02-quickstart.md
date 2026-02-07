@@ -1,85 +1,62 @@
 # Getting Started
 
-This guide walks you through creating your first Goop2 peer and visiting it in the browser.
+## Desktop app (recommended)
 
-## 1. Download and install
+The easiest way to use Goop2 is the desktop application.
 
-Download the latest Goop2 binary for your platform from the project releases, or build from source:
+### 1. Build
+
+You need [Go 1.24+](https://go.dev/) and the [Wails CLI](https://wails.io/):
 
 ```bash
-git clone https://github.com/pgibler/goop2.git
+git clone https://github.com/petervdpas/goop2.git
 cd goop2
-go build -o goop2 ./cmd/goop2
+wails build
 ```
 
-## 2. Create a peer directory
-
-A peer is just a folder with a `goop.json` config and a `site/` directory:
+### 2. Launch
 
 ```bash
-mkdir -p peers/mysite/site
+./build/bin/goop2
 ```
 
-## 3. Write a configuration file
+The app opens a window where you can create peers, start and stop them, and manage your sites.
 
-Create `peers/mysite/goop.json`:
+### 3. Create a peer
 
-```json
-{
-  "identity": {
-    "key_file": "data/identity.key"
-  },
-  "paths": {
-    "site_root": "site"
-  },
-  "profile": {
-    "label": "My First Site",
-    "email": "you@example.com"
-  },
-  "viewer": {
-    "http_addr": "127.0.0.1:8080"
-  }
-}
-```
+Click **Create Peer**, give it a name, and hit create. Goop2 sets up the directory, generates a cryptographic identity, and creates a default site -- all automatically.
 
-This gives your peer a display name, tells it where to find your site files, and starts the local viewer on port 8080.
+### 4. Start and visit
 
-## 4. Add some content
+Click **Start** on your peer. The viewer opens in your browser, showing your site and any other peers on your local network.
 
-Create a simple `index.html` inside the site directory:
+From there you can edit your site, pick a template, or connect to a rendezvous server to find peers across the internet.
+
+## CLI mode
+
+If you're running on a server or prefer the terminal, you can run a peer without the desktop UI:
 
 ```bash
-cat > peers/mysite/site/index.html << 'EOF'
-<!DOCTYPE html>
-<html>
-<head><title>Hello Goop2</title></head>
-<body>
-  <h1>Welcome to my ephemeral site!</h1>
-  <p>This page is served directly from my machine.</p>
-</body>
-</html>
-EOF
-```
-
-## 5. Start the peer
-
-```bash
+go build -o goop2
 ./goop2 peer ./peers/mysite
 ```
 
-On first run, Goop2 will:
+If the directory doesn't have a `goop.json` yet, one is created automatically with sensible defaults. You can edit it afterward to change your display name, connect to a rendezvous server, enable Lua scripting, etc.
 
-- Create `data/identity.key` (your persistent cryptographic identity).
-- Create `data.db` (your local SQLite database).
-- Start announcing presence via mDNS on your local network.
-- Open the viewer at `http://127.0.0.1:8080`.
+See [Configuration](configuration) for the full reference.
 
-## 6. Visit your site
+## Rendezvous server
 
-Open a browser and go to `http://127.0.0.1:8080`. The viewer shows your site content and lists any other peers discovered on your network.
+To run a standalone rendezvous server for peer discovery across networks:
+
+```bash
+./goop2 rendezvous ./peers/server
+```
+
+This starts a lightweight HTTP server that peers can publish their presence to. See [Connecting to Peers](connecting) for setup details.
 
 ## What's next?
 
 - **Connect to other peers** -- See [Connecting to Peers](connecting) for mDNS and rendezvous setup.
 - **Customize your config** -- See [Configuration](configuration) for the full reference.
-- **Use a template** -- See [Templates](templates) to start with a pre-built blog, quiz, or game.
+- **Use a template** -- See [Templates](templates) to install a pre-built blog, quiz, or game.

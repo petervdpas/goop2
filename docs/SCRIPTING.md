@@ -633,19 +633,19 @@ end
 
 ### Frontend
 
-The frontend polls for updates (2-second interval while waiting for opponent's turn). When the group protocol is implemented, polling can be replaced with push notifications:
+The frontend can use the group protocol for real-time updates instead of polling. Templates that use groups get push notifications for moves and state changes:
 
 ```javascript
-// Before (polling):
+// Polling fallback (2-second interval):
 setInterval(function () { checkState(gameId); }, 2000);
 
-// After (group protocol):
+// Group protocol (real-time push):
 Goop.group.join("ttt-" + gameId, function (msg) {
     if (msg.type === "move") renderBoard(msg.payload);
 });
 ```
 
-The database schema, Lua functions, and game logic don't change — only the transport layer upgrades.
+The database schema, Lua functions, and game logic are the same in both cases — only the transport layer differs.
 
 ### File Structure
 

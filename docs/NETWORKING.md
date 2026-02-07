@@ -30,10 +30,16 @@ A rendezvous server exposes:
 | `/` | GET | HTML dashboard |
 | `/admin` | GET | Admin dashboard (password-protected) |
 | `/healthz` | GET | Health check |
+| `/store` | GET | Template store web page |
+| `/register` | GET/POST | Peer email registration |
+| `/verify` | GET | Email verification link handler |
+| `/relay` | GET | Circuit relay info (JSON) |
+| `/docs/` | GET | Documentation pages |
+| `/api/templates` | GET | Template store API |
 
-By default, the rendezvous binds to `127.0.0.1:8787` (localhost only). To
-make it reachable on your LAN, set `rendezvous_bind` to `"0.0.0.0"`. To make
-it reachable from the internet, forward the port on your router as well.
+The rendezvous binds to `127.0.0.1:8787` (localhost only). To make it
+reachable from the internet, put it behind a reverse proxy with TLS and set
+`external_url` to the public address (e.g. `https://goop2.com`).
 
 ## Multiple rendezvous servers
 
@@ -56,13 +62,27 @@ dedicated server or VPS.
 | What | Port | When to open |
 |---|---|---|
 | Rendezvous server | `rendezvous_port` (default 8787) TCP | If you want peers outside your LAN to use your rendezvous |
+| Circuit relay | `relay_port` (e.g. 4001) TCP | If your rendezvous server runs a relay for NAT traversal |
 | libp2p listener | `listen_port` (default random) TCP | For direct peer-to-peer connections from WAN |
 | mDNS | 5353 UDP | LAN only, usually already allowed |
 
-If both peers are behind NAT (home routers), direct connections rely on
-libp2p's built-in hole punching. There is no relay server in goop2 — if hole
-punching fails, peers can discover each other via rendezvous but cannot
-exchange actual data.
+## NAT traversal
+
+When both peers are behind NAT (home routers), direct connections aren't
+always possible. Goop2 handles this automatically:
+
+1. **Hole punching (DCUtR)** — When two peers can't connect directly, they
+   coordinate through a relay to punch a hole through their NATs using
+   libp2p's Direct Connection Upgrade through Relay protocol. If hole
+   punching succeeds, subsequent traffic flows directly between peers.
+
+2. **Circuit relay** — If hole punching fails, traffic flows through a
+   circuit relay — a lightweight proxy that forwards encrypted data between
+   peers. A rendezvous server can run a relay alongside its discovery service
+   by setting `relay_port` (e.g. `4001`). Peers automatically discover the
+   relay via the rendezvous server's `/relay` endpoint and use it when needed.
+
+The relay only forwards encrypted traffic; it cannot read the content.
 
 ## Presence protocol
 
@@ -125,10 +145,20 @@ can join one WAN rendezvous server.
 | `presence.heartbeat_seconds` | int | 5 | Seconds between heartbeats |
 | `presence.rendezvous_host` | bool | false | Run a rendezvous server locally |
 | `presence.rendezvous_port` | int | 8787 | Local rendezvous server port |
-| `presence.rendezvous_bind` | string | `"127.0.0.1"` | Bind address (`"0.0.0.0"` for LAN/WAN) |
 | `presence.rendezvous_wan` | string | `""` | WAN rendezvous URL to join |
 | `presence.rendezvous_only` | bool | false | Run only the rendezvous server, no P2P |
 | `presence.admin_password` | string | `""` | Password for `/admin` endpoint |
-| `presence.peer_db_path` | string | `""` | SQLite path for multi-instance sync (empty = in-memory) |
+| `presence.external_url` | string | `""` | Public URL for the server (e.g. `https://goop2.com`). Required behind a reverse proxy. |
+| `presence.peer_db_path` | string | `""` | SQLite path for peer state persistence (empty = in-memory) |
+| `presence.templates_dir` | string | `"templates"` | Directory for store templates (relative to peer dir) |
+| `presence.registration_required` | bool | false | Require email verification before peers are discoverable |
+| `presence.registration_webhook` | string | `""` | URL called (POST) when a registration is verified |
+| `presence.relay_port` | int | 0 | Circuit relay port. When > 0, a relay runs alongside the rendezvous server. |
+| `presence.relay_key_file` | string | `"data/relay.key"` | Path to the relay identity key file |
+| `presence.smtp_host` | string | `""` | SMTP server host for verification emails |
+| `presence.smtp_port` | int | 587 | SMTP server port |
+| `presence.smtp_username` | string | `""` | SMTP username |
+| `presence.smtp_password` | string | `""` | SMTP password or token |
+| `presence.smtp_from` | string | `""` | From address for emails (defaults to `smtp_username`) |
 | `p2p.listen_port` | int | 0 | libp2p TCP port (0 = random) |
 | `p2p.mdns_tag` | string | `"goop-mdns"` | mDNS discovery tag |

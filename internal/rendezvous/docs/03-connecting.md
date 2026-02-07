@@ -35,7 +35,7 @@ If someone is already running a rendezvous server, add its URL to your peer's co
 ```json
 {
   "presence": {
-    "rendezvous_wan": "http://192.168.1.50:8787"
+    "rendezvous_wan": "https://goop2.com"
   }
 }
 ```
@@ -81,24 +81,64 @@ Start it with:
 
 ### Production deployment
 
-For a production rendezvous server accessible over the internet, put it behind a reverse proxy with TLS:
-
-```
-# Example Caddyfile
-rendezvous.yourdomain.com {
-    reverse_proxy localhost:8787
-}
-```
-
-Peers then connect with:
+For a production rendezvous server accessible over the internet, put it behind a reverse proxy with TLS and set the `external_url` so peers see the public address:
 
 ```json
 {
   "presence": {
-    "rendezvous_wan": "https://rendezvous.yourdomain.com"
+    "rendezvous_only": true,
+    "rendezvous_host": true,
+    "rendezvous_port": 8787,
+    "admin_password": "your-secret-password",
+    "external_url": "https://goop2.com"
   }
 }
 ```
+
+```
+# Example Caddyfile
+goop2.com {
+    reverse_proxy localhost:8787
+}
+```
+
+## NAT traversal
+
+When peers are on different networks behind NAT routers, direct connections aren't always possible. Goop2 handles this automatically using two mechanisms:
+
+### Hole punching (DCUtR)
+
+Goop2 uses libp2p's Direct Connection Upgrade through Relay (DCUtR) protocol. When two peers can't connect directly, they coordinate through a relay to punch a hole through their NATs. If hole punching succeeds, subsequent traffic flows directly between peers.
+
+### Circuit relay
+
+If hole punching fails, traffic flows through a **circuit relay** -- a lightweight proxy that forwards data between peers. A rendezvous server can run a circuit relay alongside its discovery service:
+
+```json
+{
+  "presence": {
+    "rendezvous_host": true,
+    "relay_port": 4001
+  }
+}
+```
+
+Peers automatically discover the relay via the rendezvous server's `/relay` endpoint and use it when needed. The relay only forwards encrypted traffic; it cannot read the content.
+
+## Email registration
+
+A rendezvous server can require email verification before peers are allowed to be discovered. When enabled, new peers must register and verify their email address before their presence is visible to others:
+
+```json
+{
+  "presence": {
+    "registration_required": true,
+    "peer_db_path": "data/peers.db"
+  }
+}
+```
+
+Visitors can register at the `/register` page on the rendezvous server. A verification link is sent via email (if SMTP is configured) or logged to the console for testing.
 
 ## Visiting peers
 

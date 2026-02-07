@@ -1,13 +1,13 @@
 # What is Goop2?
 
-Goop2 is a peer-to-peer content publishing system for the **ephemeral web**. Instead of uploading your site to a centralized host, you run a Goop2 peer on your own machine. Your site exists while you are online and disappears when you shut down -- no servers, no monthly bills, no platform lock-in.
+Goop2 is a peer-to-peer platform for the **ephemeral web**. Instead of uploading your site to a centralized host, you run a Goop2 peer on your own machine. Your websites, apps, and services exist while you are online and vanish when you shut down -- no servers, no monthly bills, no platform lock-in.
 
 ## Core ideas
 
-- **Ephemeral by design** -- A Goop2 site exists only while its owner is present and online. There is no permanent hosting.
+- **Ephemeral by design** -- Content exists only while its owner is present and online. There is no permanent hosting.
 - **Peer-first architecture** -- Every participant is both client and server. You serve your own content and browse other peers directly.
 - **No central control** -- Discovery happens via local-network mDNS or lightweight rendezvous servers. Nobody owns the network.
-- **Direct connections** -- Peers exchange data over libp2p streams. Content is never stored on a third party.
+- **Direct connections** -- Peers exchange data over libp2p streams. When direct connections aren't possible, a circuit relay helps peers connect through NAT.
 
 ## How it works
 
@@ -29,7 +29,8 @@ Visitors see your site rendered in their own viewer. Data operations (forms, com
 | **Database** | A local SQLite database (`data.db`) for dynamic content. |
 | **Presence** | Soft state: peers announce periodically; absence is inferred after a timeout. |
 | **Template** | A pre-built application (blog, quiz, game) that bundles HTML, CSS, JS, a database schema, and optional Lua logic. |
-| **Rendezvous** | An optional relay that helps peers on different networks find each other. |
+| **Rendezvous** | A lightweight server that helps peers on different networks find each other. It handles discovery only -- not data. |
+| **Relay** | A circuit relay (libp2p relay v2) that helps peers behind NAT connect when direct hole-punching fails. Runs alongside the rendezvous server. |
 
 ## What Goop2 is not
 

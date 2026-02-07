@@ -2,15 +2,25 @@
 
 ## Building
 
+### Desktop app (Wails)
+
+The desktop app uses [Wails](https://wails.io/) to bundle the Go backend with a native webview window:
+
 ```bash
-# Standard build
+wails build
+```
+
+The binary is created at `build/bin/goop2`.
+
+### CLI-only build
+
+For servers or headless deployments where you only need peer mode or rendezvous mode:
+
+```bash
 go build -o goop2
 
 # Optimized production build (smaller binary)
 go build -ldflags="-s -w" -trimpath -o goop2
-
-# Static binary (Alpine/musl)
-CGO_ENABLED=0 go build -ldflags="-s -w" -o goop2
 
 # Cross-compilation
 GOOS=linux GOARCH=amd64 go build -o goop2-linux-amd64
@@ -136,7 +146,9 @@ All configuration is via `goop.json` in the peer directory. There are no environ
   "presence": {
     "rendezvous_only": true,
     "rendezvous_host": true,
-    "rendezvous_port": 8787
+    "rendezvous_port": 8787,
+    "admin_password": "your-secret-password",
+    "external_url": "https://goop2.com"
   },
   "viewer": {
     "http_addr": "127.0.0.1:9090"
@@ -151,8 +163,18 @@ Key rendezvous settings in `goop.json` under `"presence"`:
 | `rendezvous_host` | `false` | Enable the rendezvous server |
 | `rendezvous_port` | `8787` | Listen port (binds to `127.0.0.1`) |
 | `rendezvous_only` | `false` | Run only rendezvous (no P2P node) |
+| `admin_password` | `""` | Password for the admin panel |
+| `external_url` | `""` | Public URL (required behind a reverse proxy) |
 | `templates_dir` | `"templates"` | Directory for store templates (relative to peer dir) |
 | `peer_db_path` | `""` | SQLite path for peer state persistence (see Load Balancing) |
+| `registration_required` | `false` | Require email verification before peers are discoverable |
+| `relay_port` | `0` | Circuit relay port (when > 0, relay runs alongside rendezvous) |
+| `relay_key_file` | `"data/relay.key"` | Path to the relay identity key file |
+| `smtp_host` | `""` | SMTP server host for verification emails |
+| `smtp_port` | `587` | SMTP server port |
+| `smtp_username` | `""` | SMTP username |
+| `smtp_password` | `""` | SMTP password or token |
+| `smtp_from` | `""` | From address for emails |
 
 ---
 
@@ -215,7 +237,7 @@ Run multiple peer services with different ports. Ensure each peer's `goop.json` 
 ### Pattern 4: Container Deployment
 
 ```dockerfile
-FROM golang:1.21-alpine AS builder
+FROM golang:1.24-alpine AS builder
 WORKDIR /app
 COPY . .
 RUN go build -ldflags="-s -w" -o goop2 .
@@ -311,12 +333,25 @@ sudo journalctl -u goop-rendezvous -f
 - `POST /publish` — Register a peer (used by clients)
 - `GET /events` — SSE stream of peer events (joins/leaves)
 - `GET /healthz` — Health check endpoint (returns "ok")
+- `GET /relay` — Circuit relay info (peer ID and multiaddresses, JSON)
+
+**Registration (when `registration_required` is enabled):**
+
+- `GET /register` — Registration page
+- `POST /register` — Submit registration
+- `GET /verify` — Email verification link handler
+- `GET /registrations.json` — List of registrations (admin)
 
 **Template Store API:**
 
+- `GET /store` — Template store web page
 - `GET /api/templates` — List available templates
 - `GET /api/templates/<name>/manifest.json` — Template metadata
 - `GET /api/templates/<name>/bundle` — Download template as tar.gz
+
+**Documentation:**
+
+- `GET /docs/` — Embedded documentation pages
 
 **Example usage:**
 
@@ -375,13 +410,19 @@ Start multiple instances (each with its own peer directory but sharing the DB fi
 
 ### Client Configuration
 
-Configure Goop² clients to use your rendezvous server:
+Configure Goop² peers to use your rendezvous server in their `goop.json`:
 
 ```json
 {
-  "site": "My Site",
-  "peerName": "my-peer",
-  "rendezvous": "https://rendezvous.yourdomain.com"
+  "profile": {
+    "label": "My Site"
+  },
+  "presence": {
+    "rendezvous_wan": "https://rendezvous.yourdomain.com"
+  },
+  "p2p": {
+    "listen_port": 4001
+  }
 }
 ```
 

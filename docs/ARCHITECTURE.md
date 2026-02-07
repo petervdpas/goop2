@@ -131,14 +131,23 @@ The SQLite-per-peer model means every user has a programmable data store. The P2
 
 ### The Road Ahead
 
-1. **Email verification** — Required identity for hub access
-2. **Multi-hub support** — Peers join multiple communities simultaneously
-3. **Community-scoped UI** — Peer lists and broadcast filtered by active community
-4. **Subscription gating** — Hubs verify email and subscription before allowing discovery
-5. **Super hub protocol** — Directory API for registering, searching, and listing hubs
-6. **Browse Communities view** — UI for discovering and joining communities
-7. **Hub federation** — Super hubs sync directories with each other
-8. **Application layer** — SDKs and templates for building on top of the peer platform
+**Implemented:**
+
+1. **Email verification** — Required identity for hub access (registration + SMTP verification flow)
+2. **Circuit relay + hole punching** — NAT traversal via relay v2 and DCUtR
+3. **Groups protocol** — N-peer communication with host-relayed architecture
+4. **Template store** — Browse and install templates from a rendezvous server
+5. **File sharing** — Group-scoped file sharing via `/goop/docs/1.0.0`
+6. **Application layer** — Templates, Lua scripting, and `goop-data.js` / `goop-group.js` client libraries
+
+**Planned:**
+
+1. **Multi-hub support** — Peers join multiple communities simultaneously
+2. **Community-scoped UI** — Peer lists and broadcast filtered by active community
+3. **Subscription gating** — Hubs verify email and subscription before allowing discovery
+4. **Super hub protocol** — Directory API for registering, searching, and listing hubs
+5. **Browse Communities view** — UI for discovering and joining communities
+6. **Hub federation** — Super hubs sync directories with each other
 
 ---
 
@@ -164,41 +173,30 @@ This means:
 
 ### Template Library
 
-#### Community & Social
+#### Built-in Templates
 
-**The Corkboard (Prikbord)** — The digital reincarnation of the supermarket advertisement board. Full skeuomorphic design — cork texture, pinned cards with pushpins, slightly rotated notes, handwritten-style fonts, torn paper edges. Pin a note: title, description, optional category, optional "contact me" info. Notes are visible to all peers. Color-coded by category: selling (yellow), looking for (blue), offering (green), event (pink). Notes expire after a configurable period (default 30 days).
+These ship with the Goop2 binary and are always available:
 
-**Blog** — Markdown posts with title, date, tags. Comments from visiting peers are written to the blog owner's database via P2P. RSS-like feed aggregation across peers.
+**Blog** — A personal blog where visitors can read posts and leave comments. Only the site owner can create posts. Comments are written to the blog owner's database via P2P.
 
-**Guestbook** — Visitors leave messages on your peer's page. Each entry is signed with the visitor's cryptographic peer identity. Classic web nostalgia.
+**Enquete** — A simple survey application. Visitors answer questions and responses are collected in the owner's database.
 
-**Link Board** — Shared bookmarks within a community. Submit links with title, description, tags. Upvote/downvote by peers. A decentralized Reddit at community scale.
+**Tic-Tac-Toe** — A multiplayer tic-tac-toe game with server-side Lua enforcing the rules. Visitors can challenge the host to a match.
 
-#### Education
+**Clubhouse** — A real-time group chat room. Uses the groups protocol for live messaging between peers.
 
-**Quiz / Exam** — Teacher creates questions. Students visit the teacher's quiz page and answer — responses write to teacher's database via P2P. Each student's response is tagged with their peer ID. Results stored in teacher's database — instant grading. Timer, leaderboard. No Kahoot subscription required.
+#### Store Templates
 
-**Classroom Board** — Teacher posts announcements, assignments, resources. Students can submit work.
+Additional templates available through the template store on a rendezvous server:
 
-**Flashcards** — Create and share flashcard decks. Spaced repetition study mode.
-
-#### Productivity
-
-**Wiki** — Collaborative pages with edit history. Markdown-based. Peer-contributed.
-
-**File Share** — Drag and drop file sharing between peers.
-
-**Kanban Board** — Columns: To Do, In Progress, Done. Shared state across group members.
-
-#### Games
-
-**Trivia Night** — Host creates question sets. Players join, answer in real-time. Timed rounds, score tracking.
-
-**Chess / Board Games** — Game state synchronized between players via group stream. Move history stored in SQLite. ELO rating tracked per community.
-
-**Drawing Game** — Pictionary-style. Real-time stroke synchronization via group channel.
-
-**Card Games** — Framework for turn-based card games.
+| Template | Category | Description |
+|----------|----------|-------------|
+| **Chess** | Games | Classic chess with server-side move validation |
+| **Quiz** | Education | Timed quizzes with scoring and leaderboard |
+| **Corkboard** | Community | Pin notes and ads — a digital bulletin board |
+| **Kanban** | Productivity | Task board with drag-and-drop columns |
+| **Photobook** | Content | Photo gallery with albums |
+| **Arcade** | Games | Retro arcade games |
 
 ### Template Architecture
 
@@ -207,11 +205,12 @@ Each template consists of:
 ```bash
 templates/
   corkboard/
-    schema.sql        -- SQLite tables for this template
-    template.html     -- Go template for the UI
+    manifest.json     -- Template metadata
+    index.html        -- Frontend UI (Go template syntax)
     style.css         -- Template-specific styles
     app.js            -- Client-side logic
-    manifest.json     -- Template metadata
+    schema.sql        -- SQLite tables for this template
+    lua/functions/    -- Server-side Lua logic (optional)
 ```
 
 **Transparent Local/Remote Data Routing**: Templates include `goop-data.js`, which provides a unified data API (`Goop.data`). On load, the script checks `window.location.pathname`:
@@ -260,17 +259,18 @@ Templates can be **built-in** (shipped with the binary), **downloaded** (from a 
 
 ## Groups Protocol
 
-### The Gap
+### Overview
 
-Goop2 currently has three communication patterns:
+Goop2 has four communication patterns:
 
 | Pattern | Protocol | Scope |
 | -- | -- | -- |
 | Broadcast | GossipSub (presence) | Everyone |
 | 1:1 | `/goop/chat/1.0.0` | Two peers |
 | Request/response | `/goop/data/1.0.0` | Two peers |
+| Group | `/goop/group/1.0.0` | N peers |
 
-Groups are the missing middle — N peers, scoped to a subset of the network.
+Groups fill the gap between 1:1 and broadcast — N peers, scoped to a subset of the network.
 
 ### Communication Layers
 
@@ -441,13 +441,13 @@ Inside the Create tab:
 4. Moves exchanged via group channel, state stored in SQLite
 5. Game ends — group dissolves, move history persists
 
-### Open Questions
+### Design Decisions
 
-1. **Reconnection** — if a member's stream drops, should they auto-rejoin?
-2. **Persistence** — should group chat history be stored?
-3. **Permissions** — should the host define roles (player vs spectator vs admin)?
-4. **WebSocket vs SSE** — browser needs a persistent connection to local viewer
-5. **Offline group display** — show greyed-out or hide entirely?
+1. **Reconnection** — Auto-rejoin on startup for subscribed groups. Mid-session drops require manual rejoin.
+2. **Persistence** — Group subscriptions are stored in SQLite. Chat history is not persisted.
+3. **Permissions** — Host is admin, all others are members. Role-based permissions (player/spectator) are template-specific.
+4. **Browser connection** — SSE stream from viewer to browser (`/api/groups/events`) for real-time updates.
+5. **Offline groups** — Groups whose host is offline are shown but marked as unreachable.
 
 ---
 

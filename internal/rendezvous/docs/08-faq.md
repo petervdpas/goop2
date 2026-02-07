@@ -4,7 +4,7 @@
 
 ### Is Goop2 free?
 
-Yes. Goop2 is open-source software.
+Yes. Goop2 is open-source software. All templates are currently free to download and use.
 
 ### Do I need a server?
 
@@ -12,7 +12,7 @@ No. A peer runs on your own machine. A rendezvous server is optional and only ne
 
 ### What happens when I shut down?
 
-Your site disappears from the network. Other peers will mark you as offline after the TTL expires (default 20 seconds). When you start up again, your identity and data are still on disk.
+Your content vanishes from the network. Other peers will mark you as offline after the TTL expires (default 20 seconds). When you start up again, your identity and data are still on disk.
 
 ### Can I run multiple peers on one machine?
 
@@ -39,12 +39,21 @@ Yes. Give each peer a different directory and a different `viewer.http_addr` por
 - **Check the firewall.** The rendezvous port (default 8787) must be reachable, or use a reverse proxy on ports 80/443.
 - **Check TLS.** If using HTTPS, make sure your certificate is valid.
 
+### Peers can't connect directly (NAT issues)
+
+If peers discover each other via rendezvous but can't exchange data:
+
+- **Enable the circuit relay.** Set `relay_port` on your rendezvous server (e.g. `4001`). Peers will automatically use it for NAT traversal.
+- **Forward a port.** If you can, forward a TCP port on your router and set `p2p.listen_port` to match.
+- **Check your router.** Some routers block hole punching. The circuit relay is the fallback for these cases.
+
 ### What ports do I need to open?
 
 | Port | Protocol | Purpose |
 |------|----------|---------|
 | 5353 | UDP | mDNS (LAN discovery) |
 | 4001 (or your `listen_port`) | TCP | libp2p peer connections |
+| 4001 (or your `relay_port`) | TCP | Circuit relay (on the rendezvous server) |
 | 8787 (or your `rendezvous_port`) | TCP | Rendezvous server |
 | 8080 (or your `http_addr` port) | TCP | Local viewer (usually localhost only) |
 
@@ -68,7 +77,7 @@ Check that your `site/` directory contains an `index.html` file. The site root i
 
 ### Remote data operations aren't working
 
-- Verify your template includes `<script src="/goop-data.js"></script>`.
+- Verify your template includes `<script src="/assets/js/goop-data.js"></script>`.
 - Check the browser console for errors.
 - Make sure the remote peer is still online.
 - Review the peer's logs for Lua errors if data functions are involved.

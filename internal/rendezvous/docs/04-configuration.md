@@ -27,8 +27,18 @@ All configuration lives in a single `goop.json` file in your peer directory. The
     "rendezvous_wan": "",
     "rendezvous_only": false,
     "admin_password": "",
+    "external_url": "",
     "templates_dir": "templates",
-    "peer_db_path": ""
+    "peer_db_path": "",
+    "registration_required": false,
+    "registration_webhook": "",
+    "relay_port": 0,
+    "relay_key_file": "data/relay.key",
+    "smtp_host": "",
+    "smtp_port": 587,
+    "smtp_username": "",
+    "smtp_password": "",
+    "smtp_from": ""
   },
   "profile": {
     "label": "hello",
@@ -87,8 +97,18 @@ All configuration lives in a single `goop.json` file in your peer directory. The
 | `rendezvous_wan` | `""` | URL of a remote rendezvous server to publish presence to. |
 | `rendezvous_only` | `false` | Run only the rendezvous server with no P2P node. |
 | `admin_password` | `""` | Password for the rendezvous admin panel. Leave empty to disable admin. |
-| `templates_dir` | `templates` | Directory containing template store templates. |
-| `peer_db_path` | `""` | SQLite path for persisting peer state across restarts (useful for multi-instance rendezvous). |
+| `external_url` | `""` | Public URL for the server (e.g. `https://goop2.com`). Required behind a reverse proxy so peers see the correct address. |
+| `templates_dir` | `templates` | Directory containing template store templates (relative to peer dir). |
+| `peer_db_path` | `""` | SQLite path for persisting peer state across restarts. Required for registration and multi-instance setups. |
+| `registration_required` | `false` | Require email verification before peers are discoverable. Needs `peer_db_path` to be set. |
+| `registration_webhook` | `""` | URL called (POST) when a registration is verified. Receives `{"email": "...", "verified_at": ...}`. |
+| `relay_port` | `0` | Circuit relay v2 port. When > 0, a relay host runs alongside the rendezvous server for NAT traversal. |
+| `relay_key_file` | `data/relay.key` | Path to the relay identity key file. |
+| `smtp_host` | `""` | SMTP server host for sending verification emails (e.g. `smtp.protonmail.ch`). |
+| `smtp_port` | `587` | SMTP server port (587 for STARTTLS, 465 for implicit TLS). |
+| `smtp_username` | `""` | SMTP username. |
+| `smtp_password` | `""` | SMTP password or token. |
+| `smtp_from` | `""` | From address for emails. Defaults to `smtp_username` if empty. |
 
 ### profile
 
@@ -123,6 +143,7 @@ All configuration lives in a single `goop.json` file in your peer directory. The
 - `site_source` and `site_stage` must be different paths.
 - `heartbeat_seconds` must be less than `ttl_seconds`.
 - `listen_port` must be `0` or between `1` and `65535`.
+- `relay_port`, when set, must be between `1` and `65535`.
 
 ## Example configurations
 
@@ -141,7 +162,7 @@ All configuration lives in a single `goop.json` file in your peer directory. The
 {
   "profile": { "label": "My Site" },
   "presence": {
-    "rendezvous_wan": "https://rendezvous.example.com"
+    "rendezvous_wan": "https://goop2.com"
   },
   "p2p": { "listen_port": 4001 }
 }
@@ -155,7 +176,30 @@ All configuration lives in a single `goop.json` file in your peer directory. The
     "rendezvous_only": true,
     "rendezvous_host": true,
     "rendezvous_port": 8787,
-    "admin_password": "secure-password"
+    "admin_password": "secure-password",
+    "external_url": "https://goop2.com"
+  }
+}
+```
+
+### Rendezvous with relay and registration
+
+```json
+{
+  "presence": {
+    "rendezvous_only": true,
+    "rendezvous_host": true,
+    "rendezvous_port": 8787,
+    "admin_password": "secure-password",
+    "external_url": "https://goop2.com",
+    "relay_port": 4001,
+    "registration_required": true,
+    "peer_db_path": "data/peers.db",
+    "smtp_host": "smtp.example.com",
+    "smtp_port": 587,
+    "smtp_username": "admin@example.com",
+    "smtp_password": "your-smtp-token",
+    "smtp_from": "noreply@example.com"
   }
 }
 ```
