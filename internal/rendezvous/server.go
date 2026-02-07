@@ -22,6 +22,8 @@ import (
 
 	"goop/internal/proto"
 	"goop/internal/util"
+
+	"github.com/libp2p/go-libp2p/core/host"
 )
 
 //go:embed all:assets
@@ -74,6 +76,12 @@ type Server struct {
 
 	templateStore *TemplateStore
 	peerDB        *peerDB // nil when persistence is disabled
+
+	// Circuit relay v2
+	relayHost    host.Host  // nil when relay is disabled
+	relayInfo    *RelayInfo // nil when relay is disabled
+	relayPort    int
+	relayKeyFile string
 
 	// per-IP rate limiter for /publish
 	rateMu     sync.Mutex
@@ -135,7 +143,7 @@ type docsVM struct {
 	Next    *DocPage
 }
 
-func New(addr string, templatesDirs []string, peerDBPath string, adminPassword string, externalURL string, registrationRequired bool, registrationWebhook string, smtp SMTPConfig) *Server {
+func New(addr string, templatesDirs []string, peerDBPath string, adminPassword string, externalURL string, registrationRequired bool, registrationWebhook string, smtp SMTPConfig, relayPort int, relayKeyFile string) *Server {
 	funcs := template.FuncMap{
 		"statusClass": func(t string) string {
 			switch t {
@@ -232,6 +240,8 @@ func New(addr string, templatesDirs []string, peerDBPath string, adminPassword s
 		docsCSS:              docsCSSData,
 		favicon:              faviconData,
 		docsSite:             newDocSite(),
+		relayPort:            relayPort,
+		relayKeyFile:         relayKeyFile,
 		rateWindow:           map[string]*rateBucket{},
 	}
 
@@ -251,6 +261,22 @@ func New(addr string, templatesDirs []string, peerDBPath string, adminPassword s
 }
 
 func (s *Server) Start(ctx context.Context) error {
+	// Start circuit relay v2 host if configured
+	if s.relayPort > 0 {
+		rh, ri, err := StartRelay(s.relayPort, s.relayKeyFile, s.externalURL)
+		if err != nil {
+			return fmt.Errorf("start relay: %w", err)
+		}
+		s.relayHost = rh
+		s.relayInfo = ri
+
+		// Shut down relay when context ends
+		go func() {
+			<-ctx.Done()
+			_ = rh.Close()
+		}()
+	}
+
 	// Load existing peers from SQLite on startup
 	if s.peerDB != nil {
 		s.loadPeersFromDB()
@@ -276,6 +302,11 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("content-type", "text/plain; charset=utf-8")
 		_, _ = w.Write([]byte("ok"))
+	})
+
+	// Relay info endpoint (returns 404 when relay is disabled)
+	mux.HandleFunc("/relay", func(w http.ResponseWriter, r *http.Request) {
+		handleRelayInfo(w, r, s.relayInfo)
 	})
 
 	// Admin-protected endpoints
@@ -358,7 +389,6 @@ func (s *Server) Start(ctx context.Context) error {
 
 		var pm proto.PresenceMsg
 		dec := json.NewDecoder(r.Body)
-		dec.DisallowUnknownFields()
 		if err := dec.Decode(&pm); err != nil {
 			http.Error(w, "bad json", http.StatusBadRequest)
 			return
@@ -1083,6 +1113,14 @@ func validatePresence(pm proto.PresenceMsg) error {
 	}
 	if len(pm.Email) > 320 {
 		return fmt.Errorf("email too long")
+	}
+	if len(pm.Addrs) > 20 {
+		return fmt.Errorf("too many addrs")
+	}
+	for _, a := range pm.Addrs {
+		if len(a) > 256 {
+			return fmt.Errorf("addr too long")
+		}
 	}
 
 	return nil

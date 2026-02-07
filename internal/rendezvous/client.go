@@ -31,6 +31,41 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
+// FetchRelayInfo fetches relay info from the rendezvous server.
+// Returns (nil, nil) if the server has no relay enabled (404).
+func (c *Client) FetchRelayInfo(ctx context.Context) (*RelayInfo, error) {
+	if c.BaseURL == "" {
+		return nil, nil
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/relay", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+	}()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+	if resp.StatusCode/100 != 2 {
+		return nil, fmt.Errorf("fetch relay info: status %s", resp.Status)
+	}
+
+	var info RelayInfo
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		return nil, err
+	}
+	return &info, nil
+}
+
 func (c *Client) Publish(ctx context.Context, pm proto.PresenceMsg) error {
 	if c.BaseURL == "" {
 		return nil

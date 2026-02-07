@@ -23,6 +23,11 @@ import (
 	"goop/internal/storage"
 	"goop/internal/util"
 	"goop/internal/viewer"
+
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
+	ma "github.com/multiformats/go-multiaddr"
+	manet "github.com/multiformats/go-multiaddr/net"
 )
 
 type Options struct {
@@ -93,7 +98,11 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			Password: cfg.Presence.SMTPPassword,
 			From:     cfg.Presence.SMTPFrom,
 		}
-		rv = rendezvous.New(addr, templatesDirs, peerDBPath, cfg.Presence.AdminPassword, cfg.Presence.ExternalURL, cfg.Presence.RegistrationRequired, cfg.Presence.RegistrationWebhook, smtpCfg)
+		relayKeyFile := ""
+		if cfg.Presence.RelayKeyFile != "" {
+			relayKeyFile = util.ResolvePath(o.PeerDir, cfg.Presence.RelayKeyFile)
+		}
+		rv = rendezvous.New(addr, templatesDirs, peerDBPath, cfg.Presence.AdminPassword, cfg.Presence.ExternalURL, cfg.Presence.RegistrationRequired, cfg.Presence.RegistrationWebhook, smtpCfg, cfg.Presence.RelayPort, relayKeyFile)
 		if err := rv.Start(ctx); err != nil {
 			return err
 		}
@@ -159,8 +168,20 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 
 	peers := state.NewPeerTable()
 
+	// Fetch relay info from WAN rendezvous (if available) so we can enable
+	// circuit relay transport and hole-punching for NAT traversal.
+	var relayInfo *rendezvous.RelayInfo
+	for _, c := range rvClients {
+		ri, err := c.FetchRelayInfo(ctx)
+		if err == nil && ri != nil {
+			relayInfo = ri
+			log.Printf("relay: discovered relay peer %s (%d addrs)", ri.PeerID, len(ri.Addrs))
+			break
+		}
+	}
+
 	keyPath := util.ResolvePath(o.PeerDir, cfg.Identity.KeyFile)
-	node, err := p2p.New(ctx, cfg.P2P.ListenPort, keyPath, peers, selfContent, selfEmail, selfVideoDisabled)
+	node, err := p2p.New(ctx, cfg.P2P.ListenPort, keyPath, peers, selfContent, selfEmail, selfVideoDisabled, relayInfo)
 	if err != nil {
 		return err
 	}
@@ -231,6 +252,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			switch pm.Type {
 			case proto.TypeOnline, proto.TypeUpdate:
 				peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled)
+				addPeerAddrs(node.Host, pm.PeerID, pm.Addrs)
 			case proto.TypeOffline:
 				peers.Remove(pm.PeerID)
 			}
@@ -239,6 +261,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 
 	publish := func(pctx context.Context, typ string) {
 		node.Publish(pctx, typ)
+		addrs := wanAddrs(node.Host)
 		for _, c := range rvClients {
 			cc := c
 			go func() {
@@ -251,6 +274,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 					Email:         selfEmail(),
 					AvatarHash:    avatarStore.Hash(),
 					VideoDisabled: selfVideoDisabled(),
+					Addrs:         addrs,
 					TS:            proto.NowMillis(),
 				})
 			}()
@@ -330,3 +354,66 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	_ = rv
 	return nil
 }
+
+// wanAddrs returns the host's multiaddresses filtered to exclude loopback
+// and link-local addresses, suitable for sharing with WAN peers.
+// Circuit relay addresses (p2p-circuit) are always included.
+func wanAddrs(h host.Host) []string {
+	var out []string
+	for _, a := range h.Addrs() {
+		// Always include circuit relay addresses.
+		if isCircuitAddr(a) {
+			out = append(out, a.String())
+			continue
+		}
+		ip, err := manet.ToIP(a)
+		if err != nil {
+			continue
+		}
+		if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+			continue
+		}
+		out = append(out, a.String())
+	}
+	return out
+}
+
+// isCircuitAddr returns true if the multiaddr contains a /p2p-circuit component.
+func isCircuitAddr(a ma.Multiaddr) bool {
+	for _, p := range a.Protocols() {
+		if p.Code == ma.P_CIRCUIT {
+			return true
+		}
+	}
+	return false
+}
+
+// addPeerAddrs parses multiaddr strings and adds them to the peerstore for the given peer.
+func addPeerAddrs(h host.Host, peerID string, addrs []string) {
+	if len(addrs) == 0 {
+		return
+	}
+	pid, err := peer.Decode(peerID)
+	if err != nil {
+		return
+	}
+	var maddrs []ma.Multiaddr
+	for _, s := range addrs {
+		a, err := ma.NewMultiaddr(s)
+		if err != nil {
+			continue
+		}
+		// Only accept non-loopback addresses
+		if ip, err := manet.ToIP(a); err == nil {
+			if ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+				continue
+			}
+		}
+		maddrs = append(maddrs, a)
+	}
+	if len(maddrs) > 0 {
+		h.Peerstore().AddAddrs(pid, maddrs, 30*time.Second)
+		log.Printf("WAN: added %d addrs for %s", len(maddrs), peerID)
+	}
+}
+

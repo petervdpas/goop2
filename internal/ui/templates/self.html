@@ -71,6 +71,8 @@
         <li class="settings-nav-item" data-section="network">Network</li>
         <li class="settings-nav-item" data-section="rendezvous">Rendezvous</li>
         <li class="settings-nav-item" data-section="server">Server</li>
+        <li class="settings-nav-item rv-server-nav" data-section="relay" id="nav-relay"
+            style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">Relay</li>
         <li class="settings-nav-item rv-server-nav" data-section="admin" id="nav-admin"
             style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">Admin</li>
         <li class="settings-nav-item rv-server-nav" data-section="registration" id="nav-registration"
@@ -221,8 +223,8 @@
           </div>
 
           <div id="rv-server-opts" style="margin-top:10px;{{if not .Cfg.Presence.RendezvousOnly}} display:none{{end}}">
-            <div class="rv-local rv-local-row">
-              <div class="field rv-port-field">
+            <div class="grid2">
+              <div class="field">
                 <label>Bind address</label>
                 <input name="presence_rendezvous_bind"
                        value="{{.Cfg.Presence.RendezvousBind}}"
@@ -233,7 +235,7 @@
                 </div>
               </div>
 
-              <div class="field rv-port-field">
+              <div class="field">
                 <label>Port</label>
                 <input id="rv_port"
                        name="presence_rendezvous_port"
@@ -250,6 +252,40 @@
               <div class="hint">
                 Public URL for servers behind NAT or reverse proxy.
                 Shown to users instead of auto-discovered LAN IPs.
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Relay (visible when server is enabled) -->
+        <div class="settings-section rv-server-section" data-section="relay" style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">
+          <h3 class="settings-section-title">Relay</h3>
+          <p class="muted small" style="margin-bottom:14px">
+            Circuit relay v2 enables NAT traversal via hole-punching.
+            Peers behind NAT connect through this relay, then upgrade to a direct connection.
+            Forward the relay TCP port on your router.
+          </p>
+
+          <div class="grid2">
+            <div class="field">
+              <label>Relay port</label>
+              <input name="presence_relay_port"
+                     type="number"
+                     value="{{if .Cfg.Presence.RelayPort}}{{.Cfg.Presence.RelayPort}}{{end}}"
+                     placeholder="0 = disabled">
+              <div class="hint">
+                TCP port for the relay. 0 = disabled. E.g. <code>4001</code>.
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Relay key file</label>
+              <input name="presence_relay_key_file"
+                     value="{{.Cfg.Presence.RelayKeyFile}}"
+                     placeholder="data/relay.key">
+              <div class="hint">
+                Persistent identity key for the relay host.
               </div>
             </div>
           </div>

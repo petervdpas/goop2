@@ -29,7 +29,7 @@ func TestTemplateStoreEndToEnd(t *testing.T) {
 	os.WriteFile(filepath.Join(tplDir, "src", "style.css"), []byte("body{}"), 0o644)
 
 	// Start rendezvous server with template store
-	srv := New("127.0.0.1:18787", []string{filepath.Join(dir, "templates")}, "", "", "", false, "", SMTPConfig{})
+	srv := New("127.0.0.1:18787", []string{filepath.Join(dir, "templates")}, "", "", "", false, "", SMTPConfig{}, 0, "")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

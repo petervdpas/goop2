@@ -144,6 +144,16 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		cfg.Presence.ExternalURL = getTrimmedPostFormValue(r.PostForm, "presence_external_url")
 		cfg.Presence.RegistrationWebhook = getTrimmedPostFormValue(r.PostForm, "presence_registration_webhook")
 
+		// Relay settings
+		if rp := getTrimmedPostFormValue(r.PostForm, "presence_relay_port"); rp != "" {
+			cfg.Presence.RelayPort, _ = strconv.Atoi(rp)
+		} else {
+			cfg.Presence.RelayPort = 0
+		}
+		if rkf := getTrimmedPostFormValue(r.PostForm, "presence_relay_key_file"); rkf != "" {
+			cfg.Presence.RelayKeyFile = rkf
+		}
+
 		// SMTP settings
 		cfg.Presence.SMTPHost = getTrimmedPostFormValue(r.PostForm, "presence_smtp_host")
 		if sp := getTrimmedPostFormValue(r.PostForm, "presence_smtp_port"); sp != "" {

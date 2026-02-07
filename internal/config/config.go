@@ -96,6 +96,13 @@ type Presence struct {
 	// Use this for monetization integration (e.g., check payment status).
 	RegistrationWebhook string `json:"registration_webhook"`
 
+	// Circuit relay v2 port. When > 0, a relay libp2p host is started on this
+	// TCP port alongside the rendezvous HTTP server. Requires RendezvousHost=true.
+	RelayPort int `json:"relay_port"`
+
+	// Path to the relay identity key file. Default "data/relay.key".
+	RelayKeyFile string `json:"relay_key_file"`
+
 	// SMTP configuration for sending registration verification emails.
 	// If not configured, verification links are logged to console instead.
 	SMTPHost     string `json:"smtp_host"`      // e.g., "smtp.protonmail.ch"
@@ -154,6 +161,8 @@ func Default() Config {
 			RendezvousWAN:  "",
 			RendezvousOnly: false,
 			TemplatesDir:   "templates",
+			RelayPort:      0,
+			RelayKeyFile:   "data/relay.key",
 		},
 		Profile: Profile{
 			Label: "hello",
@@ -232,6 +241,16 @@ func (c *Config) Validate() error {
 			if net.ParseIP(b) == nil {
 				return errors.New("presence.rendezvous_bind must be a valid IP address")
 			}
+		}
+	}
+
+	// Relay
+	if c.Presence.RelayPort > 0 {
+		if !c.Presence.RendezvousHost {
+			return errors.New("presence.relay_port requires presence.rendezvous_host=true")
+		}
+		if c.Presence.RelayPort > 65535 {
+			return errors.New("presence.relay_port must be 1..65535")
 		}
 	}
 

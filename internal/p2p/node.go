@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"goop/internal/avatar"
 	"goop/internal/docs"
 	"goop/internal/proto"
+	"goop/internal/rendezvous"
 	"goop/internal/state"
 	"goop/internal/storage"
 	"goop/internal/util"
@@ -27,6 +29,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
+	ma "github.com/multiformats/go-multiaddr"
+	manet "github.com/multiformats/go-multiaddr/net"
 )
 
 type Node struct {
@@ -102,7 +106,7 @@ func loadOrCreateKey(keyFile string) (crypto.PrivKey, bool, error) {
 	return priv, true, nil
 }
 
-func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerTable, selfContent, selfEmail func() string, selfVideoDisabled func() bool) (*Node, error) {
+func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerTable, selfContent, selfEmail func() string, selfVideoDisabled func() bool, relayInfo *rendezvous.RelayInfo) (*Node, error) {
 	priv, isNew, err := loadOrCreateKey(keyFile)
 	if err != nil {
 		return nil, err
@@ -113,10 +117,28 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 		log.Printf("Loaded identity key: %s", keyFile)
 	}
 
-	h, err := libp2p.New(
+	opts := []libp2p.Option{
 		libp2p.Identity(priv),
 		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", listenPort)),
-	)
+	}
+
+	// When a relay is available, enable circuit relay transport, hole-punching,
+	// and auto-relay so the peer gets a public relay address.
+	if relayInfo != nil {
+		ri, err := relayInfoToAddrInfo(relayInfo)
+		if err == nil {
+			opts = append(opts,
+				libp2p.EnableRelay(),
+				libp2p.EnableHolePunching(),
+				libp2p.EnableAutoRelayWithStaticRelays([]peer.AddrInfo{*ri}),
+			)
+			log.Printf("relay: enabled (relay peer %s, %d addrs)", ri.ID, len(ri.Addrs))
+		} else {
+			log.Printf("relay: invalid relay info, skipping: %v", err)
+		}
+	}
+
+	h, err := libp2p.New(opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -193,10 +215,90 @@ func (n *Node) Publish(ctx context.Context, typ string) {
 		msg.Email = n.selfEmail()
 		msg.AvatarHash = n.AvatarHash()
 		msg.VideoDisabled = n.selfVideoDisabled()
+		msg.Addrs = n.wanAddrs()
 	}
 
 	b, _ := json.Marshal(msg)
 	_ = n.topic.Publish(ctx, b)
+}
+
+// wanAddrs returns the host's multiaddresses filtered to exclude loopback
+// and link-local addresses. Circuit relay addresses (p2p-circuit) are always
+// included since they represent a public relay path.
+func (n *Node) wanAddrs() []string {
+	var out []string
+	for _, a := range n.Host.Addrs() {
+		// Always include circuit relay addresses — they're public relay paths.
+		if isCircuitAddr(a) {
+			out = append(out, a.String())
+			continue
+		}
+		ip, err := manet.ToIP(a)
+		if err != nil {
+			continue
+		}
+		if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+			continue
+		}
+		out = append(out, a.String())
+	}
+	return out
+}
+
+// isCircuitAddr returns true if the multiaddr contains a /p2p-circuit component.
+func isCircuitAddr(a ma.Multiaddr) bool {
+	for _, p := range a.Protocols() {
+		if p.Code == ma.P_CIRCUIT {
+			return true
+		}
+	}
+	return false
+}
+
+// relayInfoToAddrInfo converts a RelayInfo (from the rendezvous server) into
+// a libp2p peer.AddrInfo suitable for autorelay.
+func relayInfoToAddrInfo(ri *rendezvous.RelayInfo) (*peer.AddrInfo, error) {
+	pid, err := peer.Decode(ri.PeerID)
+	if err != nil {
+		return nil, fmt.Errorf("decode relay peer ID: %w", err)
+	}
+	var addrs []ma.Multiaddr
+	for _, s := range ri.Addrs {
+		a, err := ma.NewMultiaddr(s)
+		if err != nil {
+			continue
+		}
+		addrs = append(addrs, a)
+	}
+	return &peer.AddrInfo{ID: pid, Addrs: addrs}, nil
+}
+
+// addPeerAddrs parses multiaddr strings and adds them to the peerstore.
+func (n *Node) addPeerAddrs(peerID string, addrs []string) {
+	if len(addrs) == 0 {
+		return
+	}
+	pid, err := peer.Decode(peerID)
+	if err != nil {
+		return
+	}
+	var maddrs []ma.Multiaddr
+	for _, s := range addrs {
+		a, err := ma.NewMultiaddr(s)
+		if err != nil {
+			continue
+		}
+		if ip, err := manet.ToIP(a); err == nil {
+			if ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+				continue
+			}
+		}
+		maddrs = append(maddrs, a)
+	}
+	if len(maddrs) > 0 {
+		n.Host.Peerstore().AddAddrs(pid, maddrs, 30*time.Second)
+		log.Printf("WAN: added %d addrs for %s", len(maddrs), peerID)
+	}
 }
 
 func (n *Node) RunPresenceLoop(ctx context.Context, onEvent func(msg proto.PresenceMsg)) {
@@ -221,6 +323,7 @@ func (n *Node) RunPresenceLoop(ctx context.Context, onEvent func(msg proto.Prese
 			switch pm.Type {
 			case proto.TypeOnline, proto.TypeUpdate:
 				n.peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled)
+				n.addPeerAddrs(pm.PeerID, pm.Addrs)
 			case proto.TypeOffline:
 				n.peers.Remove(pm.PeerID)
 			}
