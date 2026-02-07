@@ -26,7 +26,7 @@
             <span class="peercontent muted small"><code>{{shortID .ID}}</code> &middot; seen {{rfc3339 .LastSeen}}</span>
           </div>
           <div class="peerright">
-            {{if .VideoDisabled}}
+            {{if or .VideoDisabled $.SelfVideoDisabled}}
             <span class="peer-video-disabled" title="Video/audio calls disabled">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#f39c12;">
                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
@@ -84,6 +84,7 @@
 (function() {
   const selfID = '{{.SelfID}}';
   const selfName = '{{.SelfName}}';
+  const selfVideoDisabled = {{.SelfVideoDisabled}};
   const peersList = document.getElementById('peers-list');
   const peerCount = document.getElementById('peer-count');
   const peerSearch = document.getElementById('peer-search');
@@ -134,7 +135,7 @@
         <span class="peercontent muted small"><code>${escapeHtml(shortId)}</code> &middot; seen ${escapeHtml(lastSeen)}</span>
       </div>
       <div class="peerright">
-        ${peer.VideoDisabled ? `
+        ${(peer.VideoDisabled || selfVideoDisabled) ? `
         <span class="peer-video-disabled" title="Video/audio calls disabled">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#f39c12;">
             <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>

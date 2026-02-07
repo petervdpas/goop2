@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"goop/internal/config"
 	"goop/internal/ui/render"
 	"goop/internal/ui/viewmodels"
 	"goop/internal/util"
@@ -40,13 +41,21 @@ func registerPeerRoutes(mux *http.ServeMux, d Deps) {
 			}
 		}
 
+		selfVideoDisabled := false
+		if d.CfgPath != "" {
+			if cfg, err := config.Load(d.CfgPath); err == nil {
+				selfVideoDisabled = cfg.Viewer.VideoDisabled
+			}
+		}
+
 		vm := viewmodels.PeerContentVM{
-			BaseVM:        baseVM("Peer", "peers", "page.peer", d),
-			PeerID:        peerID,
-			Content:       txt,
-			PeerEmail:     peerEmail,
-			AvatarHash:    avatarHash,
-			VideoDisabled: videoDisabled,
+			BaseVM:            baseVM("Peer", "peers", "page.peer", d),
+			PeerID:            peerID,
+			Content:           txt,
+			PeerEmail:         peerEmail,
+			AvatarHash:        avatarHash,
+			VideoDisabled:     videoDisabled,
+			SelfVideoDisabled: selfVideoDisabled,
 		}
 		render.Render(w, vm)
 	})

@@ -20,7 +20,8 @@ type PeerRow struct {
 
 type PeersVM struct {
 	BaseVM
-	Peers []PeerRow
+	Peers             []PeerRow
+	SelfVideoDisabled bool
 }
 
 func BuildPeerRows(m map[string]state.SeenPeer) []PeerRow {
