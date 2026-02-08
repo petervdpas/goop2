@@ -4,7 +4,6 @@ package rendezvous
 import (
 	"context"
 	"crypto/rand"
-	"crypto/tls"
 	"embed"
 	"encoding/base64"
 	"encoding/json"
@@ -14,7 +13,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/smtp"
 	"sort"
 	"strings"
 	"sync"
@@ -39,17 +37,6 @@ type Server struct {
 	externalURL   string // public URL for servers behind NAT/reverse proxy
 	adminPassword string
 	srv           *http.Server
-
-	// registration settings
-	registrationRequired bool
-	registrationWebhook  string
-
-	// SMTP settings for sending verification emails
-	smtpHost     string
-	smtpPort     int
-	smtpUsername string
-	smtpPassword string
-	smtpFrom     string
 
 	mu        sync.Mutex
 	clients   map[chan []byte]struct{}
@@ -76,9 +63,10 @@ type Server struct {
 	splash       []byte
 	docsSite     *DocSite
 
-	templateStore *TemplateStore
-	peerDB        *peerDB         // nil when persistence is disabled
-	credits       CreditProvider  // default: NoCredits{}
+	templateStore  *TemplateStore
+	peerDB         *peerDB         // nil when persistence is disabled
+	credits        CreditProvider  // default: NoCredits{}
+	registration   *RemoteRegistrationProvider // nil = use built-in registration
 
 	// Circuit relay v2
 	relayHost    host.Host  // nil when relay is disabled
@@ -113,15 +101,6 @@ type peerRow struct {
 	BytesReceived int64  `json:"bytes_received"`
 }
 
-// SMTPConfig holds SMTP settings for sending verification emails.
-type SMTPConfig struct {
-	Host     string // SMTP server host (e.g., "smtp.protonmail.ch")
-	Port     int    // SMTP server port (e.g., 587 for STARTTLS)
-	Username string // SMTP username (e.g., "admin@goop2.com")
-	Password string // SMTP password or token
-	From     string // From address (defaults to Username if empty)
-}
-
 type indexVM struct {
 	Title                string
 	Endpoint             string
@@ -145,10 +124,11 @@ type storeVM struct {
 }
 
 type adminVM struct {
-	Title     string
-	PeerCount int
-	Peers     []peerRow
-	Now       string
+	Title      string
+	PeerCount  int
+	Peers      []peerRow
+	Now        string
+	HasCredits bool
 }
 
 type docsVM struct {
@@ -159,7 +139,7 @@ type docsVM struct {
 	Next    *DocPage
 }
 
-func New(addr string, templatesDirs []string, peerDBPath string, adminPassword string, externalURL string, registrationRequired bool, registrationWebhook string, smtp SMTPConfig, relayPort int, relayKeyFile string) *Server {
+func New(addr string, templatesDirs []string, peerDBPath string, adminPassword string, externalURL string, relayPort int, relayKeyFile string) *Server {
 	funcs := template.FuncMap{
 		"statusClass": func(t string) string {
 			switch t {
@@ -237,23 +217,11 @@ func New(addr string, templatesDirs []string, peerDBPath string, adminPassword s
 		splashData = nil
 	}
 
-	smtpFrom := smtp.From
-	if smtpFrom == "" {
-		smtpFrom = smtp.Username
-	}
-
 	s := &Server{
-		addr:                 addr,
-		externalURL:          strings.TrimRight(externalURL, "/"),
-		adminPassword:        adminPassword,
-		registrationRequired: registrationRequired,
-		registrationWebhook:  registrationWebhook,
-		smtpHost:             smtp.Host,
-		smtpPort:             smtp.Port,
-		smtpUsername:         smtp.Username,
-		smtpPassword:         smtp.Password,
-		smtpFrom:             smtpFrom,
-		clients:              map[chan []byte]struct{}{},
+		addr:          addr,
+		externalURL:   strings.TrimRight(externalURL, "/"),
+		adminPassword: adminPassword,
+		clients:       map[chan []byte]struct{}{},
 		clientIPs:            map[chan []byte]string{},
 		peers:                map[string]peerRow{},
 		logs:                 make([]string, 0, 500),
@@ -293,6 +261,14 @@ func New(addr string, templatesDirs []string, peerDBPath string, adminPassword s
 // Must be called before Start.
 func (s *Server) SetCreditProvider(cp CreditProvider) {
 	s.credits = cp
+}
+
+// SetRegistrationProvider configures a remote registration service.
+// When set, registration endpoints are proxied to the remote service
+// and email verification checks delegate to it.
+// Must be called before Start.
+func (s *Server) SetRegistrationProvider(rp *RemoteRegistrationProvider) {
+	s.registration = rp
 }
 
 func (s *Server) Start(ctx context.Context) error {
@@ -352,8 +328,14 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/registrations.json", s.handleRegistrationsJSON)
 
 	// Registration endpoints
-	mux.HandleFunc("/register", s.handleRegister)
-	mux.HandleFunc("/verify", s.handleVerify)
+	if s.registration != nil {
+		// Remote registration service — proxy all registration endpoints
+		s.registration.RegisterRoutes(mux)
+	} else {
+		// Built-in registration handlers
+		mux.HandleFunc("/register", s.handleRegister)
+		mux.HandleFunc("/verify", s.handleVerify)
+	}
 
 	// SSE: stream messages to subscribers
 	mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
@@ -435,13 +417,13 @@ func (s *Server) Start(ctx context.Context) error {
 			return
 		}
 
-		// Check registration if required
+		// Check registration if the registration service requires it
 		isRegistered := true
-		if s.registrationRequired && s.peerDB != nil {
+		if s.registration != nil && s.registration.RegistrationRequired() {
 			if pm.Email == "" {
 				isRegistered = false
 			} else {
-				isRegistered = s.peerDB.isEmailVerified(pm.Email)
+				isRegistered = s.registration.IsEmailVerified(pm.Email)
 			}
 		}
 
@@ -992,6 +974,11 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		storeCount = len(list)
 	}
 
+	regRequired := false
+	if s.registration != nil {
+		regRequired = s.registration.RegistrationRequired()
+	}
+
 	w.Header().Set("content-type", "text/html; charset=utf-8")
 	_ = s.tmpl.Execute(w, indexVM{
 		Title:                "Goop² Rendezvous",
@@ -1000,7 +987,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		HasStore:             hasStore,
 		StoreCount:           storeCount,
 		HasAdmin:             s.adminPassword != "",
-		RegistrationRequired: s.registrationRequired,
+		RegistrationRequired: regRequired,
 	})
 }
 
@@ -1041,12 +1028,20 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 
 	peers := s.snapshotPeers()
 
+	_, hasCredits := s.credits.(*RemoteCreditProvider)
+	if !hasCredits {
+		// Also check if it's any non-NoCredits provider
+		_, isNoCredits := s.credits.(NoCredits)
+		hasCredits = !isNoCredits
+	}
+
 	w.Header().Set("content-type", "text/html; charset=utf-8")
 	_ = s.adminTmpl.Execute(w, adminVM{
-		Title:     "Goop² Admin",
-		PeerCount: len(peers),
-		Peers:     peers,
-		Now:       time.Now().Format("2006-01-02 15:04:05"),
+		Title:      "Goop² Admin",
+		PeerCount:  len(peers),
+		Peers:      peers,
+		Now:        time.Now().Format("2006-01-02 15:04:05"),
+		HasCredits: hasCredits,
 	})
 }
 
@@ -1288,24 +1283,12 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		}
 		verifyURL := baseURL + "/verify?token=" + token
 
-		// Send verification email if SMTP is configured, otherwise log the link
-		if s.smtpConfigured() {
-			go func() {
-				if err := s.sendVerificationEmail(email, verifyURL); err != nil {
-					log.Printf("Failed to send verification email to %s: %v", email, err)
-					s.addLog(fmt.Sprintf("Email send failed for %s: %v", email, err))
-				} else {
-					log.Printf("Verification email sent to %s", email)
-					s.addLog(fmt.Sprintf("Verification email sent to %s", email))
-				}
-			}()
-		} else {
-			// Log the verification link (for development/no SMTP)
-			log.Printf("────────────────────────────────────────────────────────")
-			log.Printf("📧 VERIFICATION LINK for %s:", email)
-			log.Printf("   %s", verifyURL)
-			log.Printf("────────────────────────────────────────────────────────")
-		}
+		// Log the verification link to console (SMTP is handled by
+		// the standalone registration service when configured)
+		log.Printf("────────────────────────────────────────────────────────")
+		log.Printf("VERIFICATION LINK for %s:", email)
+		log.Printf("   %s", verifyURL)
+		log.Printf("────────────────────────────────────────────────────────")
 
 		s.addLog(fmt.Sprintf("Registration requested: %s", email))
 
@@ -1350,12 +1333,7 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.addLog(fmt.Sprintf("Email verified: %s", email))
-	log.Printf("✓ Email verified: %s", email)
-
-	// Call webhook if configured
-	if s.registrationWebhook != "" {
-		go s.callRegistrationWebhook(email)
-	}
+	log.Printf("Email verified: %s", email)
 
 	// Show success page
 	if s.registerTmpl != nil {
@@ -1396,135 +1374,6 @@ func (s *Server) handleRegistrationsJSON(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(regs)
-}
-
-// smtpConfigured returns true if SMTP settings are present.
-func (s *Server) smtpConfigured() bool {
-	return s.smtpHost != "" && s.smtpUsername != "" && s.smtpPassword != ""
-}
-
-// sendVerificationEmail sends a verification email via SMTP.
-func (s *Server) sendVerificationEmail(to, verifyURL string) error {
-	if !s.smtpConfigured() {
-		return fmt.Errorf("SMTP not configured")
-	}
-
-	from := s.smtpFrom
-	subject := "Verify your email for Goop2"
-	body := fmt.Sprintf(`Hello,
-
-Please verify your email address by clicking the link below:
-
-%s
-
-This link will expire in 24 hours.
-
-If you didn't request this, you can ignore this email.
-
---
-Goop2 Rendezvous Server`, verifyURL)
-
-	// Build the email message
-	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s",
-		from, to, subject, body)
-
-	// Connect to SMTP server
-	addr := fmt.Sprintf("%s:%d", s.smtpHost, s.smtpPort)
-
-	// Use TLS for port 465, STARTTLS for others (like 587)
-	if s.smtpPort == 465 {
-		// Implicit TLS
-		tlsConfig := &tls.Config{ServerName: s.smtpHost}
-		conn, err := tls.Dial("tcp", addr, tlsConfig)
-		if err != nil {
-			return fmt.Errorf("TLS dial failed: %w", err)
-		}
-		defer conn.Close()
-
-		client, err := smtp.NewClient(conn, s.smtpHost)
-		if err != nil {
-			return fmt.Errorf("SMTP client failed: %w", err)
-		}
-		defer client.Close()
-
-		if err := s.smtpSendMail(client, from, to, msg); err != nil {
-			return err
-		}
-	} else {
-		// STARTTLS (port 587)
-		client, err := smtp.Dial(addr)
-		if err != nil {
-			return fmt.Errorf("SMTP dial failed: %w", err)
-		}
-		defer client.Close()
-
-		// Try STARTTLS if available
-		if ok, _ := client.Extension("STARTTLS"); ok {
-			tlsConfig := &tls.Config{ServerName: s.smtpHost}
-			if err := client.StartTLS(tlsConfig); err != nil {
-				return fmt.Errorf("STARTTLS failed: %w", err)
-			}
-		}
-
-		if err := s.smtpSendMail(client, from, to, msg); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// smtpSendMail handles the SMTP conversation after connection is established.
-func (s *Server) smtpSendMail(client *smtp.Client, from, to, msg string) error {
-	// Authenticate
-	auth := smtp.PlainAuth("", s.smtpUsername, s.smtpPassword, s.smtpHost)
-	if err := client.Auth(auth); err != nil {
-		return fmt.Errorf("SMTP auth failed: %w", err)
-	}
-
-	// Set sender and recipient
-	if err := client.Mail(from); err != nil {
-		return fmt.Errorf("SMTP MAIL failed: %w", err)
-	}
-	if err := client.Rcpt(to); err != nil {
-		return fmt.Errorf("SMTP RCPT failed: %w", err)
-	}
-
-	// Send message body
-	wc, err := client.Data()
-	if err != nil {
-		return fmt.Errorf("SMTP DATA failed: %w", err)
-	}
-	if _, err := wc.Write([]byte(msg)); err != nil {
-		wc.Close()
-		return fmt.Errorf("SMTP write failed: %w", err)
-	}
-	if err := wc.Close(); err != nil {
-		return fmt.Errorf("SMTP close failed: %w", err)
-	}
-
-	return client.Quit()
-}
-
-func (s *Server) callRegistrationWebhook(email string) {
-	payload := map[string]interface{}{
-		"email":       email,
-		"verified_at": time.Now().UnixMilli(),
-	}
-
-	body, _ := json.Marshal(payload)
-	resp, err := http.Post(s.registrationWebhook, "application/json", strings.NewReader(string(body)))
-	if err != nil {
-		log.Printf("webhook error: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		log.Printf("webhook returned status %d", resp.StatusCode)
-	} else {
-		log.Printf("webhook called successfully for %s", email)
-	}
 }
 
 // generateToken creates a random URL-safe token.

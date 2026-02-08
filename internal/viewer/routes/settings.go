@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/petervdpas/goop2/internal/config"
 	"github.com/petervdpas/goop2/internal/ui/render"
@@ -142,7 +143,6 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		cfg.Presence.RendezvousWAN = getTrimmedPostFormValue(r.PostForm, "presence_rendezvous_wan")
 		cfg.Presence.AdminPassword = getTrimmedPostFormValue(r.PostForm, "presence_admin_password")
 		cfg.Presence.ExternalURL = getTrimmedPostFormValue(r.PostForm, "presence_external_url")
-		cfg.Presence.RegistrationWebhook = getTrimmedPostFormValue(r.PostForm, "presence_registration_webhook")
 
 		// Relay settings
 		if rp := getTrimmedPostFormValue(r.PostForm, "presence_relay_port"); rp != "" {
@@ -154,16 +154,10 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			cfg.Presence.RelayKeyFile = rkf
 		}
 
-		// SMTP settings
-		cfg.Presence.SMTPHost = getTrimmedPostFormValue(r.PostForm, "presence_smtp_host")
-		if sp := getTrimmedPostFormValue(r.PostForm, "presence_smtp_port"); sp != "" {
-			cfg.Presence.SMTPPort, _ = strconv.Atoi(sp)
-		}
-		cfg.Presence.SMTPUsername = getTrimmedPostFormValue(r.PostForm, "presence_smtp_username")
-		cfg.Presence.SMTPPassword = getTrimmedPostFormValue(r.PostForm, "presence_smtp_password")
-		cfg.Presence.SMTPFrom = getTrimmedPostFormValue(r.PostForm, "presence_smtp_from")
+		// Service URLs
+		cfg.Presence.CreditsURL = getTrimmedPostFormValue(r.PostForm, "presence_credits_url")
+		cfg.Presence.RegistrationURL = getTrimmedPostFormValue(r.PostForm, "presence_registration_url")
 
-		cfg.Presence.RegistrationRequired = formBool(r.PostForm, "presence_registration_required")
 		cfg.Lua.Enabled = formBool(r.PostForm, "lua_enabled")
 
 		if err := config.Save(d.CfgPath, cfg); err != nil {
@@ -179,5 +173,71 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 
 		http.Redirect(w, r, "/self?saved=1#settings", http.StatusFound)
+	})
+
+	// Health check endpoint for external services
+	mux.HandleFunc("/api/services/health", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		cfg, err := config.Load(d.CfgPath)
+		if err != nil {
+			http.Error(w, "failed to load config", http.StatusInternalServerError)
+			return
+		}
+
+		client := &http.Client{Timeout: 3 * time.Second}
+		check := func(baseURL string) bool {
+			if baseURL == "" {
+				return false
+			}
+			resp, err := client.Get(strings.TrimRight(baseURL, "/") + "/healthz")
+			if err != nil {
+				return false
+			}
+			resp.Body.Close()
+			return resp.StatusCode == http.StatusOK
+		}
+
+		// Fetch registration service status
+		regResult := map[string]interface{}{
+			"url": cfg.Presence.RegistrationURL,
+			"ok":  check(cfg.Presence.RegistrationURL),
+		}
+		if cfg.Presence.RegistrationURL != "" {
+			if resp, err := client.Get(strings.TrimRight(cfg.Presence.RegistrationURL, "/") + "/api/reg/status"); err == nil {
+				var status map[string]interface{}
+				json.NewDecoder(resp.Body).Decode(&status)
+				resp.Body.Close()
+				if v, ok := status["registration_required"]; ok {
+					regResult["registration_required"] = v
+				}
+			}
+		}
+
+		// Fetch credits service status
+		creditsResult := map[string]interface{}{
+			"url": cfg.Presence.CreditsURL,
+			"ok":  check(cfg.Presence.CreditsURL),
+		}
+		if cfg.Presence.CreditsURL != "" {
+			if resp, err := client.Get(strings.TrimRight(cfg.Presence.CreditsURL, "/") + "/api/credits/store-data"); err == nil {
+				var status map[string]interface{}
+				json.NewDecoder(resp.Body).Decode(&status)
+				resp.Body.Close()
+				if v, ok := status["dummy_mode"]; ok {
+					creditsResult["dummy_mode"] = v
+				}
+			}
+		}
+
+		result := map[string]interface{}{
+			"registration": regResult,
+			"credits":      creditsResult,
+		}
+
+		writeJSON(w, result)
 	})
 }

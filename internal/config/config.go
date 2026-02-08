@@ -87,15 +87,6 @@ type Presence struct {
 	// Required for servers behind NAT or reverse proxies.
 	ExternalURL string `json:"external_url"`
 
-	// If true, only peers with verified email registrations can be discovered.
-	// Requires PeerDBPath to be set for storing registrations.
-	RegistrationRequired bool `json:"registration_required"`
-
-	// Optional webhook URL called when a registration is verified.
-	// POST with JSON body: {"email": "...", "verified_at": ...}
-	// Use this for monetization integration (e.g., check payment status).
-	RegistrationWebhook string `json:"registration_webhook"`
-
 	// Circuit relay v2 port. When > 0, a relay libp2p host is started on this
 	// TCP port alongside the rendezvous HTTP server. Requires RendezvousHost=true.
 	RelayPort int `json:"relay_port"`
@@ -103,13 +94,10 @@ type Presence struct {
 	// Path to the relay identity key file. Default "data/relay.key".
 	RelayKeyFile string `json:"relay_key_file"`
 
-	// SMTP configuration for sending registration verification emails.
-	// If not configured, verification links are logged to console instead.
-	SMTPHost     string `json:"smtp_host"`      // e.g., "smtp.protonmail.ch"
-	SMTPPort     int    `json:"smtp_port"`      // e.g., 587 for STARTTLS
-	SMTPUsername string `json:"smtp_username"`  // e.g., "admin@goop2.com"
-	SMTPPassword string `json:"smtp_password"`  // SMTP token/password
-	SMTPFrom     string `json:"smtp_from"`      // From address (defaults to SMTPUsername)
+	// External service URLs. When set, goop2 proxies requests to these
+	// standalone services. Empty = disabled (use built-in/no-op defaults).
+	CreditsURL      string `json:"credits_url"`      // e.g., "http://localhost:8800"
+	RegistrationURL string `json:"registration_url"` // e.g., "http://localhost:8801"
 }
 
 type Profile struct {

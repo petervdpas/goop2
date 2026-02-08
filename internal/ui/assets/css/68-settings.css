@@ -122,3 +122,28 @@
   margin-top: 16px;
   border-top: 1px solid var(--line);
 }
+
+/* Service status indicators */
+.svc-status{
+  font-size: 0.8em;
+  font-weight: normal;
+  margin-left: 6px;
+}
+.svc-ok{
+  color: #22c55e;
+}
+.svc-ok::before{
+  content: "\25CF ";
+}
+.svc-err{
+  color: #ef4444;
+}
+.svc-err::before{
+  content: "\25CF ";
+}
+.svc-warn{
+  color: #f59e0b;
+}
+.svc-warn::before{
+  content: "\25B2 ";
+}

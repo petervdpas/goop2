@@ -1,7 +1,17 @@
 package app
 
-import "github.com/petervdpas/goop2/internal/rendezvous"
+import (
+	"log"
 
-// setupCredits is a no-op in the public repo. The private goop2-credits
-// module replaces this file to wire in the SQLite-backed credit provider.
-func setupCredits(_ *rendezvous.Server, _ string) {}
+	"github.com/petervdpas/goop2/internal/rendezvous"
+)
+
+// setupCredits configures the credit provider. When creditsURL is set,
+// a remote credit service is used; otherwise credits are disabled (all free).
+func setupCredits(rv *rendezvous.Server, creditsURL string) {
+	if creditsURL == "" {
+		return
+	}
+	log.Printf("Credits service: %s", creditsURL)
+	rv.SetCreditProvider(rendezvous.NewRemoteCreditProvider(creditsURL))
+}

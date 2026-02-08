@@ -75,10 +75,8 @@
             style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">Relay</li>
         <li class="settings-nav-item rv-server-nav" data-section="admin" id="nav-admin"
             style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">Admin</li>
-        <li class="settings-nav-item rv-server-nav" data-section="registration" id="nav-registration"
-            style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">Registration</li>
-        <li class="settings-nav-item rv-server-nav" data-section="smtp" id="nav-smtp"
-            style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">SMTP</li>
+        <li class="settings-nav-item rv-server-nav" data-section="services" id="nav-services"
+            style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">Services</li>
         {{if not .RendezvousOnly}}
         <li class="settings-nav-item" data-section="scripting">Scripting</li>
         <li class="settings-nav-item" data-section="data">Data</li>
@@ -308,85 +306,39 @@
           </div>
         </div>
 
-        <!-- Registration (visible when server is enabled) -->
-        <div class="settings-section rv-server-section" data-section="registration" style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">
-          <h3 class="settings-section-title">Registration</h3>
+        <!-- Services (visible when server is enabled) -->
+        <div class="settings-section rv-server-section" data-section="services" style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">
+          <h3 class="settings-section-title">External Services</h3>
+          <p class="muted small" style="margin-bottom:14px">
+            Connect to standalone microservices for credits and registration.
+            Leave empty to use built-in defaults (all templates free, no email verification).
+          </p>
 
           <div class="field">
-            <label>Require email registration</label>
-            <div style="display: flex; align-items: center; gap: 8px; margin-top:6px">
-              <span class="muted small">Off</span>
-              <label class="switch" title="Only verified emails can be discovered">
-                <input type="checkbox" name="presence_registration_required"
-                       {{if .Cfg.Presence.RegistrationRequired}}checked{{end}}>
-                <span class="slider"></span>
-              </label>
-              <span class="muted small">On</span>
-            </div>
+            <label>Registration Service URL <span id="svc-reg-status" class="svc-status"></span></label>
+            <input id="svc-reg-url" name="presence_registration_url"
+                   value="{{.Cfg.Presence.RegistrationURL}}"
+                   placeholder="http://localhost:8801">
             <div class="hint">
-              When enabled, only peers with verified email addresses will be visible to others.
+              Handles email verification and sends SMTP emails.
+              The registration service controls whether email verification is required
+              (<code>registration_required</code> in its config.json).
             </div>
           </div>
 
           <div class="field" style="margin-top:10px">
-            <label>Registration webhook</label>
-            <input name="presence_registration_webhook"
-                   value="{{.Cfg.Presence.RegistrationWebhook}}"
-                   placeholder="https://your-api.com/webhook">
+            <label>Credits Service URL <span id="svc-credits-status" class="svc-status"></span></label>
+            <input id="svc-credits-url" name="presence_credits_url"
+                   value="{{.Cfg.Presence.CreditsURL}}"
+                   placeholder="http://localhost:8800">
             <div class="hint">
-              Optional. Called when an email is verified (for monetization).
-            </div>
-          </div>
-        </div>
-
-        <!-- SMTP (visible when server is enabled) -->
-        <div class="settings-section rv-server-section" data-section="smtp" style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">
-          <h3 class="settings-section-title">SMTP</h3>
-          <p class="muted small" style="margin-bottom:14px">
-            Configure SMTP to send verification emails. If not configured, verification links are logged to the console.
-          </p>
-
-          <div class="grid2">
-            <div class="field">
-              <label>SMTP host</label>
-              <input name="presence_smtp_host"
-                     value="{{.Cfg.Presence.SMTPHost}}"
-                     placeholder="smtp.protonmail.ch">
-            </div>
-            <div class="field">
-              <label>SMTP port</label>
-              <input name="presence_smtp_port"
-                     type="number"
-                     value="{{if .Cfg.Presence.SMTPPort}}{{.Cfg.Presence.SMTPPort}}{{end}}"
-                     placeholder="587">
-              <div class="hint">587 (STARTTLS) or 465 (SSL)</div>
+              Enables template pricing and credit purchases.
+              Set <code>dummy_mode</code> in the credits service config.json for safe testing.
             </div>
           </div>
 
-          <div class="grid2">
-            <div class="field">
-              <label>SMTP username</label>
-              <input name="presence_smtp_username"
-                     value="{{.Cfg.Presence.SMTPUsername}}"
-                     placeholder="admin@goop2.com">
-            </div>
-            <div class="field">
-              <label>SMTP password</label>
-              <input name="presence_smtp_password"
-                     type="password"
-                     value="{{.Cfg.Presence.SMTPPassword}}"
-                     placeholder="SMTP token">
-            </div>
-          </div>
-
-          <div class="field">
-            <label>From address</label>
-            <input name="presence_smtp_from"
-                   value="{{.Cfg.Presence.SMTPFrom}}"
-                   placeholder="(defaults to username)">
-            <div class="hint">
-              Optional. Defaults to SMTP username if empty.
-            </div>
+          <div style="margin-top:12px">
+            <button type="button" class="btn secondary" id="svc-check-btn" style="font-size:0.85em">Check services</button>
           </div>
         </div>
 
@@ -435,6 +387,71 @@
 
 <script>
 (function() {
+  // ── Service health checks ──
+  var checkBtn = document.getElementById('svc-check-btn');
+  function checkServices() {
+    var regStatus = document.getElementById('svc-reg-status');
+    var credStatus = document.getElementById('svc-credits-status');
+    if (regStatus) regStatus.textContent = '...';
+    if (credStatus) credStatus.textContent = '...';
+    if (checkBtn) { checkBtn.disabled = true; checkBtn.textContent = 'Checking...'; }
+
+    fetch('/api/services/health')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (regStatus) {
+          if (!data.registration.url) {
+            regStatus.textContent = '';
+          } else if (data.registration.ok) {
+            var label = 'running';
+            if (data.registration.registration_required) {
+              label += ' (required)';
+            } else {
+              label += ' (optional)';
+            }
+            regStatus.textContent = label;
+            regStatus.className = 'svc-status svc-ok';
+          } else {
+            regStatus.textContent = 'not reachable';
+            regStatus.className = 'svc-status svc-err';
+          }
+        }
+        if (credStatus) {
+          if (!data.credits.url) {
+            credStatus.textContent = '';
+          } else if (!data.registration.url || !data.registration.ok) {
+            credStatus.textContent = 'needs registration service';
+            credStatus.className = 'svc-status svc-warn';
+          } else if (data.credits.ok) {
+            var label = 'running';
+            if (data.credits.dummy_mode) {
+              label += ' (dummy)';
+            }
+            credStatus.textContent = label;
+            credStatus.className = 'svc-status ' + (data.credits.dummy_mode ? 'svc-warn' : 'svc-ok');
+          } else {
+            credStatus.textContent = 'not reachable';
+            credStatus.className = 'svc-status svc-err';
+          }
+        }
+      })
+      .catch(function() {
+        if (regStatus) regStatus.textContent = '';
+        if (credStatus) credStatus.textContent = '';
+      })
+      .finally(function() {
+        if (checkBtn) { checkBtn.disabled = false; checkBtn.textContent = 'Check services'; }
+      });
+  }
+  if (checkBtn) {
+    checkBtn.addEventListener('click', checkServices);
+    // Auto-check on load if URLs are configured
+    if ((document.getElementById('svc-reg-url') && document.getElementById('svc-reg-url').value) ||
+        (document.getElementById('svc-credits-url') && document.getElementById('svc-credits-url').value)) {
+      checkServices();
+    }
+  }
+
   // ── Settings sidebar navigation ──
   var navItems = document.querySelectorAll('.settings-nav-item');
   var sections = document.querySelectorAll('.settings-section');

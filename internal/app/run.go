@@ -91,21 +91,15 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			peerDBPath = util.ResolvePath(o.PeerDir, cfg.Presence.PeerDBPath)
 		}
 
-		smtpCfg := rendezvous.SMTPConfig{
-			Host:     cfg.Presence.SMTPHost,
-			Port:     cfg.Presence.SMTPPort,
-			Username: cfg.Presence.SMTPUsername,
-			Password: cfg.Presence.SMTPPassword,
-			From:     cfg.Presence.SMTPFrom,
-		}
 		relayKeyFile := ""
 		if cfg.Presence.RelayKeyFile != "" {
 			relayKeyFile = util.ResolvePath(o.PeerDir, cfg.Presence.RelayKeyFile)
 		}
-		rv = rendezvous.New(addr, templatesDirs, peerDBPath, cfg.Presence.AdminPassword, cfg.Presence.ExternalURL, cfg.Presence.RegistrationRequired, cfg.Presence.RegistrationWebhook, smtpCfg, cfg.Presence.RelayPort, relayKeyFile)
+		rv = rendezvous.New(addr, templatesDirs, peerDBPath, cfg.Presence.AdminPassword, cfg.Presence.ExternalURL, cfg.Presence.RelayPort, relayKeyFile)
 
-		// Wire credit provider (build tag "credits" enables SQLite-backed module)
-		setupCredits(rv, o.PeerDir)
+		// Wire external services (credits + registration)
+		setupCredits(rv, cfg.Presence.CreditsURL)
+		setupRegistration(rv, cfg.Presence.RegistrationURL)
 
 		if err := rv.Start(ctx); err != nil {
 			return err
