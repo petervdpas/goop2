@@ -14,7 +14,8 @@
         <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
           <span class="theme-icon">🌙</span>
         </button>
-        {{if or .RegistrationRequired .HasCredits}}<a class="nav-link accent" href="/register">Register</a>{{end}}
+        {{if .RegistrationRequired}}<a class="nav-link accent" href="/register">Register</a>{{end}}
+        {{if .HasCredits}}<a class="nav-link" href="/credits">🪙 Credits</a>{{end}}
         <a class="nav-link" href="/docs">Docs</a>
         {{if .HasAdmin}}<a class="nav-link" href="/admin">Admin</a>{{end}}
       </div>

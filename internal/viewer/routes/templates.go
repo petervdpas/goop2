@@ -64,6 +64,12 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 					}
 				}
 			}
+
+			// Always show price badges on store templates.
+			// If FetchPrices returned nil, default to empty map (all Free).
+			if storePrices == nil && len(storeTemplates) > 0 {
+				storePrices = map[string]int{}
+			}
 		}
 
 		// Check registration status (best-effort)
@@ -86,6 +92,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			Templates:            templates,
 			StoreTemplates:       storeTemplates,
 			StoreTemplatePrices:  storePrices,
+			HasCredits:           storePrices != nil,
 			StoreError:           storeError,
 			RegistrationRequired: regRequired,
 		}

@@ -60,6 +60,18 @@
   box-shadow: 0 0 0 1px var(--accent);
 }
 
+/* ── Card head (icon left, price right) ── */
+.tpl-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.tpl-card-head .tpl-card-icon {
+  margin-bottom: 0;
+}
+
 .tpl-card-icon {
   font-size: 2rem;
   margin-bottom: 0.75rem;
@@ -117,13 +129,18 @@
 /* ── Price badges ── */
 .tpl-price {
   display: inline-block;
-  padding: 0.2rem 0.6rem;
-  border-radius: 10px;
-  font-size: 0.7rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
   font-weight: 700;
-  text-transform: uppercase;
   letter-spacing: 0.03em;
   line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.tpl-price-free {
+  text-transform: uppercase;
 }
 
 .tpl-price-free {

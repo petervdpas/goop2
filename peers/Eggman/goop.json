@@ -25,13 +25,12 @@
     "templates_dirs": null,
     "peer_db_path": "",
     "external_url": "",
-    "registration_required": false,
-    "registration_webhook": "",
-    "smtp_host": "",
-    "smtp_port": 0,
-    "smtp_username": "",
-    "smtp_password": "",
-    "smtp_from": ""
+    "relay_port": 0,
+    "relay_key_file": "data/relay.key",
+    "credits_url": "",
+    "registration_url": "",
+    "email_url": "",
+    "registration_credits": 1000
   },
   "profile": {
     "label": "Eggman",
@@ -39,7 +38,7 @@
   },
   "viewer": {
     "http_addr": ":7777",
-    "debug": false,
+    "debug": true,
     "theme": "dark",
     "preferred_cam": "cHdJOK7AdHhAqo2zbcoYZBxEameqar07RjOMDUfrhFM=",
     "preferred_mic": "U9Qmyevdblbgalaepi9ZBJe7LdFOSf1f162v1etqHhg=",

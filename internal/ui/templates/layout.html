@@ -192,7 +192,7 @@
       if (!el) return;
       fetch('/api/my-balance').then(function(r){ return r.json(); }).then(function(d){
         if (!d.credits_active) return;
-        el.textContent = d.balance + ' credits';
+        el.textContent = '🪙 ' + d.balance + ' credits';
         el.style.display = '';
       }).catch(function(){});
     })();

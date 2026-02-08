@@ -143,41 +143,21 @@ func (p *RemoteCreditProvider) StorePageData(r *http.Request) StorePageData {
 	var banner template.HTML
 	if data.PeerID == "" {
 		banner = `<div class="store-banner store-banner-credits">` +
-			`Credit system active. Add <code>?peer_id=YOUR_PEER_ID</code> to see your balance.` +
+			`Credit system active. Add <code>?peer_id=YOUR_PEER_ID</code> to see your balance. ` +
+			`<a href="/credits">🪙 Buy Credits</a>` +
 			`</div>`
 	} else {
 		banner = template.HTML(fmt.Sprintf(
 			`<div class="store-banner store-banner-credits">`+
-				`<strong>%s</strong> — Balance: <strong>%d credits</strong>`+
+				`<strong>%s</strong> — 🪙 <strong>%d credits</strong> — `+
+				`<a href="/credits?peer_id=%s">Buy more</a>`+
 				`</div>`,
-			template.HTMLEscapeString(data.PeerID), data.Balance))
-	}
-
-	var packsHTML string
-	for _, pk := range data.CreditPacks {
-		packsHTML += fmt.Sprintf(
-			`<div class="credit-pack">`+
-				`<div class="credit-pack-name">%s</div>`+
-				`<div class="credit-pack-amount">%s</div>`+
-				`<button class="credit-pack-buy" onclick="buyCredits(%d)">Buy</button>`+
-				`</div>`,
-			template.HTMLEscapeString(pk.Name),
-			template.HTMLEscapeString(pk.Label),
-			pk.Amount)
-	}
-
-	var packs template.HTML
-	if packsHTML != "" {
-		packs = template.HTML(`<div class="credit-packs">` +
-			`<h3>Buy Credits</h3>` +
-			`<div class="credit-pack-grid">` +
-			packsHTML +
-			`</div></div>`)
+			template.HTMLEscapeString(data.PeerID), data.Balance,
+			url.QueryEscape(data.PeerID)))
 	}
 
 	return StorePageData{
-		Banner:      banner,
-		CreditPacks: packs,
+		Banner: banner,
 	}
 }
 
@@ -214,7 +194,7 @@ func (p *RemoteCreditProvider) TemplateStoreInfo(r *http.Request, tpl StoreMeta)
 	case "priced":
 		return TemplateStoreInfo{
 			PriceLabel: template.HTML(fmt.Sprintf(
-				`<span class="tpl-price-credits">%d credits</span>`, data.Price)),
+				`<span class="tpl-price-credits">🪙 %d</span>`, data.Price)),
 		}
 	default:
 		return TemplateStoreInfo{PriceLabel: `<span class="tpl-price-free">Free</span>`}

@@ -13,6 +13,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -57,6 +58,7 @@ type Server struct {
 	pricesTmpl   *template.Template
 	docsTmpl     *template.Template
 	storeTmpl    *template.Template
+	creditsTmpl  *template.Template
 	registerTmpl *template.Template
 	style        []byte
 	docsCSS      []byte
@@ -126,8 +128,26 @@ type storeVM struct {
 	Templates            []storeTemplateVM
 	CreditData           StorePageData
 	HasAdmin             bool
+	HasCredits           bool
 	RegistrationRequired bool
 	RegistrationCredits  int
+}
+
+type creditPackVM struct {
+	Name   string
+	Label  string
+	Amount int
+}
+
+type creditsVM struct {
+	Title                string
+	HasAdmin             bool
+	PeerID               string
+	Balance              int
+	CreditPacks          []creditPackVM
+	RegistrationRequired bool
+	RegistrationCredits  int
+	HasCredits           bool
 }
 
 // Minimum API versions that this build of goop2 requires.
@@ -225,6 +245,11 @@ func New(addr string, templatesDirs []string, peerDBPath string, adminPassword s
 		panic(err)
 	}
 
+	creditsTmpl, err := template.New("credits.html").Funcs(funcs).ParseFS(embedded, "assets/credits.html")
+	if err != nil {
+		creditsTmpl = nil
+	}
+
 	registerTmpl, err := template.New("register.html").Funcs(funcs).ParseFS(embedded, "assets/register.html")
 	if err != nil {
 		// Not fatal - registration template is optional
@@ -265,6 +290,7 @@ func New(addr string, templatesDirs []string, peerDBPath string, adminPassword s
 		pricesTmpl:           pricesTmpl,
 		docsTmpl:             docsTmpl,
 		storeTmpl:            storeTmpl,
+		creditsTmpl:          creditsTmpl,
 		registerTmpl:         registerTmpl,
 		style:                css,
 		docsCSS:              docsCSSData,
@@ -378,8 +404,10 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// Registration endpoints
 	if s.registration != nil {
-		// Remote registration service — proxy all registration endpoints
+		// Remote registration service — proxy /verify and /api/reg/*
 		s.registration.RegisterRoutes(mux)
+		// /register is always served locally (form + POST proxy)
+		mux.HandleFunc("/register", s.handleRegisterRemote)
 	} else {
 		// Built-in registration handlers
 		mux.HandleFunc("/register", s.handleRegister)
@@ -514,6 +542,9 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// Store page
 	mux.HandleFunc("/store", s.handleStore)
+
+	// Credits page
+	mux.HandleFunc("/credits", s.handleCredits)
 
 	// Credit provider routes (e.g. /api/credits/*)
 	s.credits.RegisterRoutes(mux)
@@ -1086,14 +1117,82 @@ func (s *Server) handleStore(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("content-type", "text/html; charset=utf-8")
+	_, hasCredits := s.credits.(*RemoteCreditProvider)
+
 	_ = s.storeTmpl.Execute(w, storeVM{
 		Title:                "Template Store — Goop²",
 		Templates:            templates,
 		CreditData:           s.credits.StorePageData(r),
 		HasAdmin:             s.adminPassword != "",
+		HasCredits:           hasCredits,
 		RegistrationRequired: regRequired,
 		RegistrationCredits:  s.registrationCredits,
 	})
+}
+
+func (s *Server) handleCredits(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if s.creditsTmpl == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	_, hasCredits := s.credits.(*RemoteCreditProvider)
+
+	regRequired := false
+	if s.registration != nil {
+		regRequired = s.registration.RegistrationRequired()
+	}
+
+	vm := creditsVM{
+		Title:                "Credits — Goop²",
+		HasAdmin:             s.adminPassword != "",
+		HasCredits:           hasCredits,
+		RegistrationRequired: regRequired,
+		RegistrationCredits:  s.registrationCredits,
+	}
+
+	// Fetch credit data from service
+	cp, ok := s.credits.(*RemoteCreditProvider)
+	if ok {
+		peerID := getPeerID(r)
+		vm.PeerID = peerID
+
+		reqURL := cp.baseURL + "/api/credits/store-data"
+		if peerID != "" {
+			reqURL += "?peer_id=" + url.QueryEscape(peerID)
+		}
+
+		resp, err := cp.client.Get(reqURL)
+		if err == nil {
+			defer resp.Body.Close()
+			var data struct {
+				Balance    int `json:"balance"`
+				CreditPacks []struct {
+					Amount int    `json:"amount"`
+					Name   string `json:"name"`
+					Label  string `json:"label"`
+				} `json:"credit_packs"`
+			}
+			if json.NewDecoder(resp.Body).Decode(&data) == nil {
+				vm.Balance = data.Balance
+				for _, pk := range data.CreditPacks {
+					vm.CreditPacks = append(vm.CreditPacks, creditPackVM{
+						Name:   pk.Name,
+						Label:  pk.Label,
+						Amount: pk.Amount,
+					})
+				}
+			}
+		}
+	}
+
+	w.Header().Set("content-type", "text/html; charset=utf-8")
+	_ = s.creditsTmpl.Execute(w, vm)
 }
 
 func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
@@ -1378,11 +1477,90 @@ func getPeerID(r *http.Request) string {
 // ─── Registration handlers ───
 
 type registerVM struct {
-	Title    string
-	Email    string
-	Error    string
-	Success  bool
-	Verified bool
+	Title       string
+	Email       string
+	Error       string
+	Success     bool
+	Verified    bool
+	NotRequired bool
+}
+
+// handleRegisterRemote serves /register when a remote registration service is configured.
+// GET: shows form (or "not required" page). POST: proxies to the registration service.
+func (s *Server) handleRegisterRemote(w http.ResponseWriter, r *http.Request) {
+	if s.registerTmpl == nil {
+		http.Error(w, "registration not available", http.StatusNotFound)
+		return
+	}
+
+	vm := registerVM{Title: "Register — Goop² Rendezvous"}
+
+	if r.Method == http.MethodGet {
+		if !s.registration.RegistrationRequired() {
+			vm.NotRequired = true
+		}
+		s.renderRegister(w, vm)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// POST: parse email from form and proxy to registration service as JSON
+	if err := r.ParseForm(); err != nil {
+		vm.Error = "Invalid form data"
+		s.renderRegister(w, vm)
+		return
+	}
+
+	email := strings.TrimSpace(r.FormValue("email"))
+	if email == "" {
+		vm.Error = "Email is required"
+		s.renderRegister(w, vm)
+		return
+	}
+
+	// Call registration service POST /api/reg/register
+	body := fmt.Sprintf(`{"email":%q}`, email)
+	resp, err := http.Post(
+		s.registration.baseURL+"/api/reg/register",
+		"application/json",
+		strings.NewReader(body),
+	)
+	if err != nil {
+		vm.Error = "Registration service unavailable"
+		vm.Email = email
+		s.renderRegister(w, vm)
+		return
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		OK      bool   `json:"ok"`
+		Message string `json:"message"`
+		Error   string `json:"error"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	if resp.StatusCode/100 != 2 || !result.OK {
+		errMsg := result.Error
+		if errMsg == "" {
+			errMsg = result.Message
+		}
+		if errMsg == "" {
+			errMsg = "Registration failed"
+		}
+		vm.Error = errMsg
+		vm.Email = email
+		s.renderRegister(w, vm)
+		return
+	}
+
+	vm.Success = true
+	vm.Email = email
+	s.renderRegister(w, vm)
 }
 
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {

@@ -22,6 +22,7 @@
           <span class="theme-icon">🌙</span>
         </button>
         <a class="nav-link" href="/">Goop²</a>
+        {{if .HasCredits}}<a class="nav-link" href="/credits">🪙 Credits</a>{{end}}
         <a class="nav-link" href="/docs">Docs</a>
         {{if .HasAdmin}}<a class="nav-link" href="/admin">Admin</a>{{end}}
       </div>
@@ -63,8 +64,16 @@
     </div>
     {{end}}
 
-    <!-- Credit packs slot (injected by CreditProvider) -->
-    {{.CreditData.CreditPacks}}
+    {{if .HasCredits}}
+    <div class="store-promo glass" style="margin-top:24px">
+      <div class="store-promo-icon">🪙</div>
+      <div class="store-promo-body">
+        <h3>Credits</h3>
+        <p>Purchase credit packs to unlock premium templates.</p>
+      </div>
+      <a class="store-promo-link" href="/credits">Buy Credits →</a>
+    </div>
+    {{end}}
 
     <footer class="footer">
       <p>

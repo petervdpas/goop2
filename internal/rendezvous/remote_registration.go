@@ -44,12 +44,6 @@ func (p *RemoteRegistrationProvider) RegisterRoutes(mux *http.ServeMux) {
 	}
 	proxy := httputil.NewSingleHostReverseProxy(target)
 
-	// Proxy /register → /api/reg/register
-	mux.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
-		r.URL.Path = "/api/reg/register"
-		proxy.ServeHTTP(w, r)
-	})
-
 	// Proxy /verify → /api/reg/verify
 	mux.HandleFunc("/verify", func(w http.ResponseWriter, r *http.Request) {
 		r.URL.Path = "/api/reg/verify"

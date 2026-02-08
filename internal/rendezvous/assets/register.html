@@ -26,7 +26,15 @@
     </header>
 
     <div class="register-box glass">
-      {{if .Success}}
+      {{if .NotRequired}}
+      <div class="register-success">
+        <div class="success-icon" style="background:var(--orange)">!</div>
+        <h2>Registration Not Available</h2>
+        <p>We're sorry, but registration is not enabled on this server right now.</p>
+        <p>All templates and features are currently available without registration.</p>
+        <a href="/" class="btn primary">Back to Home</a>
+      </div>
+      {{else if .Success}}
       <div class="register-success">
         <div class="success-icon">✓</div>
         <h2>{{if .Verified}}Email Verified{{else}}Check Your Email{{end}}</h2>

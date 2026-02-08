@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{.Title}}</title>
+  <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+  <link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="header-left">
+        <div class="logo">🪙</div>
+        <div>
+          <h1>Goop² Credits</h1>
+          <p class="subtitle">Purchase credits for premium templates</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+          <span class="theme-icon">🌙</span>
+        </button>
+        <a class="nav-link" href="/">Goop²</a>
+        <a class="nav-link" href="/store">Store</a>
+        <a class="nav-link" href="/docs">Docs</a>
+        {{if .HasAdmin}}<a class="nav-link" href="/admin">Admin</a>{{end}}
+      </div>
+    </header>
+
+    {{if .PeerID}}
+    <div class="credits-balance glass">
+      <span class="credits-balance-icon">🪙</span>
+      <span class="credits-balance-amount">{{.Balance}}</span>
+      <span class="credits-balance-label">credits</span>
+    </div>
+    {{else}}
+    <div class="store-banner store-banner-credits">
+      Credit system active. Add <code>?peer_id=YOUR_PEER_ID</code> to see your balance.
+    </div>
+    {{end}}
+
+    {{if and .RegistrationRequired (gt .RegistrationCredits 0)}}
+    <div class="credits-bonus glass">
+      <span class="credits-bonus-icon">🎁</span>
+      <div class="credits-bonus-body">
+        <strong>Registration Bonus</strong>
+        <p><a href="/register">Register your email</a> to receive <strong>🪙 {{.RegistrationCredits}}</strong> free credits.</p>
+      </div>
+    </div>
+    {{end}}
+
+    {{if .CreditPacks}}
+    <div class="credits-pack-grid">
+      {{range .CreditPacks}}
+      <div class="credits-pack glass">
+        <div class="credits-pack-name">{{.Name}}</div>
+        <div class="credits-pack-amount">🪙 {{.Label}}</div>
+        <button class="credits-pack-buy btn primary" onclick="buyCredits({{.Amount}})">Buy</button>
+      </div>
+      {{end}}
+    </div>
+    {{else}}
+    <div class="empty-state">
+      <div class="empty-icon">🪙</div>
+      <p>No credit packs available on this server.</p>
+    </div>
+    {{end}}
+
+    <footer class="footer">
+      <p>
+        <a href="/store">← Back to Store</a> &middot;
+        <a href="/">Goop² Home</a>
+      </p>
+    </footer>
+
+    <script>
+      (function(){
+        var t = document.getElementById('themeToggle'),
+            i = t.querySelector('.theme-icon'),
+            h = document.documentElement,
+            s = localStorage.getItem('theme') || 'dark';
+        h.setAttribute('data-theme', s);
+        i.textContent = s === 'dark' ? '☀️' : '🌙';
+        t.onclick = function() {
+          s = h.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+          h.setAttribute('data-theme', s);
+          localStorage.setItem('theme', s);
+          i.textContent = s === 'dark' ? '☀️' : '🌙';
+        };
+      })();
+
+      function buyCredits(amount) {
+        var peerId = new URLSearchParams(location.search).get('peer_id');
+        if (!peerId) {
+          alert('Add ?peer_id=YOUR_PEER_ID to the URL first.');
+          return;
+        }
+        fetch('/api/credits/purchase', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({peer_id: peerId, amount: amount})
+        }).then(function(r) { return r.json(); })
+          .then(function(d) {
+            if (d.ok || d.balance !== undefined) {
+              location.reload();
+            } else {
+              alert(d.error || 'Purchase failed');
+            }
+          }).catch(function() { alert('Purchase failed — server error'); });
+      }
+    </script>
+  </div>
+</body>
+</html>

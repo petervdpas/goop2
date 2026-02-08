@@ -756,6 +756,29 @@ h1 {
   color: var(--green);
 }
 
+.tpl-price-credits {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  background: rgba(240, 136, 62, 0.12);
+  color: var(--orange);
+}
+
+.tpl-price-owned {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  background: var(--purple-dim);
+  color: var(--purple);
+}
+
 .store-card-body { flex: 1; }
 
 .store-card-name {
@@ -1054,6 +1077,99 @@ h1 {
 .price-save-ok { color: var(--green); }
 .price-save-err { color: var(--red); }
 
+/* ─── Credits page ─── */
+.store-banner-credits {
+  background: rgba(240, 136, 62, 0.08);
+  border: 1px solid var(--orange);
+  color: var(--text-secondary);
+}
+
+.store-banner-credits a { font-weight: 600; }
+
+.credits-balance {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+}
+
+.credits-balance-icon { font-size: 32px; }
+
+.credits-balance-amount {
+  font-size: 36px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--orange);
+  line-height: 1;
+}
+
+.credits-balance-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.credits-bonus {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  background: var(--purple-dim);
+  border-color: var(--purple);
+}
+
+.credits-bonus-icon { font-size: 24px; flex-shrink: 0; }
+
+.credits-bonus-body strong {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.credits-bonus-body p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.credits-pack-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 36px;
+}
+
+.credits-pack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 28px 20px;
+  transition: border-color .15s;
+}
+
+.credits-pack:hover { border-color: var(--orange); }
+
+.credits-pack-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.credits-pack-amount {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--orange);
+  margin-bottom: 16px;
+}
+
+.credits-pack-buy {
+  width: 100%;
+  max-width: 160px;
+}
+
 /* ─── Footer ─── */
 .footer {
   margin-top: 48px;
@@ -1086,6 +1202,7 @@ h1 {
   .rv-tpl-grid { grid-template-columns: 1fr; }
   .store-promo { flex-direction: column; text-align: center; }
   .store-grid { grid-template-columns: 1fr; }
+  .credits-pack-grid { grid-template-columns: 1fr; }
   .price-grid { grid-template-columns: 1fr; }
   .logs-container { max-height: 280px; font-size: 11px; }
   .register-box { margin: 16px auto; padding: 20px 16px; }

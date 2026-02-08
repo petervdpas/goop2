@@ -41,18 +41,18 @@
     {{$prices := .StoreTemplatePrices}}
     {{range .StoreTemplates}}
     <div class="tpl-card" data-dir="{{.Dir}}" data-source="store">
-      <div class="tpl-card-icon">{{.Icon}}</div>
+      <div class="tpl-card-head">
+        <div class="tpl-card-icon">{{.Icon}}</div>
+        {{if $.HasCredits}}{{if and $prices (gt (index $prices .Dir) 0)}}<span class="tpl-price tpl-price-credits">🪙 {{index $prices .Dir}}</span>{{else}}<span class="tpl-price tpl-price-free">Free</span>{{end}}{{end}}
+      </div>
       <div class="tpl-card-body">
         <div class="tpl-card-name">{{.Name}} <span class="tpl-badge-store">store</span></div>
         <div class="tpl-card-cat muted small">{{.Category}}</div>
         <div class="tpl-card-desc small">{{.Description}}</div>
       </div>
-      <div class="tpl-card-footer">
-        {{if $prices}}<span class="tpl-price {{if index $prices .Dir}}tpl-price-credits{{else}}tpl-price-free{{end}}">{{if index $prices .Dir}}{{index $prices .Dir}} credits{{else}}Free{{end}}</span>{{end}}
-        <button type="button" class="tpl-card-apply" data-dir="{{.Dir}}" data-name="{{.Name}}" data-source="store">
-          Apply
-        </button>
-      </div>
+      <button type="button" class="tpl-card-apply" data-dir="{{.Dir}}" data-name="{{.Name}}" data-source="store">
+        Apply
+      </button>
     </div>
     {{end}}
   </div>
