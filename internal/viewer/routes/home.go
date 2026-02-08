@@ -24,15 +24,18 @@ func registerHomeRoutes(mux *http.ServeMux, d Deps) {
 
 	mux.HandleFunc("/peers", func(w http.ResponseWriter, r *http.Request) {
 		selfVideoDisabled := false
+		hideUnverified := false
 		if d.CfgPath != "" {
 			if cfg, err := config.Load(d.CfgPath); err == nil {
 				selfVideoDisabled = cfg.Viewer.VideoDisabled
+				hideUnverified = cfg.Viewer.HideUnverified
 			}
 		}
 		vm := viewmodels.PeersVM{
 			BaseVM:            baseVM("Goop", "peers", "page.peers", d),
 			Peers:             viewmodels.BuildPeerRows(d.Peers.Snapshot()),
 			SelfVideoDisabled: selfVideoDisabled,
+			HideUnverified:    hideUnverified,
 		}
 		render.Render(w, vm)
 	})

@@ -31,12 +31,13 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 
 		var req struct {
-			Label         *string `json:"label"`
-			Email         *string `json:"email"`
-			Theme         *string `json:"theme"`
-			PreferredCam  *string `json:"preferred_cam"`
-			PreferredMic  *string `json:"preferred_mic"`
-			VideoDisabled *bool   `json:"video_disabled"`
+			Label          *string `json:"label"`
+			Email          *string `json:"email"`
+			Theme          *string `json:"theme"`
+			PreferredCam   *string `json:"preferred_cam"`
+			PreferredMic   *string `json:"preferred_mic"`
+			VideoDisabled  *bool   `json:"video_disabled"`
+			HideUnverified *bool   `json:"hide_unverified"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid json", http.StatusBadRequest)
@@ -67,6 +68,9 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		if req.VideoDisabled != nil {
 			cfg.Viewer.VideoDisabled = *req.VideoDisabled
 		}
+		if req.HideUnverified != nil {
+			cfg.Viewer.HideUnverified = *req.HideUnverified
+		}
 
 		if err := config.Save(d.CfgPath, cfg); err != nil {
 			http.Error(w, "failed to save", http.StatusInternalServerError)
@@ -88,12 +92,13 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			return
 		}
 		writeJSON(w, map[string]interface{}{
-			"label":          cfg.Profile.Label,
-			"email":          cfg.Profile.Email,
-			"theme":          cfg.Viewer.Theme,
-			"preferred_cam":  cfg.Viewer.PreferredCam,
-			"preferred_mic":  cfg.Viewer.PreferredMic,
-			"video_disabled": cfg.Viewer.VideoDisabled,
+			"label":           cfg.Profile.Label,
+			"email":           cfg.Profile.Email,
+			"theme":           cfg.Viewer.Theme,
+			"preferred_cam":   cfg.Viewer.PreferredCam,
+			"preferred_mic":   cfg.Viewer.PreferredMic,
+			"video_disabled":  cfg.Viewer.VideoDisabled,
+			"hide_unverified": cfg.Viewer.HideUnverified,
 		})
 	})
 
@@ -112,6 +117,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		cfg.Viewer.HTTPAddr = getTrimmedPostFormValue(r.PostForm, "viewer_http_addr")
 		cfg.Viewer.Debug = formBool(r.PostForm, "viewer_debug")
 		cfg.Viewer.VideoDisabled = formBool(r.PostForm, "viewer_video_disabled")
+		cfg.Viewer.HideUnverified = formBool(r.PostForm, "viewer_hide_unverified")
 
 		// P2P / presence fields are only in the form when not in rendezvous-only mode.
 		if v := getTrimmedPostFormValue(r.PostForm, "p2p_mdns_tag"); v != "" {

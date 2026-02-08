@@ -15,6 +15,7 @@ type PeerRow struct {
 	Email         string `json:"Email"`
 	AvatarHash    string `json:"AvatarHash"`
 	VideoDisabled bool   `json:"VideoDisabled"`
+	Verified      bool   `json:"Verified"`
 	LastSeen      time.Time `json:"LastSeen"`
 }
 
@@ -22,6 +23,7 @@ type PeersVM struct {
 	BaseVM
 	Peers             []PeerRow
 	SelfVideoDisabled bool
+	HideUnverified    bool
 }
 
 func BuildPeerRows(m map[string]state.SeenPeer) []PeerRow {
@@ -33,6 +35,7 @@ func BuildPeerRows(m map[string]state.SeenPeer) []PeerRow {
 			Email:         sp.Email,
 			AvatarHash:    sp.AvatarHash,
 			VideoDisabled: sp.VideoDisabled,
+			Verified:      sp.Verified,
 			LastSeen:      sp.LastSeen,
 		})
 	}

@@ -116,6 +116,19 @@
             </div>
           </div>
 
+          <div class="field">
+            <label>Hide unverified peers</label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <label class="switch" title="Hide unverified peers from the peer list">
+                <input type="checkbox"
+                       name="viewer_hide_unverified"
+                       {{if .Cfg.Viewer.HideUnverified}}checked{{end}}>
+                <span class="slider"></span>
+              </label>
+              <span class="muted small">Only show peers with verified email addresses</span>
+            </div>
+          </div>
+
         </div>
 
         <!-- Calls -->

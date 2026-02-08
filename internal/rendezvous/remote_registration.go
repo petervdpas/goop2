@@ -23,6 +23,7 @@ type RemoteRegistrationProvider struct {
 	regRequired   bool
 	regVersion    string
 	regAPIVersion int
+	regGrantAmount int
 	regCachedAt   time.Time
 	regCacheMu    sync.RWMutex
 }
@@ -102,6 +103,7 @@ func (p *RemoteRegistrationProvider) fetchStatus() {
 		RegistrationRequired bool   `json:"registration_required"`
 		Version              string `json:"version"`
 		APIVersion           int    `json:"api_version"`
+		GrantAmount          int    `json:"grant_amount"`
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -115,6 +117,7 @@ func (p *RemoteRegistrationProvider) fetchStatus() {
 	p.regRequired = result.RegistrationRequired
 	p.regVersion = result.Version
 	p.regAPIVersion = result.APIVersion
+	p.regGrantAmount = result.GrantAmount
 	p.regCachedAt = time.Now()
 	p.regCacheMu.Unlock()
 }
@@ -142,5 +145,13 @@ func (p *RemoteRegistrationProvider) APIVersion() int {
 	p.regCacheMu.RLock()
 	defer p.regCacheMu.RUnlock()
 	return p.regAPIVersion
+}
+
+// GrantAmount returns the cached grant_amount from the registration service.
+func (p *RemoteRegistrationProvider) GrantAmount() int {
+	p.fetchStatus()
+	p.regCacheMu.RLock()
+	defer p.regCacheMu.RUnlock()
+	return p.regGrantAmount
 }
 

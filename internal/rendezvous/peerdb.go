@@ -44,12 +44,16 @@ func openPeerDB(path string) (*peerDB, error) {
 		ts             INTEGER DEFAULT 0,
 		last_seen      INTEGER DEFAULT 0,
 		bytes_sent     INTEGER DEFAULT 0,
-		bytes_received INTEGER DEFAULT 0
+		bytes_received INTEGER DEFAULT 0,
+		verified       INTEGER DEFAULT 0
 	)`)
 	if err != nil {
 		db.Close()
 		return nil, err
 	}
+
+	// Migration: add verified column to existing databases (ignore error if already exists)
+	db.Exec(`ALTER TABLE peers ADD COLUMN verified INTEGER DEFAULT 0`)
 
 	// Registrations table for email-based access control
 	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS registrations (
@@ -72,8 +76,12 @@ func (p *peerDB) upsert(row peerRow) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	_, err := p.db.Exec(`INSERT INTO peers (peer_id, type, content, email, avatar_hash, ts, last_seen, bytes_sent, bytes_received)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	verified := 0
+	if row.Verified {
+		verified = 1
+	}
+	_, err := p.db.Exec(`INSERT INTO peers (peer_id, type, content, email, avatar_hash, ts, last_seen, bytes_sent, bytes_received, verified)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(peer_id) DO UPDATE SET
 			type=excluded.type,
 			content=excluded.content,
@@ -82,9 +90,10 @@ func (p *peerDB) upsert(row peerRow) {
 			ts=excluded.ts,
 			last_seen=excluded.last_seen,
 			bytes_sent=excluded.bytes_sent,
-			bytes_received=excluded.bytes_received`,
+			bytes_received=excluded.bytes_received,
+			verified=excluded.verified`,
 		row.PeerID, row.Type, row.Content, row.Email, row.AvatarHash,
-		row.TS, row.LastSeen, row.BytesSent, row.BytesReceived)
+		row.TS, row.LastSeen, row.BytesSent, row.BytesReceived, verified)
 	if err != nil {
 		log.Printf("peerdb: upsert error: %v", err)
 	}
@@ -124,7 +133,7 @@ func (p *peerDB) loadAll() ([]peerRow, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	rows, err := p.db.Query(`SELECT peer_id, type, content, email, avatar_hash, ts, last_seen, bytes_sent, bytes_received FROM peers`)
+	rows, err := p.db.Query(`SELECT peer_id, type, content, email, avatar_hash, ts, last_seen, bytes_sent, bytes_received, verified FROM peers`)
 	if err != nil {
 		return nil, err
 	}
@@ -133,13 +142,28 @@ func (p *peerDB) loadAll() ([]peerRow, error) {
 	var result []peerRow
 	for rows.Next() {
 		var r peerRow
+		var verified int
 		if err := rows.Scan(&r.PeerID, &r.Type, &r.Content, &r.Email, &r.AvatarHash,
-			&r.TS, &r.LastSeen, &r.BytesSent, &r.BytesReceived); err != nil {
+			&r.TS, &r.LastSeen, &r.BytesSent, &r.BytesReceived, &verified); err != nil {
 			return nil, err
 		}
+		r.Verified = verified != 0
 		result = append(result, r)
 	}
 	return result, rows.Err()
+}
+
+// lookupEmail returns the email for a peer ID, or "" if not found.
+func (p *peerDB) lookupEmail(peerID string) string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	var email string
+	err := p.db.QueryRow("SELECT email FROM peers WHERE peer_id = ?", peerID).Scan(&email)
+	if err != nil {
+		return ""
+	}
+	return email
 }
 
 // close closes the database.

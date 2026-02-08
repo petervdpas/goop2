@@ -93,7 +93,7 @@
                 <span class="status-badge {{statusClass .Type}}">{{.Type}}</span>
                 <span class="peer-time">{{fmtMillis .LastSeen}}</span>
               </div>
-              <div class="peer-label">{{.Content}}</div>
+              <div class="peer-label">{{.Content}}{{if not .Verified}} <span class="badge-unverified">unverified</span>{{end}}</div>
               {{if .Email}}<div class="peer-email">{{.Email}}</div>{{end}}
               <div class="peer-id">{{.PeerID}}</div>
               <div class="peer-stats">
@@ -163,9 +163,10 @@
               var sc=p.type==='online'?'on':(p.type==='offline'?'off':'up');
               var ls=p.last_seen?new Date(p.last_seen).toLocaleString():'';
               var av=avatarURI(p.content||'',p.email||'');
+              var unverifiedBadge = p.verified ? '' : ' <span class="badge-unverified">unverified</span>';
               return '<div class="peer-card peer-row" data-status="'+sc+'" data-label="'+(p.content||'')+'">'
                 +'<div class="peer-header"><img src="'+av+'" width="28" height="28" style="border-radius:50%;margin-right:8px"><span class="status-badge '+sc+'">'+p.type+'</span><span class="peer-time">'+ls+'</span></div>'
-                +'<div class="peer-label">'+(p.content||'Unknown')+'</div>'
+                +'<div class="peer-label">'+(p.content||'Unknown')+unverifiedBadge+'</div>'
                 +(p.email?'<div class="peer-email">'+p.email+'</div>':'')
                 +'<div class="peer-id">'+p.peer_id+'</div>'
                 +'<div class="peer-stats"><span class="stat-item">↑ '+formatBytes(p.bytes_sent||0)+'</span><span class="stat-item">↓ '+formatBytes(p.bytes_received||0)+'</span></div>'

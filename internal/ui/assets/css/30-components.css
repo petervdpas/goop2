@@ -83,6 +83,20 @@
   50% { opacity: 0.5; }
 }
 
+.badge-unverified {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  background: rgba(243, 156, 18, 0.12);
+  color: #f39c12;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
 .peercontent{
   color: var(--muted);
   overflow:hidden;

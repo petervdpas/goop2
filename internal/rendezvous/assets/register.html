@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -74,12 +74,12 @@
     const toggle = document.getElementById('themeToggle');
     const icon = toggle.querySelector('.theme-icon');
     const saved = localStorage.getItem('theme');
-    if (saved === 'light') { document.body.classList.add('light'); icon.textContent = '☀️'; }
+    if (saved === 'light') { document.documentElement.setAttribute('data-theme', 'light'); icon.textContent = '☀️'; }
     toggle.addEventListener('click', () => {
-      document.body.classList.toggle('light');
-      const isLight = document.body.classList.contains('light');
-      icon.textContent = isLight ? '☀️' : '🌙';
-      localStorage.setItem('theme', isLight ? 'light' : 'dark');
+      const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+      document.documentElement.setAttribute('data-theme', isLight ? 'dark' : 'light');
+      icon.textContent = isLight ? '🌙' : '☀️';
+      localStorage.setItem('theme', isLight ? 'dark' : 'light');
     });
   </script>
 </body>

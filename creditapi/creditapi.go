@@ -61,11 +61,6 @@ type CreditProvider interface {
 
 	// TemplateStoreInfo returns per-template credit info for the store page.
 	TemplateStoreInfo(r *http.Request, tpl StoreMeta) TemplateStoreInfo
-
-	// GrantRegistrationCredits grants initial credits to a newly registered peer.
-	// Idempotent: skips if the peer already has a positive balance.
-	// Errors are non-fatal (logged by the caller).
-	GrantRegistrationCredits(peerID string, amount int) error
 }
 
 // NoCredits is the default CreditProvider: all templates are free,
@@ -74,7 +69,6 @@ type NoCredits struct{}
 
 func (NoCredits) RegisterRoutes(*http.ServeMux)                               {}
 func (NoCredits) TemplateAccessAllowed(*http.Request, StoreMeta) bool         { return true }
-func (NoCredits) GrantRegistrationCredits(string, int) error                  { return nil }
 func (NoCredits) StorePageData(*http.Request) StorePageData {
 	return StorePageData{
 		Banner: `<div class="store-banner store-banner-free">All templates on this server are free — no credits needed.</div>`,

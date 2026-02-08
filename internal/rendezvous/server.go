@@ -71,7 +71,6 @@ type Server struct {
 	credits             CreditProvider  // default: NoCredits{}
 	registration        *RemoteRegistrationProvider // nil = use built-in registration
 	email               *RemoteEmailProvider        // nil = email service not configured
-	registrationCredits int // credits granted on first verified publish (0 = disabled)
 
 	// Circuit relay v2
 	relayHost    host.Host  // nil when relay is disabled
@@ -104,6 +103,7 @@ type peerRow struct {
 	LastSeen      int64  `json:"last_seen"`
 	BytesSent     int64  `json:"bytes_sent"`
 	BytesReceived int64  `json:"bytes_received"`
+	Verified      bool   `json:"verified"`
 }
 
 type indexVM struct {
@@ -324,6 +324,30 @@ func (s *Server) SetCreditProvider(cp CreditProvider) {
 	s.credits = cp
 }
 
+// GetEmailForPeer resolves a peer ID to an email address.
+// Checks in-memory peers first, then falls back to peerDB.
+func (s *Server) GetEmailForPeer(peerID string) string {
+	s.mu.Lock()
+	if p, ok := s.peers[peerID]; ok && p.Email != "" {
+		s.mu.Unlock()
+		return p.Email
+	}
+	s.mu.Unlock()
+
+	if s.peerDB != nil {
+		return s.peerDB.lookupEmail(peerID)
+	}
+	return ""
+}
+
+// grantAmount returns the grant_amount from the registration service, or 0 if not configured.
+func (s *Server) grantAmount() int {
+	if s.registration == nil {
+		return 0
+	}
+	return s.registration.GrantAmount()
+}
+
 // SetRegistrationProvider configures a remote registration service.
 // When set, registration endpoints are proxied to the remote service
 // and email verification checks delegate to it.
@@ -337,12 +361,6 @@ func (s *Server) SetRegistrationProvider(rp *RemoteRegistrationProvider) {
 // Must be called before Start.
 func (s *Server) SetEmailProvider(ep *RemoteEmailProvider) {
 	s.email = ep
-}
-
-// SetRegistrationCredits sets the number of credits granted on first verified publish.
-// Only effective when both credits and registration services are configured.
-func (s *Server) SetRegistrationCredits(n int) {
-	s.registrationCredits = n
 }
 
 func (s *Server) Start(ctx context.Context) error {
@@ -509,33 +527,18 @@ func (s *Server) Start(ctx context.Context) error {
 			pm.TS = proto.NowMillis()
 		}
 
+		// Annotate with server-side verification status
+		pm.Verified = isRegistered
+
 		// Calculate message size for tracking
 		b, _ := json.Marshal(pm)
 		msgSize := int64(len(b))
 
-		// Grant registration credits on first publish (peer not yet known)
-		if isRegistered && s.registrationCredits > 0 {
-			s.mu.Lock()
-			_, alreadyKnown := s.peers[pm.PeerID]
-			s.mu.Unlock()
-			if !alreadyKnown {
-				go func() {
-					if err := s.credits.GrantRegistrationCredits(pm.PeerID, s.registrationCredits); err != nil {
-						log.Printf("credits: registration grant failed for %s: %v", pm.PeerID, err)
-					}
-				}()
-			}
-		}
-
 		// update peer snapshot for / and /peers.json
-		// Only store if registered (or registration not required)
-		if isRegistered {
-			s.upsertPeer(pm, msgSize)
-			s.addLog(fmt.Sprintf("Received %s from %s: %q", pm.Type, pm.PeerID, pm.Content))
-			s.broadcast(b)
-		} else {
-			s.addLog(fmt.Sprintf("Rejected unregistered peer: %s (email: %q)", pm.PeerID, pm.Email))
-		}
+		// Always store and broadcast — mark unverified peers
+		s.upsertPeer(pm, msgSize, isRegistered)
+		s.addLog(fmt.Sprintf("Received %s from %s: %q (verified=%v)", pm.Type, pm.PeerID, pm.Content, isRegistered))
+		s.broadcast(b)
 
 		w.WriteHeader(http.StatusNoContent)
 	})
@@ -718,7 +721,7 @@ func (s *Server) broadcast(b []byte) {
 	}
 }
 
-func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64) {
+func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64, verified bool) {
 	now := time.Now().UnixMilli()
 
 	s.mu.Lock()
@@ -754,6 +757,7 @@ func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64) {
 		LastSeen:      now,
 		BytesSent:     bytesSent,
 		BytesReceived: bytesReceived,
+		Verified:      verified,
 	}
 	s.peers[pm.PeerID] = row
 	s.peersDirty = true
@@ -1090,7 +1094,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		HasAdmin:             s.adminPassword != "",
 		RegistrationRequired: regRequired,
 		HasCredits:           hasCredits,
-		RegistrationCredits:  s.registrationCredits,
+		RegistrationCredits:  s.grantAmount(),
 	})
 }
 
@@ -1126,7 +1130,7 @@ func (s *Server) handleStore(w http.ResponseWriter, r *http.Request) {
 		HasAdmin:             s.adminPassword != "",
 		HasCredits:           hasCredits,
 		RegistrationRequired: regRequired,
-		RegistrationCredits:  s.registrationCredits,
+		RegistrationCredits:  s.grantAmount(),
 	})
 }
 
@@ -1153,7 +1157,7 @@ func (s *Server) handleCredits(w http.ResponseWriter, r *http.Request) {
 		HasAdmin:             s.adminPassword != "",
 		HasCredits:           hasCredits,
 		RegistrationRequired: regRequired,
-		RegistrationCredits:  s.registrationCredits,
+		RegistrationCredits:  s.grantAmount(),
 	}
 
 	// Fetch credit data from service

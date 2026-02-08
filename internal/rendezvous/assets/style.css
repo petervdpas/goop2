@@ -533,6 +533,21 @@ h1 {
 .stat-item:first-child { color: var(--green); }
 .stat-item:last-child  { color: var(--blue); }
 
+/* ─── Unverified badge ─── */
+.badge-unverified {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  background: rgba(240, 136, 62, 0.12);
+  color: var(--orange);
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
 /* ─── Empty state ─── */
 .empty-state {
   text-align: center;

@@ -100,9 +100,6 @@ type Presence struct {
 	RegistrationURL string `json:"registration_url"` // e.g., "http://localhost:8801"
 	EmailURL        string `json:"email_url"`        // e.g., "http://localhost:8802"
 
-	// Credits granted on first verified publish (0 = disabled).
-	// Only fires when both credits and registration services are configured.
-	RegistrationCredits int `json:"registration_credits"`
 }
 
 type Profile struct {
@@ -116,7 +113,8 @@ type Viewer struct {
 	Theme          string `json:"theme"`
 	PreferredCam   string `json:"preferred_cam"`
 	PreferredMic   string `json:"preferred_mic"`
-	VideoDisabled  bool   `json:"video_disabled"` // Disable video/audio calls (e.g., Linux WebKitGTK limitation)
+	VideoDisabled  bool   `json:"video_disabled"`  // Disable video/audio calls (e.g., Linux WebKitGTK limitation)
+	HideUnverified bool   `json:"hide_unverified"` // Hide unverified peers from the peer list
 }
 
 type Lua struct {
@@ -156,7 +154,6 @@ func Default() Config {
 			TemplatesDir:        "templates",
 			RelayPort:           0,
 			RelayKeyFile:        "data/relay.key",
-			RegistrationCredits: 1000,
 		},
 		Profile: Profile{
 			Label: "hello",

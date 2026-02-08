@@ -45,6 +45,7 @@ type PresenceMsg struct {
 	VideoDisabled bool     `json:"videoDisabled,omitempty"` // Peer has video/audio calls disabled
 	Addrs         []string `json:"addrs,omitempty"`         // Multiaddresses for WAN connectivity
 	TS            int64    `json:"ts"`
+	Verified      bool     `json:"verified,omitempty"` // Set by rendezvous server (email verified)
 }
 
 func NowMillis() int64 { return time.Now().UnixMilli() }

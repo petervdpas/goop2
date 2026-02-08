@@ -21,6 +21,7 @@
                 <span class="peer-badge" data-unread-badge="{{.ID}}" style="display:none;">●</span>
                 {{if .Content}}{{.Content}}{{else}}{{shortID .ID}}{{end}}
               </a>
+              {{if not .Verified}}<span class="badge-unverified">unverified</span>{{end}}
               {{if .Email}}<span class="peeremail muted small">{{.Email}}</span>{{end}}
             </div>
             <span class="peercontent muted small"><code>{{shortID .ID}}</code> &middot; seen {{rfc3339 .LastSeen}}</span>
@@ -85,6 +86,7 @@
   const selfID = '{{.SelfID}}';
   const selfName = '{{.SelfName}}';
   const selfVideoDisabled = {{.SelfVideoDisabled}};
+  const hideUnverified = {{.HideUnverified}};
   const peersList = document.getElementById('peers-list');
   const peerCount = document.getElementById('peer-count');
   const peerSearch = document.getElementById('peer-search');
@@ -130,6 +132,7 @@
             <span class="peer-badge" data-unread-badge="${escapeHtml(peer.ID)}" style="display:${hasUnread ? 'inline' : 'none'};">●</span>
             ${escapeHtml(peerName)}
           </a>
+          ${peer.Verified ? '' : '<span class="badge-unverified">unverified</span>'}
           ${peer.Email ? '<span class="peeremail muted small">' + escapeHtml(peer.Email) + '</span>' : ''}
         </div>
         <span class="peercontent muted small"><code>${escapeHtml(shortId)}</code> &middot; seen ${escapeHtml(lastSeen)}</span>
@@ -174,8 +177,11 @@
     // Apply search filter
     const query = (peerSearch.value || '').trim().toLowerCase();
     let filtered = currentPeers;
+    if (hideUnverified) {
+      filtered = filtered.filter(peer => peer.Verified);
+    }
     if (query) {
-      filtered = currentPeers.filter(peer => {
+      filtered = filtered.filter(peer => {
         const name = (peer.Content || '').toLowerCase();
         const id = peer.ID.toLowerCase();
         return name.includes(query) || id.includes(query);
