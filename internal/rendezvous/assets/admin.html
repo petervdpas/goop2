@@ -48,13 +48,16 @@
         {{range .Services}}
         <div style="flex:1;min-width:200px;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg)">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span style="width:10px;height:10px;border-radius:50%;display:inline-block;{{if .OK}}background:#2ecc71{{else}}background:#e74c3c{{end}}"></span>
+            <span style="width:10px;height:10px;border-radius:50%;display:inline-block;{{if not .OK}}background:#e74c3c{{else if not .APICompat}}background:#e74c3c{{else}}background:#2ecc71{{end}}"></span>
             <strong>{{.Name}}</strong>
             {{if .OK}}
               {{if .DummyMode}}<span style="color:#f39c12;font-size:0.8em">(dummy)</span>
               {{else}}<span style="color:#2ecc71;font-size:0.8em">(active)</span>{{end}}
+              {{if .Version}}<span style="color:var(--muted);font-size:0.75em">v{{.Version}}</span>{{end}}
+              <span style="color:var(--muted);font-size:0.75em">API v{{.APIVersion}}</span>
             {{else}}<span style="color:#e74c3c;font-size:0.8em">not running</span>{{end}}
           </div>
+          {{if and .OK (not .APICompat)}}<div style="font-size:0.8em;color:#e74c3c;margin-bottom:4px">⚠ Incompatible API version — please update this service</div>{{end}}
           <div style="font-size:0.8em;color:var(--muted)">{{.URL}}</div>
         </div>
         {{end}}

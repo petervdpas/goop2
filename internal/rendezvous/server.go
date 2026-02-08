@@ -123,11 +123,20 @@ type storeVM struct {
 	HasAdmin   bool
 }
 
+// Minimum API versions that this build of goop2 requires.
+const (
+	minRegistrationAPI = 1
+	minCreditsAPI      = 1
+)
+
 type serviceStatus struct {
-	Name      string
-	URL       string
-	OK        bool
-	DummyMode bool
+	Name       string
+	URL        string
+	OK         bool
+	DummyMode  bool
+	Version    string
+	APIVersion int
+	APICompat  bool // true if api_version >= required minimum
 }
 
 type adminVM struct {
@@ -1048,6 +1057,9 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		ss.OK = checkServiceHealth(s.registration.baseURL)
 		if ss.OK {
 			ss.DummyMode = !s.registration.RegistrationRequired()
+			ss.Version = s.registration.Version()
+			ss.APIVersion = s.registration.APIVersion()
+			ss.APICompat = ss.APIVersion >= minRegistrationAPI
 		}
 		services = append(services, ss)
 	}
@@ -1055,7 +1067,11 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		ss := serviceStatus{Name: "Credits", URL: cp.baseURL}
 		ss.OK = checkServiceHealth(cp.baseURL)
 		if ss.OK {
-			ss.DummyMode = cp.IsDummyMode()
+			cs := cp.fetchStoreStatus()
+			ss.DummyMode = cs.DummyMode
+			ss.Version = cs.Version
+			ss.APIVersion = cs.APIVersion
+			ss.APICompat = ss.APIVersion >= minCreditsAPI
 		}
 		services = append(services, ss)
 	}

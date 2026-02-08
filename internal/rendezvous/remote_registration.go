@@ -19,10 +19,12 @@ type RemoteRegistrationProvider struct {
 	baseURL string
 	client  *http.Client
 
-	// cached registration_required status
-	regRequired      bool
-	regRequiredAt    time.Time
-	regRequiredMu    sync.RWMutex
+	// cached status from /api/reg/status
+	regRequired   bool
+	regVersion    string
+	regAPIVersion int
+	regCachedAt   time.Time
+	regCacheMu    sync.RWMutex
 }
 
 // NewRemoteRegistrationProvider creates a provider that talks to the registration service.
@@ -84,48 +86,67 @@ func (p *RemoteRegistrationProvider) IsEmailVerified(email string) bool {
 	return result.Verified
 }
 
-// RegistrationRequired queries the registration service to check if
-// registration is required. The result is cached for 30 seconds.
-func (p *RemoteRegistrationProvider) RegistrationRequired() bool {
+// fetchStatus fetches and caches /api/reg/status (registration_required, version).
+func (p *RemoteRegistrationProvider) fetchStatus() {
 	const cacheTTL = 30 * time.Second
 
-	p.regRequiredMu.RLock()
-	if time.Since(p.regRequiredAt) < cacheTTL {
-		val := p.regRequired
-		p.regRequiredMu.RUnlock()
-		return val
+	p.regCacheMu.RLock()
+	if time.Since(p.regCachedAt) < cacheTTL {
+		p.regCacheMu.RUnlock()
+		return
 	}
-	p.regRequiredMu.RUnlock()
+	p.regCacheMu.RUnlock()
 
-	reqURL := p.baseURL + "/api/reg/status"
-	resp, err := p.client.Get(reqURL)
+	resp, err := p.client.Get(p.baseURL + "/api/reg/status")
 	if err != nil {
 		log.Printf("registration: status check error: %v", err)
-		// Return last known value on error
-		p.regRequiredMu.RLock()
-		val := p.regRequired
-		p.regRequiredMu.RUnlock()
-		return val
+		return
 	}
 	defer resp.Body.Close()
 
+	var result struct {
+		RegistrationRequired bool   `json:"registration_required"`
+		Version              string `json:"version"`
+		APIVersion           int    `json:"api_version"`
+	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return p.regRequired
-	}
-
-	var result struct {
-		RegistrationRequired bool `json:"registration_required"`
+		return
 	}
 	if err := json.Unmarshal(body, &result); err != nil {
-		return p.regRequired
+		return
 	}
 
-	p.regRequiredMu.Lock()
+	p.regCacheMu.Lock()
 	p.regRequired = result.RegistrationRequired
-	p.regRequiredAt = time.Now()
-	p.regRequiredMu.Unlock()
+	p.regVersion = result.Version
+	p.regAPIVersion = result.APIVersion
+	p.regCachedAt = time.Now()
+	p.regCacheMu.Unlock()
+}
 
-	return result.RegistrationRequired
+// RegistrationRequired queries the registration service to check if
+// registration is required. The result is cached for 30 seconds.
+func (p *RemoteRegistrationProvider) RegistrationRequired() bool {
+	p.fetchStatus()
+	p.regCacheMu.RLock()
+	defer p.regCacheMu.RUnlock()
+	return p.regRequired
+}
+
+// Version returns the cached version string from the registration service.
+func (p *RemoteRegistrationProvider) Version() string {
+	p.fetchStatus()
+	p.regCacheMu.RLock()
+	defer p.regCacheMu.RUnlock()
+	return p.regVersion
+}
+
+// APIVersion returns the cached API version from the registration service.
+func (p *RemoteRegistrationProvider) APIVersion() int {
+	p.fetchStatus()
+	p.regCacheMu.RLock()
+	defer p.regCacheMu.RUnlock()
+	return p.regAPIVersion
 }
 

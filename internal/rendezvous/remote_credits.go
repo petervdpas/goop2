@@ -41,19 +41,32 @@ func (p *RemoteCreditProvider) RegisterRoutes(mux *http.ServeMux) {
 	})
 }
 
-// IsDummyMode queries the credits service to check if it's running in dummy mode.
-func (p *RemoteCreditProvider) IsDummyMode() bool {
+// creditsStatus holds the cached status fields from the credits service.
+type creditsStatus struct {
+	DummyMode  bool
+	Version    string
+	APIVersion int
+}
+
+// fetchStoreStatus fetches status from the credits service.
+func (p *RemoteCreditProvider) fetchStoreStatus() creditsStatus {
 	resp, err := p.client.Get(p.baseURL + "/api/credits/store-data")
 	if err != nil {
-		return false
+		return creditsStatus{}
 	}
 	defer resp.Body.Close()
 
 	var data struct {
-		DummyMode bool `json:"dummy_mode"`
+		DummyMode  bool   `json:"dummy_mode"`
+		Version    string `json:"version"`
+		APIVersion int    `json:"api_version"`
 	}
 	json.NewDecoder(resp.Body).Decode(&data)
-	return data.DummyMode
+	return creditsStatus{
+		DummyMode:  data.DummyMode,
+		Version:    data.Version,
+		APIVersion: data.APIVersion,
+	}
 }
 
 // TemplateAccessAllowed calls the credits service to check template access.
