@@ -214,6 +214,9 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 				if v, ok := status["registration_required"]; ok {
 					regResult["registration_required"] = v
 				}
+				if v, ok := status["dummy_mode"]; ok {
+					regResult["dummy_mode"] = v
+				}
 			}
 		}
 

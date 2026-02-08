@@ -41,6 +41,21 @@ func (p *RemoteCreditProvider) RegisterRoutes(mux *http.ServeMux) {
 	})
 }
 
+// IsDummyMode queries the credits service to check if it's running in dummy mode.
+func (p *RemoteCreditProvider) IsDummyMode() bool {
+	resp, err := p.client.Get(p.baseURL + "/api/credits/store-data")
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	var data struct {
+		DummyMode bool `json:"dummy_mode"`
+	}
+	json.NewDecoder(resp.Body).Decode(&data)
+	return data.DummyMode
+}
+
 // TemplateAccessAllowed calls the credits service to check template access.
 func (p *RemoteCreditProvider) TemplateAccessAllowed(r *http.Request, tpl StoreMeta) bool {
 	peerID := r.Header.Get("X-Goop-Peer-ID")

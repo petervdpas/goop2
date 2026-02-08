@@ -404,13 +404,13 @@
             regStatus.textContent = '';
           } else if (data.registration.ok) {
             var label = 'running';
-            if (data.registration.registration_required) {
-              label += ' (required)';
+            if (data.registration.dummy_mode) {
+              label += ' (dummy)';
             } else {
-              label += ' (optional)';
+              label += ' (active)';
             }
             regStatus.textContent = label;
-            regStatus.className = 'svc-status svc-ok';
+            regStatus.className = 'svc-status ' + (data.registration.dummy_mode ? 'svc-warn' : 'svc-ok');
           } else {
             regStatus.textContent = 'not reachable';
             regStatus.className = 'svc-status svc-err';

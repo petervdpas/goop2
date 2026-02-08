@@ -123,12 +123,20 @@ type storeVM struct {
 	HasAdmin   bool
 }
 
+type serviceStatus struct {
+	Name      string
+	URL       string
+	OK        bool
+	DummyMode bool
+}
+
 type adminVM struct {
 	Title      string
 	PeerCount  int
 	Peers      []peerRow
 	Now        string
 	HasCredits bool
+	Services   []serviceStatus
 }
 
 type docsVM struct {
@@ -1030,9 +1038,26 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 
 	_, hasCredits := s.credits.(*RemoteCreditProvider)
 	if !hasCredits {
-		// Also check if it's any non-NoCredits provider
 		_, isNoCredits := s.credits.(NoCredits)
 		hasCredits = !isNoCredits
+	}
+
+	var services []serviceStatus
+	if s.registration != nil {
+		ss := serviceStatus{Name: "Registration", URL: s.registration.baseURL}
+		ss.OK = checkServiceHealth(s.registration.baseURL)
+		if ss.OK {
+			ss.DummyMode = !s.registration.RegistrationRequired()
+		}
+		services = append(services, ss)
+	}
+	if cp, ok := s.credits.(*RemoteCreditProvider); ok {
+		ss := serviceStatus{Name: "Credits", URL: cp.baseURL}
+		ss.OK = checkServiceHealth(cp.baseURL)
+		if ss.OK {
+			ss.DummyMode = cp.IsDummyMode()
+		}
+		services = append(services, ss)
 	}
 
 	w.Header().Set("content-type", "text/html; charset=utf-8")
@@ -1042,6 +1067,7 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		Peers:      peers,
 		Now:        time.Now().Format("2006-01-02 15:04:05"),
 		HasCredits: hasCredits,
+		Services:   services,
 	})
 }
 
@@ -1058,6 +1084,17 @@ func (s *Server) requireAdmin(w http.ResponseWriter, r *http.Request) bool {
 		return false
 	}
 	return true
+}
+
+// checkServiceHealth pings a service's /healthz endpoint.
+func checkServiceHealth(baseURL string) bool {
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get(strings.TrimRight(baseURL, "/") + "/healthz")
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
 }
 
 // allowPublish checks the per-IP sliding window rate limit (60 req/min).
