@@ -96,7 +96,16 @@ Templates include HTML, CSS, JS, database schemas, and optional Lua server funct
 
 ## Architecture
 
-Goop² is built in Go. The main components:
+Goop² is built in Go with a four-service microservice architecture:
+
+| Service | Port | Purpose |
+|---|---|---|
+| **goop2** (this repo) | 8787 | Gateway — rendezvous, proxying, HTML serving |
+| **goop2-registrations** | 8801 | Email verification, registration DB |
+| **goop2-credits** | 8800 | Credit balances, pricing, template ownership |
+| **goop2-email** | 8802 | SMTP sending, HTML email templates |
+
+Main packages in this repo:
 
 | Package | What it does |
 |---|---|
@@ -109,7 +118,7 @@ Goop² is built in Go. The main components:
 | `internal/realtime` | WebRTC video/audio between peers |
 | `internal/config` | Configuration and validation |
 
-For the full deep-dive, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+For the full deep-dive, see the [Architecture docs](https://github.com/petervdpas/goop2-email/tree/master/docs).
 
 ## Project structure
 
