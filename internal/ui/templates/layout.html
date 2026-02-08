@@ -152,6 +152,7 @@
             {{if .SelfName}}
             <div class="me">
               <span class="me-label">{{.SelfName}}</span>
+              <span class="me-credits" id="meCredits" style="display:none"></span>
             </div>
             {{end}}
           </div>
@@ -185,6 +186,17 @@
         </div>
       </footer>
     </div>
+    <script>
+    (function(){
+      var el = document.getElementById('meCredits');
+      if (!el) return;
+      fetch('/api/my-balance').then(function(r){ return r.json(); }).then(function(d){
+        if (!d.credits_active) return;
+        el.textContent = d.balance + ' credits';
+        el.style.display = '';
+      }).catch(function(){});
+    })();
+    </script>
   </body>
 </html>
 {{end}}

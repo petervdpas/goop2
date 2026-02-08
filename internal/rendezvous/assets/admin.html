@@ -21,6 +21,7 @@
         <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
           <span class="theme-icon">🌙</span>
         </button>
+        {{if .HasCredits}}<a class="nav-link" href="/admin/prices">Prices</a>{{end}}
         <a class="nav-link" href="/docs">Docs</a>
         <a class="nav-link" href="/">Public</a>
       </div>
@@ -116,18 +117,6 @@
         </div>
       </div>
     </div>
-
-    {{if .HasCredits}}
-    <!-- Template Prices panel -->
-    <div class="dash-panel glass" style="margin-top:20px">
-      <div class="dash-panel-header">
-        <span class="dash-panel-label">Template Prices</span>
-      </div>
-      <div id="prices-container">
-        <div class="log-entry empty">Loading...</div>
-      </div>
-    </div>
-    {{end}}
 
     <script>
       function formatBytes(b) {
@@ -246,73 +235,6 @@
         });
       })();
 
-      // Template Prices management
-      (function(){
-        var pc = document.getElementById('prices-container');
-        if (!pc) return;
-
-        async function loadPrices(){
-          try {
-            var [pricesResp, templatesResp] = await Promise.all([
-              fetch('/api/credits/prices'),
-              fetch('/api/templates')
-            ]);
-            var prices = await pricesResp.json();
-            var templates = [];
-            if (templatesResp.ok) templates = await templatesResp.json();
-
-            if (!prices) prices = {};
-            var allDirs = new Set(Object.keys(prices));
-            templates.forEach(function(t){ allDirs.add(t.dir); });
-
-            if (allDirs.size === 0) {
-              pc.innerHTML = '<div class="log-entry empty">No templates available</div>';
-              return;
-            }
-
-            var rows = '';
-            allDirs.forEach(function(dir){
-              var p = prices[dir] || 0;
-              var name = dir;
-              templates.forEach(function(t){ if (t.dir === dir) name = t.name || dir; });
-              rows += '<div class="peer-card" style="padding:10px;display:flex;align-items:center;gap:10px;justify-content:space-between">'
-                + '<div><div class="peer-label">' + name + '</div><div class="peer-id">' + dir + '</div></div>'
-                + '<div style="display:flex;align-items:center;gap:8px">'
-                + '<input type="number" min="0" value="' + p + '" data-dir="' + dir + '" class="price-input" style="width:80px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--fg);text-align:right">'
-                + '<span class="muted small">credits</span>'
-                + '</div></div>';
-            });
-
-            pc.innerHTML = '<div class="peer-grid" style="gap:8px">' + rows + '</div>'
-              + '<div style="margin-top:12px;text-align:right">'
-              + '<button class="btn" id="save-prices" style="padding:6px 16px">Save Prices</button>'
-              + '</div>';
-
-            document.getElementById('save-prices').onclick = savePrices;
-          } catch(e) {
-            pc.innerHTML = '<div class="log-entry empty">Failed to load prices</div>';
-            console.error(e);
-          }
-        }
-
-        async function savePrices(){
-          var inputs = pc.querySelectorAll('.price-input');
-          for (var i = 0; i < inputs.length; i++) {
-            var dir = inputs[i].getAttribute('data-dir');
-            var price = parseInt(inputs[i].value) || 0;
-            try {
-              await fetch('/api/credits/prices', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({template: dir, price: price})
-              });
-            } catch(e) { console.error('save price error:', e); }
-          }
-          loadPrices();
-        }
-
-        loadPrices();
-      })();
     </script>
   </div>
 </body>

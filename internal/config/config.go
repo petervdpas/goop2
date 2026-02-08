@@ -99,6 +99,10 @@ type Presence struct {
 	CreditsURL      string `json:"credits_url"`      // e.g., "http://localhost:8800"
 	RegistrationURL string `json:"registration_url"` // e.g., "http://localhost:8801"
 	EmailURL        string `json:"email_url"`        // e.g., "http://localhost:8802"
+
+	// Credits granted on first verified publish (0 = disabled).
+	// Only fires when both credits and registration services are configured.
+	RegistrationCredits int `json:"registration_credits"`
 }
 
 type Profile struct {
@@ -141,17 +145,18 @@ func Default() Config {
 			MdnsTag:    "goop-mdns",
 		},
 		Presence: Presence{
-			Topic:          "goop.presence.v1",
-			TTLSec:         20,
-			HeartbeatSec:   5,
-			RendezvousHost: false,
-			RendezvousPort: 8787,
-			RendezvousBind: "127.0.0.1",
-			RendezvousWAN:  "",
-			RendezvousOnly: false,
-			TemplatesDir:   "templates",
-			RelayPort:      0,
-			RelayKeyFile:   "data/relay.key",
+			Topic:               "goop.presence.v1",
+			TTLSec:              20,
+			HeartbeatSec:        5,
+			RendezvousHost:      false,
+			RendezvousPort:      8787,
+			RendezvousBind:      "127.0.0.1",
+			RendezvousWAN:       "",
+			RendezvousOnly:      false,
+			TemplatesDir:        "templates",
+			RelayPort:           0,
+			RelayKeyFile:        "data/relay.key",
+			RegistrationCredits: 1000,
 		},
 		Profile: Profile{
 			Label: "hello",

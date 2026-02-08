@@ -102,6 +102,11 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		setupRegistration(rv, cfg.Presence.RegistrationURL)
 		setupEmail(rv, cfg.Presence.EmailURL)
 
+		// Wire registration credits (only effective when both services are configured)
+		if cfg.Presence.CreditsURL != "" && cfg.Presence.RegistrationCredits > 0 {
+			rv.SetRegistrationCredits(cfg.Presence.RegistrationCredits)
+		}
+
 		if err := rv.Start(ctx); err != nil {
 			return err
 		}

@@ -221,6 +221,54 @@ func (p *RemoteCreditProvider) TemplateStoreInfo(r *http.Request, tpl StoreMeta)
 	}
 }
 
+// GrantRegistrationCredits grants initial credits to a newly registered peer.
+// It first checks if the peer already has credits (balance > 0) to be idempotent,
+// then uses POST /api/credits/purchase to grant the amount.
+func (p *RemoteCreditProvider) GrantRegistrationCredits(peerID string, amount int) error {
+	if peerID == "" || amount <= 0 {
+		return nil
+	}
+
+	// Check current balance — skip if peer already has credits
+	reqURL := fmt.Sprintf("%s/api/credits/store-data?peer_id=%s", p.baseURL, url.QueryEscape(peerID))
+	resp, err := p.client.Get(reqURL)
+	if err != nil {
+		return fmt.Errorf("balance check: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var balData struct {
+		Balance int `json:"balance"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&balData); err != nil {
+		return fmt.Errorf("balance decode: %w", err)
+	}
+	if balData.Balance > 0 {
+		log.Printf("credits: peer %s already has %d credits, skipping grant", peerID, balData.Balance)
+		return nil
+	}
+
+	// Grant credits via dedicated grant endpoint
+	body := fmt.Sprintf(`{"peer_id":%q,"amount":%d,"reason":"registration"}`, peerID, amount)
+	purchaseResp, err := p.client.Post(
+		p.baseURL+"/api/credits/grant",
+		"application/json",
+		strings.NewReader(body),
+	)
+	if err != nil {
+		return fmt.Errorf("grant credits: %w", err)
+	}
+	defer purchaseResp.Body.Close()
+
+	if purchaseResp.StatusCode/100 != 2 {
+		respBody, _ := io.ReadAll(purchaseResp.Body)
+		return fmt.Errorf("grant credits: status %s: %s", purchaseResp.Status, string(respBody))
+	}
+
+	log.Printf("credits: granted %d registration credits to peer %s", amount, peerID)
+	return nil
+}
+
 func noCreditsStoreData() StorePageData {
 	return StorePageData{
 		Banner: `<div class="store-banner store-banner-free">All templates on this server are free — no credits needed.</div>`,

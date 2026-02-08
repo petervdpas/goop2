@@ -9,8 +9,10 @@ import (
 
 type TemplatesVM struct {
 	BaseVM
-	CSRF           string
-	Templates      []sitetemplates.TemplateMeta
-	StoreTemplates []rendezvous.StoreMeta
-	StoreError     string
+	CSRF                 string
+	Templates            []sitetemplates.TemplateMeta
+	StoreTemplates       []rendezvous.StoreMeta
+	StoreTemplatePrices  map[string]int // dir → credits (from credits service)
+	StoreError           string
+	RegistrationRequired bool
 }

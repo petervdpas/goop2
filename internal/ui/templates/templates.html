@@ -31,10 +31,14 @@
   </div>
 
   <h3 class="tpl-section-heading">Template Store <span class="tpl-badge-store">store</span></h3>
+  {{if and .RegistrationRequired .StoreTemplatePrices}}
+  <p class="tpl-reg-notice muted small">Register on the rendezvous server to purchase paid templates.</p>
+  {{end}}
   {{if .StoreError}}
   <div class="muted small">{{.StoreError}}</div>
   {{else if .StoreTemplates}}
   <div class="tpl-grid">
+    {{$prices := .StoreTemplatePrices}}
     {{range .StoreTemplates}}
     <div class="tpl-card" data-dir="{{.Dir}}" data-source="store">
       <div class="tpl-card-icon">{{.Icon}}</div>
@@ -43,9 +47,12 @@
         <div class="tpl-card-cat muted small">{{.Category}}</div>
         <div class="tpl-card-desc small">{{.Description}}</div>
       </div>
-      <button type="button" class="tpl-card-apply" data-dir="{{.Dir}}" data-name="{{.Name}}" data-source="store">
-        Apply
-      </button>
+      <div class="tpl-card-footer">
+        {{if $prices}}<span class="tpl-price {{if index $prices .Dir}}tpl-price-credits{{else}}tpl-price-free{{end}}">{{if index $prices .Dir}}{{index $prices .Dir}} credits{{else}}Free{{end}}</span>{{end}}
+        <button type="button" class="tpl-card-apply" data-dir="{{.Dir}}" data-name="{{.Name}}" data-source="store">
+          Apply
+        </button>
+      </div>
     </div>
     {{end}}
   </div>

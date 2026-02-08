@@ -54,6 +54,7 @@ type Server struct {
 
 	tmpl         *template.Template
 	adminTmpl    *template.Template
+	pricesTmpl   *template.Template
 	docsTmpl     *template.Template
 	storeTmpl    *template.Template
 	registerTmpl *template.Template
@@ -65,9 +66,10 @@ type Server struct {
 
 	templateStore  *TemplateStore
 	peerDB         *peerDB         // nil when persistence is disabled
-	credits        CreditProvider  // default: NoCredits{}
-	registration   *RemoteRegistrationProvider // nil = use built-in registration
-	email          *RemoteEmailProvider        // nil = email service not configured
+	credits             CreditProvider  // default: NoCredits{}
+	registration        *RemoteRegistrationProvider // nil = use built-in registration
+	email               *RemoteEmailProvider        // nil = email service not configured
+	registrationCredits int // credits granted on first verified publish (0 = disabled)
 
 	// Circuit relay v2
 	relayHost    host.Host  // nil when relay is disabled
@@ -110,6 +112,8 @@ type indexVM struct {
 	StoreCount           int
 	HasAdmin             bool
 	RegistrationRequired bool
+	HasCredits           bool
+	RegistrationCredits  int
 }
 
 type storeTemplateVM struct {
@@ -118,10 +122,12 @@ type storeTemplateVM struct {
 }
 
 type storeVM struct {
-	Title      string
-	Templates  []storeTemplateVM
-	CreditData StorePageData
-	HasAdmin   bool
+	Title                string
+	Templates            []storeTemplateVM
+	CreditData           StorePageData
+	HasAdmin             bool
+	RegistrationRequired bool
+	RegistrationCredits  int
 }
 
 // Minimum API versions that this build of goop2 requires.
@@ -148,6 +154,10 @@ type adminVM struct {
 	Now        string
 	HasCredits bool
 	Services   []serviceStatus
+}
+
+type pricesVM struct {
+	Title string
 }
 
 type docsVM struct {
@@ -200,6 +210,11 @@ func New(addr string, templatesDirs []string, peerDBPath string, adminPassword s
 		panic(err)
 	}
 
+	pricesTmpl, err := template.New("prices.html").Funcs(funcs).ParseFS(embedded, "assets/prices.html")
+	if err != nil {
+		panic(err)
+	}
+
 	docsTmpl, err := template.New("docs.html").Funcs(funcs).ParseFS(embedded, "assets/docs.html")
 	if err != nil {
 		panic(err)
@@ -247,6 +262,7 @@ func New(addr string, templatesDirs []string, peerDBPath string, adminPassword s
 		maxLogs:              500,
 		tmpl:                 tmpl,
 		adminTmpl:            adminTmpl,
+		pricesTmpl:           pricesTmpl,
 		docsTmpl:             docsTmpl,
 		storeTmpl:            storeTmpl,
 		registerTmpl:         registerTmpl,
@@ -295,6 +311,12 @@ func (s *Server) SetRegistrationProvider(rp *RemoteRegistrationProvider) {
 // Must be called before Start.
 func (s *Server) SetEmailProvider(ep *RemoteEmailProvider) {
 	s.email = ep
+}
+
+// SetRegistrationCredits sets the number of credits granted on first verified publish.
+// Only effective when both credits and registration services are configured.
+func (s *Server) SetRegistrationCredits(n int) {
+	s.registrationCredits = n
 }
 
 func (s *Server) Start(ctx context.Context) error {
@@ -349,6 +371,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// Admin-protected endpoints
 	mux.HandleFunc("/admin", s.handleAdmin)
+	mux.HandleFunc("/admin/prices", s.handlePrices)
 	mux.HandleFunc("/peers.json", s.handlePeersJSON)
 	mux.HandleFunc("/logs.json", s.handleLogsJSON)
 	mux.HandleFunc("/registrations.json", s.handleRegistrationsJSON)
@@ -461,6 +484,20 @@ func (s *Server) Start(ctx context.Context) error {
 		// Calculate message size for tracking
 		b, _ := json.Marshal(pm)
 		msgSize := int64(len(b))
+
+		// Grant registration credits on first publish (peer not yet known)
+		if isRegistered && s.registrationCredits > 0 {
+			s.mu.Lock()
+			_, alreadyKnown := s.peers[pm.PeerID]
+			s.mu.Unlock()
+			if !alreadyKnown {
+				go func() {
+					if err := s.credits.GrantRegistrationCredits(pm.PeerID, s.registrationCredits); err != nil {
+						log.Printf("credits: registration grant failed for %s: %v", pm.PeerID, err)
+					}
+				}()
+			}
+		}
 
 		// update peer snapshot for / and /peers.json
 		// Only store if registered (or registration not required)
@@ -1010,6 +1047,8 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		regRequired = s.registration.RegistrationRequired()
 	}
 
+	_, hasCredits := s.credits.(*RemoteCreditProvider)
+
 	w.Header().Set("content-type", "text/html; charset=utf-8")
 	_ = s.tmpl.Execute(w, indexVM{
 		Title:                "Goop² Rendezvous",
@@ -1019,6 +1058,8 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		StoreCount:           storeCount,
 		HasAdmin:             s.adminPassword != "",
 		RegistrationRequired: regRequired,
+		HasCredits:           hasCredits,
+		RegistrationCredits:  s.registrationCredits,
 	})
 }
 
@@ -1039,12 +1080,19 @@ func (s *Server) handleStore(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	regRequired := false
+	if s.registration != nil {
+		regRequired = s.registration.RegistrationRequired()
+	}
+
 	w.Header().Set("content-type", "text/html; charset=utf-8")
 	_ = s.storeTmpl.Execute(w, storeVM{
-		Title:      "Template Store — Goop²",
-		Templates:  templates,
-		CreditData: s.credits.StorePageData(r),
-		HasAdmin:   s.adminPassword != "",
+		Title:                "Template Store — Goop²",
+		Templates:            templates,
+		CreditData:           s.credits.StorePageData(r),
+		HasAdmin:             s.adminPassword != "",
+		RegistrationRequired: regRequired,
+		RegistrationCredits:  s.registrationCredits,
 	})
 }
 
@@ -1109,6 +1157,20 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		Now:        time.Now().Format("2006-01-02 15:04:05"),
 		HasCredits: hasCredits,
 		Services:   services,
+	})
+}
+
+func (s *Server) handlePrices(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.requireAdmin(w, r) {
+		return
+	}
+	w.Header().Set("content-type", "text/html; charset=utf-8")
+	_ = s.pricesTmpl.Execute(w, pricesVM{
+		Title: "Template Prices — Goop²",
 	})
 }
 
@@ -1238,6 +1300,21 @@ func (s *Server) handleTemplateRoutes(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
+		// Registration gate: require verified email for paid template downloads
+		if s.registration != nil && s.registration.RegistrationRequired() {
+			peerID := getPeerID(r)
+			if peerID == "" {
+				http.Error(w, "registration required — provide peer_id", http.StatusForbidden)
+				return
+			}
+			s.mu.Lock()
+			peer, known := s.peers[peerID]
+			s.mu.Unlock()
+			if !known || peer.Email == "" || !s.registration.IsEmailVerified(peer.Email) {
+				http.Error(w, "registration required", http.StatusForbidden)
+				return
+			}
+		}
 		if !s.credits.TemplateAccessAllowed(r, meta) {
 			http.Error(w, "payment required", http.StatusPaymentRequired)
 			return
@@ -1287,6 +1364,15 @@ func validatePresence(pm proto.PresenceMsg) error {
 	}
 
 	return nil
+}
+
+// getPeerID extracts the peer ID from the request, checking the
+// X-Goop-Peer-ID header first, then the peer_id query parameter.
+func getPeerID(r *http.Request) string {
+	if id := r.Header.Get("X-Goop-Peer-ID"); id != "" {
+		return id
+	}
+	return r.URL.Query().Get("peer_id")
 }
 
 // ─── Registration handlers ───

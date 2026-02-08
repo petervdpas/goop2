@@ -35,6 +35,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 		// Fetch store templates from rendezvous servers (best-effort, 5s timeout)
 		var storeTemplates []rendezvous.StoreMeta
+		var storePrices map[string]int
 		var storeError string
 		if len(d.RVClients) > 0 {
 			seen := map[string]bool{}
@@ -55,15 +56,38 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 						storeTemplates = append(storeTemplates, m)
 					}
 				}
+				// Fetch prices (best-effort, first successful response wins)
+				if storePrices == nil {
+					prices, _ := c.FetchPrices(ctx)
+					if prices != nil {
+						storePrices = prices
+					}
+				}
+			}
+		}
+
+		// Check registration status (best-effort)
+		var regRequired bool
+		if len(d.RVClients) > 0 {
+			ctx2, cancel2 := context.WithTimeout(r.Context(), 3*time.Second)
+			defer cancel2()
+			for _, c := range d.RVClients {
+				rr, err := c.FetchRegistrationRequired(ctx2)
+				if err == nil {
+					regRequired = rr
+					break
+				}
 			}
 		}
 
 		vm := viewmodels.TemplatesVM{
-			BaseVM:         baseVM("Templates", "create", "page.templates", d),
-			CSRF:           csrf,
-			Templates:      templates,
-			StoreTemplates: storeTemplates,
-			StoreError:     storeError,
+			BaseVM:               baseVM("Templates", "create", "page.templates", d),
+			CSRF:                 csrf,
+			Templates:            templates,
+			StoreTemplates:       storeTemplates,
+			StoreTemplatePrices:  storePrices,
+			StoreError:           storeError,
+			RegistrationRequired: regRequired,
 		}
 		render.Render(w, vm)
 	})

@@ -14,7 +14,7 @@
         <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
           <span class="theme-icon">🌙</span>
         </button>
-        {{if .RegistrationRequired}}<a class="nav-link accent" href="/register">Register</a>{{end}}
+        {{if or .RegistrationRequired .HasCredits}}<a class="nav-link accent" href="/register">Register</a>{{end}}
         <a class="nav-link" href="/docs">Docs</a>
         {{if .HasAdmin}}<a class="nav-link" href="/admin">Admin</a>{{end}}
       </div>
@@ -96,7 +96,9 @@
       {{if .RegistrationRequired}}
       <div class="registration-notice">
         <span class="notice-icon">🔐</span>
-        <span>This server requires <a href="/register">email registration</a> to be discoverable by other peers.</span>
+        <span>
+          <a href="/register">Register</a> to join the network{{if .HasCredits}} and receive <strong>{{.RegistrationCredits}} free credits</strong> for the template store{{end}}.
+        </span>
       </div>
       {{end}}
     </div>

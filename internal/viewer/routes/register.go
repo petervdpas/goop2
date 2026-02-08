@@ -68,6 +68,7 @@ func Register(mux *http.ServeMux, d Deps) {
 	registerOfflineRoutes(mux, d)
 	registerSiteAPIRoutes(mux, d)
 	registerTemplateRoutes(mux, d, csrf)
+	registerCreditsUIRoutes(mux, d)
 	registerExportRoutes(mux, d, csrf)
 	registerLuaRoutes(mux, d, csrf)
 	registerGroupsUIRoutes(mux, d)

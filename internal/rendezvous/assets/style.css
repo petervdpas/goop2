@@ -945,6 +945,115 @@ h1 {
   display: inline-block;
 }
 
+/* ─── Prices page ─── */
+.price-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.price-card {
+  padding: 20px;
+  transition: border-color .15s;
+}
+
+.price-card:hover { border-color: var(--border-hover); }
+
+.price-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.price-card-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.price-card-dir {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--text-muted);
+  background: var(--bg-inset);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.price-card-body {
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.price-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.price-input {
+  width: 100px;
+  padding: 8px 12px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.price-input:focus { outline: none; border-color: var(--green); }
+
+.price-input-label {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.price-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.price-badge-free {
+  background: var(--green-dim);
+  color: var(--green);
+}
+
+.price-badge-paid {
+  background: rgba(240, 136, 62, 0.12);
+  color: var(--orange);
+}
+
+.price-save-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.price-save-status {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.price-save-ok { color: var(--green); }
+.price-save-err { color: var(--red); }
+
 /* ─── Footer ─── */
 .footer {
   margin-top: 48px;
@@ -977,6 +1086,7 @@ h1 {
   .rv-tpl-grid { grid-template-columns: 1fr; }
   .store-promo { flex-direction: column; text-align: center; }
   .store-grid { grid-template-columns: 1fr; }
+  .price-grid { grid-template-columns: 1fr; }
   .logs-container { max-height: 280px; font-size: 11px; }
   .register-box { margin: 16px auto; padding: 20px 16px; }
 }

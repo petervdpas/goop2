@@ -30,6 +30,12 @@
     <!-- Credit banner slot (injected by CreditProvider) -->
     {{.CreditData.Banner}}
 
+    {{if .RegistrationRequired}}
+    <div class="store-banner" style="background:var(--purple-dim,rgba(128,90,213,0.08));border:1px solid var(--border);color:var(--text-secondary,var(--muted));padding:0.75rem 1rem;border-radius:8px;margin-bottom:1rem">
+      <a href="/register">Register your email</a> to unlock template purchases{{if .RegistrationCredits}} and receive <strong>{{.RegistrationCredits}} free credits</strong>{{end}}.
+    </div>
+    {{end}}
+
     {{if .Templates}}
     <div class="store-grid">
       {{range .Templates}}

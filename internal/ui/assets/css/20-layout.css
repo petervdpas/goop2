@@ -88,6 +88,17 @@
 .me-label{ font-weight: 650; }
 .me-id{ color: var(--muted); font-size: 12px; }
 
+.me-credits{
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  background: rgba(240, 136, 62, 0.15);
+  color: #f0883e;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
 .theme{
   display:flex;
   gap: 10px;

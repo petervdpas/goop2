@@ -106,6 +106,36 @@
   color: var(--bg);
 }
 
+/* ── Card footer (price + apply) ── */
+.tpl-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+/* ── Price badges ── */
+.tpl-price {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+
+.tpl-price-free {
+  background: rgba(46, 204, 113, 0.12);
+  color: #2ecc71;
+}
+
+.tpl-price-credits {
+  background: rgba(240, 136, 62, 0.12);
+  color: #f0883e;
+}
+
 /* ── Section headings ── */
 .tpl-section-heading {
   font-size: 1rem;
@@ -118,6 +148,15 @@
 
 .tpl-section-heading:first-of-type {
   margin-top: 0;
+}
+
+/* ── Registration notice ── */
+.tpl-reg-notice {
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+  border-left: 3px solid var(--accent);
+  background: var(--panel);
+  border-radius: 0 var(--radius) var(--radius) 0;
 }
 
 /* ── Store badge ── */
