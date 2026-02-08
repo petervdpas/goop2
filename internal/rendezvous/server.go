@@ -67,6 +67,7 @@ type Server struct {
 	peerDB         *peerDB         // nil when persistence is disabled
 	credits        CreditProvider  // default: NoCredits{}
 	registration   *RemoteRegistrationProvider // nil = use built-in registration
+	email          *RemoteEmailProvider        // nil = email service not configured
 
 	// Circuit relay v2
 	relayHost    host.Host  // nil when relay is disabled
@@ -127,6 +128,7 @@ type storeVM struct {
 const (
 	minRegistrationAPI = 1
 	minCreditsAPI      = 1
+	minEmailAPI        = 1
 )
 
 type serviceStatus struct {
@@ -286,6 +288,13 @@ func (s *Server) SetCreditProvider(cp CreditProvider) {
 // Must be called before Start.
 func (s *Server) SetRegistrationProvider(rp *RemoteRegistrationProvider) {
 	s.registration = rp
+}
+
+// SetEmailProvider configures a remote email service.
+// When set, email endpoints are proxied to the remote service.
+// Must be called before Start.
+func (s *Server) SetEmailProvider(ep *RemoteEmailProvider) {
+	s.email = ep
 }
 
 func (s *Server) Start(ctx context.Context) error {
@@ -471,6 +480,11 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// Credit provider routes (e.g. /api/credits/*)
 	s.credits.RegisterRoutes(mux)
+
+	// Email service routes (e.g. /api/email/*)
+	if s.email != nil {
+		s.email.RegisterRoutes(mux)
+	}
 
 	// Template store API
 	if s.templateStore != nil {
@@ -1072,6 +1086,17 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 			ss.Version = cs.Version
 			ss.APIVersion = cs.APIVersion
 			ss.APICompat = ss.APIVersion >= minCreditsAPI
+		}
+		services = append(services, ss)
+	}
+	if s.email != nil {
+		ss := serviceStatus{Name: "Email", URL: s.email.baseURL}
+		ss.OK = checkServiceHealth(s.email.baseURL)
+		if ss.OK {
+			ss.DummyMode = s.email.DummyMode()
+			ss.Version = s.email.Version()
+			ss.APIVersion = s.email.APIVersion()
+			ss.APICompat = ss.APIVersion >= minEmailAPI
 		}
 		services = append(services, ss)
 	}

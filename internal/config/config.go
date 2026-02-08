@@ -98,6 +98,7 @@ type Presence struct {
 	// standalone services. Empty = disabled (use built-in/no-op defaults).
 	CreditsURL      string `json:"credits_url"`      // e.g., "http://localhost:8800"
 	RegistrationURL string `json:"registration_url"` // e.g., "http://localhost:8801"
+	EmailURL        string `json:"email_url"`        // e.g., "http://localhost:8802"
 }
 
 type Profile struct {

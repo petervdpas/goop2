@@ -157,6 +157,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		// Service URLs
 		cfg.Presence.CreditsURL = getTrimmedPostFormValue(r.PostForm, "presence_credits_url")
 		cfg.Presence.RegistrationURL = getTrimmedPostFormValue(r.PostForm, "presence_registration_url")
+		cfg.Presence.EmailURL = getTrimmedPostFormValue(r.PostForm, "presence_email_url")
 
 		cfg.Lua.Enabled = formBool(r.PostForm, "lua_enabled")
 
@@ -236,9 +237,26 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		}
 
+		// Fetch email service status
+		emailResult := map[string]interface{}{
+			"url": cfg.Presence.EmailURL,
+			"ok":  check(cfg.Presence.EmailURL),
+		}
+		if cfg.Presence.EmailURL != "" {
+			if resp, err := client.Get(strings.TrimRight(cfg.Presence.EmailURL, "/") + "/api/email/status"); err == nil {
+				var status map[string]interface{}
+				json.NewDecoder(resp.Body).Decode(&status)
+				resp.Body.Close()
+				if v, ok := status["dummy_mode"]; ok {
+					emailResult["dummy_mode"] = v
+				}
+			}
+		}
+
 		result := map[string]interface{}{
 			"registration": regResult,
 			"credits":      creditsResult,
+			"email":        emailResult,
 		}
 
 		writeJSON(w, result)

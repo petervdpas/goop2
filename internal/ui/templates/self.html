@@ -320,7 +320,7 @@
                    value="{{.Cfg.Presence.RegistrationURL}}"
                    placeholder="http://localhost:8801">
             <div class="hint">
-              Handles email verification and sends SMTP emails.
+              Handles email verification and peer registration.
               The registration service controls whether email verification is required
               (<code>registration_required</code> in its config.json).
             </div>
@@ -334,6 +334,17 @@
             <div class="hint">
               Enables template pricing and credit purchases.
               Set <code>dummy_mode</code> in the credits service config.json for safe testing.
+            </div>
+          </div>
+
+          <div class="field" style="margin-top:10px">
+            <label>Email Service URL <span id="svc-email-status" class="svc-status"></span></label>
+            <input id="svc-email-url" name="presence_email_url"
+                   value="{{.Cfg.Presence.EmailURL}}"
+                   placeholder="http://localhost:8802">
+            <div class="hint">
+              Centralizes SMTP sending and HTML email templates.
+              Point the registration service's <code>email_url</code> to this service for verification emails.
             </div>
           </div>
 
@@ -392,8 +403,10 @@
   function checkServices() {
     var regStatus = document.getElementById('svc-reg-status');
     var credStatus = document.getElementById('svc-credits-status');
+    var emailStatus = document.getElementById('svc-email-status');
     if (regStatus) regStatus.textContent = '...';
     if (credStatus) credStatus.textContent = '...';
+    if (emailStatus) emailStatus.textContent = '...';
     if (checkBtn) { checkBtn.disabled = true; checkBtn.textContent = 'Checking...'; }
 
     fetch('/api/services/health')
@@ -434,10 +447,26 @@
             credStatus.className = 'svc-status svc-err';
           }
         }
+        if (emailStatus) {
+          if (!data.email.url) {
+            emailStatus.textContent = '';
+          } else if (data.email.ok) {
+            var label = 'running';
+            if (data.email.dummy_mode) {
+              label += ' (dummy)';
+            }
+            emailStatus.textContent = label;
+            emailStatus.className = 'svc-status ' + (data.email.dummy_mode ? 'svc-warn' : 'svc-ok');
+          } else {
+            emailStatus.textContent = 'not reachable';
+            emailStatus.className = 'svc-status svc-err';
+          }
+        }
       })
       .catch(function() {
         if (regStatus) regStatus.textContent = '';
         if (credStatus) credStatus.textContent = '';
+        if (emailStatus) emailStatus.textContent = '';
       })
       .finally(function() {
         if (checkBtn) { checkBtn.disabled = false; checkBtn.textContent = 'Check services'; }
@@ -447,7 +476,8 @@
     checkBtn.addEventListener('click', checkServices);
     // Auto-check on load if URLs are configured
     if ((document.getElementById('svc-reg-url') && document.getElementById('svc-reg-url').value) ||
-        (document.getElementById('svc-credits-url') && document.getElementById('svc-credits-url').value)) {
+        (document.getElementById('svc-credits-url') && document.getElementById('svc-credits-url').value) ||
+        (document.getElementById('svc-email-url') && document.getElementById('svc-email-url').value)) {
       checkServices();
     }
   }
