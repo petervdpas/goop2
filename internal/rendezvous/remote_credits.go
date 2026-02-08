@@ -125,6 +125,12 @@ func (p *RemoteCreditProvider) StorePageData(r *http.Request) StorePageData {
 		CreditsActive bool   `json:"credits_active"`
 		PeerID        string `json:"peer_id"`
 		Balance       int    `json:"balance"`
+		AppName       string `json:"app_name"`
+		CreditPacks   []struct {
+			Amount int    `json:"amount"`
+			Name   string `json:"name"`
+			Label  string `json:"label"`
+		} `json:"credit_packs"`
 	}
 	if err := json.Unmarshal(body, &data); err != nil {
 		return noCreditsStoreData()
@@ -147,30 +153,32 @@ func (p *RemoteCreditProvider) StorePageData(r *http.Request) StorePageData {
 			template.HTMLEscapeString(data.PeerID), data.Balance))
 	}
 
-	packs := template.HTML(`<div class="credit-packs">` +
-		`<h3>Buy Credits</h3>` +
-		`<div class="credit-pack-grid">` +
-		creditPackButton(100, "Starter Pack", "100 credits") +
-		creditPackButton(500, "Pro Pack", "500 credits") +
-		creditPackButton(1000, "Power Pack", "1000 credits") +
-		`</div></div>`)
+	var packsHTML string
+	for _, pk := range data.CreditPacks {
+		packsHTML += fmt.Sprintf(
+			`<div class="credit-pack">`+
+				`<div class="credit-pack-name">%s</div>`+
+				`<div class="credit-pack-amount">%s</div>`+
+				`<button class="credit-pack-buy" onclick="buyCredits(%d)">Buy</button>`+
+				`</div>`,
+			template.HTMLEscapeString(pk.Name),
+			template.HTMLEscapeString(pk.Label),
+			pk.Amount)
+	}
+
+	var packs template.HTML
+	if packsHTML != "" {
+		packs = template.HTML(`<div class="credit-packs">` +
+			`<h3>Buy Credits</h3>` +
+			`<div class="credit-pack-grid">` +
+			packsHTML +
+			`</div></div>`)
+	}
 
 	return StorePageData{
 		Banner:      banner,
 		CreditPacks: packs,
 	}
-}
-
-func creditPackButton(amount int, name, label string) string {
-	return fmt.Sprintf(
-		`<div class="credit-pack">`+
-			`<div class="credit-pack-name">%s</div>`+
-			`<div class="credit-pack-amount">%s</div>`+
-			`<button class="credit-pack-buy" onclick="buyCredits(%d)">Buy</button>`+
-			`</div>`,
-		template.HTMLEscapeString(name),
-		template.HTMLEscapeString(label),
-		amount)
 }
 
 // TemplateStoreInfo calls the credits service for per-template info and renders HTML locally.
