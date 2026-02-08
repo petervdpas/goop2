@@ -1,4 +1,3 @@
-// internal/viewer/routes/data.go
 package routes
 
 import (

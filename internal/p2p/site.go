@@ -1,4 +1,3 @@
-// internal/p2p/site.go
 
 package p2p
 

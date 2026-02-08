@@ -1,4 +1,3 @@
-// internal/realtime/manager.go
 //
 // Realtime channels — thin wrapper around the group protocol for low-latency
 // 2-peer communication (signaling, game moves, video chat, etc.).

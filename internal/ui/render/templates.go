@@ -1,4 +1,3 @@
-// internal/ui/render/templates.go
 
 package render
 

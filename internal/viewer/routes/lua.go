@@ -1,4 +1,3 @@
-// internal/viewer/routes/lua.go
 
 package routes
 

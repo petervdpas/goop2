@@ -1,4 +1,3 @@
-// internal/storage/db.go
 package storage
 
 import (

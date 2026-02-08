@@ -1,4 +1,3 @@
-// internal/ui/assets/js/70-database.js
 // Full-featured SQLite database editor
 (() => {
   const { qs, qsa, on, setHidden, escapeHtml, api, toast } = window.Goop.core;

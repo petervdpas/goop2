@@ -1,4 +1,3 @@
-// internal/viewer/routes/site_api.go
 
 package routes
 

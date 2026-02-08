@@ -1,4 +1,3 @@
-// internal/p2p/node.go
 
 package p2p
 

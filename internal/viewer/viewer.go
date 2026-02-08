@@ -1,4 +1,3 @@
-// internal/viewer/viewer.go
 package viewer
 
 import (

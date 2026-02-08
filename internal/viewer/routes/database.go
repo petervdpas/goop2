@@ -1,4 +1,3 @@
-// internal/viewer/routes/database.go
 
 package routes
 

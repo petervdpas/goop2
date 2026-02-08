@@ -1,4 +1,3 @@
-// internal/viewer/routes/credits_ui.go
 
 package routes
 

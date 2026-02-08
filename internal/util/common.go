@@ -1,4 +1,3 @@
-// internal/util/common.go
 package util
 
 import (

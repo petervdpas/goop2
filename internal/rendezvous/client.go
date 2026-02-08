@@ -1,4 +1,3 @@
-// internal/rendezvous/client.go
 package rendezvous
 
 import (

@@ -1,4 +1,3 @@
-// internal/ui/assets/app.js
 (() => {
   const BASE = "/assets/js/";
 

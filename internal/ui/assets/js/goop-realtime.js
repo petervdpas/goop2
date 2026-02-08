@@ -1,4 +1,3 @@
-// internal/ui/assets/js/goop-realtime.js
 //
 // Real-time channel API for peer-to-peer communication.
 // Wraps the /api/realtime/* endpoints + SSE for receiving.

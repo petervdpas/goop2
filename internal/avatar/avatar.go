@@ -1,4 +1,3 @@
-// internal/avatar/avatar.go
 package avatar
 
 import (

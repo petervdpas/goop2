@@ -1,4 +1,3 @@
-// internal/viewer/routes/register.go
 package routes
 
 import (

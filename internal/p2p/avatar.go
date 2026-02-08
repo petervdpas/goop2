@@ -1,4 +1,3 @@
-// internal/p2p/avatar.go
 package p2p
 
 import (

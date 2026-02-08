@@ -1,4 +1,3 @@
-// internal/viewer/routes/offline.go
 
 package routes
 

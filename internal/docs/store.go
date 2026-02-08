@@ -1,4 +1,3 @@
-// internal/docs/store.go
 // Shared document storage for group file sharing.
 // Each group gets a subdirectory under the shared/ root.
 // Files are namespaced by owner peer - only the local peer's files live here.

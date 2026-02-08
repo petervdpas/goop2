@@ -1,4 +1,3 @@
-// internal/viewer/routes/templates.go
 
 package routes
 

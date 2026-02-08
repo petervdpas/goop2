@@ -1,4 +1,3 @@
-// internal/ui/assets/js/goop-ui.js
 //
 // Portable UI helpers for site pages.
 // Works standalone — does not depend on the viewer's CSS.

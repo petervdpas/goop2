@@ -1,4 +1,3 @@
-// internal/ui/assets/js/goop-call-ui.js
 //
 // Call UI overlay — incoming call modal, active call controls.
 // Requires goop-call.js to be loaded first.

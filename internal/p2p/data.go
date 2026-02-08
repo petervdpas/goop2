@@ -1,4 +1,3 @@
-// internal/p2p/data.go
 package p2p
 
 import (

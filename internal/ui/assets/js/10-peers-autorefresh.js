@@ -1,4 +1,3 @@
-// internal/ui/assets/js/10-peers-autorefresh.js
 (() => {
   const { onReady } = window.Goop.core;
 

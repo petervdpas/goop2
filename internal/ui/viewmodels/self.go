@@ -1,4 +1,3 @@
-// internal/ui/viewmodels/self.go
 
 package viewmodels
 

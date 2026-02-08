@@ -1,4 +1,3 @@
-// internal/ui/assets/js/goop-data.js
 //
 // Simple data API client for peer site pages.
 // Usage (in any site page):

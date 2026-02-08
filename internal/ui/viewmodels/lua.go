@@ -1,4 +1,3 @@
-// internal/ui/viewmodels/lua.go
 
 package viewmodels
 

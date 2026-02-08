@@ -1,4 +1,3 @@
-// internal/ui/assets/js/goop-peers.js
 //
 // Peer discovery client for site pages.
 // Usage:

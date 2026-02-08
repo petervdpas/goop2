@@ -1,4 +1,3 @@
-// internal/state/peers.go
 
 package state
 

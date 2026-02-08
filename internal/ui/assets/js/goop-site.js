@@ -1,4 +1,3 @@
-// internal/ui/assets/js/goop-site.js
 //
 // Site file helpers for site pages.
 // Usage:

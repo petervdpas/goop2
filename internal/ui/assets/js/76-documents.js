@@ -1,4 +1,3 @@
-// internal/ui/assets/js/76-documents.js
 // Admin viewer JS for the Documents page.
 (() => {
   var core = window.Goop && window.Goop.core;

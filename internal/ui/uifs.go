@@ -1,4 +1,3 @@
-// internal/ui/uifs.go
 package ui
 
 import "embed"

@@ -1,4 +1,3 @@
-// internal/ui/viewmodels/database.go
 
 package viewmodels
 

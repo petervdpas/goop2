@@ -1,4 +1,3 @@
-/* internal/ui/assets/js/99-toast.js */
 
 // Toast notification system
 (function() {

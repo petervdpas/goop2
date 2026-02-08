@@ -1,4 +1,3 @@
-// internal/ui/assets/js/goop-forms.js
 //
 // Auto-generated CRUD forms from table schemas.
 // Depends on goop-data.js and goop-ui.js.

@@ -1,4 +1,3 @@
-// internal/rendezvous/templates.go
 package rendezvous
 
 import (

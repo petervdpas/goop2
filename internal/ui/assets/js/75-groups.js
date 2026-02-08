@@ -1,4 +1,3 @@
-// internal/ui/assets/js/75-groups.js
 // Admin viewer JS for the Groups and Create>Groups pages.
 (() => {
   var core = window.Goop && window.Goop.core;

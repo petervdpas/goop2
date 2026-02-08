@@ -1,4 +1,3 @@
-// internal/ui/assets/js/01-select.js
 // Shared custom select dropdown component.
 // Exposes Goop.select = { html, init, val, setVal, setOpts }
 (() => {

@@ -1,4 +1,3 @@
-// internal/viewer/routes/avatar.go
 package routes
 
 import (

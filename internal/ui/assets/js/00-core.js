@@ -1,4 +1,3 @@
-// internal/ui/assets/js/00-core.js
 (() => {
   function onReady(fn) {
     if (document.readyState === "loading") {

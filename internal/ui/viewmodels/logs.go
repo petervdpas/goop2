@@ -1,4 +1,3 @@
-// internal/ui/viewmodels/logs.go
 
 package viewmodels
 

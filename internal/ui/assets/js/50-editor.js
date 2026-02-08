@@ -1,4 +1,3 @@
-// internal/ui/assets/js/50-editor.js
 (() => {
   const { qs, qsa, closest, escapeCss } = window.Goop.core;
 

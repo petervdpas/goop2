@@ -1,4 +1,3 @@
-// internal/app/prompt.go
 package app
 
 import (

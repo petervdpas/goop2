@@ -1,4 +1,3 @@
-// internal/sitetemplates/embed.go
 
 package sitetemplates
 

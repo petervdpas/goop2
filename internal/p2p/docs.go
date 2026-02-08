@@ -1,4 +1,3 @@
-// internal/p2p/docs.go
 // libp2p stream protocol for group document sharing.
 // Peers can list and fetch documents from other group members.
 

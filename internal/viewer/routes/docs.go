@@ -1,4 +1,3 @@
-// internal/viewer/routes/docs.go
 // HTTP API endpoints for group document sharing.
 
 package routes

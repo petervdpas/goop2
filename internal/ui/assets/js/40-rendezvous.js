@@ -1,4 +1,3 @@
-// internal/ui/assets/js/40-rendezvous.js
 (() => {
   const { onReady, qs, setHidden } = window.Goop.core;
 

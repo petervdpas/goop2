@@ -1,4 +1,3 @@
-// internal/ui/assets/js/goop-identity.js
 //
 // Identity client for site pages.
 // Usage:

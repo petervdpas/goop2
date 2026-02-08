@@ -1,4 +1,3 @@
-// internal/ui/assets/js/goop-call.js
 //
 // WebRTC video/audio call API built on top of Goop.realtime channels.
 // Signaling flows over the realtime channel (offer/answer/ICE candidates).

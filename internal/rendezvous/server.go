@@ -1,4 +1,3 @@
-// internal/rendezvous/server.go
 package rendezvous
 
 import (
@@ -23,6 +22,8 @@ import (
 	"github.com/petervdpas/goop2/internal/util"
 
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/tdewolff/minify/v2"
+	mincss "github.com/tdewolff/minify/v2/css"
 )
 
 //go:embed all:assets
@@ -260,11 +261,13 @@ func New(addr string, templatesDirs []string, peerDBPath string, adminPassword s
 	if err != nil {
 		css = []byte("/* missing style.css */")
 	}
+	css = minifyCSS(css)
 
 	docsCSSData, err := embedded.ReadFile("assets/docs.css")
 	if err != nil {
 		docsCSSData = []byte("/* missing docs.css */")
 	}
+	docsCSSData = minifyCSS(docsCSSData)
 
 	faviconData, err := embedded.ReadFile("assets/favicon.ico")
 	if err != nil {
@@ -316,6 +319,19 @@ func New(addr string, templatesDirs []string, peerDBPath string, adminPassword s
 	s.credits = NoCredits{}
 
 	return s
+}
+
+// minifyCSS minifies CSS bytes using tdewolff/minify.
+// If minification fails, the original bytes are returned unchanged.
+func minifyCSS(data []byte) []byte {
+	m := minify.New()
+	m.AddFunc("text/css", mincss.Minify)
+	out, err := m.Bytes("text/css", data)
+	if err != nil {
+		log.Printf("minify: warning: CSS minification failed: %v", err)
+		return data
+	}
+	return out
 }
 
 // SetCreditProvider replaces the default NoCredits provider.

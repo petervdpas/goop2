@@ -1,4 +1,3 @@
-// internal/ui/viewmodels/peers.go
 
 package viewmodels
 

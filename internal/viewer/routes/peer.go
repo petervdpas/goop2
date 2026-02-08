@@ -1,4 +1,3 @@
-// internal/viewer/routes/peer.go
 
 package routes
 

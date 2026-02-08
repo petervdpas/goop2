@@ -1,4 +1,3 @@
-// internal/ui/viewmodels/settings.go
 
 package viewmodels
 

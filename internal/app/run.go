@@ -1,4 +1,3 @@
-// internal/app/run.go
 package app
 
 import (

@@ -1,4 +1,3 @@
-// internal/viewer/routes/logs_ui.go
 
 package routes
 

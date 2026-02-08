@@ -1,4 +1,3 @@
-// internal/ui/assets/js/goop-chat.js
 //
 // Chat client for site pages.
 // Usage:

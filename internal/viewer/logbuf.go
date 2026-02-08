@@ -1,4 +1,3 @@
-// internal/viewer/logbuf.go
 package viewer
 
 import (

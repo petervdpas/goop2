@@ -1,4 +1,3 @@
-// internal/luaprefabs/embed.go
 
 package luaprefabs
 

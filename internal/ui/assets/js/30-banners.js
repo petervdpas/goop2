@@ -1,4 +1,3 @@
-// internal/ui/assets/js/30-banners.js
 (() => {
   const { onReady, qsa } = window.Goop.core;
 

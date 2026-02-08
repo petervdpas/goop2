@@ -1,4 +1,3 @@
-// internal/viewer/routes/data_proxy.go
 package routes
 
 import (

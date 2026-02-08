@@ -1,4 +1,3 @@
-// internal/ui/assets/js/goop-group.js
 //
 // Group protocol client for site pages.
 // Usage:

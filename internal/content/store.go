@@ -1,4 +1,3 @@
-// internal/content/store.go
 
 package content
 

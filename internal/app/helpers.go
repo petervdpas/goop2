@@ -1,4 +1,3 @@
-// internal/app/helpers.go
 package app
 
 import (

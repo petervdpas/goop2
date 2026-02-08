@@ -1,4 +1,3 @@
-// internal/ui/assets/js/98-settings-popup.js
 //
 // Quick-settings popup launched from the navbar cog icon.
 // Sections: Profile (label/email), Appearance (theme), Devices (camera/mic).

@@ -1,4 +1,3 @@
-// internal/ui/assets/js/99-dialogs.js
 // Reusable dialog utilities
 (() => {
   function createElement(html) {

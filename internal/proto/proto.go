@@ -1,4 +1,3 @@
-// internal/proto/proto.go
 
 package proto
 

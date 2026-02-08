@@ -1,4 +1,3 @@
-// internal/ui/assets/js/20-theme.js
 (() => {
   const { onReady, qs, safeLocalStorageGet, safeLocalStorageSet } = window.Goop.core;
 

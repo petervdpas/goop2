@@ -1,4 +1,3 @@
-// internal/ui/assets/js/60-codemirror.js
 (() => {
   const { qs } = window.Goop.core;
   const Theme = window.Goop.theme;

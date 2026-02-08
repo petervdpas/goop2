@@ -1,4 +1,3 @@
-// internal/viewer/routes/helpers.go
 
 package routes
 

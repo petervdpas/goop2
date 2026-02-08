@@ -1,4 +1,3 @@
-// internal/viewer/routes/home.go
 
 package routes
 

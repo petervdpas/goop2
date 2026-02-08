@@ -1,4 +1,3 @@
-// internal/ui/assets/js/goop-log.js
 //
 // Client-side logging that sends to the Goop² logs page.
 // Also logs to browser console for debugging.

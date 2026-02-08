@@ -1,4 +1,3 @@
-// internal/viewer/routes/export.go
 
 package routes
 

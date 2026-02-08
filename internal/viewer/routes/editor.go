@@ -1,4 +1,3 @@
-// internal/viewer/routes/editor.go
 package routes
 
 import (

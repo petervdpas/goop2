@@ -1,4 +1,3 @@
-// internal/ui/assets/js/goop-form.js
 //
 // JSON-driven form renderer for site pages.
 // Depends on goop-data.js and goop-identity.js.

@@ -1,4 +1,3 @@
-// internal/avatar/cache.go
 package avatar
 
 import (
