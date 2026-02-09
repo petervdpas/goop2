@@ -57,7 +57,6 @@ type Server struct {
 
 	tmpl         *template.Template
 	adminTmpl    *template.Template
-	pricesTmpl   *template.Template
 	docsTmpl     *template.Template
 	storeTmpl    *template.Template
 	creditsTmpl  *template.Template
@@ -180,10 +179,6 @@ type adminVM struct {
 	Services         []serviceStatus
 }
 
-type pricesVM struct {
-	Title string
-}
-
 type docsVM struct {
 	Title   string
 	Pages   []DocPage
@@ -230,11 +225,6 @@ func New(addr string, templatesDirs []string, peerDBPath string, adminPassword s
 	}
 
 	adminTmpl, err := template.New("admin.html").Funcs(funcs).ParseFS(embedded, "assets/admin.html")
-	if err != nil {
-		panic(err)
-	}
-
-	pricesTmpl, err := template.New("prices.html").Funcs(funcs).ParseFS(embedded, "assets/prices.html")
 	if err != nil {
 		panic(err)
 	}
@@ -293,7 +283,6 @@ func New(addr string, templatesDirs []string, peerDBPath string, adminPassword s
 		maxLogs:              500,
 		tmpl:                 tmpl,
 		adminTmpl:            adminTmpl,
-		pricesTmpl:           pricesTmpl,
 		docsTmpl:             docsTmpl,
 		storeTmpl:            storeTmpl,
 		creditsTmpl:          creditsTmpl,
@@ -434,7 +423,6 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// Admin-protected endpoints
 	mux.HandleFunc("/admin", s.handleAdmin)
-	mux.HandleFunc("/admin/prices", s.handlePrices)
 	mux.HandleFunc("/peers.json", s.handlePeersJSON)
 	mux.HandleFunc("/logs.json", s.handleLogsJSON)
 	mux.HandleFunc("/registrations.json", s.handleRegistrationsJSON)
@@ -1313,20 +1301,6 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		HasRegistrations: hasRegistrations,
 		HasAccounts:      hasAccounts,
 		Services:         services,
-	})
-}
-
-func (s *Server) handlePrices(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if !s.requireAdmin(w, r) {
-		return
-	}
-	w.Header().Set("content-type", "text/html; charset=utf-8")
-	_ = s.pricesTmpl.Execute(w, pricesVM{
-		Title: "Template Prices — Goop²",
 	})
 }
 

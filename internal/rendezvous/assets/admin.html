@@ -21,7 +21,6 @@
         <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
           <span class="theme-icon">🌙</span>
         </button>
-        {{if .HasCredits}}<a class="nav-link" href="/admin/prices">Prices</a>{{end}}
         <a class="nav-link" href="/docs">Docs</a>
         <a class="nav-link" href="/">Public</a>
       </div>
@@ -36,6 +35,7 @@
           <li class="admin-nav-item" data-section="peers">Peers <span class="nav-count" id="nav-peer-count">({{.PeerCount}})</span></li>
           {{if .HasRegistrations}}<li class="admin-nav-item" data-section="registrations">Registrations <span class="nav-count" id="nav-reg-count"></span></li>{{end}}
           {{if .HasAccounts}}<li class="admin-nav-item" data-section="accounts">Accounts <span class="nav-count" id="nav-acc-count"></span></li>{{end}}
+          {{if .HasCredits}}<li class="admin-nav-item" data-section="prices">Prices</li>{{end}}
           <li class="admin-nav-item" data-section="logs">Logs</li>
         </ul>
       </nav>
@@ -152,6 +152,20 @@
         </div>
         {{end}}
 
+        {{if .HasCredits}}
+        <!-- ── Prices ── -->
+        <div class="admin-section" data-section="prices">
+          <div class="dash-panel glass">
+            <div class="dash-panel-header">
+              <span class="dash-panel-label">Template Prices</span>
+            </div>
+            <div id="prices-body">
+              <div style="padding:12px;color:var(--text-muted)">Loading...</div>
+            </div>
+          </div>
+        </div>
+        {{end}}
+
         <!-- ── Logs ── -->
         <div class="admin-section" data-section="logs">
           <div class="dash-panel glass">
@@ -220,6 +234,7 @@
             // Lazy-load data sections on first visit
             if (target === 'registrations' && !loaded.reg) { loaded.reg = true; loadRegistrations(); }
             if (target === 'accounts' && !loaded.acc)       { loaded.acc = true; loadAccounts(); }
+            if (target === 'prices' && !loaded.prices)      { loaded.prices = true; loadPrices(); }
             if (target === 'logs' && !loaded.logs)          { loaded.logs = true; updateLogs(); }
           });
         });
@@ -321,6 +336,123 @@
         }).catch(function(){
           var el = document.getElementById('acc-body');
           if (el) el.innerHTML = '<div style="padding:12px;color:var(--red)">Failed to load accounts</div>';
+        });
+      }
+
+      function loadPrices() {
+        var pb = document.getElementById('prices-body');
+        Promise.all([
+          fetch('/api/credits/prices').then(function(r){ return r.json(); }),
+          fetch('/api/templates').then(function(r){ return r.ok ? r.json() : []; })
+        ]).then(function(results){
+          var prices = results[0] || {};
+          var templates = results[1] || [];
+          var allDirs = new Set(Object.keys(prices));
+          templates.forEach(function(t){ allDirs.add(t.dir); });
+
+          if (allDirs.size === 0) {
+            pb.innerHTML = '<div style="padding:12px;color:var(--text-muted)">No templates available</div>';
+            return;
+          }
+
+          var tplMap = {};
+          templates.forEach(function(t){ tplMap[t.dir] = t; });
+
+          var cards = '';
+          allDirs.forEach(function(dir){
+            var p = prices[dir] || 0;
+            var tpl = tplMap[dir] || {};
+            var name = tpl.name || dir;
+            var icon = tpl.icon || '📄';
+            var badgeClass = p > 0 ? 'price-badge price-badge-paid' : 'price-badge price-badge-free';
+            var badgeText = p > 0 ? p + ' credits' : 'Free';
+
+            cards += '<div class="price-card glass">'
+              + '<div class="price-card-head">'
+              + '<div style="display:flex;align-items:center;gap:10px">'
+              + '<span style="font-size:1.6rem">' + icon + '</span>'
+              + '<div>'
+              + '<div class="price-card-name">' + name + '</div>'
+              + '<code class="price-card-dir">' + dir + '</code>'
+              + '</div>'
+              + '</div>'
+              + '<span class="' + badgeClass + '" data-badge="' + dir + '">' + badgeText + '</span>'
+              + '</div>'
+              + '<div class="price-card-body">'
+              + '<div class="price-input-wrap">'
+              + '<input type="number" min="0" value="' + p + '" data-dir="' + dir + '" class="price-input" />'
+              + '<span class="price-input-label">credits</span>'
+              + '</div>'
+              + '</div>'
+              + '</div>';
+          });
+
+          pb.innerHTML = '<div class="price-grid">' + cards + '</div>'
+            + '<div class="price-save-bar">'
+            + '<span class="price-save-status" id="save-status"></span>'
+            + '<button class="btn primary" id="save-prices">Save Prices</button>'
+            + '</div>';
+
+          document.getElementById('save-prices').onclick = savePrices;
+
+          pb.querySelectorAll('.price-input').forEach(function(inp){
+            inp.addEventListener('input', function(){
+              var dir = inp.getAttribute('data-dir');
+              var v = parseInt(inp.value) || 0;
+              var badge = pb.querySelector('[data-badge="' + dir + '"]');
+              if (!badge) return;
+              if (v > 0) {
+                badge.className = 'price-badge price-badge-paid';
+                badge.textContent = v + ' credits';
+              } else {
+                badge.className = 'price-badge price-badge-free';
+                badge.textContent = 'Free';
+              }
+            });
+          });
+        }).catch(function(e){
+          pb.innerHTML = '<div style="padding:12px;color:var(--red)">Failed to load prices: ' + e.message + '</div>';
+        });
+      }
+
+      function savePrices(){
+        var pb = document.getElementById('prices-body');
+        var btn = document.getElementById('save-prices');
+        var status = document.getElementById('save-status');
+        var inputs = pb.querySelectorAll('.price-input');
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+        status.textContent = '';
+        status.className = 'price-save-status';
+
+        var promises = [];
+        for (var i = 0; i < inputs.length; i++) {
+          (function(inp){
+            var dir = inp.getAttribute('data-dir');
+            var price = parseInt(inp.value) || 0;
+            promises.push(
+              fetch('/api/credits/prices', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({template: dir, price: price})
+              }).then(function(resp){ return resp.ok; })
+                .catch(function(){ return false; })
+            );
+          })(inputs[i]);
+        }
+
+        Promise.all(promises).then(function(results){
+          btn.disabled = false;
+          btn.textContent = 'Save Prices';
+          var ok = results.every(function(r){ return r; });
+          if (ok) {
+            status.textContent = 'Saved';
+            status.className = 'price-save-status price-save-ok';
+            setTimeout(function(){ status.textContent = ''; status.className = 'price-save-status'; }, 2000);
+          } else {
+            status.textContent = 'Some prices failed to save';
+            status.className = 'price-save-status price-save-err';
+          }
         });
       }
 
