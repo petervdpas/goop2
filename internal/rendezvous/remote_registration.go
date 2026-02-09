@@ -37,6 +37,8 @@ func NewRemoteRegistrationProvider(baseURL string) *RemoteRegistrationProvider {
 }
 
 // RegisterRoutes sets up reverse proxies for registration endpoints.
+// The verifyRender callback is called to render a nice HTML page for /verify
+// instead of returning raw JSON.
 func (p *RemoteRegistrationProvider) RegisterRoutes(mux *http.ServeMux) {
 	target, err := url.Parse(p.baseURL)
 	if err != nil {
@@ -45,16 +47,38 @@ func (p *RemoteRegistrationProvider) RegisterRoutes(mux *http.ServeMux) {
 	}
 	proxy := httputil.NewSingleHostReverseProxy(target)
 
-	// Proxy /verify → /api/reg/verify
-	mux.HandleFunc("/verify", func(w http.ResponseWriter, r *http.Request) {
-		r.URL.Path = "/api/reg/verify"
-		proxy.ServeHTTP(w, r)
-	})
-
 	// Proxy all /api/reg/* directly
 	mux.HandleFunc("/api/reg/", func(w http.ResponseWriter, r *http.Request) {
 		proxy.ServeHTTP(w, r)
 	})
+}
+
+// HandleVerify calls the registration service's verify endpoint and returns
+// the parsed result so the caller can render a proper HTML page.
+func (p *RemoteRegistrationProvider) HandleVerify(token string) (email string, ok bool) {
+	reqURL := fmt.Sprintf("%s/api/reg/verify?token=%s", p.baseURL, url.QueryEscape(token))
+	resp, err := p.client.Get(reqURL)
+	if err != nil {
+		log.Printf("registration: verify error: %v", err)
+		return "", false
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", false
+	}
+
+	var result struct {
+		Status   string `json:"status"`
+		Email    string `json:"email"`
+		Verified bool   `json:"verified"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", false
+	}
+
+	return result.Email, result.Verified
 }
 
 // IsEmailVerified queries the registration service to check if an email is verified.

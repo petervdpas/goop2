@@ -439,10 +439,32 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// Registration endpoints
 	if s.registration != nil {
-		// Remote registration service — proxy /verify and /api/reg/*
+		// Remote registration service — proxy /api/reg/*
 		s.registration.RegisterRoutes(mux)
 		// /register is always served locally (form + POST proxy)
 		mux.HandleFunc("/register", s.handleRegisterRemote)
+		// /verify calls registration service and renders HTML
+		mux.HandleFunc("/verify", func(w http.ResponseWriter, r *http.Request) {
+			token := r.URL.Query().Get("token")
+			if token == "" {
+				http.Error(w, "missing token", http.StatusBadRequest)
+				return
+			}
+			email, ok := s.registration.HandleVerify(token)
+			vm := registerVM{Title: "Verified — Goop² Rendezvous"}
+			if ok {
+				vm.Email = email
+				vm.Success = true
+				vm.Verified = true
+			} else {
+				vm.Error = "Invalid or expired verification link"
+			}
+			if s.registerTmpl != nil {
+				s.renderRegister(w, vm)
+			} else {
+				http.Error(w, "registration not available", http.StatusNotFound)
+			}
+		})
 	} else {
 		// Built-in registration handlers
 		mux.HandleFunc("/register", s.handleRegister)
