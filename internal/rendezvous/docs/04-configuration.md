@@ -30,15 +30,13 @@ All configuration lives in a single `goop.json` file in your peer directory. The
     "external_url": "",
     "templates_dir": "templates",
     "peer_db_path": "",
-    "registration_required": false,
-    "registration_webhook": "",
     "relay_port": 0,
     "relay_key_file": "data/relay.key",
-    "smtp_host": "",
-    "smtp_port": 587,
-    "smtp_username": "",
-    "smtp_password": "",
-    "smtp_from": ""
+    "registration_url": "",
+    "registration_admin_token": "",
+    "credits_url": "",
+    "credits_admin_token": "",
+    "email_url": ""
   },
   "profile": {
     "label": "hello",
@@ -100,15 +98,13 @@ All configuration lives in a single `goop.json` file in your peer directory. The
 | `external_url` | `""` | Public URL for the server (e.g. `https://goop2.com`). Required behind a reverse proxy so peers see the correct address. |
 | `templates_dir` | `templates` | Directory containing template store templates (relative to peer dir). |
 | `peer_db_path` | `""` | SQLite path for persisting peer state across restarts. Required for registration and multi-instance setups. |
-| `registration_required` | `false` | Require email verification before peers are discoverable. Needs `peer_db_path` to be set. |
-| `registration_webhook` | `""` | URL called (POST) when a registration is verified. Receives `{"email": "...", "verified_at": ...}`. |
 | `relay_port` | `0` | Circuit relay v2 port. When > 0, a relay host runs alongside the rendezvous server for NAT traversal. |
 | `relay_key_file` | `data/relay.key` | Path to the relay identity key file. |
-| `smtp_host` | `""` | SMTP server host for sending verification emails (e.g. `smtp.protonmail.ch`). |
-| `smtp_port` | `587` | SMTP server port (587 for STARTTLS, 465 for implicit TLS). |
-| `smtp_username` | `""` | SMTP username. |
-| `smtp_password` | `""` | SMTP password or token. |
-| `smtp_from` | `""` | From address for emails. Defaults to `smtp_username` if empty. |
+| `registration_url` | `""` | URL of the registration service (e.g. `http://localhost:8801`). Leave empty to use built-in registration. |
+| `registration_admin_token` | `""` | Bearer token for admin endpoints on the registration service. Must match `admin_token` in the service's config. |
+| `credits_url` | `""` | URL of the credits service (e.g. `http://localhost:8800`). Enables template pricing and credit purchases. |
+| `credits_admin_token` | `""` | Bearer token for admin endpoints on the credits service. Must match `admin_token` in the service's config. |
+| `email_url` | `""` | URL of the email service (e.g. `http://localhost:8802`). Centralizes SMTP sending and email templates. |
 
 ### profile
 
@@ -144,6 +140,31 @@ All configuration lives in a single `goop.json` file in your peer directory. The
 - `heartbeat_seconds` must be less than `ttl_seconds`.
 - `listen_port` must be `0` or between `1` and `65535`.
 - `relay_port`, when set, must be between `1` and `65535`.
+
+## External services
+
+Goop2 can optionally connect to three standalone microservices that add functionality to the rendezvous server. These services are **not included** with Goop2 -- they are separate binaries from the [goop2-services](https://github.com/petervdpas/goop2-services) repository and must be installed and run independently.
+
+All services are optional. When a service URL is left empty, that feature is either disabled or falls back to built-in behavior.
+
+| Service | Default port | What it does |
+|---------|-------------|--------------|
+| **Registration** | `:8801` | Handles email verification and peer registration. Owns the `registration_required` toggle and the registrations database. Without it, Goop2 uses a built-in registration fallback. |
+| **Credits** | `:8800` | Manages credit balances, template pricing, and purchases. Credits are tied to registered email accounts. Without it, all templates are free. |
+| **Email** | `:8802` | Sends transactional emails (verification, welcome, purchase receipts) via SMTP. Provides HTML email templates. The registration service uses it for sending verification emails. |
+
+Each service has its own `config.json` where you configure service-specific settings like SMTP credentials (email service), `registration_required` toggle (registration service), or `dummy_mode` for safe testing. Goop2 communicates with these services purely over HTTP.
+
+To connect a service, set its URL and (where applicable) a shared admin token in the `presence` section of your `goop.json`:
+
+```json
+"registration_url": "http://localhost:8801",
+"registration_admin_token": "your-shared-token"
+```
+
+The admin token must match the `admin_token` in the service's own config. It is required for the admin dashboard to read registration and account data.
+
+The services ecosystem is actively growing -- more services will be added in future releases.
 
 ## Example configurations
 
@@ -182,7 +203,7 @@ All configuration lives in a single `goop.json` file in your peer directory. The
 }
 ```
 
-### Rendezvous with relay and registration
+### Rendezvous with relay and services
 
 ```json
 {
@@ -193,13 +214,14 @@ All configuration lives in a single `goop.json` file in your peer directory. The
     "admin_password": "secure-password",
     "external_url": "https://goop2.com",
     "relay_port": 4001,
-    "registration_required": true,
     "peer_db_path": "data/peers.db",
-    "smtp_host": "smtp.example.com",
-    "smtp_port": 587,
-    "smtp_username": "admin@example.com",
-    "smtp_password": "your-smtp-token",
-    "smtp_from": "noreply@example.com"
+    "registration_url": "http://localhost:8801",
+    "registration_admin_token": "shared-secret",
+    "credits_url": "http://localhost:8800",
+    "credits_admin_token": "shared-secret",
+    "email_url": "http://localhost:8802"
   }
 }
 ```
+
+See the [External services](#external-services) section above for details on these microservices.

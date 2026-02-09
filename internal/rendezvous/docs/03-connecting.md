@@ -127,18 +127,23 @@ Peers automatically discover the relay via the rendezvous server's `/relay` endp
 
 ## Email registration
 
-A rendezvous server can require email verification before peers are allowed to be discovered. When enabled, new peers must register and verify their email address before their presence is visible to others:
+A rendezvous server can require email verification before peers are allowed to be discovered. This is managed by the **registration service** -- a standalone microservice that handles email verification and the registration database.
+
+To enable registration, point your goop2 config at the registration service:
 
 ```json
 {
   "presence": {
-    "registration_required": true,
+    "registration_url": "http://localhost:8801",
+    "registration_admin_token": "your-shared-token",
     "peer_db_path": "data/peers.db"
   }
 }
 ```
 
-Visitors can register at the `/register` page on the rendezvous server. A verification link is sent via email (if SMTP is configured) or logged to the console for testing.
+The `registration_required` toggle is configured in the **registration service's** own `config.json`, not in the goop2 config. Verification emails are sent via the **email service** (configured separately in the registration service).
+
+Visitors can register at the `/register` page on the rendezvous server.
 
 ## Visiting peers
 

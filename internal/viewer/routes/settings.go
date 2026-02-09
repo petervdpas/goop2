@@ -263,4 +263,67 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 		writeJSON(w, result)
 	})
+
+	// Single-service health check using a URL from the form (not saved config)
+	mux.HandleFunc("/api/services/check", func(w http.ResponseWriter, r *http.Request) {
+		if !requireMethod(w, r, http.MethodGet) {
+			return
+		}
+
+		svcURL := strings.TrimSpace(r.URL.Query().Get("url"))
+		svcType := r.URL.Query().Get("type") // "registration", "credits", or "email"
+		if svcURL == "" {
+			writeJSON(w, map[string]interface{}{"ok": false, "error": "no url"})
+			return
+		}
+
+		client := &http.Client{Timeout: 3 * time.Second}
+		base := strings.TrimRight(svcURL, "/")
+
+		resp, err := client.Get(base + "/healthz")
+		if err != nil {
+			writeJSON(w, map[string]interface{}{"ok": false, "error": "not reachable"})
+			return
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			writeJSON(w, map[string]interface{}{"ok": false, "error": "not reachable"})
+			return
+		}
+
+		result := map[string]interface{}{"ok": true}
+
+		// Fetch extra status info based on service type
+		switch svcType {
+		case "registration":
+			if r2, err := client.Get(base + "/api/reg/status"); err == nil {
+				var status map[string]interface{}
+				json.NewDecoder(r2.Body).Decode(&status)
+				r2.Body.Close()
+				if v, ok := status["dummy_mode"]; ok {
+					result["dummy_mode"] = v
+				}
+			}
+		case "credits":
+			if r2, err := client.Get(base + "/api/credits/store-data"); err == nil {
+				var status map[string]interface{}
+				json.NewDecoder(r2.Body).Decode(&status)
+				r2.Body.Close()
+				if v, ok := status["dummy_mode"]; ok {
+					result["dummy_mode"] = v
+				}
+			}
+		case "email":
+			if r2, err := client.Get(base + "/api/email/status"); err == nil {
+				var status map[string]interface{}
+				json.NewDecoder(r2.Body).Decode(&status)
+				r2.Body.Close()
+				if v, ok := status["dummy_mode"]; ok {
+					result["dummy_mode"] = v
+				}
+			}
+		}
+
+		writeJSON(w, result)
+	})
 }

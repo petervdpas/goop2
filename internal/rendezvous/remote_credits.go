@@ -298,7 +298,8 @@ func (p *RemoteCreditProvider) StorePageData(r *http.Request) StorePageData {
 	var banner template.HTML
 	if data.Email == "" {
 		banner = `<div class="store-banner store-banner-credits">` +
-			`Credit system active. Add <code>?peer_id=YOUR_PEER_ID</code> to see your balance. ` +
+			`Credit system active. Add <code>?peer_id=YOUR_PEER_ID</code> to the URL to link your account. ` +
+			`Copy your Peer ID from <strong>Me → Settings</strong> in your Goop² viewer. ` +
 			`<a href="/credits">🪙 Buy Credits</a>` +
 			`</div>`
 	} else {

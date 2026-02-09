@@ -22,7 +22,7 @@
           <span class="theme-icon">🌙</span>
         </button>
         <a class="nav-link" href="/">Goop²</a>
-        <a class="nav-link" href="/store">Store</a>
+        <a class="nav-link" href="/store">🧩 Store</a>
         <a class="nav-link" href="/docs">Docs</a>
         {{if .HasAdmin}}<a class="nav-link" href="/admin">Admin</a>{{end}}
       </div>
@@ -36,7 +36,7 @@
     </div>
     {{else}}
     <div class="store-banner store-banner-credits">
-      Credit system active. Add <code>?peer_id=YOUR_PEER_ID</code> to see your balance.
+      Credit system active. Add <code>?peer_id=YOUR_PEER_ID</code> to the URL to link your account. You can copy your Peer ID from <strong>Me → Settings</strong> in your Goop² viewer.
     </div>
     {{end}}
 
@@ -93,7 +93,7 @@
       function buyCredits(amount) {
         var peerId = new URLSearchParams(location.search).get('peer_id');
         if (!peerId) {
-          alert('Add ?peer_id=YOUR_PEER_ID to the URL first.');
+          alert('Add ?peer_id=YOUR_PEER_ID to the URL first.\nCopy your Peer ID from Me \u2192 Settings in your Goop\u00B2 viewer.');
           return;
         }
         fetch('/api/credits/purchase', {

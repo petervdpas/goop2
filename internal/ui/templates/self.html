@@ -22,11 +22,12 @@
       <div class="identity-name">{{.SelfName}}</div>
       <div class="identity-meta muted small">
         {{if .Cfg.Profile.Email}}{{.Cfg.Profile.Email}}{{else}}no email set{{end}}{{if .SelfID}}
-        &middot; <code>{{.SelfID}}</code>{{end}}
+        &middot; <code class="copy-hint-inline" onclick="navigator.clipboard.writeText('{{.SelfID}}').then(function(){var el=event.target.closest('code');el.classList.add('copied');setTimeout(function(){el.classList.remove('copied')},1200)})" title="Click to copy Peer ID" style="cursor:pointer">{{.SelfID}}</code>{{end}}
       </div>
       <div class="identity-actions">
         <button type="button" class="btn secondary" id="avatar-choose-btn">Change avatar</button>
         {{if .AvatarHash}}<button type="button" class="btn secondary" id="avatar-remove-btn">Remove</button>{{end}}
+        {{if .SelfID}}<button type="button" class="btn secondary" id="copy-peer-id-btn" onclick="navigator.clipboard.writeText('{{.SelfID}}').then(function(){var b=document.getElementById('copy-peer-id-btn');b.textContent='Copied!';setTimeout(function(){b.textContent='Copy Peer ID'},1200)})">Copy Peer ID</button>{{end}}
         <input type="file" id="avatar-file-input" class="avatar-file-input" accept="image/*">
       </div>
     </div>
@@ -335,9 +336,12 @@
           <div class="svc-tab-panel active" data-svc="registration">
             <div class="field">
               <label>Service URL <span id="svc-reg-status" class="svc-status"></span></label>
-              <input id="svc-reg-url" name="presence_registration_url"
-                     value="{{.Cfg.Presence.RegistrationURL}}"
-                     placeholder="http://localhost:8801">
+              <div class="token-field">
+                <input id="svc-reg-url" name="presence_registration_url"
+                       value="{{.Cfg.Presence.RegistrationURL}}"
+                       placeholder="http://localhost:8801">
+                <button type="button" class="btn token-btn svc-check-btn" data-svc-check="registration" style="display:none">Check</button>
+              </div>
               <div class="hint">
                 Handles email verification and peer registration.
                 The registration service controls whether email verification is required
@@ -364,9 +368,12 @@
           <div class="svc-tab-panel" data-svc="credits">
             <div class="field">
               <label>Service URL <span id="svc-credits-status" class="svc-status"></span></label>
-              <input id="svc-credits-url" name="presence_credits_url"
-                     value="{{.Cfg.Presence.CreditsURL}}"
-                     placeholder="http://localhost:8800">
+              <div class="token-field">
+                <input id="svc-credits-url" name="presence_credits_url"
+                       value="{{.Cfg.Presence.CreditsURL}}"
+                       placeholder="http://localhost:8800">
+                <button type="button" class="btn token-btn svc-check-btn" data-svc-check="credits" style="display:none">Check</button>
+              </div>
               <div class="hint">
                 Enables template pricing and credit purchases.
                 Set <code>dummy_mode</code> in the credits service config.json for safe testing.
@@ -392,9 +399,12 @@
           <div class="svc-tab-panel" data-svc="email">
             <div class="field">
               <label>Service URL <span id="svc-email-status" class="svc-status"></span></label>
-              <input id="svc-email-url" name="presence_email_url"
-                     value="{{.Cfg.Presence.EmailURL}}"
-                     placeholder="http://localhost:8802">
+              <div class="token-field">
+                <input id="svc-email-url" name="presence_email_url"
+                       value="{{.Cfg.Presence.EmailURL}}"
+                       placeholder="http://localhost:8802">
+                <button type="button" class="btn token-btn svc-check-btn" data-svc-check="email" style="display:none">Check</button>
+              </div>
               <div class="hint">
                 Centralizes SMTP sending and HTML email templates.
                 Point the registration service's <code>email_url</code> to this service for verification emails.
@@ -402,9 +412,6 @@
             </div>
           </div>
 
-          <div style="margin-top:12px">
-            <button type="button" class="btn secondary" id="svc-check-btn" style="font-size:0.85em">Check services</button>
-          </div>
         </div>
 
         <!-- Scripting (peer only) -->
@@ -477,89 +484,70 @@ function copyToken(inputId) {
     });
   });
 
-  // ── Service health checks ──
-  var checkBtn = document.getElementById('svc-check-btn');
-  function checkServices() {
-    var regStatus = document.getElementById('svc-reg-status');
-    var credStatus = document.getElementById('svc-credits-status');
-    var emailStatus = document.getElementById('svc-email-status');
-    if (regStatus) regStatus.textContent = '...';
-    if (credStatus) credStatus.textContent = '...';
-    if (emailStatus) emailStatus.textContent = '...';
-    if (checkBtn) { checkBtn.disabled = true; checkBtn.textContent = 'Checking...'; }
+  // ── Per-service health checks ──
+  var svcMap = {
+    registration: { url: 'svc-reg-url', status: 'svc-reg-status', key: 'registration', token: 'svc-reg-token' },
+    credits:      { url: 'svc-credits-url', status: 'svc-credits-status', key: 'credits', token: 'svc-credits-token' },
+    email:        { url: 'svc-email-url', status: 'svc-email-status', key: 'email' }
+  };
 
-    fetch('/api/services/health')
+  function checkService(name) {
+    var cfg = svcMap[name];
+    if (!cfg) return;
+    var statusEl = document.getElementById(cfg.status);
+    var urlEl = document.getElementById(cfg.url);
+    var btn = document.querySelector('[data-svc-check="' + name + '"]');
+    var svcURL = urlEl ? urlEl.value.trim() : '';
+    if (!svcURL) return;
+
+    if (statusEl) { statusEl.textContent = '...'; statusEl.className = 'svc-status'; }
+    if (btn) { btn.disabled = true; btn.textContent = '...'; }
+
+    fetch('/api/services/check?type=' + encodeURIComponent(cfg.key) + '&url=' + encodeURIComponent(svcURL))
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        if (regStatus) {
-          if (!data.registration.url) {
-            regStatus.textContent = '';
-          } else if (data.registration.ok) {
-            var label = 'running';
-            if (data.registration.dummy_mode) {
-              label += ' (dummy)';
-            } else {
-              label += ' (active)';
-            }
-            regStatus.textContent = label;
-            regStatus.className = 'svc-status ' + (data.registration.dummy_mode ? 'svc-warn' : 'svc-ok');
+        if (!statusEl) return;
+        if (data.ok) {
+          var tokenEl = cfg.token ? document.getElementById(cfg.token) : null;
+          var missingToken = tokenEl && !tokenEl.value.trim();
+          if (missingToken) {
+            statusEl.textContent = 'running — admin token missing';
+            statusEl.className = 'svc-status svc-warn';
           } else {
-            regStatus.textContent = 'not reachable';
-            regStatus.className = 'svc-status svc-err';
-          }
-        }
-        if (credStatus) {
-          if (!data.credits.url) {
-            credStatus.textContent = '';
-          } else if (!data.registration.url || !data.registration.ok) {
-            credStatus.textContent = 'needs registration service';
-            credStatus.className = 'svc-status svc-warn';
-          } else if (data.credits.ok) {
             var label = 'running';
-            if (data.credits.dummy_mode) {
-              label += ' (dummy)';
-            }
-            credStatus.textContent = label;
-            credStatus.className = 'svc-status ' + (data.credits.dummy_mode ? 'svc-warn' : 'svc-ok');
-          } else {
-            credStatus.textContent = 'not reachable';
-            credStatus.className = 'svc-status svc-err';
+            if (data.dummy_mode) { label += ' (dummy)'; } else { label += ' (active)'; }
+            statusEl.textContent = label;
+            statusEl.className = 'svc-status ' + (data.dummy_mode ? 'svc-warn' : 'svc-ok');
           }
-        }
-        if (emailStatus) {
-          if (!data.email.url) {
-            emailStatus.textContent = '';
-          } else if (data.email.ok) {
-            var label = 'running';
-            if (data.email.dummy_mode) {
-              label += ' (dummy)';
-            }
-            emailStatus.textContent = label;
-            emailStatus.className = 'svc-status ' + (data.email.dummy_mode ? 'svc-warn' : 'svc-ok');
-          } else {
-            emailStatus.textContent = 'not reachable';
-            emailStatus.className = 'svc-status svc-err';
-          }
+        } else {
+          statusEl.textContent = data.error || 'not reachable';
+          statusEl.className = 'svc-status svc-err';
         }
       })
-      .catch(function() {
-        if (regStatus) regStatus.textContent = '';
-        if (credStatus) credStatus.textContent = '';
-        if (emailStatus) emailStatus.textContent = '';
+      .catch(function(err) {
+        console.error('Service check failed:', err);
+        if (statusEl) { statusEl.textContent = 'check failed'; statusEl.className = 'svc-status svc-err'; }
       })
       .finally(function() {
-        if (checkBtn) { checkBtn.disabled = false; checkBtn.textContent = 'Check services'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Check'; }
       });
   }
-  if (checkBtn) {
-    checkBtn.addEventListener('click', checkServices);
-    // Auto-check on load if URLs are configured
-    if ((document.getElementById('svc-reg-url') && document.getElementById('svc-reg-url').value) ||
-        (document.getElementById('svc-credits-url') && document.getElementById('svc-credits-url').value) ||
-        (document.getElementById('svc-email-url') && document.getElementById('svc-email-url').value)) {
-      checkServices();
+
+  // Wire up each Check button: show/hide based on URL, auto-check on load
+  Object.keys(svcMap).forEach(function(name) {
+    var cfg = svcMap[name];
+    var urlEl = document.getElementById(cfg.url);
+    var btn = document.querySelector('[data-svc-check="' + name + '"]');
+    if (!urlEl || !btn) return;
+
+    function updateVisibility() {
+      btn.style.display = urlEl.value.trim() ? '' : 'none';
     }
-  }
+    btn.addEventListener('click', function() { checkService(name); });
+    urlEl.addEventListener('input', updateVisibility);
+    updateVisibility();
+    if (urlEl.value.trim()) checkService(name);
+  });
 
   // ── Settings sidebar navigation ──
   var navItems = document.querySelectorAll('.settings-nav-item');
