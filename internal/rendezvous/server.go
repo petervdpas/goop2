@@ -1185,7 +1185,9 @@ func (s *Server) handleCredits(w http.ResponseWriter, r *http.Request) {
 
 		reqURL := cp.baseURL + "/api/credits/store-data"
 		if peerID != "" {
-			reqURL += "?peer_id=" + url.QueryEscape(peerID)
+			if email := cp.emailResolver(peerID); email != "" {
+				reqURL += "?email=" + url.QueryEscape(email)
+			}
 		}
 
 		resp, err := cp.client.Get(reqURL)
