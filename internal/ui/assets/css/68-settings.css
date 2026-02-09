@@ -122,6 +122,65 @@
   border-top: 1px solid var(--line);
 }
 
+/* Service sub-tabs */
+.svc-tabs{
+  display:flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0;
+}
+
+.svc-tab{
+  padding: 7px 14px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  transition: background var(--ease), color var(--ease);
+  margin-bottom: -1px;
+}
+
+.svc-tab:hover{
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.svc-tab.active{
+  color: var(--text);
+  background: var(--field-bg);
+  border-color: var(--line);
+  border-bottom-color: var(--field-bg);
+}
+
+.svc-tab-panel{ display:none; }
+.svc-tab-panel.active{ display:block; }
+
+/* Token field with action buttons */
+.token-field{
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.token-field input{
+  flex: 1;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.token-btn{
+  padding: 8px 10px !important;
+  font-size: 12px !important;
+  white-space: nowrap;
+  border-radius: 999px;
+}
+
 /* Service status indicators */
 .svc-status{
   font-size: 0.8em;

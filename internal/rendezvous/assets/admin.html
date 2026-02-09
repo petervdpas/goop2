@@ -27,94 +27,143 @@
       </div>
     </header>
 
-    <!-- Hero counters -->
-    <div class="hero-row">
-      <div class="hero-card glass">
-        <div class="hero-number" id="count">{{.PeerCount}}</div>
-        <div class="hero-label">Connected Peers</div>
-      </div>
-      <div class="hero-card glass">
-        <div class="hero-number" id="clock">{{.Now}}</div>
-        <div class="hero-label">Server Time</div>
-      </div>
-    </div>
+    <div class="admin-layout">
+      <!-- Sidebar -->
+      <nav class="admin-sidebar glass">
+        <div class="admin-sidebar-title">Admin</div>
+        <ul class="admin-nav">
+          <li class="admin-nav-item active" data-section="overview">Overview</li>
+          <li class="admin-nav-item" data-section="peers">Peers <span class="nav-count" id="nav-peer-count">({{.PeerCount}})</span></li>
+          {{if .HasRegistrations}}<li class="admin-nav-item" data-section="registrations">Registrations <span class="nav-count" id="nav-reg-count"></span></li>{{end}}
+          {{if .HasAccounts}}<li class="admin-nav-item" data-section="accounts">Accounts <span class="nav-count" id="nav-acc-count"></span></li>{{end}}
+          <li class="admin-nav-item" data-section="logs">Logs</li>
+        </ul>
+      </nav>
 
-    {{if .Services}}
-    <!-- Services -->
-    <div class="dash-panel glass" style="margin-bottom:20px">
-      <div class="dash-panel-header">
-        <span class="dash-panel-label">Services</span>
-      </div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;padding:12px">
-        {{range .Services}}
-        <div style="flex:1;min-width:200px;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg)">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span style="width:10px;height:10px;border-radius:50%;display:inline-block;{{if not .OK}}background:#e74c3c{{else if not .APICompat}}background:#e74c3c{{else}}background:#2ecc71{{end}}"></span>
-            <strong>{{.Name}}</strong>
-            {{if .OK}}
-              {{if .DummyMode}}<span style="color:#f39c12;font-size:0.8em">(dummy)</span>
-              {{else}}<span style="color:#2ecc71;font-size:0.8em">(active)</span>{{end}}
-              {{if .Version}}<span style="color:var(--muted);font-size:0.75em">v{{.Version}}</span>{{end}}
-              <span style="color:var(--muted);font-size:0.75em">API v{{.APIVersion}}</span>
-            {{else}}<span style="color:#e74c3c;font-size:0.8em">not running</span>{{end}}
-          </div>
-          {{if and .OK (not .APICompat)}}<div style="font-size:0.8em;color:#e74c3c;margin-bottom:4px">⚠ Incompatible API version — please update this service</div>{{end}}
-          <div style="font-size:0.8em;color:var(--muted)">{{.URL}}</div>
-        </div>
-        {{end}}
-      </div>
-    </div>
-    {{end}}
+      <!-- Main content -->
+      <div class="admin-main">
 
-    <!-- Search -->
-    <div class="search-bar">
-      <span class="search-icon">&#x1F50D;</span>
-      <input id="q" class="search-input" placeholder="Filter peers..." />
-    </div>
-
-    <!-- Peers panel -->
-    <div class="dash-split">
-      <div class="dash-panel glass">
-        <div class="dash-panel-header">
-          <span class="dash-panel-label"><span class="live-dot"></span> Peers</span>
-        </div>
-        <div id="peers-container">
-          {{if eq (len .Peers) 0}}
-          <div class="empty-state">
-            <div class="empty-icon">📭</div>
-            <p>No peers connected yet</p>
-            <p class="empty-hint">Peers will appear here once they connect</p>
-          </div>
-          {{else}}
-          <div class="peer-grid" id="peer-grid">
-            {{range .Peers}}
-            <div class="peer-card peer-row" data-status="{{statusClass .Type}}" data-label="{{.Content}}" data-email="{{.Email}}">
-              <div class="peer-header">
-                <span class="status-badge {{statusClass .Type}}">{{.Type}}</span>
-                <span class="peer-time">{{fmtMillis .LastSeen}}</span>
-              </div>
-              <div class="peer-label">{{.Content}}{{if not .Verified}} <span class="badge-unverified">unverified</span>{{end}}</div>
-              {{if .Email}}<div class="peer-email">{{.Email}}</div>{{end}}
-              <div class="peer-id">{{.PeerID}}</div>
-              <div class="peer-stats">
-                <span class="stat-item" title="Sent">↑ {{fmtBytes .BytesSent}}</span>
-                <span class="stat-item" title="Received">↓ {{fmtBytes .BytesReceived}}</span>
-              </div>
+        <!-- ── Overview ── -->
+        <div class="admin-section active" data-section="overview">
+          <div class="hero-row">
+            <div class="hero-card glass">
+              <div class="hero-number" id="count">{{.PeerCount}}</div>
+              <div class="hero-label">Connected Peers</div>
             </div>
-            {{end}}
+            <div class="hero-card glass">
+              <div class="hero-number" id="clock">{{.Now}}</div>
+              <div class="hero-label">Server Time</div>
+            </div>
+          </div>
+
+          {{if .Services}}
+          <div class="dash-panel glass">
+            <div class="dash-panel-header">
+              <span class="dash-panel-label">Services</span>
+            </div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;padding:12px">
+              {{range .Services}}
+              <div style="flex:1;min-width:200px;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg)">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                  <span style="width:10px;height:10px;border-radius:50%;display:inline-block;{{if not .OK}}background:#e74c3c{{else if not .APICompat}}background:#e74c3c{{else}}background:#2ecc71{{end}}"></span>
+                  <strong>{{.Name}}</strong>
+                  {{if .OK}}
+                    {{if .DummyMode}}<span style="color:#f39c12;font-size:0.8em">(dummy)</span>
+                    {{else}}<span style="color:#2ecc71;font-size:0.8em">(active)</span>{{end}}
+                    {{if .Version}}<span style="color:var(--muted);font-size:0.75em">v{{.Version}}</span>{{end}}
+                    <span style="color:var(--muted);font-size:0.75em">API v{{.APIVersion}}</span>
+                  {{else}}<span style="color:#e74c3c;font-size:0.8em">not running</span>{{end}}
+                </div>
+                {{if and .OK (not .APICompat)}}<div style="font-size:0.8em;color:#e74c3c;margin-bottom:4px">⚠ Incompatible API version — please update this service</div>{{end}}
+                <div style="font-size:0.8em;color:var(--muted)">{{.URL}}</div>
+              </div>
+              {{end}}
+            </div>
           </div>
           {{end}}
         </div>
-      </div>
 
-      <!-- Logs panel -->
-      <div class="dash-panel glass">
-        <div class="dash-panel-header">
-          <span class="dash-panel-label">Server Logs</span>
+        <!-- ── Peers ── -->
+        <div class="admin-section" data-section="peers">
+          <div class="search-bar">
+            <span class="search-icon">&#x1F50D;</span>
+            <input id="q" class="search-input" placeholder="Filter peers..." />
+          </div>
+
+          <div class="dash-panel glass">
+            <div class="dash-panel-header">
+              <span class="dash-panel-label"><span class="live-dot"></span> Peers</span>
+            </div>
+            <div id="peers-container">
+              {{if eq (len .Peers) 0}}
+              <div class="empty-state">
+                <div class="empty-icon">📭</div>
+                <p>No peers connected yet</p>
+                <p class="empty-hint">Peers will appear here once they connect</p>
+              </div>
+              {{else}}
+              <div class="peer-grid" id="peer-grid">
+                {{range .Peers}}
+                <div class="peer-card peer-row" data-status="{{statusClass .Type}}" data-label="{{.Content}}" data-email="{{.Email}}">
+                  <div class="peer-header">
+                    <span class="status-badge {{statusClass .Type}}">{{.Type}}</span>
+                    <span class="peer-time">{{fmtMillis .LastSeen}}</span>
+                  </div>
+                  <div class="peer-label">{{.Content}}{{if not .Verified}} <span class="badge-unverified">unverified</span>{{end}}</div>
+                  {{if .Email}}<div class="peer-email">{{.Email}}</div>{{end}}
+                  <div class="peer-id">{{.PeerID}}</div>
+                  <div class="peer-stats">
+                    <span class="stat-item" title="Sent">↑ {{fmtBytes .BytesSent}}</span>
+                    <span class="stat-item" title="Received">↓ {{fmtBytes .BytesReceived}}</span>
+                  </div>
+                </div>
+                {{end}}
+              </div>
+              {{end}}
+            </div>
+          </div>
         </div>
-        <div class="logs-container" id="logs-container">
-          <div class="log-entry empty">Loading...</div>
+
+        {{if .HasRegistrations}}
+        <!-- ── Registrations ── -->
+        <div class="admin-section" data-section="registrations">
+          <div class="dash-panel glass">
+            <div class="dash-panel-header">
+              <span class="dash-panel-label">Registrations</span>
+            </div>
+            <div id="reg-body">
+              <div style="padding:12px;color:var(--text-muted)">Loading...</div>
+            </div>
+          </div>
         </div>
+        {{end}}
+
+        {{if .HasAccounts}}
+        <!-- ── Credit Accounts ── -->
+        <div class="admin-section" data-section="accounts">
+          <div class="dash-panel glass">
+            <div class="dash-panel-header">
+              <span class="dash-panel-label">Credit Accounts</span>
+            </div>
+            <div id="acc-body">
+              <div style="padding:12px;color:var(--text-muted)">Loading...</div>
+            </div>
+          </div>
+        </div>
+        {{end}}
+
+        <!-- ── Logs ── -->
+        <div class="admin-section" data-section="logs">
+          <div class="dash-panel glass">
+            <div class="dash-panel-header">
+              <span class="dash-panel-label">Server Logs</span>
+            </div>
+            <div class="logs-container" id="logs-container">
+              <div class="log-entry empty">Loading...</div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -124,6 +173,13 @@
         if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
         if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB';
         return (b / 1073741824).toFixed(1) + ' GB';
+      }
+
+      function fmtDate(v) {
+        if (!v) return '';
+        if (typeof v === 'number') return new Date(v).toLocaleString();
+        var d = new Date(v.indexOf('T') === -1 ? v.replace(' ', 'T') + 'Z' : v);
+        return isNaN(d.getTime()) ? v : d.toLocaleString();
       }
 
       var palette = ['#e74c3c','#e67e22','#f1c40f','#2ecc71','#1abc9c','#3498db','#9b59b6','#e91e63','#00bcd4','#ff5722','#607d8b','#795548','#8bc34a','#673ab7'];
@@ -147,7 +203,29 @@
         el.style.fontSize='32px';
       })();
 
-      // Live data
+      // ── Sidebar navigation ──
+      (function(){
+        var items = document.querySelectorAll('.admin-nav-item');
+        var sections = document.querySelectorAll('.admin-section');
+        var loaded = {};
+
+        items.forEach(function(item){
+          item.addEventListener('click', function(){
+            var target = item.getAttribute('data-section');
+            items.forEach(function(n){ n.classList.remove('active'); });
+            item.classList.add('active');
+            sections.forEach(function(s){
+              s.classList.toggle('active', s.getAttribute('data-section') === target);
+            });
+            // Lazy-load data sections on first visit
+            if (target === 'registrations' && !loaded.reg) { loaded.reg = true; loadRegistrations(); }
+            if (target === 'accounts' && !loaded.acc)       { loaded.acc = true; loadAccounts(); }
+            if (target === 'logs' && !loaded.logs)          { loaded.logs = true; updateLogs(); }
+          });
+        });
+      })();
+
+      // ── Live data ──
       (function(){
         var R=2000;
 
@@ -157,6 +235,7 @@
           try{
             var r=await fetch('/peers.json'),d=await r.json();
             document.getElementById('count').textContent=d.length;
+            var nc=document.getElementById('nav-peer-count');if(nc)nc.textContent='('+d.length+')';
             var c=document.getElementById('peers-container');if(!c)return;
             if(!d.length){c.innerHTML='<div class="empty-state"><div class="empty-icon">📭</div><p>No peers connected yet</p><p class="empty-hint">Peers will appear here once they connect</p></div>';return;}
             c.innerHTML='<div class="peer-grid" id="peer-grid">'+d.map(function(p){
@@ -177,24 +256,25 @@
         }
         setInterval(updatePeers,R);
 
-        async function updateLogs(){
+        window.updateLogs = async function updateLogs(){
           try{
             var r=await fetch('/logs.json'),l=await r.json(),c=document.getElementById('logs-container');if(!c)return;
             if(!l.length){c.innerHTML='<div class="log-entry empty">No logs yet</div>';return;}
             c.innerHTML=l.reverse().map(function(x){return '<div class="log-entry">'+x+'</div>';}).join('');
           }catch(e){console.error(e);}
-        }
-        setInterval(updateLogs,R);updateLogs();
+        };
+        setInterval(updateLogs,R);
 
         var q=document.getElementById('q');
         function applyFilter(){
+          if(!q)return;
           var v=(q.value||'').toLowerCase().trim(),c=document.getElementById('peers-container');if(!c)return;
           var rows=c.querySelectorAll('.peer-row'),n=0;
           rows.forEach(function(r){var ok=!v||r.textContent.toLowerCase().indexOf(v)!==-1;r.style.display=ok?'':'none';if(ok)n++;});
           document.getElementById('count').textContent=n;
         }
         window.applyFilter=applyFilter;
-        q.addEventListener('input',applyFilter);
+        if(q) q.addEventListener('input',applyFilter);
 
         // Inject avatars on initial server-rendered cards
         document.querySelectorAll('.peer-card[data-label]').forEach(function(card){
@@ -204,6 +284,45 @@
           h.insertBefore(img,h.firstChild);
         });
       })();
+
+      // ── Data loaders ──
+      function loadRegistrations() {
+        fetch('/registrations.json').then(function(r){ return r.json(); }).then(function(data){
+          var el = document.getElementById('reg-body');
+          var nc = document.getElementById('nav-reg-count');
+          if (nc) nc.textContent = '(' + data.length + ')';
+          if (!data.length) { el.innerHTML = '<div style="padding:12px;color:var(--text-muted)">No registrations yet</div>'; return; }
+          var html = '<table class="admin-table"><thead><tr><th>Email</th><th>Status</th><th>Registered</th><th>Verified</th></tr></thead><tbody>';
+          data.forEach(function(r){
+            var verified = r.verified_at && r.verified_at > 0;
+            var badge = verified ? '<span class="badge badge-verified">verified</span>' : '<span class="badge badge-pending">pending</span>';
+            html += '<tr><td>' + (r.email||'') + '</td><td>' + badge + '</td><td>' + fmtDate(r.created_at) + '</td><td>' + (verified ? fmtDate(r.verified_at) : '\u2014') + '</td></tr>';
+          });
+          html += '</tbody></table>';
+          el.innerHTML = html;
+        }).catch(function(){
+          var el = document.getElementById('reg-body');
+          if (el) el.innerHTML = '<div style="padding:12px;color:var(--red)">Failed to load registrations</div>';
+        });
+      }
+
+      function loadAccounts() {
+        fetch('/accounts.json').then(function(r){ return r.json(); }).then(function(data){
+          var el = document.getElementById('acc-body');
+          var nc = document.getElementById('nav-acc-count');
+          if (nc) nc.textContent = '(' + data.length + ')';
+          if (!data.length) { el.innerHTML = '<div style="padding:12px;color:var(--text-muted)">No credit accounts yet</div>'; return; }
+          var html = '<table class="admin-table"><thead><tr><th>Email</th><th>Balance</th><th>Last Activity</th></tr></thead><tbody>';
+          data.forEach(function(a){
+            html += '<tr><td>' + (a.email||'') + '</td><td>' + a.balance + '</td><td>' + fmtDate(a.updated_at) + '</td></tr>';
+          });
+          html += '</tbody></table>';
+          el.innerHTML = html;
+        }).catch(function(){
+          var el = document.getElementById('acc-body');
+          if (el) el.innerHTML = '<div style="padding:12px;color:var(--red)">Failed to load accounts</div>';
+        });
+      }
 
       // SPA navigation: fetch public pages without credentials so the
       // browser never re-sends cached Basic-Auth headers (avoids

@@ -322,41 +322,83 @@
         <div class="settings-section rv-server-section" data-section="services" style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">
           <h3 class="settings-section-title">External Services</h3>
           <p class="muted small" style="margin-bottom:14px">
-            Connect to standalone microservices for credits and registration.
-            Leave empty to use built-in defaults (all templates free, no email verification).
+            Connect to standalone microservices. Leave empty to use built-in defaults.
           </p>
 
-          <div class="field">
-            <label>Registration Service URL <span id="svc-reg-status" class="svc-status"></span></label>
-            <input id="svc-reg-url" name="presence_registration_url"
-                   value="{{.Cfg.Presence.RegistrationURL}}"
-                   placeholder="http://localhost:8801">
-            <div class="hint">
-              Handles email verification and peer registration.
-              The registration service controls whether email verification is required
-              (<code>registration_required</code> in its config.json).
+          <div class="svc-tabs">
+            <div class="svc-tab active" data-svc="registration">Registration</div>
+            <div class="svc-tab" data-svc="credits">Credits</div>
+            <div class="svc-tab" data-svc="email">Email</div>
+          </div>
+
+          <!-- Registration tab -->
+          <div class="svc-tab-panel active" data-svc="registration">
+            <div class="field">
+              <label>Service URL <span id="svc-reg-status" class="svc-status"></span></label>
+              <input id="svc-reg-url" name="presence_registration_url"
+                     value="{{.Cfg.Presence.RegistrationURL}}"
+                     placeholder="http://localhost:8801">
+              <div class="hint">
+                Handles email verification and peer registration.
+                The registration service controls whether email verification is required
+                (<code>registration_required</code> in its config.json).
+              </div>
+            </div>
+            <div class="field" style="margin-top:10px">
+              <label>Admin Token</label>
+              <div class="token-field">
+                <input id="svc-reg-token" name="presence_registration_admin_token"
+                       value="{{.Cfg.Presence.RegistrationAdminToken}}"
+                       placeholder="Bearer token for admin endpoints">
+                <button type="button" class="btn token-btn" onclick="generateToken('svc-reg-token')" title="Generate random token">Generate</button>
+                <button type="button" class="btn token-btn" onclick="copyToken('svc-reg-token')" title="Copy token to clipboard">Copy</button>
+              </div>
+              <div class="hint">
+                Set the same token as <code>admin_token</code> in the registration service's config.json.
+                Required for the admin dashboard to read registration data.
+              </div>
             </div>
           </div>
 
-          <div class="field" style="margin-top:10px">
-            <label>Credits Service URL <span id="svc-credits-status" class="svc-status"></span></label>
-            <input id="svc-credits-url" name="presence_credits_url"
-                   value="{{.Cfg.Presence.CreditsURL}}"
-                   placeholder="http://localhost:8800">
-            <div class="hint">
-              Enables template pricing and credit purchases.
-              Set <code>dummy_mode</code> in the credits service config.json for safe testing.
+          <!-- Credits tab -->
+          <div class="svc-tab-panel" data-svc="credits">
+            <div class="field">
+              <label>Service URL <span id="svc-credits-status" class="svc-status"></span></label>
+              <input id="svc-credits-url" name="presence_credits_url"
+                     value="{{.Cfg.Presence.CreditsURL}}"
+                     placeholder="http://localhost:8800">
+              <div class="hint">
+                Enables template pricing and credit purchases.
+                Set <code>dummy_mode</code> in the credits service config.json for safe testing.
+              </div>
+            </div>
+            <div class="field" style="margin-top:10px">
+              <label>Admin Token</label>
+              <div class="token-field">
+                <input id="svc-credits-token" name="presence_credits_admin_token"
+                       value="{{.Cfg.Presence.CreditsAdminToken}}"
+                       placeholder="Bearer token for admin endpoints">
+                <button type="button" class="btn token-btn" onclick="generateToken('svc-credits-token')" title="Generate random token">Generate</button>
+                <button type="button" class="btn token-btn" onclick="copyToken('svc-credits-token')" title="Copy token to clipboard">Copy</button>
+              </div>
+              <div class="hint">
+                Set the same token as <code>admin_token</code> in the credits service's config.json.
+                Required for the admin dashboard to read account data.
+              </div>
             </div>
           </div>
 
-          <div class="field" style="margin-top:10px">
-            <label>Email Service URL <span id="svc-email-status" class="svc-status"></span></label>
-            <input id="svc-email-url" name="presence_email_url"
-                   value="{{.Cfg.Presence.EmailURL}}"
-                   placeholder="http://localhost:8802">
-            <div class="hint">
-              Centralizes SMTP sending and HTML email templates.
-              Point the registration service's <code>email_url</code> to this service for verification emails.
+          <!-- Email tab -->
+          <div class="svc-tab-panel" data-svc="email">
+            <div class="field">
+              <label>Service URL <span id="svc-email-status" class="svc-status"></span></label>
+              <input id="svc-email-url" name="presence_email_url"
+                     value="{{.Cfg.Presence.EmailURL}}"
+                     placeholder="http://localhost:8802">
+              <div class="hint">
+                Centralizes SMTP sending and HTML email templates.
+                Point the registration service's <code>email_url</code> to this service for verification emails.
+              </div>
             </div>
           </div>
 
@@ -410,6 +452,15 @@
 
 <script>
 (function() {
+  // ── Service sub-tabs ──
+  document.querySelectorAll('.svc-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      var target = tab.getAttribute('data-svc');
+      document.querySelectorAll('.svc-tab').forEach(function(t) { t.classList.toggle('active', t.getAttribute('data-svc') === target); });
+      document.querySelectorAll('.svc-tab-panel').forEach(function(p) { p.classList.toggle('active', p.getAttribute('data-svc') === target); });
+    });
+  });
+
   // ── Service health checks ──
   var checkBtn = document.getElementById('svc-check-btn');
   function checkServices() {

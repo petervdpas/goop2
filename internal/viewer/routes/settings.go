@@ -155,10 +155,12 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			cfg.Presence.RelayKeyFile = rkf
 		}
 
-		// Service URLs
+		// Service URLs + admin tokens
 		cfg.Presence.CreditsURL = getTrimmedPostFormValue(r.PostForm, "presence_credits_url")
 		cfg.Presence.RegistrationURL = getTrimmedPostFormValue(r.PostForm, "presence_registration_url")
 		cfg.Presence.EmailURL = getTrimmedPostFormValue(r.PostForm, "presence_email_url")
+		cfg.Presence.CreditsAdminToken = getTrimmedPostFormValue(r.PostForm, "presence_credits_admin_token")
+		cfg.Presence.RegistrationAdminToken = getTrimmedPostFormValue(r.PostForm, "presence_registration_admin_token")
 
 		cfg.Lua.Enabled = formBool(r.PostForm, "lua_enabled")
 

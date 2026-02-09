@@ -170,12 +170,14 @@ type serviceStatus struct {
 }
 
 type adminVM struct {
-	Title      string
-	PeerCount  int
-	Peers      []peerRow
-	Now        string
-	HasCredits bool
-	Services   []serviceStatus
+	Title            string
+	PeerCount        int
+	Peers            []peerRow
+	Now              string
+	HasCredits       bool
+	HasRegistrations bool
+	HasAccounts      bool
+	Services         []serviceStatus
 }
 
 type pricesVM struct {
@@ -436,6 +438,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/peers.json", s.handlePeersJSON)
 	mux.HandleFunc("/logs.json", s.handleLogsJSON)
 	mux.HandleFunc("/registrations.json", s.handleRegistrationsJSON)
+	mux.HandleFunc("/accounts.json", s.handleAccountsJSON)
 
 	// Registration endpoints
 	if s.registration != nil {
@@ -1293,14 +1296,23 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		services = append(services, ss)
 	}
 
+	// Only show data panels when the provider is configured AND has an admin token
+	hasRegistrations := s.registration != nil && s.registration.adminToken != ""
+	hasAccounts := false
+	if cp, ok := s.credits.(*RemoteCreditProvider); ok {
+		hasAccounts = cp.adminToken != ""
+	}
+
 	w.Header().Set("content-type", "text/html; charset=utf-8")
 	_ = s.adminTmpl.Execute(w, adminVM{
-		Title:      "Goop² Admin",
-		PeerCount:  len(peers),
-		Peers:      peers,
-		Now:        time.Now().Format("2006-01-02 15:04:05"),
-		HasCredits: hasCredits,
-		Services:   services,
+		Title:            "Goop² Admin",
+		PeerCount:        len(peers),
+		Peers:            peers,
+		Now:              time.Now().Format("2006-01-02 15:04:05"),
+		HasCredits:       hasCredits,
+		HasRegistrations: hasRegistrations,
+		HasAccounts:      hasAccounts,
+		Services:         services,
 	})
 }
 
@@ -1767,6 +1779,21 @@ func (s *Server) handleRegistrationsJSON(w http.ResponseWriter, r *http.Request)
 	if !s.requireAdmin(w, r) {
 		return
 	}
+
+	// Delegate to remote registration service when configured
+	if s.registration != nil {
+		data, err := s.registration.FetchRegistrations()
+		if err != nil {
+			log.Printf("admin: fetch registrations: %v", err)
+			http.Error(w, "service error", http.StatusBadGateway)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_, _ = w.Write(data)
+		return
+	}
+
+	// Fallback to local peerDB
 	if s.peerDB == nil {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte("[]"))
@@ -1781,6 +1808,32 @@ func (s *Server) handleRegistrationsJSON(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(regs)
+}
+
+func (s *Server) handleAccountsJSON(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.requireAdmin(w, r) {
+		return
+	}
+
+	cp, ok := s.credits.(*RemoteCreditProvider)
+	if !ok {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("[]"))
+		return
+	}
+
+	data, err := cp.FetchAccounts()
+	if err != nil {
+		log.Printf("admin: fetch accounts: %v", err)
+		http.Error(w, "service error", http.StatusBadGateway)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_, _ = w.Write(data)
 }
 
 // generateToken creates a random URL-safe token.

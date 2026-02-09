@@ -97,8 +97,8 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		rv = rendezvous.New(addr, templatesDirs, peerDBPath, cfg.Presence.AdminPassword, cfg.Presence.ExternalURL, cfg.Presence.RelayPort, relayKeyFile)
 
 		// Wire external services (credits + registration + email)
-		setupCredits(rv, cfg.Presence.CreditsURL)
-		setupRegistration(rv, cfg.Presence.RegistrationURL)
+		setupCredits(rv, cfg.Presence.CreditsURL, cfg.Presence.CreditsAdminToken)
+		setupRegistration(rv, cfg.Presence.RegistrationURL, cfg.Presence.RegistrationAdminToken)
 		setupEmail(rv, cfg.Presence.EmailURL)
 
 		if err := rv.Start(ctx); err != nil {

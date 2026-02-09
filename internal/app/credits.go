@@ -8,10 +8,10 @@ import (
 
 // setupCredits configures the credit provider. When creditsURL is set,
 // a remote credit service is used; otherwise credits are disabled (all free).
-func setupCredits(rv *rendezvous.Server, creditsURL string) {
+func setupCredits(rv *rendezvous.Server, creditsURL, adminToken string) {
 	if creditsURL == "" {
 		return
 	}
 	log.Printf("Credits service: %s", creditsURL)
-	rv.SetCreditProvider(rendezvous.NewRemoteCreditProvider(creditsURL, rv.GetEmailForPeer))
+	rv.SetCreditProvider(rendezvous.NewRemoteCreditProvider(creditsURL, rv.GetEmailForPeer, adminToken))
 }

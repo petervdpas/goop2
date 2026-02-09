@@ -16,15 +16,17 @@ import (
 // to a standalone credits service, translating peer_id → email.
 type RemoteCreditProvider struct {
 	baseURL       string
+	adminToken    string
 	client        *http.Client
 	emailResolver func(string) string // peer_id → email
 }
 
 // NewRemoteCreditProvider creates a provider that talks to the credits service.
 // The emailResolver translates a peer ID into an email address.
-func NewRemoteCreditProvider(baseURL string, emailResolver func(string) string) *RemoteCreditProvider {
+func NewRemoteCreditProvider(baseURL string, emailResolver func(string) string, adminToken string) *RemoteCreditProvider {
 	return &RemoteCreditProvider{
 		baseURL:       strings.TrimRight(baseURL, "/"),
+		adminToken:    adminToken,
 		client:        &http.Client{Timeout: 5 * time.Second},
 		emailResolver: emailResolver,
 	}
@@ -349,6 +351,30 @@ func (p *RemoteCreditProvider) TemplateStoreInfo(r *http.Request, tpl StoreMeta)
 	default:
 		return TemplateStoreInfo{PriceLabel: `<span class="tpl-price-free">Free</span>`}
 	}
+}
+
+// FetchAccounts fetches all credit accounts from the credits service.
+func (p *RemoteCreditProvider) FetchAccounts() (json.RawMessage, error) {
+	req, err := http.NewRequest("GET", p.baseURL+"/api/credits/accounts", nil)
+	if err != nil {
+		return nil, err
+	}
+	if p.adminToken != "" {
+		req.Header.Set("Authorization", "Bearer "+p.adminToken)
+	}
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("credits service: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("credits service returned %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(body), nil
 }
 
 // forwardResponse copies the status code, content-type, and body from the

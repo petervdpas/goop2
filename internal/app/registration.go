@@ -9,10 +9,10 @@ import (
 // setupRegistration configures the registration provider. When registrationURL
 // is set, a remote registration service is used. Otherwise the built-in
 // registration handlers are used.
-func setupRegistration(rv *rendezvous.Server, registrationURL string) {
+func setupRegistration(rv *rendezvous.Server, registrationURL, adminToken string) {
 	if registrationURL == "" {
 		return
 	}
 	log.Printf("Registration service: %s", registrationURL)
-	rv.SetRegistrationProvider(rendezvous.NewRemoteRegistrationProvider(registrationURL))
+	rv.SetRegistrationProvider(rendezvous.NewRemoteRegistrationProvider(registrationURL, adminToken))
 }

@@ -99,6 +99,11 @@ type Presence struct {
 	RegistrationURL string `json:"registration_url"` // e.g., "http://localhost:8801"
 	EmailURL        string `json:"email_url"`        // e.g., "http://localhost:8802"
 
+	// Admin tokens for accessing admin-only endpoints on external services.
+	// Used when fetching data panels in the admin dashboard.
+	CreditsAdminToken      string `json:"credits_admin_token"`
+	RegistrationAdminToken string `json:"registration_admin_token"`
+
 }
 
 type Profile struct {

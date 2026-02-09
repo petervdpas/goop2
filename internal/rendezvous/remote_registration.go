@@ -16,8 +16,9 @@ import (
 // RemoteRegistrationProvider proxies registration endpoints to a standalone
 // registration service and provides email verification checks.
 type RemoteRegistrationProvider struct {
-	baseURL string
-	client  *http.Client
+	baseURL    string
+	adminToken string
+	client     *http.Client
 
 	// cached status from /api/reg/status
 	regRequired   bool
@@ -29,10 +30,11 @@ type RemoteRegistrationProvider struct {
 }
 
 // NewRemoteRegistrationProvider creates a provider that talks to the registration service.
-func NewRemoteRegistrationProvider(baseURL string) *RemoteRegistrationProvider {
+func NewRemoteRegistrationProvider(baseURL, adminToken string) *RemoteRegistrationProvider {
 	return &RemoteRegistrationProvider{
-		baseURL: strings.TrimRight(baseURL, "/"),
-		client:  &http.Client{Timeout: 5 * time.Second},
+		baseURL:    strings.TrimRight(baseURL, "/"),
+		adminToken: adminToken,
+		client:     &http.Client{Timeout: 5 * time.Second},
 	}
 }
 
@@ -177,5 +179,29 @@ func (p *RemoteRegistrationProvider) GrantAmount() int {
 	p.regCacheMu.RLock()
 	defer p.regCacheMu.RUnlock()
 	return p.regGrantAmount
+}
+
+// FetchRegistrations fetches all registrations from the registration service.
+func (p *RemoteRegistrationProvider) FetchRegistrations() (json.RawMessage, error) {
+	req, err := http.NewRequest("GET", p.baseURL+"/api/reg/registrations", nil)
+	if err != nil {
+		return nil, err
+	}
+	if p.adminToken != "" {
+		req.Header.Set("Authorization", "Bearer "+p.adminToken)
+	}
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("registration service: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("registration service returned %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(body), nil
 }
 
