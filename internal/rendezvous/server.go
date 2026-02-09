@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -1543,13 +1544,20 @@ func (s *Server) handleRegisterRemote(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Call registration service POST /api/reg/register
-	body := fmt.Sprintf(`{"email":%q}`, email)
+	// Send as form-encoded data (matching the original reverse-proxy behaviour).
+	regURL := s.registration.baseURL + "/api/reg/register"
+	form := url.Values{}
+	form.Set("email", email)
+	if s.externalURL != "" {
+		form.Set("verify_base_url", s.externalURL)
+	}
 	resp, err := http.Post(
-		s.registration.baseURL+"/api/reg/register",
-		"application/json",
-		strings.NewReader(body),
+		regURL,
+		"application/x-www-form-urlencoded",
+		strings.NewReader(form.Encode()),
 	)
 	if err != nil {
+		log.Printf("registration: POST %s failed: %v", regURL, err)
 		vm.Error = "Registration service unavailable"
 		vm.Email = email
 		s.renderRegister(w, vm)
@@ -1557,12 +1565,27 @@ func (s *Server) handleRegisterRemote(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("registration: failed to read response body: %v", err)
+		vm.Error = "Registration failed"
+		vm.Email = email
+		s.renderRegister(w, vm)
+		return
+	}
+
 	var result struct {
 		OK      bool   `json:"ok"`
 		Message string `json:"message"`
 		Error   string `json:"error"`
 	}
-	json.NewDecoder(resp.Body).Decode(&result)
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		log.Printf("registration: POST %s returned %d, body not JSON: %s", regURL, resp.StatusCode, string(respBody))
+		vm.Error = "Registration failed"
+		vm.Email = email
+		s.renderRegister(w, vm)
+		return
+	}
 
 	if resp.StatusCode/100 != 2 || !result.OK {
 		errMsg := result.Error
@@ -1572,6 +1595,7 @@ func (s *Server) handleRegisterRemote(w http.ResponseWriter, r *http.Request) {
 		if errMsg == "" {
 			errMsg = "Registration failed"
 		}
+		log.Printf("registration: POST %s returned %d: ok=%v error=%q message=%q", regURL, resp.StatusCode, result.OK, result.Error, result.Message)
 		vm.Error = errMsg
 		vm.Email = email
 		s.renderRegister(w, vm)
