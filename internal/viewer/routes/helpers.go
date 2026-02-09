@@ -219,6 +219,36 @@ func writeJSON(w http.ResponseWriter, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
+// decodeJSON decodes a JSON request body into v and sends a 400 on failure.
+// Returns nil on success; callers should return early on non-nil error.
+func decodeJSON(w http.ResponseWriter, r *http.Request, v any) error {
+	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
+		http.Error(w, "invalid json: "+err.Error(), http.StatusBadRequest)
+		return err
+	}
+	return nil
+}
+
+// requireMethod checks the HTTP method and sends 405 if it doesn't match.
+// Returns true if the method is correct.
+func requireMethod(w http.ResponseWriter, r *http.Request, method string) bool {
+	if r.Method != method {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return false
+	}
+	return true
+}
+
+// requireLocal checks that the request originates from localhost and sends
+// 403 if it doesn't. Returns true if the request is local.
+func requireLocal(w http.ResponseWriter, r *http.Request) bool {
+	if !isLocalRequest(r) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return false
+	}
+	return true
+}
+
 func sseHeaders(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")

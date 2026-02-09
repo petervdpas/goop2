@@ -13,12 +13,10 @@ import (
 func registerAvatarRoutes(mux *http.ServeMux, d Deps) {
 	// POST /api/avatar/upload — upload own avatar (multipart, max 256KB)
 	mux.HandleFunc("/api/avatar/upload", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
-		if !isLocalRequest(r) {
-			http.Error(w, "forbidden", http.StatusForbidden)
+		if !requireLocal(w, r) {
 			return
 		}
 		if d.AvatarStore == nil {
@@ -66,8 +64,7 @@ func registerAvatarRoutes(mux *http.ServeMux, d Deps) {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		if !isLocalRequest(r) {
-			http.Error(w, "forbidden", http.StatusForbidden)
+		if !requireLocal(w, r) {
 			return
 		}
 		if d.AvatarStore == nil {
@@ -85,8 +82,7 @@ func registerAvatarRoutes(mux *http.ServeMux, d Deps) {
 
 	// GET /api/avatar — serve own avatar (or initials SVG fallback)
 	mux.HandleFunc("/api/avatar", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 
@@ -116,8 +112,7 @@ func registerAvatarRoutes(mux *http.ServeMux, d Deps) {
 
 	// GET /api/avatar/{peerID} — serve a remote peer's avatar
 	mux.HandleFunc("/api/avatar/peer/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 		peerID := strings.TrimPrefix(r.URL.Path, "/api/avatar/peer/")

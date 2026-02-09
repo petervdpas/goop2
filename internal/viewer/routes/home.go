@@ -41,8 +41,7 @@ func registerHomeRoutes(mux *http.ServeMux, d Deps) {
 
 	// SSE endpoint for live peer updates
 	mux.HandleFunc("/api/peers/events", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 
@@ -91,8 +90,7 @@ func registerHomeRoutes(mux *http.ServeMux, d Deps) {
 
 	// JSON endpoint for peers list
 	mux.HandleFunc("/api/peers", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 		writeJSON(w, viewmodels.BuildPeerRows(d.Peers.Snapshot()))
@@ -100,8 +98,7 @@ func registerHomeRoutes(mux *http.ServeMux, d Deps) {
 
 	// JSON endpoint for self identity
 	mux.HandleFunc("/api/self", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 		avatarHash := ""

@@ -20,12 +20,10 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	// Quick settings API — partial update, only non-nil fields are written.
 	// Used by settings popup (all fields), theme toggle (theme only), etc.
 	mux.HandleFunc("/api/settings/quick", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
-		if !isLocalRequest(r) {
-			http.Error(w, "forbidden", http.StatusForbidden)
+		if !requireLocal(w, r) {
 			return
 		}
 
@@ -38,8 +36,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			VideoDisabled  *bool   `json:"video_disabled"`
 			HideUnverified *bool   `json:"hide_unverified"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid json", http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 
@@ -81,8 +78,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 	// GET quick settings (used by settings popup + call JS to read device prefs)
 	mux.HandleFunc("/api/settings/quick/get", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 		cfg, err := config.Load(d.CfgPath)
@@ -183,8 +179,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 	// Health check endpoint for external services
 	mux.HandleFunc("/api/services/health", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 

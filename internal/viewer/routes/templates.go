@@ -25,8 +25,7 @@ import (
 func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	// GET /templates — show template gallery
 	mux.HandleFunc("/templates", func(w http.ResponseWriter, r *http.Request) {
-		if !isLocalRequest(r) {
-			http.Error(w, "forbidden", http.StatusForbidden)
+		if !requireLocal(w, r) {
 			return
 		}
 
@@ -100,12 +99,10 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 	// POST /api/templates/apply — apply a built-in template (resets site + db)
 	mux.HandleFunc("/api/templates/apply", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
-		if !isLocalRequest(r) {
-			http.Error(w, "forbidden", http.StatusForbidden)
+		if !requireLocal(w, r) {
 			return
 		}
 
@@ -113,8 +110,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			Template string `json:"template"`
 			CSRF     string `json:"csrf"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid json", http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 		if req.CSRF != csrf {
@@ -151,8 +147,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		writeJSON(w, map[string]string{
 			"status":   "applied",
 			"template": req.Template,
 		})
@@ -160,12 +155,10 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 	// POST /api/templates/apply-store — apply a store template (resets site + db)
 	mux.HandleFunc("/api/templates/apply-store", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
-		if !isLocalRequest(r) {
-			http.Error(w, "forbidden", http.StatusForbidden)
+		if !requireLocal(w, r) {
 			return
 		}
 
@@ -173,8 +166,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			Template string `json:"template"`
 			CSRF     string `json:"csrf"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid json", http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 		if req.CSRF != csrf {
@@ -242,8 +234,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		writeJSON(w, map[string]string{
 			"status":   "applied",
 			"template": req.Template,
 		})

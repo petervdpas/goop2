@@ -30,36 +30,45 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
-// FetchRelayInfo fetches relay info from the rendezvous server.
-// Returns (nil, nil) if the server has no relay enabled (404).
-func (c *Client) FetchRelayInfo(ctx context.Context) (*RelayInfo, error) {
-	if c.BaseURL == "" {
-		return nil, nil
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/relay", nil)
+// getJSON performs a GET request, drains the response body, and decodes JSON
+// into v. Returns (true, nil) on 2xx. Returns (false, nil) if the server
+// returns 404 or 502 (endpoint not available). Returns (false, err) on other
+// non-2xx status or transport/decode errors.
+func (c *Client) getJSON(ctx context.Context, url string, v any) (bool, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
-
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 	defer func() {
 		io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
 	}()
 
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, nil
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusBadGateway {
+		return false, nil
 	}
 	if resp.StatusCode/100 != 2 {
-		return nil, fmt.Errorf("fetch relay info: status %s", resp.Status)
+		return false, fmt.Errorf("GET %s: status %s", url, resp.Status)
 	}
+	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
+		return false, err
+	}
+	return true, nil
+}
 
+// FetchRelayInfo fetches relay info from the rendezvous server.
+// Returns (nil, nil) if the server has no relay enabled.
+func (c *Client) FetchRelayInfo(ctx context.Context) (*RelayInfo, error) {
+	if c.BaseURL == "" {
+		return nil, nil
+	}
 	var info RelayInfo
-	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+	found, err := c.getJSON(ctx, c.BaseURL+"/relay", &info)
+	if !found || err != nil {
 		return nil, err
 	}
 	return &info, nil
@@ -95,35 +104,14 @@ func (c *Client) Publish(ctx context.Context, pm proto.PresenceMsg) error {
 }
 
 // ListTemplates fetches the template store listing from the rendezvous server.
-// Returns nil (not an error) if the server has no template store (404).
+// Returns nil (not an error) if the server has no template store.
 func (c *Client) ListTemplates(ctx context.Context) ([]StoreMeta, error) {
 	if c.BaseURL == "" {
 		return nil, nil
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/api/templates", nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := c.HTTP.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-	}()
-
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, nil
-	}
-	if resp.StatusCode/100 != 2 {
-		return nil, fmt.Errorf("list templates: status %s", resp.Status)
-	}
-
 	var out []StoreMeta
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	found, err := c.getJSON(ctx, c.BaseURL+"/api/templates", &out)
+	if !found || err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -142,38 +130,16 @@ func (c *Client) FetchBalance(ctx context.Context, peerID string) (BalanceResult
 	if c.BaseURL == "" {
 		return BalanceResult{}, nil
 	}
-
 	reqURL := c.BaseURL + "/api/credits/store-data"
 	if peerID != "" {
 		reqURL += "?peer_id=" + peerID
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
-	if err != nil {
-		return BalanceResult{}, err
-	}
-
-	resp, err := c.HTTP.Do(req)
-	if err != nil {
-		return BalanceResult{}, err
-	}
-	defer func() {
-		io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-	}()
-
-	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusBadGateway {
-		return BalanceResult{}, nil
-	}
-	if resp.StatusCode/100 != 2 {
-		return BalanceResult{}, fmt.Errorf("fetch balance: status %s", resp.Status)
-	}
-
 	var data struct {
 		CreditsActive bool `json:"credits_active"`
 		Balance       int  `json:"balance"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+	found, err := c.getJSON(ctx, reqURL, &data)
+	if !found || err != nil {
 		return BalanceResult{}, err
 	}
 	return BalanceResult{Active: data.CreditsActive, Balance: data.Balance}, nil
@@ -181,35 +147,14 @@ func (c *Client) FetchBalance(ctx context.Context, peerID string) (BalanceResult
 
 // FetchPrices fetches template prices from the credits service via the
 // rendezvous server's /api/credits/prices proxy.
-// Returns nil (not an error) if the endpoint is unavailable (404/502).
+// Returns nil (not an error) if the endpoint is unavailable.
 func (c *Client) FetchPrices(ctx context.Context) (map[string]int, error) {
 	if c.BaseURL == "" {
 		return nil, nil
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/api/credits/prices", nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := c.HTTP.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-	}()
-
-	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusBadGateway {
-		return nil, nil
-	}
-	if resp.StatusCode/100 != 2 {
-		return nil, fmt.Errorf("fetch prices: status %s", resp.Status)
-	}
-
 	var out map[string]int
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	found, err := c.getJSON(ctx, c.BaseURL+"/api/credits/prices", &out)
+	if !found || err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -222,32 +167,11 @@ func (c *Client) FetchRegistrationRequired(ctx context.Context) (bool, error) {
 	if c.BaseURL == "" {
 		return false, nil
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/api/reg/status", nil)
-	if err != nil {
-		return false, err
-	}
-
-	resp, err := c.HTTP.Do(req)
-	if err != nil {
-		return false, err
-	}
-	defer func() {
-		io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-	}()
-
-	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusBadGateway {
-		return false, nil
-	}
-	if resp.StatusCode/100 != 2 {
-		return false, fmt.Errorf("fetch reg status: status %s", resp.Status)
-	}
-
 	var data struct {
 		RegistrationRequired bool `json:"registration_required"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+	found, err := c.getJSON(ctx, c.BaseURL+"/api/reg/status", &data)
+	if !found || err != nil {
 		return false, err
 	}
 	return data.RegistrationRequired, nil

@@ -2,7 +2,6 @@
 package routes
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,8 +21,7 @@ func registerAPILogRoutes(mux *http.ServeMux, d Deps) {
 
 	// Client-side logging endpoint - allows frontend JS to write to the logs page
 	mux.HandleFunc("/api/logs/client", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 
@@ -33,8 +31,7 @@ func registerAPILogRoutes(mux *http.ServeMux, d Deps) {
 			Message string `json:"message"` // the log message
 		}
 
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid json", http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 

@@ -2,7 +2,6 @@
 package routes
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -11,8 +10,7 @@ import (
 func registerSiteAPIRoutes(mux *http.ServeMux, d Deps) {
 	// List site files as a flat tree
 	mux.HandleFunc("/api/site/files", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 		if d.Content == nil {
@@ -26,14 +24,12 @@ func registerSiteAPIRoutes(mux *http.ServeMux, d Deps) {
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(tree)
+		writeJSON(w, tree)
 	})
 
 	// Upload a file to the site content store (multipart)
 	mux.HandleFunc("/api/site/upload", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		if d.Content == nil {
@@ -71,8 +67,7 @@ func registerSiteAPIRoutes(mux *http.ServeMux, d Deps) {
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		writeJSON(w, map[string]string{
 			"status": "uploaded",
 			"path":   destPath,
 			"etag":   etag,
@@ -81,8 +76,7 @@ func registerSiteAPIRoutes(mux *http.ServeMux, d Deps) {
 
 	// Delete a file from the site content store
 	mux.HandleFunc("/api/site/delete", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		if d.Content == nil {
@@ -93,8 +87,7 @@ func registerSiteAPIRoutes(mux *http.ServeMux, d Deps) {
 		var req struct {
 			Path string `json:"path"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid json: "+err.Error(), http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 		if req.Path == "" {
@@ -107,8 +100,7 @@ func registerSiteAPIRoutes(mux *http.ServeMux, d Deps) {
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		writeJSON(w, map[string]string{
 			"status": "deleted",
 		})
 	})

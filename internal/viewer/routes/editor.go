@@ -22,8 +22,7 @@ func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		if !requireContentStore(w, d.Content) {
 			return
 		}
-		if !isLocalRequest(r) {
-			http.Error(w, "forbidden", http.StatusForbidden)
+		if !requireLocal(w, r) {
 			return
 		}
 

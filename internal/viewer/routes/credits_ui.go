@@ -11,12 +11,10 @@ func registerCreditsUIRoutes(mux *http.ServeMux, d Deps) {
 	// GET /api/my-balance — returns this peer's credit balance from the
 	// credits service (proxied via the rendezvous server).
 	mux.HandleFunc("/api/my-balance", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
-		if !isLocalRequest(r) {
-			http.Error(w, "forbidden", http.StatusForbidden)
+		if !requireLocal(w, r) {
 			return
 		}
 

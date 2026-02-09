@@ -15,8 +15,7 @@ import (
 func RegisterChat(mux *http.ServeMux, chatMgr *chat.Manager) {
 	// Send a direct message
 	mux.HandleFunc("/api/chat/send", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 
@@ -25,8 +24,7 @@ func RegisterChat(mux *http.ServeMux, chatMgr *chat.Manager) {
 			Content string `json:"content"`
 		}
 
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request", http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 
@@ -52,8 +50,7 @@ func RegisterChat(mux *http.ServeMux, chatMgr *chat.Manager) {
 
 	// Send a broadcast message
 	mux.HandleFunc("/api/chat/broadcast", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 
@@ -61,8 +58,7 @@ func RegisterChat(mux *http.ServeMux, chatMgr *chat.Manager) {
 			Content string `json:"content"`
 		}
 
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request", http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 
@@ -88,8 +84,7 @@ func RegisterChat(mux *http.ServeMux, chatMgr *chat.Manager) {
 
 	// Get broadcast messages
 	mux.HandleFunc("/api/chat/broadcasts", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 
@@ -99,8 +94,7 @@ func RegisterChat(mux *http.ServeMux, chatMgr *chat.Manager) {
 
 	// Get all messages
 	mux.HandleFunc("/api/chat/messages", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 
@@ -121,8 +115,7 @@ func RegisterChat(mux *http.ServeMux, chatMgr *chat.Manager) {
 	// SSE endpoint for live chat updates
 	mux.HandleFunc("/api/chat/events", func(w http.ResponseWriter, r *http.Request) {
 		// Only allow GET
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 

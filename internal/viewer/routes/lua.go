@@ -2,7 +2,6 @@
 package routes
 
 import (
-	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -35,8 +34,7 @@ func registerLuaRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 	// GET /lua — show script list + prefab gallery + editor
 	mux.HandleFunc("/lua", func(w http.ResponseWriter, r *http.Request) {
-		if !isLocalRequest(r) {
-			http.Error(w, "forbidden", http.StatusForbidden)
+		if !requireLocal(w, r) {
 			return
 		}
 
@@ -233,12 +231,10 @@ func registerLuaRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 	// POST /api/lua/prefabs/apply — install prefab scripts
 	mux.HandleFunc("/api/lua/prefabs/apply", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
-		if !isLocalRequest(r) {
-			http.Error(w, "forbidden", http.StatusForbidden)
+		if !requireLocal(w, r) {
 			return
 		}
 
@@ -247,8 +243,7 @@ func registerLuaRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			Script string `json:"script"` // optional: install single script (name without .lua)
 			CSRF   string `json:"csrf"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid json", http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 		if req.CSRF != csrf {
@@ -297,8 +292,7 @@ func registerLuaRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		writeJSON(w, map[string]string{
 			"status": "installed",
 			"prefab": req.Prefab,
 		})

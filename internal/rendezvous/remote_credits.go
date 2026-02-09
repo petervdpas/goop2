@@ -64,8 +64,32 @@ func (p *RemoteCreditProvider) proxyBalance(w http.ResponseWriter, r *http.Reque
 		json.NewEncoder(w).Encode(map[string]int{"balance": 0})
 		return
 	}
-	resp, err := p.client.Get(p.baseURL + "/api/credits/balance?email=" + url.QueryEscape(email))
+	p.proxyGet(w, "/api/credits/balance", url.Values{"email": {email}})
+}
+
+// proxyPostJSON is the shared handler for POST endpoints that need
+// peer_id→email translation. It decodes the request body into reqPtr,
+// calls addEmail to merge the resolved email into the outgoing payload,
+// then forwards the JSON POST to the credits service at path.
+func (p *RemoteCreditProvider) proxyPostJSON(w http.ResponseWriter, r *http.Request, path string, reqPtr any, addEmail func(email string) map[string]any) {
+	email := p.resolveEmail(r)
+	if err := json.NewDecoder(r.Body).Decode(reqPtr); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if email == "" {
+		http.Error(w, "email required — register an email to use credits", http.StatusBadRequest)
+		return
+	}
+
+	body, _ := json.Marshal(addEmail(email))
+	resp, err := p.client.Post(
+		p.baseURL+path,
+		"application/json",
+		strings.NewReader(string(body)),
+	)
 	if err != nil {
+		log.Printf("credits: POST %s failed: %v", path, err)
 		http.Error(w, "credits service error", http.StatusBadGateway)
 		return
 	}
@@ -75,84 +99,33 @@ func (p *RemoteCreditProvider) proxyBalance(w http.ResponseWriter, r *http.Reque
 
 // proxyPurchase translates peer_id→email for POST /api/credits/purchase
 func (p *RemoteCreditProvider) proxyPurchase(w http.ResponseWriter, r *http.Request) {
-	email := p.resolveEmail(r)
 	var req struct {
 		Amount int `json:"amount"`
 	}
-	json.NewDecoder(r.Body).Decode(&req)
-
-	if email == "" {
-		http.Error(w, "email required — register an email to use credits", http.StatusBadRequest)
-		return
-	}
-
-	body := fmt.Sprintf(`{"email":%q,"amount":%d}`, email, req.Amount)
-	resp, err := p.client.Post(
-		p.baseURL+"/api/credits/purchase",
-		"application/json",
-		strings.NewReader(body),
-	)
-	if err != nil {
-		http.Error(w, "credits service error", http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
-	forwardResponse(w, resp)
+	p.proxyPostJSON(w, r, "/api/credits/purchase", &req, func(email string) map[string]any {
+		return map[string]any{"email": email, "amount": req.Amount}
+	})
 }
 
 // proxyGrant translates peer_id→email for POST /api/credits/grant
 func (p *RemoteCreditProvider) proxyGrant(w http.ResponseWriter, r *http.Request) {
-	email := p.resolveEmail(r)
 	var req struct {
 		Amount int    `json:"amount"`
 		Reason string `json:"reason"`
 	}
-	json.NewDecoder(r.Body).Decode(&req)
-
-	if email == "" {
-		http.Error(w, "email required — register an email to use credits", http.StatusBadRequest)
-		return
-	}
-
-	body := fmt.Sprintf(`{"email":%q,"amount":%d,"reason":%q}`, email, req.Amount, req.Reason)
-	resp, err := p.client.Post(
-		p.baseURL+"/api/credits/grant",
-		"application/json",
-		strings.NewReader(body),
-	)
-	if err != nil {
-		http.Error(w, "credits service error", http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
-	forwardResponse(w, resp)
+	p.proxyPostJSON(w, r, "/api/credits/grant", &req, func(email string) map[string]any {
+		return map[string]any{"email": email, "amount": req.Amount, "reason": req.Reason}
+	})
 }
 
 // proxySpend translates peer_id→email for POST /api/credits/spend
 func (p *RemoteCreditProvider) proxySpend(w http.ResponseWriter, r *http.Request) {
-	email := p.resolveEmail(r)
 	var req struct {
 		Template string `json:"template"`
 	}
-	json.NewDecoder(r.Body).Decode(&req)
-
-	if email == "" {
-		http.Error(w, "email required — register an email to use credits", http.StatusBadRequest)
-		return
-	}
-
-	body := fmt.Sprintf(`{"email":%q,"template":%q}`, email, req.Template)
-	resp, err := p.client.Post(
-		p.baseURL+"/api/credits/spend",
-		"application/json",
-		strings.NewReader(body),
-	)
-	if err != nil {
-		http.Error(w, "credits service error", http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
-	forwardResponse(w, resp)
+	p.proxyPostJSON(w, r, "/api/credits/spend", &req, func(email string) map[string]any {
+		return map[string]any{"email": email, "template": req.Template}
+	})
 }
 
 // proxyPrices forwards GET/POST /api/credits/prices unchanged (no peer/email involved).
@@ -177,60 +150,48 @@ func (p *RemoteCreditProvider) proxyPrices(w http.ResponseWriter, r *http.Reques
 	forwardResponse(w, resp)
 }
 
-// proxyAccess translates peer_id→email for GET /api/credits/access
-func (p *RemoteCreditProvider) proxyAccess(w http.ResponseWriter, r *http.Request) {
-	email := p.resolveEmail(r)
-	templateDir := r.URL.Query().Get("template_dir")
-
-	reqURL := p.baseURL + "/api/credits/access?template_dir=" + url.QueryEscape(templateDir)
-	if email != "" {
-		reqURL += "&email=" + url.QueryEscape(email)
+// proxyGet forwards a GET request to the credits service with the given
+// path and query parameters, then copies the response back to the client.
+func (p *RemoteCreditProvider) proxyGet(w http.ResponseWriter, path string, params url.Values) {
+	reqURL := p.baseURL + path
+	if q := params.Encode(); q != "" {
+		reqURL += "?" + q
 	}
-
 	resp, err := p.client.Get(reqURL)
 	if err != nil {
+		log.Printf("credits: GET %s failed: %v", path, err)
 		http.Error(w, "credits service error", http.StatusBadGateway)
 		return
 	}
 	defer resp.Body.Close()
 	forwardResponse(w, resp)
+}
+
+// proxyAccess translates peer_id→email for GET /api/credits/access
+func (p *RemoteCreditProvider) proxyAccess(w http.ResponseWriter, r *http.Request) {
+	params := url.Values{"template_dir": {r.URL.Query().Get("template_dir")}}
+	if email := p.resolveEmail(r); email != "" {
+		params.Set("email", email)
+	}
+	p.proxyGet(w, "/api/credits/access", params)
 }
 
 // proxyStoreData translates peer_id→email for GET /api/credits/store-data
 func (p *RemoteCreditProvider) proxyStoreData(w http.ResponseWriter, r *http.Request) {
-	email := p.resolveEmail(r)
-
-	reqURL := p.baseURL + "/api/credits/store-data"
-	if email != "" {
-		reqURL += "?email=" + url.QueryEscape(email)
+	params := url.Values{}
+	if email := p.resolveEmail(r); email != "" {
+		params.Set("email", email)
 	}
-
-	resp, err := p.client.Get(reqURL)
-	if err != nil {
-		http.Error(w, "credits service error", http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
-	forwardResponse(w, resp)
+	p.proxyGet(w, "/api/credits/store-data", params)
 }
 
 // proxyTemplateInfo translates peer_id→email for GET /api/credits/template-info
 func (p *RemoteCreditProvider) proxyTemplateInfo(w http.ResponseWriter, r *http.Request) {
-	email := p.resolveEmail(r)
-	templateDir := r.URL.Query().Get("template_dir")
-
-	reqURL := p.baseURL + "/api/credits/template-info?template_dir=" + url.QueryEscape(templateDir)
-	if email != "" {
-		reqURL += "&email=" + url.QueryEscape(email)
+	params := url.Values{"template_dir": {r.URL.Query().Get("template_dir")}}
+	if email := p.resolveEmail(r); email != "" {
+		params.Set("email", email)
 	}
-
-	resp, err := p.client.Get(reqURL)
-	if err != nil {
-		http.Error(w, "credits service error", http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
-	forwardResponse(w, resp)
+	p.proxyGet(w, "/api/credits/template-info", params)
 }
 
 // creditsStatus holds the cached status fields from the credits service.

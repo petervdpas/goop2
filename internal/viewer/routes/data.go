@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/petervdpas/goop2/internal/storage"
@@ -11,8 +10,7 @@ import (
 func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail func() string) {
 	// List all tables
 	mux.HandleFunc("/api/data/tables", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 
@@ -27,8 +25,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 
 	// Create a new table
 	mux.HandleFunc("/api/data/tables/create", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 
@@ -37,8 +34,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			Columns []storage.ColumnDef `json:"columns"`
 		}
 
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid json: "+err.Error(), http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 
@@ -65,8 +61,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 
 	// Insert data into a table
 	mux.HandleFunc("/api/data/insert", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 
@@ -75,8 +70,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			Data  map[string]any `json:"data"`
 		}
 
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid json: "+err.Error(), http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 
@@ -103,8 +97,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 
 	// Query data from a table
 	mux.HandleFunc("/api/data/query", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 
@@ -117,8 +110,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			Offset  int           `json:"offset"`
 		}
 
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid json: "+err.Error(), http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 
@@ -145,8 +137,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 
 	// Describe table schema
 	mux.HandleFunc("/api/data/tables/describe", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 
@@ -154,8 +145,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			Table string `json:"table"`
 		}
 
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid json: "+err.Error(), http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 
@@ -175,8 +165,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 
 	// Delete a table
 	mux.HandleFunc("/api/data/tables/delete", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 
@@ -184,8 +173,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			Table string `json:"table"`
 		}
 
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid json: "+err.Error(), http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 
@@ -207,8 +195,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 
 	// Update a row
 	mux.HandleFunc("/api/data/update", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 
@@ -218,8 +205,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			Data  map[string]any `json:"data"`
 		}
 
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid json: "+err.Error(), http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 
@@ -245,8 +231,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 
 	// Delete a row
 	mux.HandleFunc("/api/data/delete", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 
@@ -255,8 +240,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			ID    int64  `json:"id"`
 		}
 
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid json: "+err.Error(), http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 
@@ -282,8 +266,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 
 	// Add a column to a table
 	mux.HandleFunc("/api/data/tables/add-column", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 
@@ -292,8 +275,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			Column storage.ColumnDef `json:"column"`
 		}
 
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid json: "+err.Error(), http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 
@@ -312,8 +294,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 
 	// Drop a column from a table
 	mux.HandleFunc("/api/data/tables/drop-column", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 
@@ -322,8 +303,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			Column string `json:"column"`
 		}
 
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid json: "+err.Error(), http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 
@@ -342,8 +322,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 
 	// Set insert policy for a table
 	mux.HandleFunc("/api/data/tables/set-policy", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 
@@ -352,8 +331,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			Policy string `json:"policy"`
 		}
 
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid json: "+err.Error(), http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 
@@ -383,8 +361,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 
 	// Rename a table
 	mux.HandleFunc("/api/data/tables/rename", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 
@@ -393,8 +370,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			NewName string `json:"new_name"`
 		}
 
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid json: "+err.Error(), http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 

@@ -83,15 +83,13 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 
 	// Host joins own group
 	mux.HandleFunc("/api/groups/join-own", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		var req struct {
 			GroupID string `json:"group_id"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request", http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 		if req.GroupID == "" {
@@ -107,15 +105,13 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 
 	// Host leaves own group
 	mux.HandleFunc("/api/groups/leave-own", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		var req struct {
 			GroupID string `json:"group_id"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request", http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 		if req.GroupID == "" {
@@ -131,15 +127,13 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 
 	// Close/delete a hosted group
 	mux.HandleFunc("/api/groups/close", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		var req struct {
 			GroupID string `json:"group_id"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request", http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 		if req.GroupID == "" {
@@ -155,8 +149,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 
 	// List subscriptions
 	mux.HandleFunc("/api/groups/subscriptions", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 		subs, err := grpMgr.ListSubscriptions()
@@ -181,16 +174,14 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 
 	// Join a remote group
 	mux.HandleFunc("/api/groups/join", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		var req struct {
 			HostPeerID string `json:"host_peer_id"`
 			GroupID    string `json:"group_id"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request", http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 		if req.HostPeerID == "" || req.GroupID == "" {
@@ -211,16 +202,14 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 
 	// Invite a peer to a hosted group
 	mux.HandleFunc("/api/groups/invite", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		var req struct {
 			GroupID string `json:"group_id"`
 			PeerID  string `json:"peer_id"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request", http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 		if req.GroupID == "" || req.PeerID == "" {
@@ -241,16 +230,14 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 
 	// Rejoin a subscription (reconnect to a previously joined group)
 	mux.HandleFunc("/api/groups/rejoin", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		var req struct {
 			HostPeerID string `json:"host_peer_id"`
 			GroupID    string `json:"group_id"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request", http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 		if req.HostPeerID == "" || req.GroupID == "" {
@@ -271,16 +258,14 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 
 	// Remove a stale subscription
 	mux.HandleFunc("/api/groups/subscriptions/remove", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		var req struct {
 			HostPeerID string `json:"host_peer_id"`
 			GroupID    string `json:"group_id"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request", http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 		if req.HostPeerID == "" || req.GroupID == "" {
@@ -298,8 +283,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 
 	// Leave current group
 	mux.HandleFunc("/api/groups/leave", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		if err := grpMgr.LeaveGroup(); err != nil {
@@ -311,16 +295,14 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 
 	// Send message to current group (client-side) or hosted group (host-side)
 	mux.HandleFunc("/api/groups/send", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		var req struct {
 			Payload any `json:"payload"`
 			GroupID string      `json:"group_id"` // optional: if set, send as host to hosted group
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request", http.StatusBadRequest)
+		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 
@@ -343,8 +325,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 
 	// SSE endpoint for group events
 	mux.HandleFunc("/api/groups/events", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 

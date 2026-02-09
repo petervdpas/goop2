@@ -13,15 +13,17 @@ import (
 func RegisterRealtime(mux *http.ServeMux, rtMgr *realtime.Manager, selfID string) {
 	// POST /api/realtime/connect — create channel + invite peer
 	mux.HandleFunc("/api/realtime/connect", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 
 		var req struct {
 			PeerID string `json:"peer_id"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PeerID == "" {
+		if decodeJSON(w, r, &req) != nil {
+			return
+		}
+		if req.PeerID == "" {
 			http.Error(w, "missing peer_id", http.StatusBadRequest)
 			return
 		}
@@ -37,8 +39,7 @@ func RegisterRealtime(mux *http.ServeMux, rtMgr *realtime.Manager, selfID string
 
 	// POST /api/realtime/accept — accept incoming channel
 	mux.HandleFunc("/api/realtime/accept", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 
@@ -46,7 +47,10 @@ func RegisterRealtime(mux *http.ServeMux, rtMgr *realtime.Manager, selfID string
 			ChannelID  string `json:"channel_id"`
 			HostPeerID string `json:"host_peer_id"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ChannelID == "" || req.HostPeerID == "" {
+		if decodeJSON(w, r, &req) != nil {
+			return
+		}
+		if req.ChannelID == "" || req.HostPeerID == "" {
 			http.Error(w, "missing channel_id or host_peer_id", http.StatusBadRequest)
 			return
 		}
@@ -62,8 +66,7 @@ func RegisterRealtime(mux *http.ServeMux, rtMgr *realtime.Manager, selfID string
 
 	// POST /api/realtime/send — send message on channel
 	mux.HandleFunc("/api/realtime/send", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 
@@ -71,7 +74,10 @@ func RegisterRealtime(mux *http.ServeMux, rtMgr *realtime.Manager, selfID string
 			ChannelID string `json:"channel_id"`
 			Payload   any    `json:"payload"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ChannelID == "" {
+		if decodeJSON(w, r, &req) != nil {
+			return
+		}
+		if req.ChannelID == "" {
 			http.Error(w, "missing channel_id", http.StatusBadRequest)
 			return
 		}
@@ -86,15 +92,17 @@ func RegisterRealtime(mux *http.ServeMux, rtMgr *realtime.Manager, selfID string
 
 	// POST /api/realtime/close — close channel
 	mux.HandleFunc("/api/realtime/close", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 
 		var req struct {
 			ChannelID string `json:"channel_id"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ChannelID == "" {
+		if decodeJSON(w, r, &req) != nil {
+			return
+		}
+		if req.ChannelID == "" {
 			http.Error(w, "missing channel_id", http.StatusBadRequest)
 			return
 		}
@@ -109,8 +117,7 @@ func RegisterRealtime(mux *http.ServeMux, rtMgr *realtime.Manager, selfID string
 
 	// GET /api/realtime/channels — list active channels
 	mux.HandleFunc("/api/realtime/channels", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 
@@ -123,8 +130,7 @@ func RegisterRealtime(mux *http.ServeMux, rtMgr *realtime.Manager, selfID string
 
 	// GET /api/realtime/events?channel=X — SSE stream for a channel (or all)
 	mux.HandleFunc("/api/realtime/events", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
 

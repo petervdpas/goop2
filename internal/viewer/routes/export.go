@@ -33,12 +33,10 @@ type TablePolicyExport struct {
 func registerExportRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	// GET /api/site/export — download site as zip
 	mux.HandleFunc("/api/site/export", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
-		if !isLocalRequest(r) {
-			http.Error(w, "forbidden", http.StatusForbidden)
+		if !requireLocal(w, r) {
 			return
 		}
 
@@ -165,12 +163,10 @@ func registerExportRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 	// POST /api/site/import — upload and apply zip
 	mux.HandleFunc("/api/site/import", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
-		if !isLocalRequest(r) {
-			http.Error(w, "forbidden", http.StatusForbidden)
+		if !requireLocal(w, r) {
 			return
 		}
 
@@ -263,8 +259,7 @@ func registerExportRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "imported"})
+		writeJSON(w, map[string]string{"status": "imported"})
 	})
 }
 
