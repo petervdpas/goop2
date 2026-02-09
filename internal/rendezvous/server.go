@@ -1575,9 +1575,9 @@ func (s *Server) handleRegisterRemote(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var result struct {
-		OK      bool   `json:"ok"`
-		Message string `json:"message"`
-		Error   string `json:"error"`
+		Status string `json:"status"`
+		Email  string `json:"email"`
+		Error  string `json:"error"`
 	}
 	if err := json.Unmarshal(respBody, &result); err != nil {
 		log.Printf("registration: POST %s returned %d, body not JSON: %s", regURL, resp.StatusCode, string(respBody))
@@ -1587,15 +1587,12 @@ func (s *Server) handleRegisterRemote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if resp.StatusCode/100 != 2 || !result.OK {
+	if resp.StatusCode/100 != 2 || result.Status != "ok" {
 		errMsg := result.Error
-		if errMsg == "" {
-			errMsg = result.Message
-		}
 		if errMsg == "" {
 			errMsg = "Registration failed"
 		}
-		log.Printf("registration: POST %s returned %d: ok=%v error=%q message=%q", regURL, resp.StatusCode, result.OK, result.Error, result.Message)
+		log.Printf("registration: POST %s returned %d: status=%q error=%q", regURL, resp.StatusCode, result.Status, result.Error)
 		vm.Error = errMsg
 		vm.Email = email
 		s.renderRegister(w, vm)
