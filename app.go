@@ -297,19 +297,29 @@ func (a *App) StartPeer(peerName string) error {
 	a.viewerURL = "http://" + cfg.Viewer.HTTPAddr
 	a.isRendezvousOnly = cfg.Presence.RendezvousOnly
 
+	progress := func(step, total int, label string) {
+		runtime.EventsEmit(a.ctx, "startup:progress", map[string]interface{}{
+			"step":  step,
+			"total": total,
+			"label": label,
+		})
+	}
+
 	go func() {
 		if err := goopapp.Run(a.ctx, goopapp.Options{
 			PeerDir:   peerDir,
 			CfgPath:   cfgPath,
 			Cfg:       cfg,
 			BridgeURL: a.GetBridgeURL(),
+			Progress:  progress,
 		}); err != nil {
 			log.Fatal(err)
 		}
 	}()
 
-	// wait until viewer is listening
-	if err := goopapp.WaitTCP(cfg.Viewer.HTTPAddr, util.DefaultConnectTimeout); err != nil {
+	// wait until viewer is listening (30s — progress bar keeps user informed)
+	if err := goopapp.WaitTCP(cfg.Viewer.HTTPAddr, 30*time.Second); err != nil {
+		runtime.EventsEmit(a.ctx, "startup:error", "Viewer did not start in time")
 		return fmt.Errorf("viewer did not start")
 	}
 

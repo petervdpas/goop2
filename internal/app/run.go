@@ -34,6 +34,7 @@ type Options struct {
 	CfgPath   string
 	Cfg       config.Config
 	BridgeURL string
+	Progress  func(step, total int, label string)
 }
 
 type runtime struct {
@@ -53,6 +54,7 @@ func Run(ctx context.Context, opt Options) error {
 		Cfg:       opt.Cfg,
 		Logs:      logBuf,
 		BridgeURL: opt.BridgeURL,
+		Progress:  opt.Progress,
 	})
 }
 
@@ -62,10 +64,35 @@ type runPeerOpts struct {
 	Cfg       config.Config
 	Logs      *viewer.LogBuffer
 	BridgeURL string
+	Progress  func(step, total int, label string)
 }
 
 func runPeer(ctx context.Context, o runPeerOpts) error {
 	cfg := o.Cfg
+
+	emit := o.Progress
+	if emit == nil {
+		emit = func(int, int, string) {}
+	}
+	progress := func(s, t int, label string) {
+		emit(s, t, label)
+		time.Sleep(time.Second)
+	}
+
+	// Calculate total steps based on config.
+	// Rendezvous-only: rendezvous + viewer = 2 steps.
+	// Full peer: rendezvous(opt) + relay discovery + p2p node + database + services + viewer.
+	step := 0
+	total := 6 // relay + p2p + db + services + viewer + online
+	if cfg.Presence.RendezvousHost {
+		total++ // rendezvous server
+	}
+	if cfg.Presence.RendezvousOnly {
+		total = 2 // rendezvous + viewer only
+		if !cfg.Presence.RendezvousHost {
+			total = 1 // viewer only
+		}
+	}
 
 	// ── Rendezvous server (optional)
 	var rv *rendezvous.Server
@@ -101,6 +128,9 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		setupRegistration(rv, cfg.Presence.RegistrationURL, cfg.Presence.RegistrationAdminToken)
 		setupEmail(rv, cfg.Presence.EmailURL)
 
+		step++
+		progress(step, total, "Starting rendezvous server")
+
 		if err := rv.Start(ctx); err != nil {
 			return err
 		}
@@ -127,6 +157,9 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 
 	if cfg.Presence.RendezvousOnly {
 		log.Printf("mode: rendezvous-only")
+
+		step++
+		progress(step, total, "Starting viewer")
 
 		// Start minimal viewer for settings access
 		if cfg.Viewer.HTTPAddr != "" {
@@ -168,6 +201,9 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 
 	// Fetch relay info from WAN rendezvous (if available) so we can enable
 	// circuit relay transport and hole-punching for NAT traversal.
+	step++
+	progress(step, total, "Discovering relay")
+
 	var relayInfo *rendezvous.RelayInfo
 	for _, c := range rvClients {
 		ri, err := c.FetchRelayInfo(ctx)
@@ -177,6 +213,9 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			break
 		}
 	}
+
+	step++
+	progress(step, total, "Creating P2P node")
 
 	keyPath := util.ResolvePath(o.PeerDir, cfg.Identity.KeyFile)
 	node, err := p2p.New(ctx, cfg.P2P.ListenPort, keyPath, peers, selfContent, selfEmail, selfVideoDisabled, relayInfo)
@@ -192,6 +231,9 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	avatarCache := avatar.NewCache(o.PeerDir)
 	node.EnableAvatar(avatarStore)
 
+	step++
+	progress(step, total, "Opening database")
+
 	// Initialize SQLite database for peer data (unconditionally — needed for P2P data protocol)
 	db, err := storage.Open(o.PeerDir)
 	if err != nil {
@@ -200,6 +242,9 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 
 	node.EnableData(db)
 	log.Printf("peer id: %s", node.ID())
+
+	step++
+	progress(step, total, "Setting up services")
 
 	// ── Chat manager
 	chatMgr := chat.New(node.Host, 100) // 100 message buffer
@@ -278,6 +323,9 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			}()
 		}
 	}
+
+	step++
+	progress(step, total, "Starting viewer")
 
 	// ── Viewer
 	if cfg.Viewer.HTTPAddr != "" {

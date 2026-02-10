@@ -293,6 +293,39 @@ async function renderLauncher(host) {
     err.textContent = "";
     status.textContent = isRV ? "Configuring…" : "Starting…";
 
+    // Show progress bar in footer (right side)
+    const footerInner = document.querySelector(".footer-inner");
+    const progressWrap = div("progress-wrap");
+    const progressBar = div("progress-bar");
+    const progressFill = div("progress-fill");
+    progressBar.appendChild(progressFill);
+    const progressLabel = document.createElement("span");
+    progressLabel.className = "progress-label";
+    progressLabel.textContent = "Initializing…";
+    progressWrap.appendChild(progressBar);
+    progressWrap.appendChild(progressLabel);
+    if (footerInner) {
+      footerInner.appendChild(progressWrap);
+    }
+
+    const onProgress = (data) => {
+      if (!data) return;
+      const pct = Math.round((data.step / data.total) * 100);
+      progressFill.style.width = pct + "%";
+      progressLabel.textContent = data.label || "";
+    };
+
+    if (window.runtime) {
+      window.runtime.EventsOn("startup:progress", onProgress);
+    }
+
+    const cleanup = () => {
+      if (window.runtime) {
+        window.runtime.EventsOff("startup:progress");
+      }
+      if (progressWrap.parentNode) progressWrap.remove();
+    };
+
     try {
       await window.go.main.App.StartPeer(selected);
       const st = await window.go.main.App.GetStatus();
@@ -300,9 +333,11 @@ async function renderLauncher(host) {
       if (!st || !st.viewerURL)
         throw new Error("Started but viewerURL missing from status.");
 
+      cleanup();
       // Rendezvous-only peers open settings; regular peers open peer list
       await goViewer(st.viewerURL, isRV ? "/self" : "/peers");
     } catch (e) {
+      cleanup();
       err.textContent = String(e);
       status.textContent = "";
       start.disabled = false;
