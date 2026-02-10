@@ -51,7 +51,6 @@ func (p *RemoteCreditProvider) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/credits/purchase", p.proxyPurchase)
 	mux.HandleFunc("/api/credits/grant", p.proxyGrant)
 	mux.HandleFunc("/api/credits/spend", p.proxySpend)
-	mux.HandleFunc("/api/credits/prices", p.proxyPrices)
 	mux.HandleFunc("/api/credits/access", p.proxyAccess)
 	mux.HandleFunc("/api/credits/store-data", p.proxyStoreData)
 	mux.HandleFunc("/api/credits/template-info", p.proxyTemplateInfo)
@@ -128,28 +127,6 @@ func (p *RemoteCreditProvider) proxySpend(w http.ResponseWriter, r *http.Request
 	p.proxyPostJSON(w, r, "/api/credits/spend", &req, func(email string) map[string]any {
 		return map[string]any{"email": email, "template": req.Template}
 	})
-}
-
-// proxyPrices forwards GET/POST /api/credits/prices unchanged (no peer/email involved).
-func (p *RemoteCreditProvider) proxyPrices(w http.ResponseWriter, r *http.Request) {
-	var resp *http.Response
-	var err error
-
-	switch r.Method {
-	case http.MethodGet:
-		resp, err = p.client.Get(p.baseURL + "/api/credits/prices")
-	case http.MethodPost:
-		resp, err = p.client.Post(p.baseURL+"/api/credits/prices", "application/json", r.Body)
-	default:
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if err != nil {
-		http.Error(w, "credits service error", http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
-	forwardResponse(w, resp)
 }
 
 // proxyGet forwards a GET request to the credits service with the given

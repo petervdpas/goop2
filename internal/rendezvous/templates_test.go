@@ -111,7 +111,7 @@ func TestRemoteTemplatesIntegration(t *testing.T) {
 
 	// Start rendezvous server with remote templates provider
 	srv := New("127.0.0.1:18787", "", "", "", 0, "")
-	srv.SetTemplatesProvider(NewRemoteTemplatesProvider(tplSvc.URL))
+	srv.SetTemplatesProvider(NewRemoteTemplatesProvider(tplSvc.URL, ""))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
