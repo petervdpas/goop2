@@ -1,6 +1,8 @@
 # Plan: Public Site Bridge
 
-> Question/Requirement: Is the bridge running on its own port and is it hiding `/p/<peer-id>/`? 
+> Question/Requirements
+> - Is the bridge running on its own port and is it hiding `/p/<peer-id>/`?
+> - What if you run multiple peers on the same machine? The public_addr js code must scan if port not already open.
 
 ## Summary
 
@@ -271,4 +273,5 @@ The `public_addr` bridge works for peers that can open a port (home server, VPS,
 5. Set `"public": true` in appropriate template manifests
 6. Update docs (configuration + advanced)
 7. Build + test
+
 
