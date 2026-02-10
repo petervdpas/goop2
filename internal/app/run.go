@@ -118,7 +118,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		setupCredits(rv, cfg.Presence.CreditsURL, cfg.Presence.CreditsAdminToken)
 		setupRegistration(rv, cfg.Presence.RegistrationURL, cfg.Presence.RegistrationAdminToken)
 		setupEmail(rv, cfg.Presence.EmailURL)
-		setupTemplates(rv, cfg.Presence.TemplatesURL)
+		setupTemplates(rv, cfg.Presence.TemplatesURL, cfg.Presence.TemplatesAdminToken)
 
 		step++
 		progress(step, total, "Starting rendezvous server")

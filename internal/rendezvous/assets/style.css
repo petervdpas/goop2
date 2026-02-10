@@ -1321,3 +1321,95 @@ h1 {
 }
 .admin-table .badge-verified { background: var(--green-dim); color: var(--green); }
 .admin-table .badge-pending  { background: var(--purple-dim); color: var(--purple); }
+
+/* ─── Admin: service status cards ─── */
+.svc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+
+.svc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.svc-row-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.svc-row-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.8em;
+  color: var(--text-muted);
+}
+
+.svc-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.svc-dot-ok     { background: var(--green); }
+.svc-dot-err    { background: var(--red); }
+
+.svc-badge       { font-size: 0.8em; }
+.svc-badge-ok    { color: var(--green); }
+.svc-badge-dummy { color: var(--yellow); }
+.svc-badge-err   { color: var(--red); }
+
+/* ─── Admin: placeholder & error states ─── */
+.admin-placeholder {
+  padding: 12px;
+  color: var(--text-muted);
+}
+
+.admin-error {
+  padding: 12px;
+  color: var(--red);
+}
+
+/* ─── Admin: log tabs ─── */
+.log-tab-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.log-tab        { background: var(--bg-raised); color: var(--text-secondary); }
+.log-tab:hover  { border-color: var(--border-hover); }
+.log-tab.active { background: var(--green-dim); color: var(--green); border-color: var(--green); }
+
+.log-svc-label {
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+/* ─── Admin: price card icon row ─── */
+.price-card-icon-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.price-card-icon {
+  font-size: 1.6rem;
+}
+
+/* ─── Admin: avatar in peer cards ─── */
+.peer-avatar {
+  border-radius: 50%;
+  margin-right: 8px;
+}

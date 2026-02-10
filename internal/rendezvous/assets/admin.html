@@ -61,21 +61,22 @@
             <div class="dash-panel-header">
               <span class="dash-panel-label">Services</span>
             </div>
-            <div style="display:flex;gap:12px;flex-wrap:wrap;padding:12px">
+            <div class="svc-list">
               {{range .Services}}
-              <div style="flex:1;min-width:200px;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg)">
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-                  <span style="width:10px;height:10px;border-radius:50%;display:inline-block;{{if not .OK}}background:#e74c3c{{else if not .APICompat}}background:#e74c3c{{else}}background:#2ecc71{{end}}"></span>
+              <div class="svc-row">
+                <div class="svc-row-left">
+                  <span class="svc-dot {{if not .OK}}svc-dot-err{{else if not .APICompat}}svc-dot-err{{else}}svc-dot-ok{{end}}"></span>
                   <strong>{{.Name}}</strong>
                   {{if .OK}}
-                    {{if .DummyMode}}<span style="color:#f39c12;font-size:0.8em">(dummy)</span>
-                    {{else}}<span style="color:#2ecc71;font-size:0.8em">(active)</span>{{end}}
-                    {{if .Version}}<span style="color:var(--muted);font-size:0.75em">v{{.Version}}</span>{{end}}
-                    <span style="color:var(--muted);font-size:0.75em">API v{{.APIVersion}}</span>
-                  {{else}}<span style="color:#e74c3c;font-size:0.8em">not running</span>{{end}}
+                    {{if .DummyMode}}<span class="svc-badge svc-badge-dummy">(dummy)</span>
+                    {{else}}<span class="svc-badge svc-badge-ok">(active)</span>{{end}}
+                  {{else}}<span class="svc-badge svc-badge-err">not running</span>{{end}}
+                  {{if and .OK (not .APICompat)}}<span class="svc-badge svc-badge-err">⚠ Incompatible API</span>{{end}}
                 </div>
-                {{if and .OK (not .APICompat)}}<div style="font-size:0.8em;color:#e74c3c;margin-bottom:4px">⚠ Incompatible API version — please update this service</div>{{end}}
-                <div style="font-size:0.8em;color:var(--muted)">{{.URL}}</div>
+                <div class="svc-row-right">
+                  {{if .OK}}{{if .Version}}<span>v{{.Version}}</span>{{end}}<span>API v{{.APIVersion}}</span>{{end}}
+                  <span>{{.URL}}</span>
+                </div>
               </div>
               {{end}}
             </div>
@@ -132,7 +133,7 @@
               <span class="dash-panel-label">Registrations</span>
             </div>
             <div id="reg-body">
-              <div style="padding:12px;color:var(--text-muted)">Loading...</div>
+              <div class="admin-placeholder">Loading...</div>
             </div>
           </div>
         </div>
@@ -146,7 +147,7 @@
               <span class="dash-panel-label">Credit Accounts</span>
             </div>
             <div id="acc-body">
-              <div style="padding:12px;color:var(--text-muted)">Loading...</div>
+              <div class="admin-placeholder">Loading...</div>
             </div>
           </div>
         </div>
@@ -160,7 +161,7 @@
               <span class="dash-panel-label">Template Prices</span>
             </div>
             <div id="prices-body">
-              <div style="padding:12px;color:var(--text-muted)">Loading...</div>
+              <div class="admin-placeholder">Loading...</div>
             </div>
           </div>
         </div>
@@ -168,14 +169,28 @@
 
         <!-- ── Logs ── -->
         <div class="admin-section" data-section="logs">
-          <div class="dash-panel glass">
+          <div class="log-tab-bar">
+            <button class="btn log-tab active" data-log-tab="rendezvous" onclick="switchLogTab('rendezvous')">Rendezvous</button>
+            {{if .Services}}<button class="btn log-tab" data-log-tab="services" onclick="switchLogTab('services')">Services</button>{{end}}
+          </div>
+          <div class="dash-panel glass" data-log-panel="rendezvous">
             <div class="dash-panel-header">
-              <span class="dash-panel-label">Server Logs</span>
+              <span class="dash-panel-label">Rendezvous Logs</span>
             </div>
             <div class="logs-container" id="logs-container">
               <div class="log-entry empty">Loading...</div>
             </div>
           </div>
+          {{if .Services}}
+          <div class="dash-panel glass" data-log-panel="services" style="display:none">
+            <div class="dash-panel-header">
+              <span class="dash-panel-label">Service Logs</span>
+            </div>
+            <div class="logs-container" id="svc-logs-container">
+              <div class="log-entry empty">Loading...</div>
+            </div>
+          </div>
+          {{end}}
         </div>
 
       </div>
@@ -214,7 +229,6 @@
         if(!el)return;
         function tick(){var d=new Date();el.textContent=d.toLocaleTimeString();}
         tick();setInterval(tick,1000);
-        el.style.fontSize='32px';
       })();
 
       // ── Sidebar navigation ──
@@ -235,7 +249,7 @@
             if (target === 'registrations' && !loaded.reg) { loaded.reg = true; loadRegistrations(); }
             if (target === 'accounts' && !loaded.acc)       { loaded.acc = true; loadAccounts(); }
             if (target === 'prices' && !loaded.prices)      { loaded.prices = true; loadPrices(); }
-            if (target === 'logs' && !loaded.logs)          { loaded.logs = true; updateLogs(); }
+            if (target === 'logs' && !loaded.logs)          { loaded.logs = true; updateLogs(); if(window.updateServiceLogs) updateServiceLogs(); }
           });
         });
       })();
@@ -259,7 +273,7 @@
               var av=avatarURI(p.content||'',p.email||'');
               var unverifiedBadge = p.verified ? '' : ' <span class="badge-unverified">unverified</span>';
               return '<div class="peer-card peer-row" data-status="'+sc+'" data-label="'+(p.content||'')+'">'
-                +'<div class="peer-header"><img src="'+av+'" width="28" height="28" style="border-radius:50%;margin-right:8px"><span class="status-badge '+sc+'">'+p.type+'</span><span class="peer-time">'+ls+'</span></div>'
+                +'<div class="peer-header"><img class="peer-avatar" src="'+av+'" width="28" height="28"><span class="status-badge '+sc+'">'+p.type+'</span><span class="peer-time">'+ls+'</span></div>'
                 +'<div class="peer-label">'+(p.content||'Unknown')+unverifiedBadge+'</div>'
                 +(p.email?'<div class="peer-email">'+p.email+'</div>':'')
                 +'<div class="peer-id">'+p.peer_id+'</div>'
@@ -280,6 +294,19 @@
         };
         setInterval(updateLogs,R);
 
+        var svcColors = {credits:'#3498db',registration:'#2ecc71',email:'#e67e22',templates:'#9b59b6'};
+        window.updateServiceLogs = async function updateServiceLogs(){
+          try{
+            var r=await fetch('/api/services/logs'),d=await r.json(),c=document.getElementById('svc-logs-container');if(!c)return;
+            if(!d||!d.length){c.innerHTML='<div class="log-entry empty">No service logs yet</div>';return;}
+            c.innerHTML=d.reverse().map(function(x){
+              var col=svcColors[x.service]||'var(--text)';
+              return '<div class="log-entry"><span class="log-svc-label" style="color:'+col+'">['+x.service+']</span>'+x.message+'</div>';
+            }).join('');
+          }catch(e){console.error(e);}
+        };
+        setInterval(updateServiceLogs,R);
+
         var q=document.getElementById('q');
         function applyFilter(){
           if(!q)return;
@@ -295,7 +322,7 @@
         document.querySelectorAll('.peer-card[data-label]').forEach(function(card){
           var h=card.querySelector('.peer-header');if(!h||h.querySelector('img'))return;
           var img=document.createElement('img');img.src=avatarURI(card.getAttribute('data-label')||'',card.getAttribute('data-email')||'');
-          img.width=28;img.height=28;img.style.cssText='border-radius:50%;margin-right:8px';
+          img.width=28;img.height=28;img.className='peer-avatar';
           h.insertBefore(img,h.firstChild);
         });
       })();
@@ -306,7 +333,7 @@
           var el = document.getElementById('reg-body');
           var nc = document.getElementById('nav-reg-count');
           if (nc) nc.textContent = '(' + data.length + ')';
-          if (!data.length) { el.innerHTML = '<div style="padding:12px;color:var(--text-muted)">No registrations yet</div>'; return; }
+          if (!data.length) { el.innerHTML = '<div class="admin-placeholder">No registrations yet</div>'; return; }
           var html = '<table class="admin-table"><thead><tr><th>Email</th><th>Status</th><th>Registered</th><th>Verified</th></tr></thead><tbody>';
           data.forEach(function(r){
             var verified = r.verified_at && r.verified_at > 0;
@@ -317,7 +344,7 @@
           el.innerHTML = html;
         }).catch(function(){
           var el = document.getElementById('reg-body');
-          if (el) el.innerHTML = '<div style="padding:12px;color:var(--red)">Failed to load registrations</div>';
+          if (el) el.innerHTML = '<div class="admin-error">Failed to load registrations</div>';
         });
       }
 
@@ -326,7 +353,7 @@
           var el = document.getElementById('acc-body');
           var nc = document.getElementById('nav-acc-count');
           if (nc) nc.textContent = '(' + data.length + ')';
-          if (!data.length) { el.innerHTML = '<div style="padding:12px;color:var(--text-muted)">No credit accounts yet</div>'; return; }
+          if (!data.length) { el.innerHTML = '<div class="admin-placeholder">No credit accounts yet</div>'; return; }
           var html = '<table class="admin-table"><thead><tr><th>Email</th><th>Balance</th><th>Last Activity</th></tr></thead><tbody>';
           data.forEach(function(a){
             html += '<tr><td>' + (a.email||'') + '</td><td>' + a.balance + '</td><td>' + fmtDate(a.updated_at) + '</td></tr>';
@@ -335,14 +362,14 @@
           el.innerHTML = html;
         }).catch(function(){
           var el = document.getElementById('acc-body');
-          if (el) el.innerHTML = '<div style="padding:12px;color:var(--red)">Failed to load accounts</div>';
+          if (el) el.innerHTML = '<div class="admin-error">Failed to load accounts</div>';
         });
       }
 
       function loadPrices() {
         var pb = document.getElementById('prices-body');
         Promise.all([
-          fetch('/api/credits/prices').then(function(r){ return r.json(); }),
+          fetch('/api/templates/prices').then(function(r){ return r.json(); }),
           fetch('/api/templates').then(function(r){ return r.ok ? r.json() : []; })
         ]).then(function(results){
           var prices = results[0] || {};
@@ -351,7 +378,7 @@
           templates.forEach(function(t){ allDirs.add(t.dir); });
 
           if (allDirs.size === 0) {
-            pb.innerHTML = '<div style="padding:12px;color:var(--text-muted)">No templates available</div>';
+            pb.innerHTML = '<div class="admin-placeholder">No templates available</div>';
             return;
           }
 
@@ -369,8 +396,8 @@
 
             cards += '<div class="price-card glass">'
               + '<div class="price-card-head">'
-              + '<div style="display:flex;align-items:center;gap:10px">'
-              + '<span style="font-size:1.6rem">' + icon + '</span>'
+              + '<div class="price-card-icon-row">'
+              + '<span class="price-card-icon">' + icon + '</span>'
               + '<div>'
               + '<div class="price-card-name">' + name + '</div>'
               + '<code class="price-card-dir">' + dir + '</code>'
@@ -411,7 +438,7 @@
             });
           });
         }).catch(function(e){
-          pb.innerHTML = '<div style="padding:12px;color:var(--red)">Failed to load prices: ' + e.message + '</div>';
+          pb.innerHTML = '<div class="admin-error">Failed to load prices: ' + e.message + '</div>';
         });
       }
 
@@ -431,7 +458,7 @@
             var dir = inp.getAttribute('data-dir');
             var price = parseInt(inp.value) || 0;
             promises.push(
-              fetch('/api/credits/prices', {
+              fetch('/api/templates/prices', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({template: dir, price: price})
@@ -454,6 +481,16 @@
             status.className = 'price-save-status price-save-err';
           }
         });
+      }
+
+      function switchLogTab(tab){
+        document.querySelectorAll('.log-tab').forEach(function(b){
+          b.classList.toggle('active', b.getAttribute('data-log-tab')===tab);
+        });
+        document.querySelectorAll('[data-log-panel]').forEach(function(p){
+          p.style.display = p.getAttribute('data-log-panel')===tab ? '' : 'none';
+        });
+        if(tab==='services' && window.updateServiceLogs) updateServiceLogs();
       }
 
       // SPA navigation: fetch public pages without credentials so the

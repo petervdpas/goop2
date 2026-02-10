@@ -434,6 +434,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/logs.json", s.handleLogsJSON)
 	mux.HandleFunc("/registrations.json", s.handleRegistrationsJSON)
 	mux.HandleFunc("/accounts.json", s.handleAccountsJSON)
+	mux.HandleFunc("/api/services/logs", s.handleServiceLogs)
 
 	// Registration endpoints
 	if s.registration != nil {
@@ -596,6 +597,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// Template store API — proxy to remote templates service
 	if s.templates != nil {
+		s.templates.RegisterRoutes(mux) // /api/templates/prices (exact match, with auth)
 		proxy := s.templates.Proxy()
 		mux.HandleFunc("/api/templates", func(w http.ResponseWriter, r *http.Request) {
 			proxy.ServeHTTP(w, r)
@@ -1097,6 +1099,81 @@ func (s *Server) addLog(msg string) {
 
 	// Also log to console
 	log.Println(msg)
+}
+
+// serviceLogEntry is a single log line from a microservice.
+type serviceLogEntry struct {
+	Service string `json:"service"`
+	Message string `json:"message"`
+}
+
+func (s *Server) handleServiceLogs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.requireAdmin(w, r) {
+		return
+	}
+
+	type svcDef struct {
+		name string
+		url  string
+	}
+	var svcs []svcDef
+	if s.registration != nil {
+		svcs = append(svcs, svcDef{"registration", s.registration.baseURL})
+	}
+	if cp, ok := s.credits.(*RemoteCreditProvider); ok {
+		svcs = append(svcs, svcDef{"credits", cp.baseURL})
+	}
+	if s.email != nil {
+		svcs = append(svcs, svcDef{"email", s.email.baseURL})
+	}
+	if s.templates != nil {
+		svcs = append(svcs, svcDef{"templates", s.templates.baseURL})
+	}
+
+	type result struct {
+		name    string
+		entries []string
+	}
+	ch := make(chan result, len(svcs))
+	client := &http.Client{Timeout: 2 * time.Second}
+
+	for _, svc := range svcs {
+		go func(name, baseURL string) {
+			resp, err := client.Get(baseURL + "/api/logs")
+			if err != nil {
+				ch <- result{name, nil}
+				return
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				ch <- result{name, nil}
+				return
+			}
+			var lines []string
+			json.NewDecoder(resp.Body).Decode(&lines)
+			ch <- result{name, lines}
+		}(svc.name, svc.url)
+	}
+
+	var all []serviceLogEntry
+	for range svcs {
+		res := <-ch
+		for _, line := range res.entries {
+			all = append(all, serviceLogEntry{Service: res.name, Message: line})
+		}
+	}
+
+	// Sort by message (which starts with timestamp from Go's log package)
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].Message < all[j].Message
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(all)
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {

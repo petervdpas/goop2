@@ -16,9 +16,10 @@ import (
 // RemoteTemplatesProvider proxies template endpoints to a standalone
 // templates service and provides status/version info.
 type RemoteTemplatesProvider struct {
-	baseURL string
-	client  *http.Client
-	proxy   *httputil.ReverseProxy
+	baseURL    string
+	adminToken string
+	client     *http.Client
+	proxy      *httputil.ReverseProxy
 
 	// cached status from /api/templates/status
 	tplVersion       string
@@ -30,13 +31,56 @@ type RemoteTemplatesProvider struct {
 }
 
 // NewRemoteTemplatesProvider creates a provider that talks to the templates service.
-func NewRemoteTemplatesProvider(baseURL string) *RemoteTemplatesProvider {
+func NewRemoteTemplatesProvider(baseURL, adminToken string) *RemoteTemplatesProvider {
 	base := strings.TrimRight(baseURL, "/")
 	target, _ := url.Parse(base)
 	return &RemoteTemplatesProvider{
-		baseURL: base,
-		client:  &http.Client{Timeout: 5 * time.Second},
-		proxy:   httputil.NewSingleHostReverseProxy(target),
+		baseURL:    base,
+		adminToken: adminToken,
+		client:     &http.Client{Timeout: 5 * time.Second},
+		proxy:      httputil.NewSingleHostReverseProxy(target),
+	}
+}
+
+// RegisterRoutes registers /api/templates/prices handlers that inject the
+// admin token for POST requests before proxying to the templates service.
+func (p *RemoteTemplatesProvider) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/api/templates/prices", p.handlePrices)
+}
+
+func (p *RemoteTemplatesProvider) handlePrices(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		// Read prices — no auth needed, proxy directly
+		p.proxy.ServeHTTP(w, r)
+
+	case http.MethodPost:
+		// Write prices — inject admin token
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		req, err := http.NewRequest(http.MethodPost, p.baseURL+"/api/templates/prices", strings.NewReader(string(body)))
+		if err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		if p.adminToken != "" {
+			req.Header.Set("Authorization", "Bearer "+p.adminToken)
+		}
+		resp, err := p.client.Do(req)
+		if err != nil {
+			log.Printf("templates: price save error: %v", err)
+			http.Error(w, "templates service error", http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+		forwardResponse(w, resp)
+
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
