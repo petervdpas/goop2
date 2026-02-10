@@ -8,28 +8,110 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"os"
+	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
 
-func TestTemplateStoreEndToEnd(t *testing.T) {
-	// Create a temp directory with a test template
-	dir := t.TempDir()
-	tplDir := filepath.Join(dir, "templates", "hello-store")
-	if err := os.MkdirAll(filepath.Join(tplDir, "src"), 0o755); err != nil {
-		t.Fatal(err)
+// mockTemplatesService creates a test HTTP server that mimics the remote
+// templates service with a fixed set of templates.
+func mockTemplatesService(t *testing.T) *httptest.Server {
+	t.Helper()
+
+	templates := []StoreMeta{
+		{Name: "Corkboard", Dir: "corkboard", Source: "store", Category: "productivity", Icon: "📋"},
+		{Name: "Quiz", Dir: "quiz", Source: "store", Category: "education", Icon: "❓"},
+		{Name: "Chess", Dir: "chess", Source: "store", Category: "game", Icon: "♟️"},
 	}
 
-	manifest := `{"name":"Hello Store","description":"A test template","category":"test","icon":"🏪"}`
-	os.WriteFile(filepath.Join(tplDir, "manifest.json"), []byte(manifest), 0o644)
-	os.WriteFile(filepath.Join(tplDir, "src", "index.html"), []byte("<h1>hello</h1>"), 0o644)
-	os.WriteFile(filepath.Join(tplDir, "src", "style.css"), []byte("body{}"), 0o644)
+	mux := http.NewServeMux()
 
-	// Start rendezvous server with template store
-	srv := New("127.0.0.1:18787", []string{filepath.Join(dir, "templates")}, "", "", "", 0, "")
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("ok"))
+	})
+
+	mux.HandleFunc("/api/templates/status", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"api_version":    1,
+			"version":        "test",
+			"dummy_mode":     false,
+			"template_count": len(templates),
+		})
+	})
+
+	mux.HandleFunc("/api/templates", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(templates)
+	})
+
+	mux.HandleFunc("/api/templates/", func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/api/templates/")
+		parts := strings.SplitN(path, "/", 2)
+		if len(parts) != 2 {
+			http.NotFound(w, r)
+			return
+		}
+
+		dir, action := parts[0], parts[1]
+
+		// Find template
+		var found *StoreMeta
+		for _, m := range templates {
+			if m.Dir == dir {
+				found = &m
+				break
+			}
+		}
+		if found == nil {
+			http.NotFound(w, r)
+			return
+		}
+
+		switch action {
+		case "manifest":
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(found)
+
+		case "bundle":
+			// Write a minimal tar.gz with manifest + index.html
+			var buf bytes.Buffer
+			gw := gzip.NewWriter(&buf)
+			tw := tar.NewWriter(gw)
+
+			manifest, _ := json.Marshal(found)
+			writeFile(tw, dir+"/manifest.json", manifest)
+			writeFile(tw, dir+"/index.html", []byte("<h1>"+found.Name+"</h1>"))
+
+			tw.Close()
+			gw.Close()
+
+			w.Header().Set("Content-Type", "application/gzip")
+			w.Write(buf.Bytes())
+
+		default:
+			http.NotFound(w, r)
+		}
+	})
+
+	return httptest.NewServer(mux)
+}
+
+func writeFile(tw *tar.Writer, name string, data []byte) {
+	tw.WriteHeader(&tar.Header{Name: name, Mode: 0o644, Size: int64(len(data))})
+	tw.Write(data)
+}
+
+func TestRemoteTemplatesIntegration(t *testing.T) {
+	// Start mock templates service
+	tplSvc := mockTemplatesService(t)
+	defer tplSvc.Close()
+
+	// Start rendezvous server with remote templates provider
+	srv := New("127.0.0.1:18787", "", "", "", 0, "")
+	srv.SetTemplatesProvider(NewRemoteTemplatesProvider(tplSvc.URL))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -39,13 +121,9 @@ func TestTemplateStoreEndToEnd(t *testing.T) {
 	}
 
 	baseURL := srv.URL()
-	t.Logf("server at %s", baseURL)
-
-	// Give server a moment to start
 	time.Sleep(50 * time.Millisecond)
 
-	// Test 1: GET /api/templates — should return embedded + disk templates
-	t.Run("list templates", func(t *testing.T) {
+	t.Run("list templates via proxy", func(t *testing.T) {
 		resp, err := http.Get(baseURL + "/api/templates")
 		if err != nil {
 			t.Fatal(err)
@@ -60,29 +138,13 @@ func TestTemplateStoreEndToEnd(t *testing.T) {
 		if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
 			t.Fatal(err)
 		}
-
-		// 3 embedded (corkboard, quiz, photobook) + 1 disk (hello-store)
-		if len(list) < 4 {
-			t.Fatalf("expected at least 4 templates, got %d", len(list))
-		}
-
-		dirs := map[string]bool{}
-		for _, m := range list {
-			dirs[m.Dir] = true
-			if m.Source != "store" {
-				t.Fatalf("expected source=store for %q, got %q", m.Dir, m.Source)
-			}
-		}
-		for _, want := range []string{"corkboard", "quiz", "photobook", "hello-store"} {
-			if !dirs[want] {
-				t.Fatalf("missing expected template %q", want)
-			}
+		if len(list) != 3 {
+			t.Fatalf("expected 3 templates, got %d", len(list))
 		}
 	})
 
-	// Test 2: GET /api/templates/hello-store/manifest.json
-	t.Run("get manifest", func(t *testing.T) {
-		resp, err := http.Get(baseURL + "/api/templates/hello-store/manifest.json")
+	t.Run("get manifest via proxy", func(t *testing.T) {
+		resp, err := http.Get(baseURL + "/api/templates/corkboard/manifest")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -96,14 +158,13 @@ func TestTemplateStoreEndToEnd(t *testing.T) {
 		if err := json.NewDecoder(resp.Body).Decode(&meta); err != nil {
 			t.Fatal(err)
 		}
-		if meta.Name != "Hello Store" {
-			t.Fatalf("expected name=Hello Store, got %q", meta.Name)
+		if meta.Name != "Corkboard" {
+			t.Fatalf("expected name=Corkboard, got %q", meta.Name)
 		}
 	})
 
-	// Test 3: GET /api/templates/hello-store/bundle — tar.gz download
-	t.Run("download bundle", func(t *testing.T) {
-		resp, err := http.Get(baseURL + "/api/templates/hello-store/bundle")
+	t.Run("download bundle via proxy", func(t *testing.T) {
+		resp, err := http.Get(baseURL + "/api/templates/chess/bundle")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -118,89 +179,43 @@ func TestTemplateStoreEndToEnd(t *testing.T) {
 			t.Fatalf("expected content-type application/gzip, got %q", ct)
 		}
 
-		// Extract and verify contents
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(body) == 0 {
-			t.Fatal("empty bundle")
-		}
-
-		// Verify we can extract it
-		files, err := testExtractTarGz(bytes.NewReader(body))
-		if err != nil {
-			t.Fatalf("failed to extract bundle: %v", err)
-		}
-
-		if _, ok := files["manifest.json"]; !ok {
-			t.Fatal("bundle missing manifest.json")
-		}
-		if _, ok := files["src/index.html"]; !ok {
-			t.Fatal("bundle missing src/index.html")
-		}
-		if _, ok := files["src/style.css"]; !ok {
-			t.Fatal("bundle missing src/style.css")
-		}
-	})
-
-	// Test 4: GET /api/templates/nonexistent/bundle — 404
-	t.Run("missing template 404", func(t *testing.T) {
-		resp, err := http.Get(baseURL + "/api/templates/nonexistent/bundle")
-		if err != nil {
-			t.Fatal(err)
-		}
-		resp.Body.Close()
-
-		if resp.StatusCode != 404 {
-			t.Fatalf("expected 404, got %d", resp.StatusCode)
-		}
-	})
-
-	// Test 5: Client ListTemplates
-	t.Run("client list templates", func(t *testing.T) {
-		client := NewClient(baseURL)
-		list, err := client.ListTemplates(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(list) < 4 {
-			t.Fatalf("expected at least 4 templates, got %d", len(list))
-		}
-	})
-
-	// Test 6: Download embedded template bundle (corkboard)
-	t.Run("download embedded bundle", func(t *testing.T) {
-		resp, err := http.Get(baseURL + "/api/templates/corkboard/bundle")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != 200 {
-			t.Fatalf("expected 200, got %d", resp.StatusCode)
-		}
-
 		files, err := testExtractTarGz(resp.Body)
 		if err != nil {
 			t.Fatalf("extract: %v", err)
 		}
-
 		if _, ok := files["manifest.json"]; !ok {
 			t.Fatal("bundle missing manifest.json")
 		}
 		if _, ok := files["index.html"]; !ok {
 			t.Fatal("bundle missing index.html")
 		}
-		if _, ok := files["schema.sql"]; !ok {
-			t.Fatal("bundle missing schema.sql")
+	})
+
+	t.Run("missing template 404", func(t *testing.T) {
+		resp, err := http.Get(baseURL + "/api/templates/nonexistent/bundle")
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != 404 {
+			t.Fatalf("expected 404, got %d", resp.StatusCode)
 		}
 	})
 
-	// Test 7: Client DownloadTemplateBundle + testExtractTarGz
+	t.Run("client list templates", func(t *testing.T) {
+		client := NewClient(baseURL)
+		list, err := client.ListTemplates(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(list) != 3 {
+			t.Fatalf("expected 3 templates, got %d", len(list))
+		}
+	})
+
 	t.Run("client download and extract", func(t *testing.T) {
 		client := NewClient(baseURL)
-		rc, err := client.DownloadTemplateBundle(ctx, "hello-store")
+		rc, err := client.DownloadTemplateBundle(ctx, "quiz", "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -210,12 +225,59 @@ func TestTemplateStoreEndToEnd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("extract: %v", err)
 		}
-
 		if _, ok := files["manifest.json"]; !ok {
 			t.Fatal("missing manifest.json")
 		}
-		if string(files["src/index.html"]) != "<h1>hello</h1>" {
-			t.Fatalf("unexpected index.html content: %q", string(files["src/index.html"]))
+		if string(files["index.html"]) != "<h1>Quiz</h1>" {
+			t.Fatalf("unexpected index.html: %q", string(files["index.html"]))
+		}
+	})
+
+	t.Run("template count from status", func(t *testing.T) {
+		provider := srv.templates
+		count := provider.TemplateCount()
+		if count != 3 {
+			t.Fatalf("expected template count 3, got %d", count)
+		}
+	})
+
+	t.Run("fetch templates from provider", func(t *testing.T) {
+		provider := srv.templates
+		list, err := provider.FetchTemplates()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(list) != 3 {
+			t.Fatalf("expected 3 templates, got %d", len(list))
+		}
+		dirs := map[string]bool{}
+		for _, m := range list {
+			dirs[m.Dir] = true
+		}
+		for _, want := range []string{"corkboard", "quiz", "chess"} {
+			if !dirs[want] {
+				t.Fatalf("missing template %q", want)
+			}
+		}
+	})
+
+	t.Run("no templates without provider", func(t *testing.T) {
+		// Start a server without templates provider — /api/templates should 404
+		srv2 := New("127.0.0.1:18788", "", "", "", 0, "")
+		ctx2, cancel2 := context.WithCancel(context.Background())
+		defer cancel2()
+		if err := srv2.Start(ctx2); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(50 * time.Millisecond)
+
+		resp, err := http.Get(srv2.URL() + "/api/templates")
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != 404 {
+			t.Fatalf("expected 404 without templates provider, got %d", resp.StatusCode)
 		}
 	})
 }

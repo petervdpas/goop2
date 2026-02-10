@@ -159,8 +159,10 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		cfg.Presence.CreditsURL = getTrimmedPostFormValue(r.PostForm, "presence_credits_url")
 		cfg.Presence.RegistrationURL = getTrimmedPostFormValue(r.PostForm, "presence_registration_url")
 		cfg.Presence.EmailURL = getTrimmedPostFormValue(r.PostForm, "presence_email_url")
+		cfg.Presence.TemplatesURL = getTrimmedPostFormValue(r.PostForm, "presence_templates_url")
 		cfg.Presence.CreditsAdminToken = getTrimmedPostFormValue(r.PostForm, "presence_credits_admin_token")
 		cfg.Presence.RegistrationAdminToken = getTrimmedPostFormValue(r.PostForm, "presence_registration_admin_token")
+		cfg.Presence.TemplatesAdminToken = getTrimmedPostFormValue(r.PostForm, "presence_templates_admin_token")
 
 		cfg.Lua.Enabled = formBool(r.PostForm, "lua_enabled")
 
@@ -255,10 +257,27 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		}
 
+		// Fetch templates service status
+		templatesResult := map[string]interface{}{
+			"url": cfg.Presence.TemplatesURL,
+			"ok":  check(cfg.Presence.TemplatesURL),
+		}
+		if cfg.Presence.TemplatesURL != "" {
+			if resp, err := client.Get(strings.TrimRight(cfg.Presence.TemplatesURL, "/") + "/api/templates/status"); err == nil {
+				var status map[string]interface{}
+				json.NewDecoder(resp.Body).Decode(&status)
+				resp.Body.Close()
+				if v, ok := status["dummy_mode"]; ok {
+					templatesResult["dummy_mode"] = v
+				}
+			}
+		}
+
 		result := map[string]interface{}{
 			"registration": regResult,
 			"credits":      creditsResult,
 			"email":        emailResult,
+			"templates":    templatesResult,
 		}
 
 		writeJSON(w, result)
@@ -315,6 +334,15 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		case "email":
 			if r2, err := client.Get(base + "/api/email/status"); err == nil {
+				var status map[string]interface{}
+				json.NewDecoder(r2.Body).Decode(&status)
+				r2.Body.Close()
+				if v, ok := status["dummy_mode"]; ok {
+					result["dummy_mode"] = v
+				}
+			}
+		case "templates":
+			if r2, err := client.Get(base + "/api/templates/status"); err == nil {
 				var status map[string]interface{}
 				json.NewDecoder(r2.Body).Decode(&status)
 				r2.Body.Close()

@@ -330,6 +330,7 @@
             <div class="svc-tab active" data-svc="registration">Registration</div>
             <div class="svc-tab" data-svc="credits">Credits</div>
             <div class="svc-tab" data-svc="email">Email</div>
+            <div class="svc-tab" data-svc="templates">Templates</div>
           </div>
 
           <!-- Registration tab -->
@@ -412,6 +413,37 @@
             </div>
           </div>
 
+          <!-- Templates tab -->
+          <div class="svc-tab-panel" data-svc="templates">
+            <div class="field">
+              <label>Service URL <span id="svc-templates-status" class="svc-status"></span></label>
+              <div class="token-field">
+                <input id="svc-templates-url" name="presence_templates_url"
+                       value="{{.Cfg.Presence.TemplatesURL}}"
+                       placeholder="http://localhost:8803">
+                <button type="button" class="btn token-btn svc-check-btn" data-svc-check="templates" style="display:none">Check</button>
+              </div>
+              <div class="hint">
+                Manages store templates, bundles, and pricing.
+                When configured, templates are served from this service instead of the embedded defaults.
+              </div>
+            </div>
+            <div class="field" style="margin-top:10px">
+              <label>Admin Token</label>
+              <div class="token-field">
+                <input id="svc-templates-token" name="presence_templates_admin_token"
+                       value="{{.Cfg.Presence.TemplatesAdminToken}}"
+                       placeholder="Bearer token for admin endpoints">
+                <button type="button" class="btn token-btn" onclick="generateToken('svc-templates-token')" title="Generate random token">Generate</button>
+                <button type="button" class="btn token-btn" onclick="copyToken('svc-templates-token')" title="Copy token to clipboard">Copy</button>
+              </div>
+              <div class="hint">
+                Set the same token as <code>admin_token</code> in the templates service's config.json.
+                Required for managing template prices.
+              </div>
+            </div>
+          </div>
+
         </div>
 
         <!-- Scripting (peer only) -->
@@ -488,7 +520,8 @@ function copyToken(inputId) {
   var svcMap = {
     registration: { url: 'svc-reg-url', status: 'svc-reg-status', key: 'registration', token: 'svc-reg-token' },
     credits:      { url: 'svc-credits-url', status: 'svc-credits-status', key: 'credits', token: 'svc-credits-token' },
-    email:        { url: 'svc-email-url', status: 'svc-email-status', key: 'email' }
+    email:        { url: 'svc-email-url', status: 'svc-email-status', key: 'email' },
+    templates:    { url: 'svc-templates-url', status: 'svc-templates-status', key: 'templates', token: 'svc-templates-token' }
   };
 
   function checkService(name) {

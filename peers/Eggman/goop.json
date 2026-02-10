@@ -21,8 +21,6 @@
     "rendezvous_wan": "https://goop2.com",
     "rendezvous_only": false,
     "admin_password": "",
-    "templates_dir": "templates",
-    "templates_dirs": null,
     "peer_db_path": "",
     "external_url": "",
     "relay_port": 0,
@@ -30,7 +28,10 @@
     "credits_url": "",
     "registration_url": "",
     "email_url": "",
-    "registration_credits": 1000
+    "templates_url": "",
+    "credits_admin_token": "",
+    "registration_admin_token": "",
+    "templates_admin_token": ""
   },
   "profile": {
     "label": "Eggman",
@@ -42,7 +43,8 @@
     "theme": "dark",
     "preferred_cam": "cHdJOK7AdHhAqo2zbcoYZBxEameqar07RjOMDUfrhFM=",
     "preferred_mic": "U9Qmyevdblbgalaepi9ZBJe7LdFOSf1f162v1etqHhg=",
-    "video_disabled": true
+    "video_disabled": true,
+    "hide_unverified": false
   },
   "lua": {
     "enabled": true,

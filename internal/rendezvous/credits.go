@@ -6,6 +6,8 @@ import "github.com/petervdpas/goop2/creditapi"
 // without import changes, while the canonical definitions live in the
 // public creditapi package.
 type (
+	StoreMeta         = creditapi.StoreMeta
+	TablePolicy       = creditapi.TablePolicy
 	StorePageData     = creditapi.StorePageData
 	TemplateStoreInfo = creditapi.TemplateStoreInfo
 	CreditProvider    = creditapi.CreditProvider

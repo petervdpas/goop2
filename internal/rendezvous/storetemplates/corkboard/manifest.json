@@ -1,9 +1,0 @@
-{
-  "name": "Corkboard",
-  "description": "Community advertisement board — pin notes, share with neighbors. Cork texture, pushpins, color-coded cards.",
-  "category": "community",
-  "icon": "📌",
-  "tables": {
-    "notes": { "insert_policy": "public" }
-  }
-}
