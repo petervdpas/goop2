@@ -1,5 +1,7 @@
 # Plan: Public Site Bridge
 
+> Question/Requirement: Is the bridge running on its own port and is it hiding '/p/<peer-id>/'? 
+
 ## Summary
 
 Add a `public_addr` setting to the viewer that starts a second, minimal HTTP server exposing only the peer's site to the outside world. Visitors with a regular browser can view the site and read data (blog posts, leaderboards, pinboards) but cannot write, execute Lua, or access any admin functionality.
