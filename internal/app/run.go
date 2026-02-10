@@ -103,15 +103,6 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		}
 		addr := fmt.Sprintf("%s:%d", bind, cfg.Presence.RendezvousPort)
 
-		// Build list of template directories (backward compat + new array)
-		var templatesDirs []string
-		if cfg.Presence.TemplatesDir != "" {
-			templatesDirs = append(templatesDirs, util.ResolvePath(o.PeerDir, cfg.Presence.TemplatesDir))
-		}
-		for _, dir := range cfg.Presence.TemplatesDirs {
-			templatesDirs = append(templatesDirs, util.ResolvePath(o.PeerDir, dir))
-		}
-
 		peerDBPath := ""
 		if cfg.Presence.PeerDBPath != "" {
 			peerDBPath = util.ResolvePath(o.PeerDir, cfg.Presence.PeerDBPath)
@@ -121,12 +112,13 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		if cfg.Presence.RelayKeyFile != "" {
 			relayKeyFile = util.ResolvePath(o.PeerDir, cfg.Presence.RelayKeyFile)
 		}
-		rv = rendezvous.New(addr, templatesDirs, peerDBPath, cfg.Presence.AdminPassword, cfg.Presence.ExternalURL, cfg.Presence.RelayPort, relayKeyFile)
+		rv = rendezvous.New(addr, peerDBPath, cfg.Presence.AdminPassword, cfg.Presence.ExternalURL, cfg.Presence.RelayPort, relayKeyFile)
 
-		// Wire external services (credits + registration + email)
+		// Wire external services (credits + registration + email + templates)
 		setupCredits(rv, cfg.Presence.CreditsURL, cfg.Presence.CreditsAdminToken)
 		setupRegistration(rv, cfg.Presence.RegistrationURL, cfg.Presence.RegistrationAdminToken)
 		setupEmail(rv, cfg.Presence.EmailURL)
+		setupTemplates(rv, cfg.Presence.TemplatesURL)
 
 		step++
 		progress(step, total, "Starting rendezvous server")

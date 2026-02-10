@@ -65,17 +65,6 @@ type Presence struct {
 	// Empty means admin panel is disabled (returns 403).
 	AdminPassword string `json:"admin_password"`
 
-	// Directory containing store templates served by the rendezvous server.
-	// Relative to the peer directory. Empty/missing dir means no store templates.
-	// Deprecated: use TemplatesDirs instead for multiple directories.
-	TemplatesDir string `json:"templates_dir"`
-
-	// Directories containing store templates served by the rendezvous server.
-	// Each path is relative to the peer directory. Later directories override
-	// earlier ones if templates have the same name. Use this to layer custom
-	// templates on top of defaults without rebuilding.
-	TemplatesDirs []string `json:"templates_dirs"`
-
 	// Optional path to a SQLite database for persisting peer state across
 	// rendezvous server restarts and sharing state between multiple instances.
 	// Relative to the peer directory. Empty means in-memory only (default).
@@ -98,11 +87,13 @@ type Presence struct {
 	CreditsURL      string `json:"credits_url"`      // e.g., "http://localhost:8800"
 	RegistrationURL string `json:"registration_url"` // e.g., "http://localhost:8801"
 	EmailURL        string `json:"email_url"`        // e.g., "http://localhost:8802"
+	TemplatesURL    string `json:"templates_url"`    // e.g., "http://localhost:8803"
 
 	// Admin tokens for accessing admin-only endpoints on external services.
 	// Used when fetching data panels in the admin dashboard.
 	CreditsAdminToken      string `json:"credits_admin_token"`
 	RegistrationAdminToken string `json:"registration_admin_token"`
+	TemplatesAdminToken    string `json:"templates_admin_token"`
 
 }
 
@@ -155,7 +146,6 @@ func Default() Config {
 			RendezvousBind:      "127.0.0.1",
 			RendezvousWAN:       "",
 			RendezvousOnly:      false,
-			TemplatesDir:        "templates",
 			RelayPort:           0,
 			RelayKeyFile:        "data/relay.key",
 		},

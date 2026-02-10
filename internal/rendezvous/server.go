@@ -67,11 +67,11 @@ type Server struct {
 	splash       []byte
 	docsSite     *DocSite
 
-	templateStore  *TemplateStore
 	peerDB         *peerDB         // nil when persistence is disabled
 	credits             CreditProvider  // default: NoCredits{}
 	registration        *RemoteRegistrationProvider // nil = use built-in registration
 	email               *RemoteEmailProvider        // nil = email service not configured
+	templates           *RemoteTemplatesProvider    // nil = templates service not configured
 
 	// Circuit relay v2
 	relayHost    host.Host  // nil when relay is disabled
@@ -153,9 +153,10 @@ type creditsVM struct {
 
 // Minimum API versions that this build of goop2 requires.
 const (
-	minRegistrationAPI = 1
-	minCreditsAPI      = 1
-	minEmailAPI        = 1
+	minRegistrationAPI  = 1
+	minCreditsAPI       = 1
+	minEmailAPI         = 1
+	minTemplatesAPI     = 1
 )
 
 type serviceStatus struct {
@@ -187,7 +188,7 @@ type docsVM struct {
 	Next    *DocPage
 }
 
-func New(addr string, templatesDirs []string, peerDBPath string, adminPassword string, externalURL string, relayPort int, relayKeyFile string) *Server {
+func New(addr string, peerDBPath string, adminPassword string, externalURL string, relayPort int, relayKeyFile string) *Server {
 	funcs := template.FuncMap{
 		"statusClass": func(t string) string {
 			switch t {
@@ -307,7 +308,6 @@ func New(addr string, templatesDirs []string, peerDBPath string, adminPassword s
 		}
 	}
 
-	s.templateStore = NewTemplateStore(templatesDirs)
 	s.credits = NoCredits{}
 
 	return s
@@ -369,6 +369,13 @@ func (s *Server) SetRegistrationProvider(rp *RemoteRegistrationProvider) {
 // Must be called before Start.
 func (s *Server) SetEmailProvider(ep *RemoteEmailProvider) {
 	s.email = ep
+}
+
+// SetTemplatesProvider configures a remote templates service.
+// When set, template API endpoints are proxied to the remote service.
+// Must be called before Start.
+func (s *Server) SetTemplatesProvider(tp *RemoteTemplatesProvider) {
+	s.templates = tp
 }
 
 func (s *Server) Start(ctx context.Context) error {
@@ -587,10 +594,13 @@ func (s *Server) Start(ctx context.Context) error {
 		s.email.RegisterRoutes(mux)
 	}
 
-	// Template store API
-	if s.templateStore != nil {
-		mux.HandleFunc("/api/templates", s.handleTemplateList)
-		mux.HandleFunc("/api/templates/", s.handleTemplateRoutes)
+	// Template store API — proxy to remote templates service
+	if s.templates != nil {
+		proxy := s.templates.Proxy()
+		mux.HandleFunc("/api/templates", func(w http.ResponseWriter, r *http.Request) {
+			proxy.ServeHTTP(w, r)
+		})
+		mux.HandleFunc("/api/templates/", s.handleTemplateRoutesRemote)
 	}
 
 	s.srv = &http.Server{
@@ -1101,10 +1111,9 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 	hasStore := false
 	storeCount := 0
-	if s.templateStore != nil {
-		list := s.templateStore.List()
-		hasStore = len(list) > 0
-		storeCount = len(list)
+	if s.templates != nil {
+		storeCount = s.templates.TemplateCount()
+		hasStore = storeCount > 0
 	}
 
 	regRequired := false
@@ -1135,8 +1144,12 @@ func (s *Server) handleStore(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var templates []storeTemplateVM
-	if s.templateStore != nil {
-		for _, meta := range s.templateStore.List() {
+	if s.templates != nil {
+		list, err := s.templates.FetchTemplates()
+		if err != nil {
+			log.Printf("templates: fetch list error: %v", err)
+		}
+		for _, meta := range list {
 			info := s.credits.TemplateStoreInfo(r, meta)
 			templates = append(templates, storeTemplateVM{
 				Meta:       meta,
@@ -1283,6 +1296,17 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		}
 		services = append(services, ss)
 	}
+	if s.templates != nil {
+		ss := serviceStatus{Name: "Templates", URL: s.templates.baseURL}
+		ss.OK = checkServiceHealth(s.templates.baseURL)
+		if ss.OK {
+			ss.DummyMode = s.templates.DummyMode()
+			ss.Version = s.templates.Version()
+			ss.APIVersion = s.templates.APIVersion()
+			ss.APICompat = ss.APIVersion >= minTemplatesAPI
+		}
+		services = append(services, ss)
+	}
 
 	// Only show data panels when the provider is configured AND has an admin token
 	hasRegistrations := s.registration != nil && s.registration.adminToken != ""
@@ -1389,48 +1413,22 @@ func (s *Server) cleanupRateLimiter() {
 	}
 }
 
-func (s *Server) handleTemplateList(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_ = json.NewEncoder(w).Encode(s.templateStore.List())
-}
-
-func (s *Server) handleTemplateRoutes(w http.ResponseWriter, r *http.Request) {
+// handleTemplateRoutesRemote handles /api/templates/* sub-routes by proxying
+// to the remote templates service. Bundle downloads are gated by registration
+// and credit checks before proxying.
+func (s *Server) handleTemplateRoutesRemote(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// /api/templates/<dir>/manifest.json  or  /api/templates/<dir>/bundle
+	// /api/templates/<dir>/bundle needs access control
 	path := strings.TrimPrefix(r.URL.Path, "/api/templates/")
 	parts := strings.SplitN(path, "/", 2)
-	if len(parts) != 2 || parts[0] == "" {
-		http.NotFound(w, r)
-		return
-	}
 
-	dir, action := parts[0], parts[1]
-
-	switch action {
-	case "manifest.json":
-		meta, ok := s.templateStore.GetManifest(dir)
-		if !ok {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		_ = json.NewEncoder(w).Encode(meta)
-
-	case "bundle":
-		meta, ok := s.templateStore.GetManifest(dir)
-		if !ok {
-			http.NotFound(w, r)
-			return
-		}
-		// Registration gate: require verified email for paid template downloads
+	if len(parts) == 2 && parts[1] == "bundle" {
+		dir := parts[0]
+		// Registration gate: require verified email for template downloads
 		if s.registration != nil && s.registration.RegistrationRequired() {
 			peerID := getPeerID(r)
 			if peerID == "" {
@@ -1445,19 +1443,16 @@ func (s *Server) handleTemplateRoutes(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		// Credit check: use a minimal StoreMeta with just the dir for the access check
+		meta := StoreMeta{Dir: dir, Source: "store"}
 		if !s.credits.TemplateAccessAllowed(r, meta) {
 			http.Error(w, "payment required", http.StatusPaymentRequired)
 			return
 		}
-		w.Header().Set("Content-Type", "application/gzip")
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", dir+".tar.gz"))
-		if err := s.templateStore.WriteBundle(w, dir); err != nil {
-			log.Printf("template bundle write error: %v", err)
-		}
-
-	default:
-		http.NotFound(w, r)
 	}
+
+	// Proxy the request to the remote templates service
+	s.templates.Proxy().ServeHTTP(w, r)
 }
 
 func validatePresence(pm proto.PresenceMsg) error {

@@ -178,8 +178,9 @@ func (c *Client) FetchRegistrationRequired(ctx context.Context) (bool, error) {
 }
 
 // DownloadTemplateBundle fetches the tar.gz bundle for a store template.
+// peerID is sent as X-Goop-Peer-ID so the server can verify registration.
 // Caller must close the returned ReadCloser.
-func (c *Client) DownloadTemplateBundle(ctx context.Context, dir string) (io.ReadCloser, error) {
+func (c *Client) DownloadTemplateBundle(ctx context.Context, dir, peerID string) (io.ReadCloser, error) {
 	if c.BaseURL == "" {
 		return nil, fmt.Errorf("no base url")
 	}
@@ -187,6 +188,9 @@ func (c *Client) DownloadTemplateBundle(ctx context.Context, dir string) (io.Rea
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/api/templates/"+dir+"/bundle", nil)
 	if err != nil {
 		return nil, err
+	}
+	if peerID != "" {
+		req.Header.Set("X-Goop-Peer-ID", peerID)
 	}
 
 	resp, err := (&http.Client{}).Do(req)

@@ -182,10 +182,15 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
 
+		var peerID string
+		if d.Node != nil {
+			peerID = d.Node.ID()
+		}
+
 		var body io.ReadCloser
 		var dlErr error
 		for _, c := range d.RVClients {
-			body, dlErr = c.DownloadTemplateBundle(ctx, req.Template)
+			body, dlErr = c.DownloadTemplateBundle(ctx, req.Template, peerID)
 			if dlErr == nil {
 				break
 			}
