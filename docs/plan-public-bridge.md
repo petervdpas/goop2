@@ -250,6 +250,16 @@ mysite.example.com {
 
 The `public_addr` bridge works for peers that can open a port (home server, VPS, Pi). For peers behind strict NAT, a future **gateway microservice** could run alongside the rendezvous server with its own libp2p node, tunneling HTTP requests to peers over P2P streams. This is a larger effort (essentially ngrok for Goop2) and is tracked separately.
 
+## Considerations
+
+- **Rate limiting.** The bridge is public-facing. Even read-only, the `query` endpoint could be hammered. A simple request-rate middleware should be added to prevent abuse.
+- **CORS headers.** The bridge must not set any CORS headers. Without them, the browser's same-origin policy prevents external sites from scraping data via the read-only API. Pages served by the bridge can still call external APIs freely — CORS only restricts inbound cross-origin requests, not outbound ones.
+- **Graceful shutdown.** The bridge server should respect the same shutdown lifecycle as the main viewer (context cancellation, drain timeout), not just fire-and-forget `ListenAndServe`.
+- **Template hot-swap.** When the user changes their active template, the bridge must re-check the new template's `"public"` flag and switch behavior immediately — serving the site or showing the "not available publicly" page accordingly, with no restart required.
+- **Query limits.** Rate limiting handles request volume, but a single `query` call with no `LIMIT` could still return an entire table. The read-only handler should enforce a max row cap (e.g. 1000 rows) to prevent accidental or intentional data dumps.
+- **Port conflict validation.** `Validate()` should check that `public_addr` doesn't collide with `http_addr` — easy mistake, confusing error at runtime.
+- **Access logging.** The bridge should log requests (at minimum path + status code). Useful for the peer to see who's visiting, and essential for debugging reverse proxy setups.
+
 ## Implementation order
 
 1. Add `PublicAddr` to config struct + `Public` to manifest structs
