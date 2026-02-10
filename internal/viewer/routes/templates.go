@@ -178,7 +178,6 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			return
 		}
 
-		// Download bundle from first rendezvous that has it
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
 
@@ -187,6 +186,17 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			peerID = d.Node.ID()
 		}
 
+		// Spend credits (deduct + grant ownership) before downloading.
+		// If the template is free or already owned, this is a no-op.
+		for _, c := range d.RVClients {
+			if err := c.SpendCredits(ctx, req.Template, peerID); err != nil {
+				http.Error(w, err.Error(), http.StatusPaymentRequired)
+				return
+			}
+			break // only need to call once
+		}
+
+		// Download bundle from first rendezvous that has it
 		var body io.ReadCloser
 		var dlErr error
 		for _, c := range d.RVClients {

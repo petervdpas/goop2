@@ -177,6 +177,44 @@ func (c *Client) FetchRegistrationRequired(ctx context.Context) (bool, error) {
 	return data.RegistrationRequired, nil
 }
 
+// SpendCredits calls POST /api/credits/spend to deduct credits and grant
+// template ownership. peerID is sent as X-Goop-Peer-ID for email resolution.
+// Returns (owned, error). If the template is free or already owned, returns
+// (true, nil) without deducting. Returns an error on insufficient credits or
+// service failure.
+func (c *Client) SpendCredits(ctx context.Context, templateDir, peerID string) error {
+	if c.BaseURL == "" {
+		return nil
+	}
+
+	body, _ := json.Marshal(map[string]string{"template": templateDir})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/api/credits/spend", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if peerID != "" {
+		req.Header.Set("X-Goop-Peer-ID", peerID)
+	}
+
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return fmt.Errorf("credits spend: %w", err)
+	}
+	defer func() {
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+	}()
+
+	if resp.StatusCode == http.StatusPaymentRequired {
+		return fmt.Errorf("insufficient credits")
+	}
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("credits spend: status %s", resp.Status)
+	}
+	return nil
+}
+
 // DownloadTemplateBundle fetches the tar.gz bundle for a store template.
 // peerID is sent as X-Goop-Peer-ID so the server can verify registration.
 // Caller must close the returned ReadCloser.
