@@ -512,6 +512,45 @@ html[data-theme="light"] .rv-badge{
 .status{ color: var(--muted); font-size: 12px; }
 .error{ color: #ff7b7b; font-size: 12px; }
 
+/* Progress bar (in footer, right side — absolute so branding stays centered) */
+.footer-inner{
+  position: relative;
+}
+
+.progress-wrap{
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  display:flex;
+  align-items:center;
+  gap: 8px;
+  max-width: 280px;
+}
+
+.progress-bar{
+  height: 6px;
+  min-width: 80px;
+  flex: 1;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  overflow: hidden;
+}
+
+.progress-fill{
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 350ms cubic-bezier(.2,.7,.2,1);
+}
+
+.progress-label{
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 /* Responsive */
 @media (max-width: 980px){
   :root{ --content-pad:16px; }
