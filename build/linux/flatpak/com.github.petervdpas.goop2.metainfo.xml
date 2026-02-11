@@ -4,8 +4,8 @@
   <name>Goop2</name>
   <summary>Ephemeral Web - peer-to-peer presence-based web system</summary>
 
-  <metadata_license>GPL-2.0</metadata_license>
-  <project_license>GPL-2.0</project_license>
+  <metadata_license>GPL-2.0-only</metadata_license>
+  <project_license>GPL-2.0-only</project_license>
 
   <description>
     <p>
