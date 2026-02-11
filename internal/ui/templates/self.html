@@ -355,7 +355,7 @@
                        type="checkbox"
                        name="presence_use_services"
                        {{if .Cfg.Presence.UseServices}}checked{{end}}
-                       onchange="var on=this.checked;document.getElementById('svc-body').style.opacity=on?'1':'0.4';document.getElementById('svc-body').style.pointerEvents=on?'':'none'">
+                       onchange="var on=this.checked;document.getElementById('svc-body').style.opacity=on?'1':'0.4';document.getElementById('svc-body').style.pointerEvents=on?'':'none';fetch('/api/settings/quick',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({use_services:on})})">
                 <span class="slider"></span>
               </label>
               <span class="muted small">On</span>

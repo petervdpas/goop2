@@ -35,6 +35,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			PreferredMic   *string `json:"preferred_mic"`
 			VideoDisabled  *bool   `json:"video_disabled"`
 			HideUnverified *bool   `json:"hide_unverified"`
+			UseServices    *bool   `json:"use_services"`
 		}
 		if decodeJSON(w, r, &req) != nil {
 			return
@@ -66,6 +67,9 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 		if req.HideUnverified != nil {
 			cfg.Viewer.HideUnverified = *req.HideUnverified
+		}
+		if req.UseServices != nil {
+			cfg.Presence.UseServices = *req.UseServices
 		}
 
 		if err := config.Save(d.CfgPath, cfg); err != nil {
