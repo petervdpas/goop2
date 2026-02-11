@@ -376,10 +376,10 @@ jobs:
           path: dist/*
 
   # ───────────────────────────────────────────────────────────────
-  # Fedora 41 RPM
+  # Fedora 43 RPM
   # ───────────────────────────────────────────────────────────────
-  rpm_fedora41:
-    name: Fedora 41 RPM
+  rpm_fedora43:
+    name: Fedora 43 RPM
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -387,7 +387,7 @@ jobs:
       - name: Build and package
         uses: addnab/docker-run-action@v3
         with:
-          image: fedora:41
+          image: fedora:43
           options: -v ${{ github.workspace }}:/src -w /src -e GITHUB_REF_NAME=${{ github.ref_name }}
           shell: bash
           run: |
@@ -402,7 +402,7 @@ jobs:
             dnf -y install \
               bash ca-certificates curl git \
               gcc gcc-c++ make pkgconf-pkg-config \
-              gtk3-devel webkit2gtk3-devel libayatana-appindicator-gtk3-devel \
+              gtk3-devel webkit2gtk4.1-devel libayatana-appindicator-gtk3-devel \
               libX11-devel libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel \
               mesa-libGL-devel \
               zip unzip tar gzip rpm-build
@@ -419,7 +419,7 @@ jobs:
             export PATH="$(go env GOPATH)/bin:${PATH}"
 
             wails doctor
-            wails build -clean -platform linux/amd64 -ldflags "-X main.appVersion=${VERSION}"
+            wails build -clean -platform linux/amd64 -tags webkit2_41 -ldflags "-X main.appVersion=${VERSION}"
 
             # Set up rpmbuild
             RPMTOP="$HOME/rpmbuild"
@@ -440,75 +440,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-rpm-fedora41
-          path: dist/*
-
-  # ───────────────────────────────────────────────────────────────
-  # Fedora 42 RPM
-  # ───────────────────────────────────────────────────────────────
-  rpm_fedora42:
-    name: Fedora 42 RPM
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build and package
-        uses: addnab/docker-run-action@v3
-        with:
-          image: fedora:42
-          options: -v ${{ github.workspace }}:/src -w /src -e GITHUB_REF_NAME=${{ github.ref_name }}
-          shell: bash
-          run: |
-            set -euo pipefail
-
-            VERSION="${GITHUB_REF_NAME#v}"
-            NODE_VERSION="${NODE_VERSION:-20}"
-            WAILS_VERSION="${WAILS_VERSION:-v2.11.0}"
-            export NODE_VERSION WAILS_VERSION
-
-            dnf -y update
-            dnf -y install \
-              bash ca-certificates curl git \
-              gcc gcc-c++ make pkgconf-pkg-config \
-              gtk3-devel webkit2gtk3-devel libayatana-appindicator-gtk3-devel \
-              libX11-devel libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel \
-              mesa-libGL-devel \
-              zip unzip tar gzip rpm-build
-
-            curl -fsSL "https://rpm.nodesource.com/setup_${NODE_VERSION}.x" | bash -
-            dnf -y install nodejs
-
-            curl -fsSL "https://go.dev/dl/go1.24.0.linux-amd64.tar.gz" -o /tmp/go.tgz
-            rm -rf /usr/local/go
-            tar -C /usr/local -xzf /tmp/go.tgz
-            export PATH="/usr/local/go/bin:${PATH}"
-
-            go install "github.com/wailsapp/wails/v2/cmd/wails@${WAILS_VERSION}"
-            export PATH="$(go env GOPATH)/bin:${PATH}"
-
-            wails doctor
-            wails build -clean -platform linux/amd64 -ldflags "-X main.appVersion=${VERSION}"
-
-            # Set up rpmbuild
-            RPMTOP="$HOME/rpmbuild"
-            mkdir -p "$RPMTOP"/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
-
-            sed "s/^Version:.*/Version:        ${VERSION}/" build/linux/rpm/goop2.spec > "$RPMTOP/SPECS/goop2.spec"
-
-            cp build/bin/goop2 "$RPMTOP/SOURCES/"
-            cp build/linux/goop2-wrapper.sh "$RPMTOP/SOURCES/"
-            cp build/linux/goop2.desktop "$RPMTOP/SOURCES/"
-            cp build/appicon.png "$RPMTOP/SOURCES/goop2.png"
-
-            rpmbuild -bb "$RPMTOP/SPECS/goop2.spec" --define "_topdir ${RPMTOP}"
-
-            mkdir -p /src/dist
-            find "$RPMTOP/RPMS" -name "*.rpm" -exec cp {} /src/dist/ \;
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-rpm-fedora42
+          name: release-rpm-fedora43
           path: dist/*
 
   # ───────────────────────────────────────────────────────────────
@@ -516,7 +448,7 @@ jobs:
   # ───────────────────────────────────────────────────────────────
   release:
     name: Publish GitHub Release
-    needs: [windows, linux_portable, linux_deb, linux_portable_arm64, linux_deb_arm64, rpm_fedora41, rpm_fedora42]
+    needs: [windows, linux_portable, linux_deb, linux_portable_arm64, linux_deb_arm64, rpm_fedora43]
     runs-on: ubuntu-24.04
     steps:
       - name: Download all artifacts
