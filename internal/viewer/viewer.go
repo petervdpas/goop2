@@ -124,6 +124,7 @@ type MinimalViewer struct {
 	BaseURL       string
 	RendezvousURL string
 	AvatarStore   *avatar.Store
+	BridgeURL     string
 }
 
 // StartMinimal starts a lightweight viewer with only self/settings and logs.
@@ -154,6 +155,7 @@ func StartMinimal(addr string, v MinimalViewer) error {
 		RendezvousOnly: true,
 		RendezvousURL:  v.RendezvousURL,
 		AvatarStore:    v.AvatarStore,
+		BridgeURL:      v.BridgeURL,
 	})
 
 	return http.ListenAndServe(addr, mux)

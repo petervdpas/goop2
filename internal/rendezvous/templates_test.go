@@ -204,7 +204,7 @@ func TestRemoteTemplatesIntegration(t *testing.T) {
 
 	t.Run("client list templates", func(t *testing.T) {
 		client := NewClient(baseURL)
-		list, err := client.ListTemplates(ctx)
+		list, err := client.ListTemplates(ctx, "")
 		if err != nil {
 			t.Fatal(err)
 		}

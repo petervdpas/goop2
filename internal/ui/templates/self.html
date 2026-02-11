@@ -75,6 +75,8 @@
             style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">Relay</li>
         <li class="settings-nav-item rv-server-nav" data-section="admin" id="nav-admin"
             style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">Admin</li>
+        <li class="settings-nav-item rv-server-nav" data-section="local-templates" id="nav-local-templates"
+            style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">Templates</li>
         <li class="settings-nav-item rv-server-nav" data-section="services" id="nav-services"
             style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">Services</li>
         {{if not .RendezvousOnly}}
@@ -319,13 +321,51 @@
           </div>
         </div>
 
+        <!-- Local Templates (visible when server is enabled) -->
+        <div class="settings-section rv-server-section" data-section="local-templates" style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">
+          <h3 class="settings-section-title">Local Templates</h3>
+          <p class="muted small" style="margin-bottom:14px">
+            Serve a template store directly from a folder on disk — no microservices needed.
+            Peers can browse and apply these templates for free.
+          </p>
+
+          <div class="field">
+            <label>Templates directory</label>
+            <div class="token-field">
+              <input id="templates-dir-input" name="presence_templates_dir"
+                     value="{{.Cfg.Presence.TemplatesDir}}"
+                     placeholder="templates">
+              <button type="button" class="btn token-btn" id="templates-dir-browse">Browse</button>
+            </div>
+            <div class="hint">
+              Path relative to the peer directory. Each subdirectory needs a <code>manifest.json</code>.
+              Ignored when the Templates service URL is set in External Services.
+            </div>
+          </div>
+        </div>
+
         <!-- Services (visible when server is enabled) -->
         <div class="settings-section rv-server-section" data-section="services" style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">
-          <h3 class="settings-section-title">External Services</h3>
+          <div class="rv-local rv-local--title-only">
+            <div class="rv-local-title">External Services</div>
+            <div class="rv-local-toggle">
+              <span class="muted small">Off</span>
+              <label class="switch" title="Enable external microservices (credits, registration, email, templates)">
+                <input id="use_services"
+                       type="checkbox"
+                       name="presence_use_services"
+                       {{if .Cfg.Presence.UseServices}}checked{{end}}
+                       onchange="var on=this.checked;document.getElementById('svc-body').style.opacity=on?'1':'0.4';document.getElementById('svc-body').style.pointerEvents=on?'':'none'">
+                <span class="slider"></span>
+              </label>
+              <span class="muted small">On</span>
+            </div>
+          </div>
           <p class="muted small" style="margin-bottom:14px">
             Connect to standalone microservices. Leave empty to use built-in defaults.
           </p>
 
+          <div id="svc-body" style="{{if not .Cfg.Presence.UseServices}}opacity:0.4;pointer-events:none{{end}}">
           <div class="svc-tabs">
             <div class="svc-tab active" data-svc="registration">Registration</div>
             <div class="svc-tab" data-svc="credits">Credits</div>
@@ -443,6 +483,7 @@
               </div>
             </div>
           </div>
+          </div><!-- /svc-body -->
 
         </div>
 
@@ -795,6 +836,27 @@ function copyToken(inputId) {
         importFile.value = '';
       }
     });
+  }
+
+  // ── Templates directory browse ──
+  var tplBrowse = document.getElementById('templates-dir-browse');
+  var tplInput  = document.getElementById('templates-dir-input');
+  if (tplBrowse && tplInput) {
+    var bridgeForBrowse = {{.BridgeURL}};
+    if (bridgeForBrowse) {
+      tplBrowse.addEventListener('click', function() {
+        fetch(bridgeForBrowse + '/select-dir?title=' + encodeURIComponent('Choose templates directory'), { method: 'POST' })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (!data.cancelled && data.path) {
+              tplInput.value = data.path;
+            }
+          })
+          .catch(function(err) { console.error('Browse failed:', err); });
+      });
+    } else {
+      tplBrowse.style.display = 'none';
+    }
   }
 })();
 </script>

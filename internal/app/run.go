@@ -115,10 +115,15 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		rv = rendezvous.New(addr, peerDBPath, cfg.Presence.AdminPassword, cfg.Presence.ExternalURL, cfg.Presence.RelayPort, relayKeyFile)
 
 		// Wire external services (credits + registration + email + templates)
-		setupCredits(rv, cfg.Presence.CreditsURL, cfg.Presence.CreditsAdminToken)
-		setupRegistration(rv, cfg.Presence.RegistrationURL, cfg.Presence.RegistrationAdminToken)
-		setupEmail(rv, cfg.Presence.EmailURL)
-		setupTemplates(rv, cfg.Presence.TemplatesURL, cfg.Presence.TemplatesAdminToken)
+		if cfg.Presence.UseServices {
+			setupCredits(rv, cfg.Presence.CreditsURL, cfg.Presence.CreditsAdminToken)
+			setupRegistration(rv, cfg.Presence.RegistrationURL, cfg.Presence.RegistrationAdminToken)
+			setupEmail(rv, cfg.Presence.EmailURL)
+			setupTemplates(rv, cfg.Presence.TemplatesURL, cfg.Presence.TemplatesAdminToken, cfg.Presence.TemplatesDir, o.PeerDir)
+		} else {
+			// No services — still allow local template store
+			setupTemplates(rv, "", "", cfg.Presence.TemplatesDir, o.PeerDir)
+		}
 
 		step++
 		progress(step, total, "Starting rendezvous server")
@@ -170,6 +175,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 				BaseURL:        url,
 				RendezvousURL:  rvURL,
 				AvatarStore:    avatarStore,
+				BridgeURL:      o.BridgeURL,
 			})
 			log.Printf("📋 Settings viewer: %s", url)
 		}

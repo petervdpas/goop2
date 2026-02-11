@@ -104,14 +104,45 @@ func (c *Client) Publish(ctx context.Context, pm proto.PresenceMsg) error {
 }
 
 // ListTemplates fetches the template store listing from the rendezvous server.
+// peerID is sent so the server can gate access based on registration status.
 // Returns nil (not an error) if the server has no template store.
-func (c *Client) ListTemplates(ctx context.Context) ([]StoreMeta, error) {
+func (c *Client) ListTemplates(ctx context.Context, peerID string) ([]StoreMeta, error) {
 	if c.BaseURL == "" {
 		return nil, nil
 	}
+	u := c.BaseURL + "/api/templates"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	if peerID != "" {
+		req.Header.Set("X-Goop-Peer-ID", peerID)
+	}
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+	}()
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusBadGateway {
+		return nil, nil
+	}
+	if resp.StatusCode == http.StatusForbidden {
+		// Server says peer is not allowed — read message
+		body, _ := io.ReadAll(resp.Body)
+		msg := strings.TrimSpace(string(body))
+		if msg == "" {
+			msg = "access denied"
+		}
+		return nil, fmt.Errorf("%s", msg)
+	}
+	if resp.StatusCode/100 != 2 {
+		return nil, fmt.Errorf("GET %s: status %s", u, resp.Status)
+	}
 	var out []StoreMeta
-	found, err := c.getJSON(ctx, c.BaseURL+"/api/templates", &out)
-	if !found || err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -145,36 +176,19 @@ func (c *Client) FetchBalance(ctx context.Context, peerID string) (BalanceResult
 	return BalanceResult{Active: data.CreditsActive, Balance: data.Balance}, nil
 }
 
-// FetchPrices fetches template prices from the credits service via the
-// rendezvous server's /api/credits/prices proxy.
+// FetchPrices fetches template prices from the templates service via the
+// rendezvous server's /api/templates/prices proxy.
 // Returns nil (not an error) if the endpoint is unavailable.
 func (c *Client) FetchPrices(ctx context.Context) (map[string]int, error) {
 	if c.BaseURL == "" {
 		return nil, nil
 	}
 	var out map[string]int
-	found, err := c.getJSON(ctx, c.BaseURL+"/api/credits/prices", &out)
+	found, err := c.getJSON(ctx, c.BaseURL+"/api/templates/prices", &out)
 	if !found || err != nil {
 		return nil, err
 	}
 	return out, nil
-}
-
-// FetchRegistrationRequired queries the rendezvous server's /api/reg/status
-// endpoint to check if registration is required. Returns false if the endpoint
-// is unavailable or registration is not configured.
-func (c *Client) FetchRegistrationRequired(ctx context.Context) (bool, error) {
-	if c.BaseURL == "" {
-		return false, nil
-	}
-	var data struct {
-		RegistrationRequired bool `json:"registration_required"`
-	}
-	found, err := c.getJSON(ctx, c.BaseURL+"/api/reg/status", &data)
-	if !found || err != nil {
-		return false, err
-	}
-	return data.RegistrationRequired, nil
 }
 
 // SpendCredits calls POST /api/credits/spend to deduct credits and grant
