@@ -53,11 +53,11 @@ Peers discover the relay automatically via the rendezvous server's `/relay` endp
 You can run multiple peers on the same machine by giving each a separate directory and viewer port:
 
 ```bash
-goop2 -dir peers/alice
-goop2 -dir peers/bob
+goop2 peer peers/alice
+goop2 peer peers/bob
 ```
 
-Each peer gets its own `goop.json`, identity key, database, and site directory. Set different `viewer.http_addr` ports to avoid conflicts.
+Each peer gets its own `goop.json`, identity key, database, and site directory. Set different `viewer.http_addr` ports to avoid conflicts. In the desktop app, you can create and manage multiple peers through the GUI.
 
 ## Backup and migration
 

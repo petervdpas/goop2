@@ -53,7 +53,9 @@ A real-time group chat room. Uses the groups protocol for live messaging between
 
 ## Store templates
 
-Additional templates are available through the **template store** on a rendezvous server. These can be browsed and installed from the viewer's Templates page or from the rendezvous server's `/store` page.
+Additional templates are available through the **template store** on a rendezvous server. Store templates are served by the **templates microservice** -- a separate service from the [goop2-services](https://github.com/petervdpas/goop2-services) repository. The rendezvous server proxies requests to it when `templates_url` is configured.
+
+These can be browsed and installed from the viewer's Templates page or from the rendezvous server's `/store` page.
 
 Current store templates include:
 
@@ -66,15 +68,17 @@ Current store templates include:
 | **Photobook** | Content | Photo gallery with albums |
 | **Arcade** | Games | Retro arcade games |
 
+When a credits service is also configured, store templates can be priced. Peers need sufficient credits to download priced templates.
+
 ### Store API
 
-The rendezvous server exposes a REST API for template management:
+The rendezvous server proxies these endpoints to the templates service:
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/store` | GET | Template store web page |
 | `/api/templates` | GET | JSON list of available templates |
-| `/api/templates/<name>/manifest.json` | GET | Template metadata |
+| `/api/templates/<name>/manifest` | GET | Template metadata |
 | `/api/templates/<name>/bundle` | GET | Download template as tar.gz |
 
 ## Insert policies
@@ -110,11 +114,12 @@ The same template code handles both cases transparently.
 
 ## Creating a custom template
 
-1. Create a directory in your templates folder (e.g. `templates/my-app/`).
-2. Add a `manifest.json` with metadata and schema.
-3. Write your `index.html`, `style.css`, and `app.js`.
-4. Include `<script src="/assets/js/goop-data.js"></script>` for database access.
-5. Optionally add `schema.sql` for database tables.
-6. Optionally add Lua functions in `lua/functions/` for server-side logic.
+To add a store template, create a directory in the templates service's `templates_dir` (e.g. `templates/my-app/`):
 
-Your template will appear in the viewer's template browser and can be shared via the template store.
+1. Add a `manifest.json` with metadata and schema.
+2. Write your `index.html`, `style.css`, and `app.js`.
+3. Include `<script src="/assets/js/goop-data.js"></script>` for database access.
+4. Optionally add `schema.sql` for database tables.
+5. Optionally add Lua functions in `lua/functions/` for server-side logic.
+
+The template will appear in the store and can be installed by any peer connected to that rendezvous server. You can also add additional template directories to the templates service using its `extra_dirs` config.

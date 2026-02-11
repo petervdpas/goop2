@@ -4,19 +4,24 @@
   <name>Goop2</name>
   <summary>Ephemeral Web - peer-to-peer presence-based web system</summary>
 
-  <metadata_license>MIT</metadata_license>
-  <project_license>MIT</project_license>
+  <metadata_license>GPL-2.0</metadata_license>
+  <project_license>GPL-2.0</project_license>
 
   <description>
     <p>
-      Goop2 is a peer-to-peer, presence-based web system for small, personal
-      websites. Each peer is a self-contained node with its own identity,
-      content, and optional local web UI.
+      Goop2 is a free, peer-to-peer, presence-based web system for small,
+      personal websites. Each peer is a self-contained node with its own
+      identity, content, and optional local web UI.
     </p>
     <p>
       Peers discover each other via mDNS on the local network and through a
       rendezvous server for wide-area connectivity. Content is ephemeral and
       only available while the peer is online.
+    </p>
+    <p>
+      The application is free to use. An optional credit system allows
+      rendezvous operators to offer premium templates through a built-in
+      template store.
     </p>
   </description>
 

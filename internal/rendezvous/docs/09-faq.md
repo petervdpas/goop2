@@ -4,7 +4,7 @@
 
 ### Is Goop2 free?
 
-Yes. Goop2 is open-source software. All templates are currently free to download and use.
+Yes. Goop2 is free, open-source software. An optional credit system allows rendezvous operators to offer premium templates through a built-in template store, but the application itself and all core functionality are free to use.
 
 ### Do I need a server?
 
