@@ -8,11 +8,7 @@
 
 .page-self .identity-card{
   margin: 0 0 8px 0;
-}
-
-.page-self .identity-card + p{
-  margin-top: 8px;
-  margin-bottom: 12px;
+  padding: 10px 12px;
 }
 
 /* -----------------------------

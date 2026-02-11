@@ -45,6 +45,7 @@
 }
 
 .tpl-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   background: var(--panel);
@@ -52,6 +53,19 @@
   border-radius: var(--radius);
   padding: 1.25rem;
   transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.tpl-card-active {
+  border-color: #f1c40f;
+}
+
+.tpl-active-star {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  font-size: 1.2rem;
+  color: #f1c40f;
+  line-height: 1;
 }
 
 .tpl-card:hover {

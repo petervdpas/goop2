@@ -31,25 +31,29 @@
         <input type="file" id="avatar-file-input" class="avatar-file-input" accept="image/*">
       </div>
     </div>
-    {{if .RendezvousOnly}}
-      {{if .RendezvousURL}}
-      <a class="btn identity-site-btn"
-         href="{{.RendezvousURL}}"
-         onclick="return openExternal(this.href)"
-         rel="noopener">Open dashboard</a>
+    <div class="identity-aside">
+      {{if .RendezvousOnly}}
+        {{if .RendezvousURL}}
+        <a class="btn identity-site-btn"
+           href="{{.RendezvousURL}}"
+           onclick="return openExternal(this.href)"
+           rel="noopener">Open dashboard</a>
+        {{end}}
+      {{else}}
+        <a class="btn identity-site-btn"
+           href="{{printf "%s/p/%s/" .BaseURL .SelfID}}"
+           onclick="return openExternal(this.href)"
+           rel="noopener">Open my site</a>
       {{end}}
-    {{else}}
-      <a class="btn identity-site-btn"
-         href="{{printf "%s/p/%s/" .BaseURL .SelfID}}"
-         onclick="return openExternal(this.href)"
-         rel="noopener">Open my site</a>
-    {{end}}
+      <div class="identity-details">
+        <div class="identity-details-row"><span class="identity-details-label">Config</span> <code>{{.CfgPath}}</code></div>
+        <div class="identity-details-row"><span class="identity-details-label">Site</span> <code>{{.Cfg.Paths.SiteRoot}}</code></div>
+        {{if .Cfg.Viewer.ActiveTemplate}}
+        <div class="identity-details-row"><span class="identity-details-label">Template</span> <code>{{.Cfg.Viewer.ActiveTemplate}}</code></div>
+        {{end}}
+      </div>
+    </div>
   </div>
-
-  <p class="muted small" style="margin-top: 18px;">
-    Config file: <code>{{.CfgPath}}</code><br>
-    Site folder: <code>{{.Cfg.Paths.SiteRoot}}</code>
-  </p>
 
   {{if .Saved}}
     <div class="banner ok">Saved.</div>

@@ -119,6 +119,7 @@ type Viewer struct {
 	PreferredMic   string `json:"preferred_mic"`
 	VideoDisabled  bool   `json:"video_disabled"`  // Disable video/audio calls (e.g., Linux WebKitGTK limitation)
 	HideUnverified bool   `json:"hide_unverified"` // Hide unverified peers from the peer list
+	ActiveTemplate string `json:"active_template"` // dir name of currently applied template
 }
 
 type Lua struct {
