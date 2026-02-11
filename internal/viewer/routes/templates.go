@@ -31,20 +31,26 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 		templates, _ := sitetemplates.List()
 
-		// Fetch store templates from rendezvous servers (best-effort, 5s timeout)
+		// Fetch store templates from rendezvous servers (best-effort, 5s timeout).
+		// The rendezvous server gates access — if registration is required and
+		// the peer is not verified, it returns 403 with a human-readable message.
 		var storeTemplates []rendezvous.StoreMeta
 		var storePrices map[string]int
 		var storeError string
+		var peerID string
+		if d.Node != nil {
+			peerID = d.Node.ID()
+		}
 		if len(d.RVClients) > 0 {
 			seen := map[string]bool{}
 			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 			defer cancel()
 
 			for _, c := range d.RVClients {
-				list, err := c.ListTemplates(ctx)
+				list, err := c.ListTemplates(ctx, peerID)
 				if err != nil {
 					if storeError == "" {
-						storeError = "could not connect to template store"
+						storeError = err.Error()
 					}
 					continue
 				}
@@ -70,29 +76,14 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		}
 
-		// Check registration status (best-effort)
-		var regRequired bool
-		if len(d.RVClients) > 0 {
-			ctx2, cancel2 := context.WithTimeout(r.Context(), 3*time.Second)
-			defer cancel2()
-			for _, c := range d.RVClients {
-				rr, err := c.FetchRegistrationRequired(ctx2)
-				if err == nil {
-					regRequired = rr
-					break
-				}
-			}
-		}
-
 		vm := viewmodels.TemplatesVM{
-			BaseVM:               baseVM("Templates", "create", "page.templates", d),
-			CSRF:                 csrf,
-			Templates:            templates,
-			StoreTemplates:       storeTemplates,
-			StoreTemplatePrices:  storePrices,
-			HasCredits:           storePrices != nil,
-			StoreError:           storeError,
-			RegistrationRequired: regRequired,
+			BaseVM:              baseVM("Templates", "create", "page.templates", d),
+			CSRF:                csrf,
+			Templates:           templates,
+			StoreTemplates:      storeTemplates,
+			StoreTemplatePrices: storePrices,
+			HasCredits:          storePrices != nil,
+			StoreError:          storeError,
 		}
 		render.Render(w, vm)
 	})

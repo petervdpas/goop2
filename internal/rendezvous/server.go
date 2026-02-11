@@ -72,6 +72,7 @@ type Server struct {
 	registration        *RemoteRegistrationProvider // nil = use built-in registration
 	email               *RemoteEmailProvider        // nil = email service not configured
 	templates           *RemoteTemplatesProvider    // nil = templates service not configured
+	localTemplates      *LocalTemplateStore         // nil = no local template store
 
 	// Circuit relay v2
 	relayHost    host.Host  // nil when relay is disabled
@@ -378,6 +379,14 @@ func (s *Server) SetTemplatesProvider(tp *RemoteTemplatesProvider) {
 	s.templates = tp
 }
 
+// SetLocalTemplateStore configures a local (disk-based) template store.
+// Used when no remote templates service is configured. All templates are
+// served for free without registration or credit gating.
+// Must be called before Start.
+func (s *Server) SetLocalTemplateStore(ts *LocalTemplateStore) {
+	s.localTemplates = ts
+}
+
 func (s *Server) Start(ctx context.Context) error {
 	// Start circuit relay v2 host if configured
 	if s.relayPort > 0 {
@@ -600,9 +609,28 @@ func (s *Server) Start(ctx context.Context) error {
 		s.templates.RegisterRoutes(mux) // /api/templates/prices (exact match, with auth)
 		proxy := s.templates.Proxy()
 		mux.HandleFunc("/api/templates", func(w http.ResponseWriter, r *http.Request) {
+			// Gate listing: require verified email when registration is enabled
+			if s.registration != nil && s.registration.RegistrationRequired() {
+				peerID := getPeerID(r)
+				if peerID == "" {
+					http.Error(w, "register and verify your email to access the template store", http.StatusForbidden)
+					return
+				}
+				s.mu.Lock()
+				peer, known := s.peers[peerID]
+				s.mu.Unlock()
+				if !known || peer.Email == "" || !s.registration.IsEmailVerified(peer.Email) {
+					http.Error(w, "register and verify your email to access the template store", http.StatusForbidden)
+					return
+				}
+			}
 			proxy.ServeHTTP(w, r)
 		})
 		mux.HandleFunc("/api/templates/", s.handleTemplateRoutesRemote)
+	} else if s.localTemplates != nil {
+		// Local template store — no pricing, no registration gating
+		mux.HandleFunc("/api/templates", s.handleLocalTemplateList)
+		mux.HandleFunc("/api/templates/", s.handleLocalTemplateRoutes)
 	}
 
 	s.srv = &http.Server{
@@ -1191,6 +1219,9 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if s.templates != nil {
 		storeCount = s.templates.TemplateCount()
 		hasStore = storeCount > 0
+	} else if s.localTemplates != nil {
+		storeCount = s.localTemplates.Count()
+		hasStore = storeCount > 0
 	}
 
 	regRequired := false
@@ -1231,6 +1262,13 @@ func (s *Server) handleStore(w http.ResponseWriter, r *http.Request) {
 			templates = append(templates, storeTemplateVM{
 				Meta:       meta,
 				PriceLabel: info.PriceLabel,
+			})
+		}
+	} else if s.localTemplates != nil {
+		for _, meta := range s.localTemplates.List() {
+			templates = append(templates, storeTemplateVM{
+				Meta:       meta,
+				PriceLabel: `<span class="tpl-price-free">Free</span>`,
 			})
 		}
 	}
@@ -1487,6 +1525,57 @@ func (s *Server) cleanupRateLimiter() {
 		if bucket.count == 0 {
 			delete(s.rateWindow, ip)
 		}
+	}
+}
+
+// handleLocalTemplateList serves GET /api/templates for the local template store.
+func (s *Server) handleLocalTemplateList(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(s.localTemplates.List())
+}
+
+// handleLocalTemplateRoutes handles /api/templates/<dir>/manifest and
+// /api/templates/<dir>/bundle for the local template store.
+// No registration or credit gating — all templates are free.
+func (s *Server) handleLocalTemplateRoutes(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	path := strings.TrimPrefix(r.URL.Path, "/api/templates/")
+	parts := strings.SplitN(path, "/", 2)
+	if len(parts) != 2 {
+		http.NotFound(w, r)
+		return
+	}
+
+	dir := parts[0]
+	action := parts[1]
+
+	switch action {
+	case "manifest":
+		meta, ok := s.localTemplates.GetManifest(dir)
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_ = json.NewEncoder(w).Encode(meta)
+
+	case "bundle":
+		w.Header().Set("Content-Type", "application/gzip")
+		if err := s.localTemplates.WriteBundle(w, dir); err != nil {
+			http.NotFound(w, r)
+			return
+		}
+
+	default:
+		http.NotFound(w, r)
 	}
 }
 

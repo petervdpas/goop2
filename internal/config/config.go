@@ -82,12 +82,21 @@ type Presence struct {
 	// Path to the relay identity key file. Default "data/relay.key".
 	RelayKeyFile string `json:"relay_key_file"`
 
+	// When true, external microservices (credits, registration, email, templates)
+	// are wired up using the URLs below. When false, services are disabled even
+	// if URLs are set — useful for running a LAN-only server without microservices.
+	UseServices bool `json:"use_services"`
+
 	// External service URLs. When set, goop2 proxies requests to these
 	// standalone services. Empty = disabled (use built-in/no-op defaults).
 	CreditsURL      string `json:"credits_url"`      // e.g., "http://localhost:8800"
 	RegistrationURL string `json:"registration_url"` // e.g., "http://localhost:8801"
 	EmailURL        string `json:"email_url"`        // e.g., "http://localhost:8802"
 	TemplatesURL    string `json:"templates_url"`    // e.g., "http://localhost:8803"
+
+	// Local template directory for the store (used when templates_url is empty).
+	// Each subdirectory needs a manifest.json. Relative to peer dir.
+	TemplatesDir string `json:"templates_dir"`
 
 	// Admin tokens for accessing admin-only endpoints on external services.
 	// Used when fetching data panels in the admin dashboard.

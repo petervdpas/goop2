@@ -30,9 +30,6 @@
   </div>
 
   <h3 class="tpl-section-heading">Template Store <span class="tpl-badge-store">store</span></h3>
-  {{if and .RegistrationRequired .StoreTemplatePrices}}
-  <p class="tpl-reg-notice muted small">Register on the rendezvous server to purchase paid templates.</p>
-  {{end}}
   {{if .StoreError}}
   <div class="muted small">{{.StoreError}}</div>
   {{else if .StoreTemplates}}
