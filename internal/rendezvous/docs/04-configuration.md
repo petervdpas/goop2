@@ -36,7 +36,8 @@ All configuration lives in a single `goop.json` file in your peer directory. The
     "registration_admin_token": "",
     "credits_url": "",
     "credits_admin_token": "",
-    "email_url": ""
+    "email_url": "",
+    "templates_url": ""
   },
   "profile": {
     "label": "hello",
@@ -105,6 +106,7 @@ All configuration lives in a single `goop.json` file in your peer directory. The
 | `credits_url` | `""` | URL of the credits service (e.g. `http://localhost:8800`). Enables template pricing and credit purchases. |
 | `credits_admin_token` | `""` | Bearer token for admin endpoints on the credits service. Must match `admin_token` in the service's config. |
 | `email_url` | `""` | URL of the email service (e.g. `http://localhost:8802`). Centralizes SMTP sending and email templates. |
+| `templates_url` | `""` | URL of the templates service (e.g. `http://localhost:8803`). Provides store templates, bundling, and pricing. Without it, only built-in templates are available. |
 
 ### profile
 
@@ -152,6 +154,7 @@ All services are optional. When a service URL is left empty, that feature is eit
 | **Registration** | `:8801` | Handles email verification and peer registration. Owns the `registration_required` toggle and the registrations database. Without it, Goop2 uses a built-in registration fallback. |
 | **Credits** | `:8800` | Manages credit balances, template pricing, and purchases. Credits are tied to registered email accounts. Without it, all templates are free. |
 | **Email** | `:8802` | Sends transactional emails (verification, welcome, purchase receipts) via SMTP. Provides HTML email templates. The registration service uses it for sending verification emails. |
+| **Templates** | `:8803` | Stores and serves store templates, handles bundling and pricing. Templates are loaded from disk, not embedded. The credits service proxies price lookups to it. |
 
 Each service has its own `config.json` where you configure service-specific settings like SMTP credentials (email service), `registration_required` toggle (registration service), or `dummy_mode` for safe testing. Goop2 communicates with these services purely over HTTP.
 
@@ -164,7 +167,7 @@ To connect a service, set its URL and (where applicable) a shared admin token in
 
 The admin token must match the `admin_token` in the service's own config. It is required for the admin dashboard to read registration and account data.
 
-The services ecosystem is actively growing -- more services will be added in future releases.
+The service dependency chain is: **registration** depends on **credits**, which depends on **templates**. The registration service calls the email service for sending verification emails. The credits service proxies price lookups to the templates service.
 
 ## Example configurations
 
@@ -219,7 +222,8 @@ The services ecosystem is actively growing -- more services will be added in fut
     "registration_admin_token": "shared-secret",
     "credits_url": "http://localhost:8800",
     "credits_admin_token": "shared-secret",
-    "email_url": "http://localhost:8802"
+    "email_url": "http://localhost:8802",
+    "templates_url": "http://localhost:8803"
   }
 }
 ```

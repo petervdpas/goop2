@@ -491,6 +491,9 @@ jobs:
             wails doctor
             wails build -clean -platform linux/amd64 -tags webkit2_41 -ldflags "-X main.appVersion=${VERSION}"
 
+            # Make output readable for the host runner user
+            chmod a+rx build/bin/goop2
+
       - name: Stage Flatpak assets
         shell: bash
         run: |
