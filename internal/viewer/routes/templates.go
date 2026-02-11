@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"log"
+
 	"github.com/petervdpas/goop2/internal/rendezvous"
 	"github.com/petervdpas/goop2/internal/sitetemplates"
 	"github.com/petervdpas/goop2/internal/storage"
@@ -179,11 +181,20 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 		// Spend credits (deduct + grant ownership) before downloading.
 		// If the template is free or already owned, this is a no-op.
+		var spendResult *rendezvous.SpendResult
 		for _, c := range d.RVClients {
-			if err := c.SpendCredits(ctx, req.Template, peerID); err != nil {
+			sr, err := c.SpendCredits(ctx, req.Template, peerID)
+			if err != nil {
+				log.Printf("credits: spend failed for %q peer=%s: %v", req.Template, peerID, err)
 				http.Error(w, err.Error(), http.StatusPaymentRequired)
 				return
 			}
+			if sr != nil {
+				log.Printf("credits: spent for %q — balance=%d owned=%v", req.Template, sr.Balance, sr.Owned)
+			} else {
+				log.Printf("credits: no credit service — skipping spend for %q", req.Template)
+			}
+			spendResult = sr
 			break // only need to call once
 		}
 
@@ -240,10 +251,14 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			return
 		}
 
-		writeJSON(w, map[string]string{
+		resp := map[string]interface{}{
 			"status":   "applied",
 			"template": req.Template,
-		})
+		}
+		if spendResult != nil {
+			resp["balance"] = spendResult.Balance
+		}
+		writeJSON(w, resp)
 	})
 }
 

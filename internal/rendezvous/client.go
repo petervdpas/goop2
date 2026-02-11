@@ -191,20 +191,25 @@ func (c *Client) FetchPrices(ctx context.Context) (map[string]int, error) {
 	return out, nil
 }
 
+// SpendResult holds the response from a credit spend call.
+type SpendResult struct {
+	Balance int  `json:"balance"`
+	Owned   bool `json:"owned"`
+}
+
 // SpendCredits calls POST /api/credits/spend to deduct credits and grant
 // template ownership. peerID is sent as X-Goop-Peer-ID for email resolution.
-// Returns (owned, error). If the template is free or already owned, returns
-// (true, nil) without deducting. Returns an error on insufficient credits or
-// service failure.
-func (c *Client) SpendCredits(ctx context.Context, templateDir, peerID string) error {
+// Returns the spend result (new balance + ownership) on success.
+// Returns an error on insufficient credits or service failure.
+func (c *Client) SpendCredits(ctx context.Context, templateDir, peerID string) (*SpendResult, error) {
 	if c.BaseURL == "" {
-		return nil
+		return nil, nil
 	}
 
 	body, _ := json.Marshal(map[string]string{"template": templateDir})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/api/credits/spend", bytes.NewReader(body))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if peerID != "" {
@@ -213,7 +218,7 @@ func (c *Client) SpendCredits(ctx context.Context, templateDir, peerID string) e
 
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return fmt.Errorf("credits spend: %w", err)
+		return nil, fmt.Errorf("credits spend: %w", err)
 	}
 	defer func() {
 		io.Copy(io.Discard, resp.Body)
@@ -221,12 +226,18 @@ func (c *Client) SpendCredits(ctx context.Context, templateDir, peerID string) e
 	}()
 
 	if resp.StatusCode == http.StatusPaymentRequired {
-		return fmt.Errorf("insufficient credits")
+		return nil, fmt.Errorf("insufficient credits")
 	}
 	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("credits spend: status %s", resp.Status)
+		return nil, fmt.Errorf("credits spend: status %s", resp.Status)
 	}
-	return nil
+
+	var result SpendResult
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		// Spend succeeded (2xx) but couldn't parse response — treat as success
+		return &SpendResult{Owned: true}, nil
+	}
+	return &result, nil
 }
 
 // DownloadTemplateBundle fetches the tar.gz bundle for a store template.
