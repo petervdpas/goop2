@@ -92,9 +92,15 @@
       if (!res.ok) return res.text().then(function(t) { throw new Error(t); });
       return res.json();
     })
-    .then(function() {
+    .then(function(data) {
+      var msg = '"' + name + '" is now active. Redirecting to editor...';
+      if (data.balance !== undefined) {
+        msg = 'Balance: ' + data.balance + ' credits. ' + msg;
+        var el = document.getElementById('meCredits');
+        if (el) el.textContent = '\uD83E\uDE99 ' + data.balance + ' credits';
+      }
       if (window.Goop && window.Goop.ui) {
-        Goop.ui.toast({ title: 'Template Applied', message: '"' + name + '" is now active. Redirecting to editor...', duration: 3000 });
+        Goop.ui.toast({ title: 'Template Applied', message: msg, duration: 3000 });
       }
       setTimeout(function() { window.location.href = '/edit'; }, 1500);
     })

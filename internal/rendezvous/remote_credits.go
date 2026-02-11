@@ -83,7 +83,9 @@ func (p *RemoteCreditProvider) proxyPostJSON(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	body, _ := json.Marshal(addEmail(email))
+	outBody := addEmail(email)
+	log.Printf("credits: proxy %s → email=%s payload=%v", path, email, outBody)
+	body, _ := json.Marshal(outBody)
 	resp, err := p.client.Post(
 		p.baseURL+path,
 		"application/json",
@@ -95,6 +97,7 @@ func (p *RemoteCreditProvider) proxyPostJSON(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	defer resp.Body.Close()
+	log.Printf("credits: POST %s → status %d", path, resp.StatusCode)
 	forwardResponse(w, resp)
 }
 
