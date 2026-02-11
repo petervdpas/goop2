@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.github.petervdpas.goop2</id>
+  <name>Goop2</name>
+  <summary>Ephemeral Web - peer-to-peer presence-based web system</summary>
+
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+
+  <description>
+    <p>
+      Goop2 is a peer-to-peer, presence-based web system for small, personal
+      websites. Each peer is a self-contained node with its own identity,
+      content, and optional local web UI.
+    </p>
+    <p>
+      Peers discover each other via mDNS on the local network and through a
+      rendezvous server for wide-area connectivity. Content is ephemeral and
+      only available while the peer is online.
+    </p>
+  </description>
+
+  <url type="homepage">https://github.com/petervdpas/goop2</url>
+  <url type="bugtracker">https://github.com/petervdpas/goop2/issues</url>
+  <url type="vcs-browser">https://github.com/petervdpas/goop2</url>
+
+  <launchable type="desktop-id">com.github.petervdpas.goop2.desktop</launchable>
+
+  <content_rating type="oars-1.1" />
+
+  <releases>
+    <release version="0.0.0" date="1970-01-01">
+      <description>
+        <p>See release notes on GitHub.</p>
+      </description>
+    </release>
+  </releases>
+</component>
