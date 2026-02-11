@@ -17,6 +17,7 @@ import (
 
 	"log"
 
+	"github.com/petervdpas/goop2/internal/config"
 	"github.com/petervdpas/goop2/internal/rendezvous"
 	"github.com/petervdpas/goop2/internal/sitetemplates"
 	"github.com/petervdpas/goop2/internal/storage"
@@ -78,6 +79,11 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		}
 
+		var activeTemplate string
+		if cfg, err := config.LoadPartial(d.CfgPath); err == nil {
+			activeTemplate = cfg.Viewer.ActiveTemplate
+		}
+
 		vm := viewmodels.TemplatesVM{
 			BaseVM:              baseVM("Templates", "create", "page.templates", d),
 			CSRF:                csrf,
@@ -86,6 +92,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			StoreTemplatePrices: storePrices,
 			HasCredits:          storePrices != nil,
 			StoreError:          storeError,
+			ActiveTemplate:      activeTemplate,
 		}
 		render.Render(w, vm)
 	})
@@ -138,6 +145,12 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		if err := applyTemplateFiles(d, files, schema, tablePolicies); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+
+		// Save active template to config
+		if cfg, err := config.Load(d.CfgPath); err == nil {
+			cfg.Viewer.ActiveTemplate = req.Template
+			config.Save(d.CfgPath, cfg)
 		}
 
 		writeJSON(w, map[string]string{
@@ -249,6 +262,12 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+
+		// Save active template to config
+		if cfg, err := config.Load(d.CfgPath); err == nil {
+			cfg.Viewer.ActiveTemplate = req.Template
+			config.Save(d.CfgPath, cfg)
 		}
 
 		resp := map[string]interface{}{

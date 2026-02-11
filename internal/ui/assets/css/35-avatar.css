@@ -22,15 +22,47 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  position: relative;
+}
+
+.identity-aside {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  align-self: flex-start;
+  gap: 0.4rem;
 }
 
 .identity-site-btn {
-  position: absolute;
-  top: 10px;
-  right: 10px;
   font-size: 0.8em;
   padding: 3px 10px;
+}
+
+.identity-details {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 0.7rem;
+  text-align: right;
+  padding: 0.45rem 0.75rem;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: var(--radius, 6px);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.identity-details-row {
+  white-space: nowrap;
+}
+
+.identity-details-label {
+  color: var(--muted);
+}
+
+.identity-details code {
+  color: var(--fg);
+  font-size: 1em;
+  opacity: 0.7;
 }
 
 .identity-avatar {

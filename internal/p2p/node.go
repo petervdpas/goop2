@@ -38,10 +38,11 @@ type Node struct {
 	topic *pubsub.Topic
 	sub   *pubsub.Subscription
 
-	selfContent       func() string
-	selfEmail         func() string
-	selfVideoDisabled func() bool
-	peers             *state.PeerTable
+	selfContent        func() string
+	selfEmail          func() string
+	selfVideoDisabled  func() bool
+	selfActiveTemplate func() string
+	peers              *state.PeerTable
 
 	// Set by EnableSite in site.go
 	siteRoot string
@@ -105,7 +106,7 @@ func loadOrCreateKey(keyFile string) (crypto.PrivKey, bool, error) {
 	return priv, true, nil
 }
 
-func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerTable, selfContent, selfEmail func() string, selfVideoDisabled func() bool, relayInfo *rendezvous.RelayInfo) (*Node, error) {
+func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerTable, selfContent, selfEmail func() string, selfVideoDisabled func() bool, selfActiveTemplate func() string, relayInfo *rendezvous.RelayInfo) (*Node, error) {
 	priv, isNew, err := loadOrCreateKey(keyFile)
 	if err != nil {
 		return nil, err
@@ -176,14 +177,15 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 	}
 
 	n := &Node{
-		Host:              h,
-		ps:                ps,
-		topic:             topic,
-		sub:               sub,
-		selfContent:       selfContent,
-		selfEmail:         selfEmail,
-		selfVideoDisabled: selfVideoDisabled,
-		peers:             peers,
+		Host:               h,
+		ps:                 ps,
+		topic:              topic,
+		sub:                sub,
+		selfContent:        selfContent,
+		selfEmail:          selfEmail,
+		selfVideoDisabled:  selfVideoDisabled,
+		selfActiveTemplate: selfActiveTemplate,
+		peers:              peers,
 	}
 
 	return n, nil
@@ -214,6 +216,7 @@ func (n *Node) Publish(ctx context.Context, typ string) {
 		msg.Email = n.selfEmail()
 		msg.AvatarHash = n.AvatarHash()
 		msg.VideoDisabled = n.selfVideoDisabled()
+		msg.ActiveTemplate = n.selfActiveTemplate()
 		msg.Addrs = n.wanAddrs()
 	}
 
@@ -321,7 +324,7 @@ func (n *Node) RunPresenceLoop(ctx context.Context, onEvent func(msg proto.Prese
 
 			switch pm.Type {
 			case proto.TypeOnline, proto.TypeUpdate:
-				n.peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, true)
+				n.peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, true)
 				n.addPeerAddrs(pm.PeerID, pm.Addrs)
 			case proto.TypeOffline:
 				n.peers.Remove(pm.PeerID)

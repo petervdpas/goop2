@@ -7,12 +7,13 @@ import (
 )
 
 type SeenPeer struct {
-	Content       string
-	Email         string
-	AvatarHash    string
-	VideoDisabled bool
-	Verified      bool
-	LastSeen      time.Time
+	Content        string
+	Email          string
+	AvatarHash     string
+	VideoDisabled  bool
+	ActiveTemplate string
+	Verified       bool
+	LastSeen       time.Time
 }
 
 // PeerEvent represents a change to the peer table
@@ -36,10 +37,10 @@ func NewPeerTable() *PeerTable {
 	}
 }
 
-func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled, verified bool) {
+func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled bool, activeTemplate string, verified bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	peer := SeenPeer{Content: content, Email: email, AvatarHash: avatarHash, VideoDisabled: videoDisabled, Verified: verified, LastSeen: time.Now()}
+	peer := SeenPeer{Content: content, Email: email, AvatarHash: avatarHash, VideoDisabled: videoDisabled, ActiveTemplate: activeTemplate, Verified: verified, LastSeen: time.Now()}
 	t.peers[id] = peer
 	t.notifyListeners(PeerEvent{Type: "update", PeerID: id, Peer: &peer})
 }

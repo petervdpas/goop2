@@ -152,6 +152,13 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		return cfg.Viewer.VideoDisabled
 	}
 
+	selfActiveTemplate := func() string {
+		if c, err := config.LoadPartial(o.CfgPath); err == nil {
+			return c.Viewer.ActiveTemplate
+		}
+		return cfg.Viewer.ActiveTemplate
+	}
+
 	if cfg.Presence.RendezvousOnly {
 		log.Printf("mode: rendezvous-only")
 
@@ -216,7 +223,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	progress(step, total, "Creating P2P node")
 
 	keyPath := util.ResolvePath(o.PeerDir, cfg.Identity.KeyFile)
-	node, err := p2p.New(ctx, cfg.P2P.ListenPort, keyPath, peers, selfContent, selfEmail, selfVideoDisabled, relayInfo)
+	node, err := p2p.New(ctx, cfg.P2P.ListenPort, keyPath, peers, selfContent, selfEmail, selfVideoDisabled, selfActiveTemplate, relayInfo)
 	if err != nil {
 		return err
 	}
@@ -292,7 +299,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			}
 			switch pm.Type {
 			case proto.TypeOnline, proto.TypeUpdate:
-				peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.Verified)
+				peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.Verified)
 				addPeerAddrs(node.Host, pm.PeerID, pm.Addrs)
 			case proto.TypeOffline:
 				peers.Remove(pm.PeerID)
@@ -309,14 +316,15 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 				ctx2, cancel := context.WithTimeout(pctx, util.ShortTimeout)
 				defer cancel()
 				_ = cc.Publish(ctx2, proto.PresenceMsg{
-					Type:          typ,
-					PeerID:        node.ID(),
-					Content:       selfContent(),
-					Email:         selfEmail(),
-					AvatarHash:    avatarStore.Hash(),
-					VideoDisabled: selfVideoDisabled(),
-					Addrs:         addrs,
-					TS:            proto.NowMillis(),
+					Type:           typ,
+					PeerID:         node.ID(),
+					Content:        selfContent(),
+					Email:          selfEmail(),
+					AvatarHash:     avatarStore.Hash(),
+					VideoDisabled:  selfVideoDisabled(),
+					ActiveTemplate: selfActiveTemplate(),
+					Addrs:          addrs,
+					TS:             proto.NowMillis(),
 				})
 			}()
 		}

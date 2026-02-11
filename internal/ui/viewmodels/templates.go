@@ -13,5 +13,6 @@ type TemplatesVM struct {
 	StoreTemplates       []rendezvous.StoreMeta
 	StoreTemplatePrices  map[string]int // dir → credits (from credits service)
 	HasCredits           bool           // true when credit system is active
-	StoreError string
+	StoreError           string
+	ActiveTemplate       string // dir name of currently active template
 }

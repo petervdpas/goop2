@@ -25,10 +25,12 @@
     "external_url": "",
     "relay_port": 0,
     "relay_key_file": "data/relay.key",
+    "use_services": false,
     "credits_url": "",
     "registration_url": "",
     "email_url": "",
     "templates_url": "",
+    "templates_dir": "",
     "credits_admin_token": "",
     "registration_admin_token": "",
     "templates_admin_token": ""
@@ -44,7 +46,8 @@
     "preferred_cam": "cHdJOK7AdHhAqo2zbcoYZBxEameqar07RjOMDUfrhFM=",
     "preferred_mic": "U9Qmyevdblbgalaepi9ZBJe7LdFOSf1f162v1etqHhg=",
     "video_disabled": true,
-    "hide_unverified": false
+    "hide_unverified": false,
+    "active_template": "blog"
   },
   "lua": {
     "enabled": true,

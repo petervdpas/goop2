@@ -20,6 +20,7 @@
                 <span class="peer-badge" data-unread-badge="{{.ID}}" style="display:none;">●</span>
                 {{if .Content}}{{.Content}}{{else}}{{shortID .ID}}{{end}}
               </a>
+              {{if .ActiveTemplate}}<span class="peer-template-badge">{{.ActiveTemplate}}</span>{{end}}
               {{if not .Verified}}<span class="badge-unverified">unverified</span>{{end}}
               {{if .Email}}<span class="peeremail muted small">{{.Email}}</span>{{end}}
             </div>
@@ -131,6 +132,7 @@
             <span class="peer-badge" data-unread-badge="${escapeHtml(peer.ID)}" style="display:${hasUnread ? 'inline' : 'none'};">●</span>
             ${escapeHtml(peerName)}
           </a>
+          ${peer.ActiveTemplate ? '<span class="peer-template-badge">' + escapeHtml(peer.ActiveTemplate) + '</span>' : ''}
           ${peer.Verified ? '' : '<span class="badge-unverified">unverified</span>'}
           ${peer.Email ? '<span class="peeremail muted small">' + escapeHtml(peer.Email) + '</span>' : ''}
         </div>
