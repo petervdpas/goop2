@@ -170,6 +170,19 @@ type serviceStatus struct {
 	APICompat  bool // true if api_version >= required minimum
 }
 
+type topologyDep struct {
+	Name  string `json:"name"`
+	URL   string `json:"url"`
+	OK    bool   `json:"ok"`
+	Error string `json:"error,omitempty"`
+}
+
+type topologyInfo struct {
+	Service      string        `json:"service"`
+	Addr         string        `json:"addr"`
+	Dependencies []topologyDep `json:"dependencies"`
+}
+
 type adminVM struct {
 	Title            string
 	PeerCount        int
@@ -179,6 +192,8 @@ type adminVM struct {
 	HasRegistrations bool
 	HasAccounts      bool
 	Services         []serviceStatus
+	Topologies       []topologyInfo
+	ChainIssues      []string
 }
 
 type docsVM struct {
@@ -1423,6 +1438,21 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		services = append(services, ss)
 	}
 
+	// Fetch topology from each running service
+	var topologies []topologyInfo
+	for _, svc := range services {
+		if !svc.OK {
+			continue
+		}
+		topo, err := fetchTopology(svc.URL, svc.Name)
+		if err != nil {
+			log.Printf("admin: topology %s: %v", svc.Name, err)
+			continue
+		}
+		topologies = append(topologies, topo)
+	}
+	chainIssues := validateChain(topologies, services)
+
 	// Only show data panels when the provider is configured AND has an admin token
 	hasRegistrations := s.registration != nil && s.registration.adminToken != ""
 	hasAccounts := false
@@ -1440,6 +1470,8 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		HasRegistrations: hasRegistrations,
 		HasAccounts:      hasAccounts,
 		Services:         services,
+		Topologies:       topologies,
+		ChainIssues:      chainIssues,
 	})
 }
 
@@ -1467,6 +1499,83 @@ func checkServiceHealth(baseURL string) bool {
 	}
 	resp.Body.Close()
 	return resp.StatusCode == http.StatusOK
+}
+
+// topologyPath returns the topology endpoint path for a given service name.
+func topologyPath(name string) string {
+	switch strings.ToLower(name) {
+	case "credits":
+		return "/api/credits/topology"
+	case "registration":
+		return "/api/reg/topology"
+	case "email":
+		return "/api/email/topology"
+	case "templates":
+		return "/api/templates/topology"
+	default:
+		return "/api/" + strings.ToLower(name) + "/topology"
+	}
+}
+
+// fetchTopology calls a service's topology endpoint and decodes the response.
+func fetchTopology(baseURL, serviceName string) (topologyInfo, error) {
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get(strings.TrimRight(baseURL, "/") + topologyPath(serviceName))
+	if err != nil {
+		return topologyInfo{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return topologyInfo{}, fmt.Errorf("status %d", resp.StatusCode)
+	}
+	var topo topologyInfo
+	if err := json.NewDecoder(resp.Body).Decode(&topo); err != nil {
+		return topologyInfo{}, err
+	}
+	return topo, nil
+}
+
+// validateChain checks the topology data for common misconfiguration issues.
+func validateChain(topologies []topologyInfo, services []serviceStatus) []string {
+	var issues []string
+
+	// Build a map of service name → URL (as configured in the rendezvous)
+	rvURLs := make(map[string]string)
+	for _, svc := range services {
+		rvURLs[strings.ToLower(svc.Name)] = svc.URL
+	}
+
+	for _, topo := range topologies {
+		for _, dep := range topo.Dependencies {
+			if dep.URL == "" {
+				// Check if the rendezvous has this service configured
+				if rvURL, ok := rvURLs[dep.Name]; ok && rvURL != "" {
+					issues = append(issues, fmt.Sprintf(
+						"%s service has no %s URL configured — but the rendezvous connects to %s at %s",
+						topo.Service, dep.Name, dep.Name, rvURL))
+				} else {
+					issues = append(issues, fmt.Sprintf(
+						"%s service has no %s URL configured", topo.Service, dep.Name))
+				}
+			} else if !dep.OK {
+				issues = append(issues, fmt.Sprintf(
+					"%s → %s (%s): %s", topo.Service, dep.Name, dep.URL, dep.Error))
+			}
+		}
+	}
+
+	// Specific critical check: credits must know about templates for pricing to work
+	for _, topo := range topologies {
+		if topo.Service == "credits" {
+			for _, dep := range topo.Dependencies {
+				if dep.Name == "templates" && dep.URL == "" {
+					issues = append(issues, "Credits service has no templates_url — all templates will appear free (price=0)")
+				}
+			}
+		}
+	}
+
+	return issues
 }
 
 // allowPublish checks the per-IP sliding window rate limit (60 req/min).
