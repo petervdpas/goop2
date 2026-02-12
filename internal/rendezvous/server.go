@@ -96,16 +96,17 @@ type rateBucket struct {
 }
 
 type peerRow struct {
-	PeerID        string `json:"peer_id"`
-	Type          string `json:"type"`
-	Content       string `json:"content"`
-	Email         string `json:"email,omitempty"`
-	AvatarHash    string `json:"avatar_hash,omitempty"`
-	TS            int64  `json:"ts"`
-	LastSeen      int64  `json:"last_seen"`
-	BytesSent     int64  `json:"bytes_sent"`
-	BytesReceived int64  `json:"bytes_received"`
-	Verified      bool   `json:"verified"`
+	PeerID         string `json:"peer_id"`
+	Type           string `json:"type"`
+	Content        string `json:"content"`
+	Email          string `json:"email,omitempty"`
+	AvatarHash     string `json:"avatar_hash,omitempty"`
+	ActiveTemplate string `json:"active_template,omitempty"`
+	TS             int64  `json:"ts"`
+	LastSeen       int64  `json:"last_seen"`
+	BytesSent      int64  `json:"bytes_sent"`
+	BytesReceived  int64  `json:"bytes_received"`
+	Verified       bool   `json:"verified"`
 }
 
 type indexVM struct {
@@ -123,6 +124,7 @@ type indexVM struct {
 type storeTemplateVM struct {
 	Meta       StoreMeta
 	PriceLabel template.HTML
+	IsActive   bool // currently applied by the requesting peer
 }
 
 type storeVM struct {
@@ -838,16 +840,17 @@ func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64, verified bool) 
 	}
 
 	row := peerRow{
-		PeerID:        pm.PeerID,
-		Type:          pm.Type,
-		Content:       pm.Content,
-		Email:         pm.Email,
-		AvatarHash:    pm.AvatarHash,
-		TS:            pm.TS,
-		LastSeen:      now,
-		BytesSent:     bytesSent,
-		BytesReceived: bytesReceived,
-		Verified:      verified,
+		PeerID:         pm.PeerID,
+		Type:           pm.Type,
+		Content:        pm.Content,
+		Email:          pm.Email,
+		AvatarHash:     pm.AvatarHash,
+		ActiveTemplate: pm.ActiveTemplate,
+		TS:             pm.TS,
+		LastSeen:       now,
+		BytesSent:      bytesSent,
+		BytesReceived:  bytesReceived,
+		Verified:       verified,
 	}
 	s.peers[pm.PeerID] = row
 	s.peersDirty = true
@@ -1271,6 +1274,17 @@ func (s *Server) handleStore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resolve the requesting peer's currently active template
+	peerID := getPeerID(r)
+	var activeTemplate string
+	if peerID != "" {
+		s.mu.Lock()
+		if p, ok := s.peers[peerID]; ok {
+			activeTemplate = p.ActiveTemplate
+		}
+		s.mu.Unlock()
+	}
+
 	var templates []storeTemplateVM
 	if s.templates != nil {
 		list, err := s.templates.FetchTemplates()
@@ -1282,6 +1296,7 @@ func (s *Server) handleStore(w http.ResponseWriter, r *http.Request) {
 			templates = append(templates, storeTemplateVM{
 				Meta:       meta,
 				PriceLabel: info.PriceLabel,
+				IsActive:   meta.Dir == activeTemplate,
 			})
 		}
 	} else if s.localTemplates != nil {
@@ -1289,6 +1304,7 @@ func (s *Server) handleStore(w http.ResponseWriter, r *http.Request) {
 			templates = append(templates, storeTemplateVM{
 				Meta:       meta,
 				PriceLabel: `<span class="tpl-price-free">Free</span>`,
+				IsActive:   meta.Dir == activeTemplate,
 			})
 		}
 	}
