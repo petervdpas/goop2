@@ -183,6 +183,11 @@ type topologyInfo struct {
 	Dependencies []topologyDep `json:"dependencies"`
 }
 
+type adminServiceRow struct {
+	serviceStatus
+	Dependencies []topologyDep
+}
+
 type adminVM struct {
 	Title            string
 	PeerCount        int
@@ -192,7 +197,7 @@ type adminVM struct {
 	HasRegistrations bool
 	HasAccounts      bool
 	Services         []serviceStatus
-	Topologies       []topologyInfo
+	ServiceRows      []adminServiceRow
 	ChainIssues      []string
 }
 
@@ -1453,6 +1458,19 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 	chainIssues := validateChain(topologies, services)
 
+	// Merge services + topology into combined rows
+	var serviceRows []adminServiceRow
+	for _, svc := range services {
+		row := adminServiceRow{serviceStatus: svc}
+		for _, topo := range topologies {
+			if strings.EqualFold(topo.Service, svc.Name) {
+				row.Dependencies = topo.Dependencies
+				break
+			}
+		}
+		serviceRows = append(serviceRows, row)
+	}
+
 	// Only show data panels when the provider is configured AND has an admin token
 	hasRegistrations := s.registration != nil && s.registration.adminToken != ""
 	hasAccounts := false
@@ -1470,7 +1488,7 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		HasRegistrations: hasRegistrations,
 		HasAccounts:      hasAccounts,
 		Services:         services,
-		Topologies:       topologies,
+		ServiceRows:      serviceRows,
 		ChainIssues:      chainIssues,
 	})
 }
@@ -1704,8 +1722,8 @@ func (s *Server) handleTemplateRoutesRemote(w http.ResponseWriter, r *http.Reque
 	if len(parts) == 2 && parts[1] == "bundle" {
 		dir := parts[0]
 		// Registration gate: require verified email for template downloads
+		peerID := getPeerID(r)
 		if s.registration != nil && s.registration.RegistrationRequired() {
-			peerID := getPeerID(r)
 			if peerID == "" {
 				http.Error(w, "registration required — provide peer_id", http.StatusForbidden)
 				return
@@ -1723,6 +1741,10 @@ func (s *Server) handleTemplateRoutesRemote(w http.ResponseWriter, r *http.Reque
 		if !s.credits.TemplateAccessAllowed(r, meta) {
 			http.Error(w, "payment required", http.StatusPaymentRequired)
 			return
+		}
+		// Inject email header so the templates service can do its own credit check
+		if email := s.GetEmailForPeer(peerID); email != "" {
+			r.Header.Set("X-Goop-Email", email)
 		}
 	}
 
