@@ -37,8 +37,9 @@
   <div class="tpl-grid">
     {{$prices := .StoreTemplatePrices}}
     {{range .StoreTemplates}}
+    {{$owned := $.OwnedTemplates}}
     <div class="tpl-card{{if eq .Dir $.ActiveTemplate}} tpl-card-active{{end}}" data-dir="{{.Dir}}" data-source="store">
-      {{if eq .Dir $.ActiveTemplate}}<span class="tpl-active-star" title="Currently active">&#9733;</span>{{end}}
+      {{if eq .Dir $.ActiveTemplate}}<span class="tpl-active-star" title="Currently active">&#9733;</span>{{else if and $owned (index $owned .Dir)}}<span class="tpl-owned-star" title="Previously applied">&#9733;</span>{{end}}
       <div class="tpl-card-head">
         <div class="tpl-card-icon">{{.Icon}}</div>
         {{if $.HasCredits}}{{if and $prices (gt (index $prices .Dir) 0)}}<span class="tpl-price tpl-price-credits">🪙 {{index $prices .Dir}}</span>{{else}}<span class="tpl-price tpl-price-free">Free</span>{{end}}{{end}}
@@ -91,14 +92,29 @@
       body: JSON.stringify({ template: dir, csrf: csrf })
     })
     .then(function(res) {
+      if (res.status === 402) {
+        return res.text().then(function(t) {
+          if (window.Goop && window.Goop.ui) {
+            Goop.ui.toast({ title: 'Warning', message: t || 'Template could not be applied, insufficient funding', duration: 6000 });
+          }
+          return null;
+        });
+      }
       if (!res.ok) return res.text().then(function(t) { throw new Error(t); });
       return res.json();
     })
     .then(function(data) {
-      // Move active star to the newly applied card
+      if (!data) return;
+      // Move active star to the newly applied card; demote old active to owned
       var oldStar = document.querySelector('.tpl-active-star');
-      if (oldStar) oldStar.remove();
+      if (oldStar) {
+        oldStar.className = 'tpl-owned-star';
+        oldStar.title = 'Previously applied';
+      }
       document.querySelectorAll('.tpl-card-active').forEach(function(c) { c.classList.remove('tpl-card-active'); });
+      // Remove owned star from the newly active card (gold replaces gray)
+      var existingOwned = document.querySelector('.tpl-card[data-dir="' + dir + '"] .tpl-owned-star');
+      if (existingOwned) existingOwned.remove();
       var card = document.querySelector('.tpl-card[data-dir="' + dir + '"]');
       if (card) {
         card.classList.add('tpl-card-active');

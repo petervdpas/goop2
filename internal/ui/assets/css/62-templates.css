@@ -68,6 +68,16 @@
   line-height: 1;
 }
 
+.tpl-owned-star {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  font-size: 1.2rem;
+  color: var(--muted);
+  opacity: 0.5;
+  line-height: 1;
+}
+
 .tpl-card:hover {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);

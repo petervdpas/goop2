@@ -44,6 +44,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		if d.Node != nil {
 			peerID = d.Node.ID()
 		}
+		var ownedTemplates map[string]bool
 		if len(d.RVClients) > 0 {
 			seen := map[string]bool{}
 			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
@@ -70,6 +71,13 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 						storePrices = prices
 					}
 				}
+				// Fetch owned templates (best-effort)
+				if ownedTemplates == nil {
+					owned, _ := c.FetchOwnedTemplates(ctx, peerID)
+					if owned != nil {
+						ownedTemplates = owned
+					}
+				}
 			}
 
 			// Always show price badges on store templates.
@@ -90,6 +98,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			Templates:           templates,
 			StoreTemplates:      storeTemplates,
 			StoreTemplatePrices: storePrices,
+			OwnedTemplates:      ownedTemplates,
 			HasCredits:          storePrices != nil,
 			StoreError:          storeError,
 			ActiveTemplate:      activeTemplate,
