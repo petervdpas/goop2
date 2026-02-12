@@ -43,7 +43,7 @@
       <div class="store-card glass">
         <div class="store-card-head">
           <div class="store-card-icon">{{.Meta.Icon}}</div>
-          <div class="store-card-price">{{.PriceLabel}}</div>
+          <div class="store-card-price">{{if .IsActive}}<span class="tpl-price-active">&#9733;</span>{{else}}{{.PriceLabel}}{{end}}</div>
         </div>
         <div class="store-card-body">
           <div class="store-card-name">{{.Meta.Name}}</div>

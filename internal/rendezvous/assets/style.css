@@ -783,15 +783,14 @@ h1 {
 }
 
 .tpl-price-owned {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .5px;
-  background: var(--purple-dim);
-  color: var(--purple);
+  font-size: 1.4rem;
+  color: var(--text-muted);
+  opacity: .5;
+}
+
+.tpl-price-active {
+  font-size: 1.4rem;
+  color: #f0c040;
 }
 
 .store-card-body { flex: 1; }

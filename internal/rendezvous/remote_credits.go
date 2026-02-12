@@ -323,7 +323,7 @@ func (p *RemoteCreditProvider) TemplateStoreInfo(r *http.Request, tpl StoreMeta)
 
 	switch data.Status {
 	case "owned":
-		return TemplateStoreInfo{PriceLabel: `<span class="tpl-price-owned">Owned</span>`}
+		return TemplateStoreInfo{PriceLabel: `<span class="tpl-price-owned">&#9733;</span>`}
 	case "priced":
 		return TemplateStoreInfo{
 			PriceLabel: template.HTML(fmt.Sprintf(
