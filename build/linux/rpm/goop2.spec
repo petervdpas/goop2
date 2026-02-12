@@ -11,7 +11,7 @@ AutoReqProv:    no
 
 Requires:       glibc
 Requires:       gtk3
-Requires:       webkit2gtk3
+Requires:       webkit2gtk4.1
 Requires:       libayatana-appindicator-gtk3
 
 %global debug_package %{nil}
