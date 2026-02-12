@@ -56,44 +56,28 @@
             </div>
           </div>
 
-          {{if .Services}}
+          {{if .ServiceRows}}
           <div class="dash-panel glass">
             <div class="dash-panel-header">
               <span class="dash-panel-label">Services</span>
             </div>
             <div class="svc-list">
-              {{range .Services}}
-              <div class="svc-row">
-                <div class="svc-row-left">
-                  <span class="svc-dot {{if not .OK}}svc-dot-err{{else if not .APICompat}}svc-dot-err{{else}}svc-dot-ok{{end}}"></span>
-                  <strong>{{.Name}}</strong>
-                  {{if .OK}}
-                    {{if .DummyMode}}<span class="svc-badge svc-badge-dummy">(dummy)</span>
-                    {{else}}<span class="svc-badge svc-badge-ok">(active)</span>{{end}}
-                  {{else}}<span class="svc-badge svc-badge-err">not running</span>{{end}}
-                  {{if and .OK (not .APICompat)}}<span class="svc-badge svc-badge-err">⚠ Incompatible API</span>{{end}}
-                </div>
-                <div class="svc-row-right">
-                  {{if .OK}}{{if .Version}}<span>v{{.Version}}</span>{{end}}<span>API v{{.APIVersion}}</span>{{end}}
-                  <span>{{.URL}}</span>
-                </div>
-              </div>
-              {{end}}
-            </div>
-          </div>
-          {{end}}
-
-          {{if .Topologies}}
-          <div class="dash-panel glass" style="margin-top:.75rem">
-            <div class="dash-panel-header">
-              <span class="dash-panel-label">Service Dependencies</span>
-            </div>
-            <div class="svc-list">
-              {{range .Topologies}}
+              {{range .ServiceRows}}
               <div class="svc-topo-group">
-                <div class="svc-row" style="border-bottom:none;padding-bottom:0">
-                  <div class="svc-row-left"><strong>{{.Service}}</strong></div>
-                  <div class="svc-row-right"><code>{{.Addr}}</code></div>
+                <div class="svc-row"{{if .Dependencies}} style="border-bottom:none;padding-bottom:0"{{end}}>
+                  <div class="svc-row-left">
+                    <span class="svc-dot {{if not .OK}}svc-dot-err{{else if not .APICompat}}svc-dot-err{{else}}svc-dot-ok{{end}}"></span>
+                    <strong>{{.Name}}</strong>
+                    {{if .OK}}
+                      {{if .DummyMode}}<span class="svc-badge svc-badge-dummy">(dummy)</span>
+                      {{else}}<span class="svc-badge svc-badge-ok">(active)</span>{{end}}
+                    {{else}}<span class="svc-badge svc-badge-err">not running</span>{{end}}
+                    {{if and .OK (not .APICompat)}}<span class="svc-badge svc-badge-err">&#9888; Incompatible API</span>{{end}}
+                  </div>
+                  <div class="svc-row-right">
+                    {{if .OK}}{{if .Version}}<span>v{{.Version}}</span>{{end}}<span>API v{{.APIVersion}}</span>{{end}}
+                    <span>{{.URL}}</span>
+                  </div>
                 </div>
                 {{range .Dependencies}}
                 <div class="svc-row svc-dep-row" style="padding-left:2rem;padding-top:0.2rem;padding-bottom:0.2rem">
