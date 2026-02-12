@@ -101,6 +101,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Update Docker CLI
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq docker-ce-cli
+
       - name: Build and package
         uses: addnab/docker-run-action@v3
         with:
@@ -164,6 +167,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+
+      - name: Update Docker CLI
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq docker-ce-cli
 
       - name: Build and package
         uses: addnab/docker-run-action@v3
@@ -241,6 +247,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Update Docker CLI
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq docker-ce-cli
+
       - name: Build and package
         uses: addnab/docker-run-action@v3
         with:
@@ -304,6 +313,9 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
+
+      - name: Update Docker CLI
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq docker-ce-cli
 
       - name: Build and package
         uses: addnab/docker-run-action@v3
@@ -384,6 +396,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Update Docker CLI
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq docker-ce-cli
+
       - name: Build and package
         uses: addnab/docker-run-action@v3
         with:
@@ -451,6 +466,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+
+      - name: Update Docker CLI
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq docker-ce-cli
 
       - name: Build binary (webkit2_41)
         uses: addnab/docker-run-action@v3
