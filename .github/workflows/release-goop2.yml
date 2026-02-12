@@ -502,7 +502,10 @@ jobs:
           FPDIR="build/linux/flatpak"
 
           cp build/bin/goop2 "${FPDIR}/goop2-bin"
-          cp build/appicon.png "${FPDIR}/goop2.png"
+
+          # Flatpak icons must be max 512x512
+          sudo apt-get install -y --no-install-recommends imagemagick
+          convert build/appicon.png -resize 512x512 "${FPDIR}/goop2.png"
 
           # Stamp version and date into metainfo
           TODAY="$(date -u +%Y-%m-%d)"
