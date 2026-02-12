@@ -11,8 +11,9 @@ type TemplatesVM struct {
 	CSRF                 string
 	Templates            []sitetemplates.TemplateMeta
 	StoreTemplates       []rendezvous.StoreMeta
-	StoreTemplatePrices  map[string]int // dir → credits (from credits service)
-	HasCredits           bool           // true when credit system is active
+	StoreTemplatePrices  map[string]int  // dir → credits (from credits service)
+	OwnedTemplates       map[string]bool // dirs the peer has previously purchased
+	HasCredits           bool            // true when credit system is active
 	StoreError           string
 	ActiveTemplate       string // dir name of currently active template
 }

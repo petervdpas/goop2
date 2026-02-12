@@ -176,6 +176,30 @@ func (c *Client) FetchBalance(ctx context.Context, peerID string) (BalanceResult
 	return BalanceResult{Active: data.CreditsActive, Balance: data.Balance}, nil
 }
 
+// FetchOwnedTemplates fetches the list of template dirs owned by the peer.
+// Returns nil if credits are not configured or the peer has no owned templates.
+func (c *Client) FetchOwnedTemplates(ctx context.Context, peerID string) (map[string]bool, error) {
+	if c.BaseURL == "" {
+		return nil, nil
+	}
+	reqURL := c.BaseURL + "/api/credits/store-data"
+	if peerID != "" {
+		reqURL += "?peer_id=" + peerID
+	}
+	var data struct {
+		OwnedTemplates []string `json:"owned_templates"`
+	}
+	found, err := c.getJSON(ctx, reqURL, &data)
+	if !found || err != nil || len(data.OwnedTemplates) == 0 {
+		return nil, err
+	}
+	owned := make(map[string]bool, len(data.OwnedTemplates))
+	for _, dir := range data.OwnedTemplates {
+		owned[dir] = true
+	}
+	return owned, nil
+}
+
 // FetchPrices fetches template prices from the templates service via the
 // rendezvous server's /api/templates/prices proxy.
 // Returns nil (not an error) if the endpoint is unavailable.
@@ -226,7 +250,7 @@ func (c *Client) SpendCredits(ctx context.Context, templateDir, peerID string) (
 	}()
 
 	if resp.StatusCode == http.StatusPaymentRequired {
-		return nil, fmt.Errorf("insufficient credits")
+		return nil, fmt.Errorf("Template could not be applied, insufficient funding")
 	}
 	if resp.StatusCode/100 != 2 {
 		return nil, fmt.Errorf("credits spend: status %s", resp.Status)
