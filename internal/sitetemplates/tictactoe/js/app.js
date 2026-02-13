@@ -68,6 +68,8 @@
     // Check if I have an active game — render directly from lobby data
     for (var i = 0; i < games.length; i++) {
       var g = games[i];
+      // Skip waiting PvP games for the owner — they see these as pending challenges
+      if (isOwner && g.status === "waiting" && g.mode === "pvp") continue;
       if ((g.status === "playing" || g.status === "waiting") &&
           (g._owner === myId || g.challenger === myId)) {
         showGame(g._id);
@@ -253,22 +255,26 @@
 
     var html = '<div class="ttt-game">';
 
-    // Status line
+    // Status line — waiting state
     if (state.status === "waiting") {
-      html += '<div class="ttt-waiting">';
-      html += '<div class="spinner"></div>';
-      html += '<p>Waiting for host to make a move&hellip;</p>';
-      html += '<button class="btn btn-secondary btn-sm" id="btn-cancel">Cancel</button>';
-      html += '</div>';
-      root.innerHTML = html;
-      var btnCancel = document.getElementById("btn-cancel");
-      if (btnCancel) {
-        btnCancel.onclick = async function () {
-          await db.call("ttt", { action: "cancel", game_id: state.game_id });
-          showLobby();
-        };
+      if (!isOwner) {
+        // Visitor: show spinner while waiting for the host's first move
+        html += '<div class="ttt-waiting">';
+        html += '<div class="spinner"></div>';
+        html += '<p>Waiting for host to make a move&hellip;</p>';
+        html += '<button class="btn btn-secondary btn-sm" id="btn-cancel">Cancel</button>';
+        html += '</div>';
+        root.innerHTML = html;
+        var btnCancel = document.getElementById("btn-cancel");
+        if (btnCancel) {
+          btnCancel.onclick = async function () {
+            await db.call("ttt", { action: "cancel", game_id: state.game_id });
+            showLobby();
+          };
+        }
+        return;
       }
-      return;
+      // Owner: fall through to render the board so they can make the first move
     }
 
     // Result banner
