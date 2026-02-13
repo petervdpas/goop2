@@ -205,12 +205,25 @@ button:focus-visible{
 /* -----------------------------
    Chat
 ------------------------------ */
+/* peer detail page — flex fill so chat takes remaining space */
+.peer-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.peer-page .chat-container {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
 .chat-header {
   display: flex;
   align-items: center;
   gap: 10px;
   margin-top: 18px;
-  max-width: 800px;
 }
 .chat-header h2 { flex: 1; }
 .chat-call-actions {
@@ -249,12 +262,12 @@ button:focus-visible{
   border-radius: var(--radius);
   background: var(--panel2);
   margin-top: 8px;
-  max-width: 800px;
+  overflow: hidden;
 }
 
 .chat-messages {
-  min-height: 300px;
-  max-height: 500px;
+  flex: 1 1 0;
+  min-height: 0;
   overflow-y: auto;
   padding: 16px;
   display: flex;
@@ -483,7 +496,8 @@ button:focus-visible{
 .peers-page {
   display: grid;
   grid-template-columns: minmax(420px, 1.5fr) minmax(200px, 1fr);
-  height: 100%;
+  flex: 1 1 0;
+  min-height: 0;
   margin: calc(-1 * var(--content-pad));
 }
 
@@ -492,7 +506,7 @@ button:focus-visible{
   display: flex;
   flex-direction: column;
   gap: 24px;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .peers-splash {
@@ -545,16 +559,18 @@ html[data-theme="light"] .peers-splash img {
 }
 
 .broadcast-section {
-  flex: 0 0 auto;
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .broadcast-section .chat-container {
   margin-top: 8px;
-}
-
-.broadcast-section .chat-messages {
-  min-height: 200px;
-  max-height: 350px;
+  flex: 1 1 0;
+  min-height: 0;
+  max-width: none;
 }
 
 .peer-count {
@@ -565,7 +581,6 @@ html[data-theme="light"] .peers-splash img {
 @media (max-width: 980px) {
   .peers-page {
     grid-template-columns: 1fr;
-    height: auto;
     margin: 0;
   }
   .peers-splash {
