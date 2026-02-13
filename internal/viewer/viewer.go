@@ -46,6 +46,9 @@ type Viewer struct {
 
 	// Wails bridge URL for native dialogs (empty when not running in Wails)
 	BridgeURL string
+
+	// EnsureLua starts the Lua engine if needed and rescans functions.
+	EnsureLua func()
 }
 
 func Start(addr string, v Viewer) error {
@@ -67,23 +70,24 @@ func Start(addr string, v Viewer) error {
 	}
 
 	routes.Register(mux, routes.Deps{
-		Node:        v.Node,
-		SelfLabel:   v.SelfLabel,
-		SelfEmail:   v.SelfEmail,
-		Peers:       v.Peers,
-		CfgPath:     v.CfgPath,
-		Cfg:         v.Cfg,
-		Logs:        v.Logs,
-		Content:     v.Content,
-		BaseURL:     baseURL,
-		DB:          v.DB,
-		AvatarStore: v.AvatarStore,
-		AvatarCache: v.AvatarCache,
+		Node:         v.Node,
+		SelfLabel:    v.SelfLabel,
+		SelfEmail:    v.SelfEmail,
+		Peers:        v.Peers,
+		CfgPath:      v.CfgPath,
+		Cfg:          v.Cfg,
+		Logs:         v.Logs,
+		Content:      v.Content,
+		BaseURL:      baseURL,
+		DB:           v.DB,
+		AvatarStore:  v.AvatarStore,
+		AvatarCache:  v.AvatarCache,
 		PeerDir:      v.PeerDir,
 		RVClients:    v.RVClients,
 		BridgeURL:    v.BridgeURL,
 		DocsStore:    v.Docs,
 		GroupManager: v.Groups,
+		EnsureLua:    v.EnsureLua,
 	})
 
 	// Register chat endpoints if chat manager is available

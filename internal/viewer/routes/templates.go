@@ -346,6 +346,18 @@ func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePol
 		}
 	}
 
+	// 6. If the template includes Lua data functions, ensure the Lua engine
+	//    is running and immediately rescan so scripts are available without
+	//    waiting for the async fsnotify watcher.
+	if d.EnsureLua != nil {
+		for rel := range files {
+			if strings.HasPrefix(rel, "lua/functions/") && strings.HasSuffix(rel, ".lua") {
+				d.EnsureLua()
+				break
+			}
+		}
+	}
+
 	return nil
 }
 

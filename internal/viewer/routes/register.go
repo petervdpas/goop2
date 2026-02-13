@@ -48,6 +48,11 @@ type Deps struct {
 	// Document sharing
 	DocsStore    *docs.Store
 	GroupManager *group.Manager
+
+	// EnsureLua is called when a template with Lua files is applied.
+	// It starts the Lua engine (if not already running) and rescans the
+	// functions directory so scripts are available immediately.
+	EnsureLua func()
 }
 
 func Register(mux *http.ServeMux, d Deps) {

@@ -196,6 +196,14 @@ func (n *Node) SetLuaDispatcher(d LuaDispatcher) {
 	n.luaDispatcher = d
 }
 
+// RescanLuaFunctions tells the Lua engine to re-read its functions directory.
+// This is a no-op if no dispatcher is set.
+func (n *Node) RescanLuaFunctions() {
+	if n.luaDispatcher != nil {
+		n.luaDispatcher.RescanFunctions()
+	}
+}
+
 func (n *Node) Close() error {
 	return n.Host.Close()
 }

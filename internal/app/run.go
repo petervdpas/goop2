@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/petervdpas/goop2/internal/avatar"
@@ -256,22 +257,54 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	log.Printf("💬 Chat enabled: direct messaging via /goop/chat/1.0.0")
 
 	// ── Lua scripting engine
-	if cfg.Lua.Enabled {
-		luaEngine, luaErr := luapkg.NewEngine(cfg.Lua, o.PeerDir, node.ID(), selfContent, peers)
-		if luaErr != nil {
-			log.Printf("WARNING: Lua engine failed to start: %v", luaErr)
-		} else {
-			// Phase 1: chat command dispatch
+	var luaEngine *luapkg.Engine
+	var luaOnce sync.Once
+
+	startLua := func() {
+		luaOnce.Do(func() {
+			luaCfg := cfg.Lua
+			// When auto-enabled via template apply, re-read config for latest values.
+			if c, err := config.Load(o.CfgPath); err == nil {
+				luaCfg = c.Lua
+			}
+			var luaErr error
+			luaEngine, luaErr = luapkg.NewEngine(luaCfg, o.PeerDir, node.ID(), selfContent, peers)
+			if luaErr != nil {
+				log.Printf("WARNING: Lua engine failed to start: %v", luaErr)
+				luaEngine = nil
+				return
+			}
 			chatMgr.SetCommandHandler(func(ctx context.Context, fromPeerID, content string, sender chat.DirectSender) {
 				luaEngine.Dispatch(ctx, fromPeerID, content, luapkg.SenderFunc(func(ctx2 context.Context, toPeerID, msg string) error {
 					return sender.SendDirect(ctx2, toPeerID, msg)
 				}))
 			})
-			// Phase 2: data function dispatch + database access
 			luaEngine.SetDB(db)
 			node.SetLuaDispatcher(luaEngine)
-			defer luaEngine.Close()
+		})
+	}
+
+	if cfg.Lua.Enabled {
+		startLua()
+	}
+	defer func() {
+		if luaEngine != nil {
+			luaEngine.Close()
 		}
+	}()
+
+	// ensureLua is called by template apply when Lua files are detected.
+	// It enables Lua in config, starts the engine if needed, and rescans.
+	ensureLua := func() {
+		if c, err := config.Load(o.CfgPath); err == nil {
+			if !c.Lua.Enabled {
+				c.Lua.Enabled = true
+				config.Save(o.CfgPath, c)
+				log.Printf("LUA: auto-enabled in config (template with Lua functions applied)")
+			}
+		}
+		startLua()
+		node.RescanLuaFunctions()
 	}
 
 	// ── Group manager
@@ -361,6 +394,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			PeerDir:     o.PeerDir,
 			RVClients:   rvClients,
 			BridgeURL:   o.BridgeURL,
+			EnsureLua:   ensureLua,
 		})
 	}
 
