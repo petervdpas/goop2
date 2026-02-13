@@ -442,6 +442,14 @@ func (e *Engine) FunctionsDir() string {
 	return e.functionsDir
 }
 
+// RescanFunctions re-reads the data functions directory and compiles any new scripts.
+// This provides a synchronous alternative to fsnotify for cases where the caller
+// needs scripts available immediately (e.g. after template apply).
+func (e *Engine) RescanFunctions() {
+	e.scanDir(e.functionsDir, true)
+	log.Printf("LUA: rescanned functions dir, %d script(s) loaded", len(e.scripts))
+}
+
 // Commands returns a sorted list of loaded command names.
 func (e *Engine) Commands() []string {
 	e.mu.RLock()

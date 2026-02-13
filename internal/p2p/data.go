@@ -21,6 +21,7 @@ import (
 type LuaDispatcher interface {
 	CallFunction(ctx context.Context, callerID, function string, params map[string]any) (any, error)
 	ListDataFunctions() any
+	RescanFunctions() // reload scripts from the functions directory
 }
 
 // DataRequest is the wire format for a data operation request.
