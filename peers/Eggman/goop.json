@@ -47,7 +47,7 @@
     "preferred_mic": "U9Qmyevdblbgalaepi9ZBJe7LdFOSf1f162v1etqHhg=",
     "video_disabled": true,
     "hide_unverified": false,
-    "active_template": "blog"
+    "active_template": "tictactoe"
   },
   "lua": {
     "enabled": true,

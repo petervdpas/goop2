@@ -8,7 +8,9 @@
        src="/api/avatar/peer/{{.PeerID}}{{if .AvatarHash}}?v={{.AvatarHash}}{{end}}"
        alt="">
   <div class="peer-detail-info">
-    <div class="peer-detail-name">{{if .Content}}{{.Content}}{{else}}{{.PeerID}}{{end}}</div>
+    <div class="peer-detail-name" id="peer-name">
+      <span class="loading-text">Loading...</span>
+    </div>
     <div class="muted small">
       {{if .PeerEmail}}{{.PeerEmail}} &middot; {{end}}<code>{{.PeerID}}</code>
     </div>
@@ -60,6 +62,21 @@
   const messagesDiv = document.getElementById('chat-messages');
   const form = document.getElementById('chat-form');
   const input = document.getElementById('chat-message');
+
+  // Load peer content (display name) in background
+  const peerNameEl = document.getElementById('peer-name');
+  fetch('/api/peer/content?id=' + encodeURIComponent(peerID))
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.content) {
+        peerNameEl.textContent = data.content;
+      } else {
+        peerNameEl.textContent = peerID;
+      }
+    })
+    .catch(function() {
+      peerNameEl.textContent = peerID;
+    });
 
   // Load existing messages
   async function loadMessages() {
