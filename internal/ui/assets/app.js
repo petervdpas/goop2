@@ -13,6 +13,7 @@
     "goop-data.js",
     "goop-peers.js",
     "goop-chat.js",
+    "goop-emoji.js",
     "goop-identity.js",
     "goop-ui.js",
     "goop-forms.js",
