@@ -379,6 +379,19 @@
     const content = input.value.trim();
     if (!content) return;
 
+    // Detect Lua commands typed in broadcast by mistake
+    if (content.startsWith('!')) {
+      if (window.Goop && window.Goop.toast) {
+        Goop.toast({
+          icon: '⚠️',
+          title: 'Wrong chat',
+          message: 'Lua commands like <b>' + (window.Goop.core ? Goop.core.escapeHtml(content.split(' ')[0]) : content.split(' ')[0]) + '</b> only work in direct chat with a peer.',
+          duration: 5000
+        });
+      }
+      return;
+    }
+
     try {
       const res = await fetch('/api/chat/broadcast', {
         method: 'POST',

@@ -34,9 +34,11 @@ func registerPeerRoutes(mux *http.ServeMux, d Deps) {
 		}
 
 		selfVideoDisabled := false
+		luaEnabled := false
 		if d.CfgPath != "" {
 			if cfg, err := config.Load(d.CfgPath); err == nil {
 				selfVideoDisabled = cfg.Viewer.VideoDisabled
+				luaEnabled = cfg.Lua.Enabled
 			}
 		}
 
@@ -48,6 +50,7 @@ func registerPeerRoutes(mux *http.ServeMux, d Deps) {
 			AvatarHash:        avatarHash,
 			VideoDisabled:     videoDisabled,
 			SelfVideoDisabled: selfVideoDisabled,
+			LuaEnabled:        luaEnabled,
 		}
 		render.Render(w, vm)
 	})

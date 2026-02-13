@@ -9,4 +9,5 @@ type PeerContentVM struct {
 	AvatarHash        string
 	VideoDisabled     bool
 	SelfVideoDisabled bool
+	LuaEnabled        bool
 }
