@@ -357,12 +357,14 @@
       const avatarUrl = isOutgoing
         ? '/api/avatar'
         : '/api/avatar/peer/' + encodeURIComponent(msg.from);
+      const converted = emojify(msg.content);
+      const emojiOnly = isEmojiOnly(converted) ? ' msg-emoji-only' : '';
 
       return `<div class="chat-msg ${className}">
         <img class="avatar avatar-xs chat-msg-avatar" src="${avatarUrl}" alt="">
         <div class="chat-msg-body">
           <div class="msg-sender">${escapeHtml(senderName)}</div>
-          <div class="msg-content">${escapeHtml(msg.content)}</div>
+          <div class="msg-content${emojiOnly}">${escapeHtml(converted)}</div>
           <div class="msg-time">${time}</div>
         </div>
       </div>`;
@@ -428,6 +430,14 @@
     div.textContent = text;
     return div.innerHTML;
   };
+
+  function emojify(text) {
+    return window.Goop && window.Goop.emoji ? window.Goop.emoji.emojify(text) : text;
+  }
+
+  function isEmojiOnly(text) {
+    return window.Goop && window.Goop.emoji ? window.Goop.emoji.isEmojiOnly(text) : false;
+  }
 
   // Initial load
   loadBroadcasts();

@@ -375,6 +375,104 @@ button:focus-visible{
   text-align: left;
 }
 
+/* emoji picker */
+.emoji-btn {
+  padding: 6px 10px;
+  font-size: 18px;
+  line-height: 1;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--ease), border-color var(--ease);
+  flex-shrink: 0;
+}
+.emoji-btn:hover,
+.emoji-btn.active {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.emoji-picker {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 4px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  z-index: 50;
+  overflow: hidden;
+}
+
+.emoji-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  padding: 4px 4px 0;
+}
+
+.emoji-tab {
+  flex: 1;
+  padding: 6px 4px;
+  font-size: 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background var(--ease), border-color var(--ease);
+  opacity: 0.6;
+}
+.emoji-tab:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  opacity: 0.9;
+  transform: none;
+}
+.emoji-tab.active {
+  border-bottom-color: var(--accent);
+  opacity: 1;
+}
+
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 36px);
+  gap: 2px;
+  padding: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+  justify-content: center;
+}
+
+.emoji-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  font-size: 22px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.12s, transform 0.12s;
+  user-select: none;
+}
+.emoji-item:hover {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  transform: scale(1.15);
+}
+
+/* big emoji: emoji-only messages without bubble */
+.msg-content.msg-emoji-only {
+  font-size: 64px;
+  line-height: 1.1;
+  background: none !important;
+  border: none !important;
+  padding: 0 4px;
+}
+
 /* -----------------------------
    Peers Page Layout (two-column)
 ------------------------------ */
