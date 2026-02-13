@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Blog</title>
+  <title>Tic-Tac-Toe</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="css/style.css">
   <script src="/assets/js/goop-data.js"></script>
@@ -10,29 +10,15 @@
   <script src="/assets/js/goop-ui.js"></script>
 </head>
 <body>
-  <div class="blog">
-    <header class="blog-header">
-      <h1 class="blog-title">My Blog</h1>
-      <p class="blog-subtitle" id="blog-subtitle">Thoughts, stories & notes</p>
-      <button id="btn-new" class="btn-new hidden">+ New Post</button>
+  <div class="ttt">
+    <header class="ttt-header">
+      <h1 class="ttt-title">Tic-Tac-Toe</h1>
+      <p class="ttt-subtitle" id="subtitle">Loading&hellip;</p>
     </header>
 
-    <main id="posts" class="posts">
-      <p class="loading">Loading posts&hellip;</p>
+    <main id="ttt-root">
+      <p class="loading">Loading&hellip;</p>
     </main>
-  </div>
-
-  <!-- write / edit overlay (owner only) -->
-  <div id="editor-overlay" class="editor-overlay hidden">
-    <div class="editor-card">
-      <h2 id="editor-heading">New Post</h2>
-      <label>Title <input type="text" id="f-title" required></label>
-      <label>Body <textarea id="f-body" rows="10"></textarea></label>
-      <div class="editor-btns">
-        <button id="btn-cancel" class="btn-cancel">Cancel</button>
-        <button id="btn-save" class="btn-save">Publish</button>
-      </div>
-    </div>
   </div>
 
   <script src="js/app.js"></script>

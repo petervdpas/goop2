@@ -3,6 +3,7 @@ package routes
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -13,19 +14,11 @@ import (
 )
 
 func registerPeerRoutes(mux *http.ServeMux, d Deps) {
+	// Page route - renders immediately with cached local data
 	mux.HandleFunc("/peer/", func(w http.ResponseWriter, r *http.Request) {
 		peerID := strings.TrimPrefix(r.URL.Path, "/peer/")
 		if peerID == "" {
 			http.NotFound(w, r)
-			return
-		}
-
-		ctx, cancel := context.WithTimeout(r.Context(), util.DefaultFetchTimeout)
-		defer cancel()
-
-		txt, err := d.Node.FetchContent(ctx, peerID)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadGateway)
 			return
 		}
 
@@ -50,12 +43,35 @@ func registerPeerRoutes(mux *http.ServeMux, d Deps) {
 		vm := viewmodels.PeerContentVM{
 			BaseVM:            baseVM("Peer", "peers", "page.peer", d),
 			PeerID:            peerID,
-			Content:           txt,
+			Content:           "", // loaded async via API
 			PeerEmail:         peerEmail,
 			AvatarHash:        avatarHash,
 			VideoDisabled:     videoDisabled,
 			SelfVideoDisabled: selfVideoDisabled,
 		}
 		render.Render(w, vm)
+	})
+
+	// API route - fetches remote peer content
+	mux.HandleFunc("/api/peer/content", func(w http.ResponseWriter, r *http.Request) {
+		peerID := r.URL.Query().Get("id")
+		if peerID == "" {
+			http.Error(w, "missing id", http.StatusBadRequest)
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), util.DefaultFetchTimeout)
+		defer cancel()
+
+		content, err := d.Node.FetchContent(ctx, peerID)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"content": content})
 	})
 }

@@ -56,7 +56,9 @@
       // Single call returns both games list and stats
       lobby = await db.call("ttt", { action: "lobby" });
     } catch (e) {
-      root.innerHTML = '<p class="ttt-empty">Could not load lobby.</p>';
+      console.error("lobby error:", e);
+      root.innerHTML = '<p class="ttt-empty">Could not load lobby.</p>'
+        + '<p class="ttt-empty" style="font-size:11px;color:#999;">' + esc(e.message || String(e)) + '</p>';
       return;
     }
 
@@ -230,7 +232,9 @@
         startPolling(gameId);
       }
     } catch (e) {
-      root.innerHTML = '<p class="ttt-empty">Could not load game.</p>';
+      console.error("game error:", e);
+      root.innerHTML = '<p class="ttt-empty">Could not load game.</p>'
+        + '<p class="ttt-empty" style="font-size:11px;color:#999;">' + esc(e.message || String(e)) + '</p>';
     }
   }
 
