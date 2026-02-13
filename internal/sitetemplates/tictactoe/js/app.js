@@ -210,10 +210,14 @@
       };
     }
 
-    // Accept handlers
+    // Accept handlers — transition game from "waiting" to "playing", then show board
     root.querySelectorAll("[data-accept]").forEach(function (btn) {
-      btn.onclick = function () {
+      btn.onclick = async function () {
         var gid = parseInt(btn.getAttribute("data-accept"));
+        btn.disabled = true;
+        try {
+          await db.call("ttt", { action: "accept", game_id: gid });
+        } catch (e) { /* showGame will handle current state */ }
         showGame(gid);
       };
     });
@@ -255,26 +259,22 @@
 
     var html = '<div class="ttt-game">';
 
-    // Status line — waiting state
+    // Waiting state — visitor sees spinner until host accepts
     if (state.status === "waiting") {
-      if (!isOwner) {
-        // Visitor: show spinner while waiting for the host's first move
-        html += '<div class="ttt-waiting">';
-        html += '<div class="spinner"></div>';
-        html += '<p>Waiting for host to make a move&hellip;</p>';
-        html += '<button class="btn btn-secondary btn-sm" id="btn-cancel">Cancel</button>';
-        html += '</div>';
-        root.innerHTML = html;
-        var btnCancel = document.getElementById("btn-cancel");
-        if (btnCancel) {
-          btnCancel.onclick = async function () {
-            await db.call("ttt", { action: "cancel", game_id: state.game_id });
-            showLobby();
-          };
-        }
-        return;
+      html += '<div class="ttt-waiting">';
+      html += '<div class="spinner"></div>';
+      html += '<p>Waiting for host to accept&hellip;</p>';
+      html += '<button class="btn btn-secondary btn-sm" id="btn-cancel">Cancel</button>';
+      html += '</div>';
+      root.innerHTML = html;
+      var btnCancel = document.getElementById("btn-cancel");
+      if (btnCancel) {
+        btnCancel.onclick = async function () {
+          await db.call("ttt", { action: "cancel", game_id: state.game_id });
+          showLobby();
+        };
       }
-      // Owner: fall through to render the board so they can make the first move
+      return;
     }
 
     // Result banner

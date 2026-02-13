@@ -11,6 +11,8 @@ function call(request)
         return game_state(request.params.game_id)
     elseif action == "lobby" then
         return lobby()
+    elseif action == "accept" then
+        return accept_game(request.params.game_id)
     elseif action == "cancel" then
         return cancel_game(request.params.game_id)
     elseif action == "stats" then
@@ -158,6 +160,38 @@ function lobby()
         games = games or {},
         stats = { wins = wins, losses = losses, draws = draws }
     }
+end
+
+function accept_game(game_id)
+    if not game_id then
+        error("game_id required")
+    end
+
+    local rows = goop.db.query(
+        "SELECT _id, _owner, status, mode FROM games WHERE _id = ?",
+        game_id
+    )
+    if not rows or #rows == 0 then
+        error("game not found")
+    end
+    local g = rows[1]
+
+    if g.status ~= "waiting" then
+        return { error = "game is not waiting" }
+    end
+    if g.mode ~= "pvp" then
+        return { error = "only pvp games can be accepted" }
+    end
+    if goop.peer.id ~= g._owner then
+        return { error = "only the host can accept a challenge" }
+    end
+
+    goop.db.exec(
+        "UPDATE games SET status = 'playing', _updated_at = CURRENT_TIMESTAMP WHERE _id = ?",
+        game_id
+    )
+
+    return game_state(game_id)
 end
 
 function cancel_game(game_id)
