@@ -23,6 +23,7 @@ import (
 	libp2p "github.com/libp2p/go-libp2p"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -263,6 +264,77 @@ func isCircuitAddr(a ma.Multiaddr) bool {
 		}
 	}
 	return false
+}
+
+// WaitForRelay polls the host's addresses for a /p2p-circuit address.
+// Returns true if a circuit address appeared before the timeout, false otherwise.
+// This ensures the first publish includes relay addresses.
+func (n *Node) WaitForRelay(ctx context.Context, timeout time.Duration) bool {
+	deadline := time.After(timeout)
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	log.Printf("relay: waiting for circuit address...")
+	for {
+		for _, a := range n.Host.Addrs() {
+			if isCircuitAddr(a) {
+				log.Printf("relay: circuit address obtained: %s", a)
+				return true
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-deadline:
+			log.Printf("relay: timeout waiting for circuit address (%s)", timeout)
+			return false
+		case <-ticker.C:
+		}
+	}
+}
+
+// hasCircuitAddr returns true if the host currently has any /p2p-circuit address.
+func (n *Node) hasCircuitAddr() bool {
+	for _, a := range n.Host.Addrs() {
+		if isCircuitAddr(a) {
+			return true
+		}
+	}
+	return false
+}
+
+// SubscribeAddressChanges watches for libp2p address changes and calls onChange
+// when circuit relay addresses appear or disappear. This handles late relay
+// connections and relay recovery without requiring a restart.
+func (n *Node) SubscribeAddressChanges(ctx context.Context, onChange func()) {
+	sub, err := n.Host.EventBus().Subscribe(new(event.EvtLocalAddressesUpdated))
+	if err != nil {
+		log.Printf("relay: failed to subscribe to address changes: %v", err)
+		return
+	}
+
+	hadCircuit := n.hasCircuitAddr()
+
+	go func() {
+		defer sub.Close()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-sub.Out():
+				hasCircuit := n.hasCircuitAddr()
+				if hasCircuit != hadCircuit {
+					if hasCircuit {
+						log.Printf("relay: circuit address appeared, re-publishing")
+					} else {
+						log.Printf("relay: circuit address lost, re-publishing")
+					}
+					hadCircuit = hasCircuit
+					onChange()
+				}
+			}
+		}
+	}()
 }
 
 // relayInfoToAddrInfo converts a RelayInfo (from the rendezvous server) into

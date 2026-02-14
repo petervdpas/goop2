@@ -422,7 +422,21 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		log.Printf("[%s] %s -> %q", m.Type, m.PeerID, m.Content)
 	})
 
+	// Wait for relay circuit address before first publish so remote peers
+	// receive our circuit address immediately (avoids backoff race).
+	if relayInfo != nil {
+		node.WaitForRelay(ctx, 15*time.Second)
+	}
+
 	publish(ctx, proto.TypeOnline)
+
+	// Re-publish when circuit relay addresses appear or disappear so remote
+	// peers always have our latest reachable addresses.
+	if relayInfo != nil {
+		node.SubscribeAddressChanges(ctx, func() {
+			publish(ctx, proto.TypeUpdate)
+		})
+	}
 
 	go func() {
 		t := time.NewTicker(time.Duration(cfg.Presence.HeartbeatSec) * time.Second)
