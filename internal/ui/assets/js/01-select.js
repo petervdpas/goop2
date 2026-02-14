@@ -3,11 +3,7 @@
 (() => {
   window.Goop = window.Goop || {};
 
-  function esc(str) {
-    var d = document.createElement("div");
-    d.textContent = String(str == null ? "" : str);
-    return d.innerHTML;
-  }
+  var esc = Goop.core.escapeHtml;
 
   // Build HTML string for a custom select.
   //
@@ -202,9 +198,5 @@
   function autoInit() {
     document.querySelectorAll(".gsel").forEach(function(el) { init(el); });
   }
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", autoInit, { once: true });
-  } else {
-    autoInit();
-  }
+  Goop.core.onReady(autoInit);
 })();

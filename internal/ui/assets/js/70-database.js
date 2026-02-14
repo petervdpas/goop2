@@ -1,6 +1,6 @@
 // Full-featured SQLite database editor
 (() => {
-  const { qs, qsa, on, setHidden, escapeHtml, api, toast } = window.Goop.core;
+  const { qs, qsa, on, setHidden, escapeHtml, api, toast, safeLocalStorageGet, safeLocalStorageSet } = window.Goop.core;
   const gsel = window.Goop.select;
 
   // Only activate on database page
@@ -46,17 +46,15 @@
   function colVisKey(table) { return "db-hidden-cols:" + table; }
 
   function loadHiddenCols(table) {
+    var raw = safeLocalStorageGet(colVisKey(table));
     try {
-      var raw = localStorage.getItem(colVisKey(table));
       if (raw) return new Set(JSON.parse(raw));
     } catch (e) { /* ignore */ }
     return new Set(defaultHidden);
   }
 
   function saveHiddenCols(table) {
-    try {
-      localStorage.setItem(colVisKey(table), JSON.stringify(Array.from(hiddenCols)));
-    } catch (e) { /* ignore */ }
+    safeLocalStorageSet(colVisKey(table), JSON.stringify(Array.from(hiddenCols)));
   }
 
   function visibleCols() {

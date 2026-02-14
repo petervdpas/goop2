@@ -6,6 +6,7 @@
   var qs = core.qs;
   var on = core.on;
   var escapeHtml = core.escapeHtml;
+  var setHidden = core.setHidden;
   var api = core.api;
   var toast = core.toast;
 
@@ -30,14 +31,14 @@
   gsel.init(groupSelect, function(newVal) {
     currentGroupID = newVal;
     if (currentGroupID) {
-      uploadArea.classList.remove("hidden");
-      mySection.classList.remove("hidden");
-      peersSection.classList.remove("hidden");
+      setHidden(uploadArea, false);
+      setHidden(mySection, false);
+      setHidden(peersSection, false);
       loadBrowse();
     } else {
-      uploadArea.classList.add("hidden");
-      mySection.classList.add("hidden");
-      peersSection.classList.add("hidden");
+      setHidden(uploadArea, true);
+      setHidden(mySection, true);
+      setHidden(peersSection, true);
     }
   });
 
@@ -63,7 +64,7 @@
     }
 
     uploadBtn.disabled = true;
-    uploadProgress.classList.remove("hidden");
+    setHidden(uploadProgress, false);
 
     var formData = new FormData();
     formData.append("group_id", currentGroupID);
@@ -79,12 +80,12 @@
       toast("Uploaded: " + data.filename);
       fileInput.value = "";
       uploadBtn.disabled = true;
-      uploadProgress.classList.add("hidden");
+      setHidden(uploadProgress, true);
       loadBrowse();
     }).catch(function(err) {
       toast("Upload failed: " + err.message, true);
       uploadBtn.disabled = false;
-      uploadProgress.classList.add("hidden");
+      setHidden(uploadProgress, true);
     });
   });
 
