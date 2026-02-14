@@ -18,6 +18,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 )
 
 func (n *Node) EnableSite(rootDir string) {
@@ -93,11 +94,17 @@ func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (m
 		return "", nil, err
 	}
 
-	_ = n.Host.Connect(ctx, peer.AddrInfo{ID: pid})
+	// Clear any dial backoff so we get a fresh connection attempt.
+	if sw, ok := n.Host.Network().(*swarm.Swarm); ok {
+		sw.Backoff().Clear(pid)
+	}
+	if err := n.Host.Connect(ctx, peer.AddrInfo{ID: pid}); err != nil {
+		return "", nil, fmt.Errorf("peer unreachable")
+	}
 
 	st, err := n.Host.NewStream(ctx, pid, protocol.ID(proto.SiteProtoID))
 	if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("peer unreachable")
 	}
 	defer st.Close()
 

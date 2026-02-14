@@ -20,8 +20,10 @@ import (
 	"github.com/petervdpas/goop2/internal/storage"
 	"github.com/petervdpas/goop2/internal/util"
 
+	logging "github.com/ipfs/go-log/v2"
 	libp2p "github.com/libp2p/go-libp2p"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -32,6 +34,15 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 )
+
+func init() {
+	// Silence noisy libp2p subsystems — dial failures and backoff errors
+	// go to stderr by default and pollute terminal output.
+	logging.SetLogLevel("swarm2", "error")
+	logging.SetLogLevel("relay", "warn")
+	logging.SetLogLevel("autorelay", "warn")
+	logging.SetLogLevel("autonat", "warn")
+}
 
 type Node struct {
 	Host  host.Host
@@ -131,7 +142,9 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 			opts = append(opts,
 				libp2p.EnableRelay(),
 				libp2p.EnableHolePunching(),
-				libp2p.EnableAutoRelayWithStaticRelays([]peer.AddrInfo{*ri}),
+				libp2p.EnableAutoRelayWithStaticRelays([]peer.AddrInfo{*ri},
+					autorelay.WithBootDelay(0),
+				),
 				libp2p.ForceReachabilityPrivate(),
 			)
 			log.Printf("relay: enabled (relay peer %s, %d addrs)", ri.ID, len(ri.Addrs))
