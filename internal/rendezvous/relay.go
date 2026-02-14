@@ -13,6 +13,7 @@ import (
 	libp2p "github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
+	relayv2 "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
 )
 
 // RelayInfo describes a circuit relay v2 host that peers can use for NAT traversal.
@@ -33,11 +34,19 @@ func StartRelay(port int, keyFile string, externalURL string) (host.Host, *Relay
 	h, err := libp2p.New(
 		libp2p.Identity(priv),
 		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port)),
-		libp2p.EnableRelayService(),
 		libp2p.DisableRelay(), // relay host itself doesn't need to be a relay client
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("relay host: %w", err)
+	}
+
+	// Start the relay service directly instead of using EnableRelayService(),
+	// which defers startup until AutoNAT confirms public reachability.
+	// Since this is a dedicated relay server with port forwarding, we know
+	// it's publicly reachable — no need to wait for AutoNAT.
+	if _, err := relayv2.New(h); err != nil {
+		_ = h.Close()
+		return nil, nil, fmt.Errorf("relay service: %w", err)
 	}
 
 	info := &RelayInfo{
