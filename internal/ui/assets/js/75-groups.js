@@ -9,6 +9,225 @@
   var api = core.api;
   var toast = core.toast;
 
+  // -------- Listen player helpers --------
+  function formatTime(s) {
+    if (!s || s < 0) s = 0;
+    var m = Math.floor(s / 60);
+    var sec = Math.floor(s % 60);
+    return m + ":" + (sec < 10 ? "0" : "") + sec;
+  }
+
+  // Active listen subscriptions and timers, keyed by group id
+  var listenSubs = {};
+  var listenTimers = {};
+  var listenAudioEl = null; // single shared <audio> element for listener mode
+
+  function cleanupListenSubs() {
+    Object.keys(listenSubs).forEach(function(k) {
+      listenSubs[k].close();
+      delete listenSubs[k];
+    });
+    Object.keys(listenTimers).forEach(function(k) {
+      clearInterval(listenTimers[k]);
+      delete listenTimers[k];
+    });
+  }
+
+  function ensureAudioEl() {
+    if (!listenAudioEl) {
+      listenAudioEl = document.createElement("audio");
+      listenAudioEl.preload = "none";
+      listenAudioEl.style.display = "none";
+      document.body.appendChild(listenAudioEl);
+    }
+    return listenAudioEl;
+  }
+
+  // Render host player section inside a group card wrapper
+  function renderHostPlayer(wrapperEl, groupState) {
+    var g = groupState;
+    var html = '';
+
+    // Track loader
+    html += '<div class="groups-listen-loader">' +
+      '<input type="text" class="glisten-file" placeholder="/path/to/track.mp3" />' +
+      '<button class="groups-action-btn groups-btn-primary glisten-load-btn">Load</button>' +
+    '</div>';
+
+    if (g && g.track) {
+      html += '<div class="listen-player" style="margin-bottom:0">' +
+        '<div class="listen-track-info">' +
+          '<span class="listen-track-name">' + escapeHtml(g.track.name) + '</span>' +
+          '<span class="listen-track-meta muted small">' +
+            Math.round(g.track.bitrate / 1000) + ' kbps &middot; ' + formatTime(g.track.duration) +
+          '</span>' +
+        '</div>' +
+        '<div class="listen-progress">' +
+          '<div class="listen-progress-bar glisten-progress-bar">' +
+            '<div class="listen-progress-fill glisten-progress-fill"></div>' +
+          '</div>' +
+          '<div class="listen-time">' +
+            '<span class="glisten-time-current">0:00</span>' +
+            '<span class="glisten-time-total">' + formatTime(g.track.duration) + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="listen-controls">';
+
+      if (g.play_state && g.play_state.playing) {
+        html += '<button class="listen-control-btn glisten-pause-btn" title="Pause">&#9646;&#9646;</button>';
+      } else {
+        html += '<button class="listen-control-btn glisten-play-btn" title="Play">&#9654;</button>';
+      }
+      html += '</div>';
+
+      // Listeners
+      if (g.listeners && g.listeners.length > 0) {
+        html += '<div class="listen-listeners"><span class="listen-section-subtitle">Listeners</span>' +
+          '<div class="listen-listener-list">';
+        g.listeners.forEach(function(pid) {
+          html += '<span class="listen-listener-chip">' +
+            '<img src="/api/avatar/peer/' + encodeURIComponent(pid) + '">' +
+            '<span>' + escapeHtml(pid.substring(0, 12)) + '...</span></span>';
+        });
+        html += '</div></div>';
+      }
+
+      html += '</div>'; // close listen-player
+    }
+
+    wrapperEl.innerHTML = html;
+
+    // Bind load button
+    var loadBtn = wrapperEl.querySelector(".glisten-load-btn");
+    var fileInput = wrapperEl.querySelector(".glisten-file");
+    if (loadBtn && fileInput) {
+      on(loadBtn, "click", function() {
+        var path = fileInput.value.trim();
+        if (!path) return;
+        window.Goop.listen.load(path).catch(function(e) {
+          toast("Load failed: " + e.message, true);
+        });
+      });
+    }
+
+    // Bind play/pause
+    var playBtn = wrapperEl.querySelector(".glisten-play-btn");
+    var pauseBtn = wrapperEl.querySelector(".glisten-pause-btn");
+    if (playBtn) on(playBtn, "click", function() { window.Goop.listen.control("play"); });
+    if (pauseBtn) on(pauseBtn, "click", function() { window.Goop.listen.control("pause"); });
+
+    // Bind progress bar seeking
+    var progressBar = wrapperEl.querySelector(".glisten-progress-bar");
+    if (progressBar && g && g.track) {
+      on(progressBar, "click", function(e) {
+        var rect = progressBar.getBoundingClientRect();
+        var pct = (e.clientX - rect.left) / rect.width;
+        var pos = pct * g.track.duration;
+        window.Goop.listen.control("seek", pos);
+      });
+    }
+
+    // Start progress timer if playing
+    if (g && g.play_state && g.play_state.playing && g.track) {
+      var fillEl = wrapperEl.querySelector(".glisten-progress-fill");
+      var curEl = wrapperEl.querySelector(".glisten-time-current");
+      if (fillEl && curEl) {
+        var gid = g.id;
+        if (listenTimers[gid]) clearInterval(listenTimers[gid]);
+        listenTimers[gid] = setInterval(function() {
+          if (!g.play_state || !g.play_state.playing) return;
+          var elapsed = (Date.now() - g.play_state.updated_at) / 1000;
+          var pos = g.play_state.position + elapsed;
+          var dur = g.track.duration;
+          var pct = Math.min(100, (pos / dur) * 100);
+          fillEl.style.width = pct + "%";
+          curEl.textContent = formatTime(pos);
+        }, 250);
+      }
+    }
+  }
+
+  // Render listener player section inside a subscription card wrapper
+  function renderListenerPlayer(wrapperEl, groupState) {
+    var g = groupState;
+    var html = '';
+
+    if (!g || !g.track) {
+      html = '<div class="groups-listen-waiting">Waiting for host to play a track...</div>';
+      wrapperEl.innerHTML = html;
+      return;
+    }
+
+    html += '<div class="listen-player" style="margin-bottom:0">' +
+      '<div class="listen-track-info">' +
+        '<span class="listen-track-name">' + escapeHtml(g.track.name) + '</span>' +
+        '<span class="listen-track-meta muted small">' +
+          Math.round(g.track.bitrate / 1000) + ' kbps &middot; ' + formatTime(g.track.duration) +
+        '</span>' +
+      '</div>' +
+      '<div class="listen-progress">' +
+        '<div class="listen-progress-bar">' +
+          '<div class="listen-progress-fill glisten-progress-fill"></div>' +
+        '</div>' +
+        '<div class="listen-time">' +
+          '<span class="glisten-time-current">0:00</span>' +
+          '<span class="glisten-time-total">' + formatTime(g.track.duration) + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="listen-controls">' +
+        '<div class="listen-volume">' +
+          '<label class="muted small">Volume</label>' +
+          '<input type="range" class="glisten-volume" min="0" max="100" value="80" />' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+    wrapperEl.innerHTML = html;
+
+    // Update progress
+    if (g.play_state) {
+      var fillEl = wrapperEl.querySelector(".glisten-progress-fill");
+      var curEl = wrapperEl.querySelector(".glisten-time-current");
+      if (fillEl && curEl && g.track.duration > 0) {
+        var pos = g.play_state.position;
+        var dur = g.track.duration;
+        fillEl.style.width = Math.min(100, (pos / dur) * 100) + "%";
+        curEl.textContent = formatTime(pos);
+      }
+
+      // Start timer if playing
+      if (g.play_state.playing && g.track) {
+        var gid = g.id || "listener";
+        if (listenTimers[gid]) clearInterval(listenTimers[gid]);
+        listenTimers[gid] = setInterval(function() {
+          if (!g.play_state || !g.play_state.playing) return;
+          var elapsed = (Date.now() - g.play_state.updated_at) / 1000;
+          var p = g.play_state.position + elapsed;
+          var d = g.track.duration;
+          if (fillEl) fillEl.style.width = Math.min(100, (p / d) * 100) + "%";
+          if (curEl) curEl.textContent = formatTime(p);
+        }, 250);
+
+        // Connect audio
+        var audio = ensureAudioEl();
+        if (audio.paused || !audio.src) {
+          audio.src = "/api/listen/stream";
+          audio.volume = 0.8;
+          audio.play().catch(function(e) { console.warn("LISTEN autoplay blocked:", e); });
+        }
+      }
+    }
+
+    // Volume control
+    var volEl = wrapperEl.querySelector(".glisten-volume");
+    if (volEl) {
+      on(volEl, "input", function() {
+        var audio = ensureAudioEl();
+        audio.volume = volEl.value / 100;
+      });
+    }
+  }
+
   // -------- Groups page (/self/groups) --------
   var groupsPage = qs("#groups-page");
   if (groupsPage) {
@@ -147,17 +366,23 @@
     });
 
     function loadHostedGroups() {
+      cleanupListenSubs();
       api("/api/groups").then(function(groups) {
         if (!groups || groups.length === 0) {
           hostedListEl.innerHTML = '<p class="groups-empty">No hosted groups. Go to Create &gt; Groups to create one.</p>';
           return;
         }
         var html = "";
+        var hasListen = false;
         groups.forEach(function(g) {
+          var isListen = g.app_type === "listen";
+          if (isListen) hasListen = true;
           var joinBtn = g.host_in_group
             ? '<button class="groups-action-btn groups-btn-danger groups-leaveown-btn" data-id="' + escapeHtml(g.id) + '">Leave</button>'
             : '<button class="groups-action-btn groups-btn-primary groups-joinown-btn" data-id="' + escapeHtml(g.id) + '">Join</button>';
-          html += '<div class="groups-card">' +
+          var closeAttr = isListen ? ' data-listen="1"' : '';
+          html += '<div class="' + (isListen ? 'groups-card-wrap' : '') + '">' +
+            '<div class="groups-card">' +
             '<div class="groups-card-info">' +
               '<div class="groups-card-name">' + escapeHtml(g.name) +
                 typeBadge(g.app_type) +
@@ -171,8 +396,10 @@
             '<div class="groups-card-actions">' +
               joinBtn +
               '<button class="groups-action-btn groups-invite-btn" data-id="' + escapeHtml(g.id) + '">Invite</button>' +
-              '<button class="groups-action-btn groups-btn-danger groups-close-btn" data-id="' + escapeHtml(g.id) + '">Close</button>' +
+              '<button class="groups-action-btn groups-btn-danger groups-close-btn" data-id="' + escapeHtml(g.id) + '"' + closeAttr + '>Close</button>' +
             '</div>' +
+            '</div>' +
+            (isListen ? '<div class="groups-listen-player" data-group-id="' + escapeHtml(g.id) + '"></div>' : '') +
           '</div>';
         });
         hostedListEl.innerHTML = html;
@@ -214,22 +441,41 @@
         closeBtns.forEach(function(btn) {
           on(btn, "click", function() {
             var id = btn.getAttribute("data-id");
+            var isListenClose = btn.hasAttribute("data-listen");
             if (window.Goop && window.Goop.ui && window.Goop.ui.confirm) {
               window.Goop.ui.confirm('Close group "' + id + '"? All members will be disconnected.', 'Close Group').then(function(ok) {
-                if (ok) closeGroup(id);
+                if (ok) closeGroup(id, isListenClose);
               });
             } else if (confirm('Close group "' + id + '"?')) {
-              closeGroup(id);
+              closeGroup(id, isListenClose);
             }
           });
         });
+
+        // Initialize listen players
+        if (hasListen && window.Goop && window.Goop.listen) {
+          window.Goop.listen.state().then(function(data) {
+            hostedListEl.querySelectorAll(".groups-listen-player").forEach(function(el) {
+              renderHostPlayer(el, data.group);
+            });
+          });
+          var sub = window.Goop.listen.subscribe(function(g) {
+            hostedListEl.querySelectorAll(".groups-listen-player").forEach(function(el) {
+              renderHostPlayer(el, g);
+            });
+          });
+          listenSubs["groups-host"] = sub;
+        }
       }).catch(function(err) {
         hostedListEl.innerHTML = '<p class="groups-empty">Failed to load: ' + escapeHtml(err.message) + '</p>';
       });
     }
 
-    function closeGroup(id) {
-      api("/api/groups/close", { group_id: id }).then(function() {
+    function closeGroup(id, isListen) {
+      var p = isListen && window.Goop && window.Goop.listen
+        ? window.Goop.listen.close()
+        : api("/api/groups/close", { group_id: id });
+      p.then(function() {
         toast("Group closed");
         loadHostedGroups();
       }).catch(function(err) {
@@ -256,10 +502,14 @@
         }
         var activeGroupId = (data.active && data.active.connected) ? data.active.group_id : null;
         var html = "";
+        var hasListenSub = false;
         subs.forEach(function(s) {
           var displayName = s.group_name || s.group_id;
           var isActive = activeGroupId && s.group_id === activeGroupId;
-          html += '<div class="groups-card">' +
+          var isListen = s.app_type === "listen";
+          if (isListen && isActive) hasListenSub = true;
+          html += '<div class="' + (isListen && isActive ? 'groups-card-wrap' : '') + '">' +
+            '<div class="groups-card">' +
             '<div class="groups-card-info">' +
               '<div class="groups-card-name">' + escapeHtml(displayName) +
                 typeBadge(s.app_type) +
@@ -273,6 +523,8 @@
               (!isActive ? '<button class="groups-action-btn groups-btn-primary groups-rejoin-btn" data-host="' + escapeHtml(s.host_peer_id) + '" data-group="' + escapeHtml(s.group_id) + '">Rejoin</button>' : '') +
               '<button class="groups-action-btn groups-btn-danger groups-remove-sub-btn" data-host="' + escapeHtml(s.host_peer_id) + '" data-group="' + escapeHtml(s.group_id) + '">Remove</button>' +
             '</div>' +
+            '</div>' +
+            (isListen && isActive ? '<div class="groups-listen-player groups-listen-listener" data-group-id="' + escapeHtml(s.group_id) + '"></div>' : '') +
           '</div>';
         });
         subListEl.innerHTML = html;
@@ -310,6 +562,21 @@
             });
           });
         });
+
+        // Initialize listener player for listen-type subscriptions
+        if (hasListenSub && window.Goop && window.Goop.listen) {
+          window.Goop.listen.state().then(function(data) {
+            subListEl.querySelectorAll(".groups-listen-listener").forEach(function(el) {
+              renderListenerPlayer(el, data.group);
+            });
+          });
+          var sub = window.Goop.listen.subscribe(function(g) {
+            subListEl.querySelectorAll(".groups-listen-listener").forEach(function(el) {
+              renderListenerPlayer(el, g);
+            });
+          });
+          listenSubs["groups-listener"] = sub;
+        }
       }).catch(function(err) {
         subListEl.innerHTML = '<p class="groups-empty">Failed to load: ' + escapeHtml(err.message) + '</p>';
       });
@@ -380,29 +647,47 @@
 
       if (!name) { toast("Group name is required", true); return; }
 
-      api("/api/groups", { name: name, app_type: appType, max_members: maxMembers }).then(function() {
-        toast("Group created: " + name);
-        nameInput.value = "";
-        gsel.setVal(appTypeSelect, "general");
-        maxMembersInput.value = "0";
-        loadHostedList();
-      }).catch(function(err) {
-        toast("Failed to create group: " + err.message, true);
-      });
+      if (appType === "listen" && window.Goop && window.Goop.listen) {
+        window.Goop.listen.create(name).then(function() {
+          toast("Listen group created: " + name);
+          nameInput.value = "";
+          gsel.setVal(appTypeSelect, "general");
+          maxMembersInput.value = "0";
+          loadHostedList();
+        }).catch(function(err) {
+          toast("Failed to create listen group: " + err.message, true);
+        });
+      } else {
+        api("/api/groups", { name: name, app_type: appType, max_members: maxMembers }).then(function() {
+          toast("Group created: " + name);
+          nameInput.value = "";
+          gsel.setVal(appTypeSelect, "general");
+          maxMembersInput.value = "0";
+          loadHostedList();
+        }).catch(function(err) {
+          toast("Failed to create group: " + err.message, true);
+        });
+      }
     });
 
     function loadHostedList() {
+      cleanupListenSubs();
       api("/api/groups").then(function(groups) {
         if (!groups || groups.length === 0) {
           hostedListEl.innerHTML = '<p class="groups-empty">No hosted groups yet.</p>';
           return;
         }
         var html = "";
+        var hasListen = false;
         groups.forEach(function(g) {
+          var isListen = g.app_type === "listen";
+          if (isListen) hasListen = true;
           var joinBtn = g.host_in_group
             ? '<button class="groups-action-btn groups-btn-danger cg-leaveown-btn" data-id="' + escapeHtml(g.id) + '">Leave</button>'
             : '<button class="groups-action-btn groups-btn-primary cg-joinown-btn" data-id="' + escapeHtml(g.id) + '">Join</button>';
-          html += '<div class="groups-card">' +
+          var closeAttr = isListen ? ' data-listen="1"' : '';
+          html += '<div class="' + (isListen ? 'groups-card-wrap' : '') + '">' +
+            '<div class="groups-card">' +
             '<div class="groups-card-info">' +
               '<div class="groups-card-name">' + escapeHtml(g.name) +
                 typeBadge(g.app_type) +
@@ -416,8 +701,10 @@
             '<div class="groups-card-actions">' +
               joinBtn +
               '<button class="groups-action-btn cg-invite-btn" data-id="' + escapeHtml(g.id) + '">Invite</button>' +
-              '<button class="groups-action-btn groups-btn-danger cg-close-btn" data-id="' + escapeHtml(g.id) + '">Close</button>' +
+              '<button class="groups-action-btn groups-btn-danger cg-close-btn" data-id="' + escapeHtml(g.id) + '"' + closeAttr + '>Close</button>' +
             '</div>' +
+            '</div>' +
+            (isListen ? '<div class="groups-listen-player" data-group-id="' + escapeHtml(g.id) + '"></div>' : '') +
           '</div>';
         });
         hostedListEl.innerHTML = html;
@@ -459,22 +746,41 @@
         closeBtns.forEach(function(btn) {
           on(btn, "click", function() {
             var id = btn.getAttribute("data-id");
+            var isListenClose = btn.hasAttribute("data-listen");
             if (window.Goop && window.Goop.ui && window.Goop.ui.confirm) {
               window.Goop.ui.confirm('Close group "' + id + '"? All members will be disconnected.', 'Close Group').then(function(ok) {
-                if (ok) doClose(id);
+                if (ok) doClose(id, isListenClose);
               });
             } else if (confirm('Close group "' + id + '"?')) {
-              doClose(id);
+              doClose(id, isListenClose);
             }
           });
         });
+
+        // Initialize listen players
+        if (hasListen && window.Goop && window.Goop.listen) {
+          window.Goop.listen.state().then(function(data) {
+            hostedListEl.querySelectorAll(".groups-listen-player").forEach(function(el) {
+              renderHostPlayer(el, data.group);
+            });
+          });
+          var sub = window.Goop.listen.subscribe(function(g) {
+            hostedListEl.querySelectorAll(".groups-listen-player").forEach(function(el) {
+              renderHostPlayer(el, g);
+            });
+          });
+          listenSubs["cg-host"] = sub;
+        }
       }).catch(function(err) {
         hostedListEl.innerHTML = '<p class="groups-empty">Failed to load: ' + escapeHtml(err.message) + '</p>';
       });
     }
 
-    function doClose(id) {
-      api("/api/groups/close", { group_id: id }).then(function() {
+    function doClose(id, isListen) {
+      var p = isListen && window.Goop && window.Goop.listen
+        ? window.Goop.listen.close()
+        : api("/api/groups/close", { group_id: id });
+      p.then(function() {
         toast("Group closed");
         loadHostedList();
       }).catch(function(err) {
