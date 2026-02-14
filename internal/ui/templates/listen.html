@@ -1,0 +1,129 @@
+{{define "page.listen"}}
+<h1>Listen</h1>
+<p class="muted small">Host a listening room or join one — stream audio in real-time with friends.</p>
+
+<div id="listen-page" class="listen-page">
+  <!-- No room state -->
+  <div id="listen-idle" class="listen-section panel">
+    <div class="listen-section-head">
+      <span class="listen-section-title">Start a Listening Room</span>
+    </div>
+    <div class="listen-create-form">
+      <div class="listen-form-group">
+        <label>Room Name</label>
+        <input type="text" id="listen-room-name" class="listen-input" placeholder="My Room" />
+      </div>
+      <div class="listen-form-actions">
+        <button id="listen-create-btn" class="listen-action-btn listen-btn-primary">Create Room</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Host mode -->
+  <div id="listen-host" class="listen-section panel" style="display:none">
+    <div class="listen-section-head">
+      <span class="listen-section-title">Hosting: <span id="listen-host-name"></span></span>
+      <button id="listen-close-btn" class="listen-action-btn listen-btn-danger">Close Room</button>
+    </div>
+
+    <!-- Track loader -->
+    <div class="listen-track-loader">
+      <div class="listen-form-group">
+        <label>MP3 File Path</label>
+        <input type="text" id="listen-file-path" class="listen-input" placeholder="/path/to/track.mp3" />
+      </div>
+      <button id="listen-load-btn" class="listen-action-btn listen-btn-primary">Load</button>
+    </div>
+
+    <!-- Player -->
+    <div id="listen-player" class="listen-player" style="display:none">
+      <div class="listen-track-info">
+        <span class="listen-track-name" id="listen-track-name"></span>
+        <span class="listen-track-meta muted small" id="listen-track-meta"></span>
+      </div>
+      <div class="listen-progress">
+        <div class="listen-progress-bar" id="listen-progress-bar">
+          <div class="listen-progress-fill" id="listen-progress-fill"></div>
+        </div>
+        <div class="listen-time">
+          <span id="listen-time-current">0:00</span>
+          <span id="listen-time-total">0:00</span>
+        </div>
+      </div>
+      <div class="listen-controls">
+        <button id="listen-play-btn" class="listen-control-btn" title="Play">&#9654;</button>
+        <button id="listen-pause-btn" class="listen-control-btn" title="Pause" style="display:none">&#9646;&#9646;</button>
+      </div>
+    </div>
+
+    <!-- Listeners -->
+    <div class="listen-listeners">
+      <span class="listen-section-subtitle">Listeners</span>
+      <div id="listen-listener-list" class="listen-listener-list">
+        <span class="muted small">No listeners yet.</span>
+      </div>
+    </div>
+
+    <!-- Room ID for sharing -->
+    <div class="listen-share">
+      <span class="muted small">Room ID: <code id="listen-room-id"></code></span>
+    </div>
+  </div>
+
+  <!-- Listener mode -->
+  <div id="listen-listener" class="listen-section panel" style="display:none">
+    <div class="listen-section-head">
+      <span class="listen-section-title">Listening: <span id="listen-listener-room-name"></span></span>
+      <button id="listen-leave-btn" class="listen-action-btn listen-btn-danger">Leave</button>
+    </div>
+
+    <div id="listen-listener-player" class="listen-player" style="display:none">
+      <div class="listen-track-info">
+        <span class="listen-track-name" id="listen-listener-track-name"></span>
+        <span class="listen-track-meta muted small" id="listen-listener-track-meta"></span>
+      </div>
+      <div class="listen-progress">
+        <div class="listen-progress-bar" id="listen-listener-progress-bar">
+          <div class="listen-progress-fill" id="listen-listener-progress-fill"></div>
+        </div>
+        <div class="listen-time">
+          <span id="listen-listener-time-current">0:00</span>
+          <span id="listen-listener-time-total">0:00</span>
+        </div>
+      </div>
+      <div class="listen-controls">
+        <div class="listen-volume">
+          <label class="muted small">Volume</label>
+          <input type="range" id="listen-volume" min="0" max="100" value="80" />
+        </div>
+      </div>
+    </div>
+
+    <div id="listen-listener-waiting" class="listen-waiting">
+      <span class="muted">Waiting for host to play a track...</span>
+    </div>
+
+    <audio id="listen-audio" preload="none"></audio>
+  </div>
+
+  <!-- Join section (always visible when idle) -->
+  <div id="listen-join-section" class="listen-section panel">
+    <div class="listen-section-head">
+      <span class="listen-section-title">Join a Room</span>
+    </div>
+    <div class="listen-join-form">
+      <div class="listen-form-group">
+        <label>Host Peer ID</label>
+        <input type="text" id="listen-join-host" class="listen-input" placeholder="Peer ID" />
+      </div>
+      <div class="listen-form-group">
+        <label>Room ID</label>
+        <input type="text" id="listen-join-room" class="listen-input" placeholder="listen-..." />
+      </div>
+      <div class="listen-form-actions">
+        <button id="listen-join-btn" class="listen-action-btn listen-btn-primary">Join</button>
+      </div>
+    </div>
+  </div>
+</div>
+{{end}}

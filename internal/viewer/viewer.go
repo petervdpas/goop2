@@ -8,6 +8,7 @@ import (
 	"github.com/petervdpas/goop2/internal/content"
 	"github.com/petervdpas/goop2/internal/docs"
 	"github.com/petervdpas/goop2/internal/group"
+	"github.com/petervdpas/goop2/internal/listen"
 	"github.com/petervdpas/goop2/internal/p2p"
 	"github.com/petervdpas/goop2/internal/realtime"
 	"github.com/petervdpas/goop2/internal/rendezvous"
@@ -31,6 +32,7 @@ type Viewer struct {
 	Chat    *chat.Manager
 	Groups   *group.Manager
 	Realtime *realtime.Manager
+	Listen   *listen.Manager
 	DB       *storage.DB // SQLite database for peer data
 	Docs    *docs.Store // shared documents store
 
@@ -69,7 +71,7 @@ func Start(addr string, v Viewer) error {
 		baseURL = "http://" + addr
 	}
 
-	routes.Register(mux, routes.Deps{
+	deps := routes.Deps{
 		Node:         v.Node,
 		SelfLabel:    v.SelfLabel,
 		SelfEmail:    v.SelfEmail,
@@ -88,7 +90,8 @@ func Start(addr string, v Viewer) error {
 		DocsStore:    v.Docs,
 		GroupManager: v.Groups,
 		EnsureLua:    v.EnsureLua,
-	})
+	}
+	routes.Register(mux, deps)
 
 	// Register chat endpoints if chat manager is available
 	if v.Chat != nil {
@@ -108,6 +111,12 @@ func Start(addr string, v Viewer) error {
 	// Register realtime channel endpoints if realtime manager is available
 	if v.Realtime != nil {
 		routes.RegisterRealtime(mux, v.Realtime, v.Node.ID())
+	}
+
+	// Register listen room endpoints if listen manager is available
+	if v.Listen != nil {
+		routes.RegisterListen(mux, v.Listen)
+		routes.RegisterListenUI(mux, deps)
 	}
 
 	// Register data proxy for remote peer data operations
