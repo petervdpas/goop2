@@ -116,7 +116,6 @@ func Start(addr string, v Viewer) error {
 	// Register listen room endpoints if listen manager is available
 	if v.Listen != nil {
 		routes.RegisterListen(mux, v.Listen)
-		routes.RegisterListenUI(mux, deps)
 	}
 
 	// Register data proxy for remote peer data operations

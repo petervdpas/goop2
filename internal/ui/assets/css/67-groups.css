@@ -181,6 +181,11 @@
   background: color-mix(in srgb, #f66 12%, transparent);
 }
 
+.groups-type-listen{
+  color: #4f8;
+  background: color-mix(in srgb, #4f8 12%, transparent);
+}
+
 /* -----------------------------
    Active connection banner
 ------------------------------ */
@@ -377,6 +382,61 @@
   color: var(--muted);
   text-align: center;
   font-style: italic;
+}
+
+/* -----------------------------
+   Inline listen player (inside group cards)
+------------------------------ */
+.groups-card-wrap{
+  margin-bottom: 6px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--field-bg);
+  overflow: hidden;
+}
+
+.groups-card-wrap > .groups-card{
+  margin-bottom: 0;
+  border: none;
+  border-radius: 0;
+}
+
+.groups-listen-player{
+  padding: 12px 14px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, #4f8 4%, transparent);
+}
+
+.groups-listen-loader{
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.groups-listen-loader input{
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--field-bg);
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.groups-listen-loader input:focus{
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: var(--ring);
+}
+
+.groups-listen-waiting{
+  text-align: center;
+  font-style: italic;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 10px 0;
 }
 
 /* -----------------------------
