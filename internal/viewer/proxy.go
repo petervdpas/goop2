@@ -88,7 +88,7 @@ func proxyPeerSite(v Viewer) http.HandlerFunc {
 .box{text-align:center;max-width:400px}.box h1{font-size:1.4em;margin-bottom:8px}.box p{color:#999;margin:8px 0 20px}
 a{display:inline-block;padding:10px 24px;border-radius:999px;background:rgba(108,140,255,.18);border:1px solid rgba(108,140,255,.35);color:#6c8cff;text-decoration:none}
 a:hover{background:rgba(108,140,255,.28)}</style></head>
-<body><div class="box"><h1>Peer Unreachable</h1><p>The peer is online but the direct connection couldn't be established. This can happen with slow peers behind NAT.</p>
+<body><div class="box"><h1>Peer Unreachable</h1><p>The peer is online but its relay connection may have dropped. It usually reconnects within a minute.</p>
 <a href="javascript:location.reload()">Retry</a></div></body></html>`))
 			}
 			return
