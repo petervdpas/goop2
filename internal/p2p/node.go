@@ -31,6 +31,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
+	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 )
@@ -39,8 +40,8 @@ func init() {
 	// Silence noisy libp2p subsystems — dial failures and backoff errors
 	// go to stderr by default and pollute terminal output.
 	logging.SetLogLevel("swarm2", "error")
-	logging.SetLogLevel("relay", "warn")
-	logging.SetLogLevel("autorelay", "warn")
+	logging.SetLogLevel("relay", "info")
+	logging.SetLogLevel("autorelay", "info")
 	logging.SetLogLevel("autonat", "warn")
 }
 
@@ -55,6 +56,9 @@ type Node struct {
 	selfVideoDisabled  func() bool
 	selfActiveTemplate func() string
 	peers              *state.PeerTable
+
+	// Relay peer info for recovery after connection drops.
+	relayPeer *peer.AddrInfo
 
 	// Set by EnableSite in site.go
 	siteRoot string
@@ -204,6 +208,13 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 		peers:              peers,
 	}
 
+	// Store relay peer info for recovery after connection drops.
+	if relayInfo != nil {
+		if ri, err := relayInfoToAddrInfo(relayInfo); err == nil {
+			n.relayPeer = ri
+		}
+	}
+
 	return n, nil
 }
 
@@ -321,6 +332,11 @@ func (n *Node) hasCircuitAddr() bool {
 // SubscribeAddressChanges watches for libp2p address changes and calls onChange
 // when circuit relay addresses appear or disappear. This handles late relay
 // connections and relay recovery without requiring a restart.
+//
+// When the circuit address is lost, it actively helps autorelay recover by
+// clearing swarm dial backoff, refreshing the relay's peerstore addresses,
+// and reconnecting. Without this, autorelay can silently fail to reconnect
+// because its reservation-refresh failure path doesn't trigger reconnection.
 func (n *Node) SubscribeAddressChanges(ctx context.Context, onChange func()) {
 	sub, err := n.Host.EventBus().Subscribe(new(event.EvtLocalAddressesUpdated))
 	if err != nil {
@@ -342,7 +358,8 @@ func (n *Node) SubscribeAddressChanges(ctx context.Context, onChange func()) {
 					if hasCircuit {
 						log.Printf("relay: circuit address appeared, re-publishing")
 					} else {
-						log.Printf("relay: circuit address lost, re-publishing")
+						log.Printf("relay: circuit address lost, recovering...")
+						n.recoverRelay(ctx)
 					}
 					hadCircuit = hasCircuit
 					onChange()
@@ -350,6 +367,46 @@ func (n *Node) SubscribeAddressChanges(ctx context.Context, onChange func()) {
 			}
 		}
 	}()
+}
+
+// recoverRelay clears swarm dial backoff for the relay peer, re-adds its
+// addresses to the peerstore, and reconnects. This gives autorelay a fresh
+// connection so it can re-obtain a reservation.
+func (n *Node) recoverRelay(ctx context.Context) {
+	if n.relayPeer == nil {
+		return
+	}
+
+	// Give autorelay a moment to handle it on its own.
+	select {
+	case <-time.After(5 * time.Second):
+	case <-ctx.Done():
+		return
+	}
+
+	if n.hasCircuitAddr() {
+		log.Printf("relay: autorelay recovered on its own")
+		return
+	}
+
+	// Clear swarm dial backoff so we get a fresh connection attempt.
+	if sw, ok := n.Host.Network().(*swarm.Swarm); ok {
+		sw.Backoff().Clear(n.relayPeer.ID)
+	}
+
+	// Re-add relay addresses to peerstore (they may have expired).
+	n.Host.Peerstore().AddAddrs(n.relayPeer.ID, n.relayPeer.Addrs, 10*time.Minute)
+
+	// Reconnect to relay peer.
+	connCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	if err := n.Host.Connect(connCtx, *n.relayPeer); err != nil {
+		log.Printf("relay: recovery connect failed: %v", err)
+		return
+	}
+
+	log.Printf("relay: reconnected to relay peer, waiting for reservation...")
 }
 
 // relayInfoToAddrInfo converts a RelayInfo (from the rendezvous server) into
