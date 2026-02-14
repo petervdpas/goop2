@@ -81,7 +81,15 @@ func proxyPeerSite(v Viewer) http.HandlerFunc {
 			case strings.Contains(msg, "forbidden"):
 				http.Error(w, "forbidden", http.StatusForbidden)
 			default:
-				http.Error(w, err.Error(), http.StatusBadGateway)
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				w.WriteHeader(http.StatusBadGateway)
+				w.Write([]byte(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Peer Unreachable</title>
+<style>body{font-family:system-ui;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#1a1a2e;color:#e0e0e0}
+.box{text-align:center;max-width:400px}.box h1{font-size:1.4em;margin-bottom:8px}.box p{color:#999;margin:8px 0 20px}
+a{display:inline-block;padding:10px 24px;border-radius:999px;background:rgba(108,140,255,.18);border:1px solid rgba(108,140,255,.35);color:#6c8cff;text-decoration:none}
+a:hover{background:rgba(108,140,255,.28)}</style></head>
+<body><div class="box"><h1>Peer Unreachable</h1><p>The peer is online but the direct connection couldn't be established. This can happen with slow peers behind NAT.</p>
+<a href="javascript:location.reload()">Retry</a></div></body></html>`))
 			}
 			return
 		}

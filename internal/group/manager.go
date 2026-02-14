@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -651,7 +652,12 @@ func (m *Manager) reconnectSubscriptions() {
 		cancel()
 
 		if err != nil {
-			log.Printf("GROUP: Auto-reconnect to %s failed: %v", sub.GroupID, err)
+			// Shorten verbose libp2p dial errors to first line.
+			msg := err.Error()
+			if i := strings.Index(msg, "\n"); i > 0 {
+				msg = msg[:i]
+			}
+			log.Printf("GROUP: Auto-reconnect to %s failed: %s", sub.GroupID, msg)
 		} else {
 			log.Printf("GROUP: Auto-reconnected to group %s on host %s", sub.GroupID, sub.HostPeerID)
 			break
