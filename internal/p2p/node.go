@@ -132,6 +132,7 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 				libp2p.EnableRelay(),
 				libp2p.EnableHolePunching(),
 				libp2p.EnableAutoRelayWithStaticRelays([]peer.AddrInfo{*ri}),
+				libp2p.ForceReachabilityPrivate(),
 			)
 			log.Printf("relay: enabled (relay peer %s, %d addrs)", ri.ID, len(ri.Addrs))
 		} else {
@@ -379,7 +380,6 @@ func (n *Node) addPeerAddrs(peerID string, addrs []string) {
 	}
 	if len(maddrs) > 0 {
 		n.Host.Peerstore().AddAddrs(pid, maddrs, 30*time.Second)
-		log.Printf("WAN: added %d addrs for %s", len(maddrs), peerID)
 	}
 }
 

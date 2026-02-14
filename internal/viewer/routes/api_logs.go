@@ -50,6 +50,12 @@ func registerAPILogRoutes(mux *http.ServeMux, d Deps) {
 			source = "client"
 		}
 
+		// Skip debug-level client logs to reduce noise.
+		if level == "debug" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		logLine := fmt.Sprintf("[%s] [%s] %s\n", level, source, req.Message)
 
 		// Write to the log buffer (d.Logs implements io.Writer)
