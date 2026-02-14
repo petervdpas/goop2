@@ -1,0 +1,284 @@
+
+/* -----------------------------
+   Listen page layout
+------------------------------ */
+.listen-page{
+  display:flex;
+  flex-direction:column;
+  gap: 18px;
+}
+
+/* -----------------------------
+   Section blocks
+------------------------------ */
+.listen-section{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
+
+.listen-section-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 10px;
+}
+
+.listen-section-title{
+  font-weight: 750;
+}
+
+.listen-section-subtitle{
+  font-weight: 650;
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 6px;
+  display: block;
+}
+
+/* -----------------------------
+   Action buttons
+------------------------------ */
+.listen-action-btn{
+  padding: 6px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.listen-btn-primary{
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.listen-btn-primary:hover{
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+.listen-btn-danger{
+  color: #e55;
+  border-color: color-mix(in srgb, #e55 38%, transparent);
+  background: color-mix(in srgb, #e55 10%, transparent);
+}
+
+.listen-btn-danger:hover{
+  background: color-mix(in srgb, #e55 18%, transparent);
+}
+
+/* -----------------------------
+   Forms
+------------------------------ */
+.listen-create-form,
+.listen-join-form{
+  max-width: 400px;
+}
+
+.listen-form-group{
+  margin-bottom: 12px;
+}
+
+.listen-form-group > label{
+  display:block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+  letter-spacing: 0.2px;
+}
+
+.listen-input{
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--field-bg);
+  color: var(--text);
+  outline:none;
+  font-size: 13px;
+  transition: border-color var(--ease), box-shadow var(--ease), background var(--ease);
+  box-sizing: border-box;
+}
+
+.listen-input:focus{
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: var(--ring);
+  background: var(--field-bg-2);
+}
+
+.listen-form-actions{
+  display:flex;
+  gap: 8px;
+  justify-content:flex-end;
+  margin-top: 14px;
+}
+
+/* -----------------------------
+   Track loader
+------------------------------ */
+.listen-track-loader{
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.listen-track-loader .listen-form-group{
+  flex: 1;
+  margin-bottom: 0;
+}
+
+/* -----------------------------
+   Player
+------------------------------ */
+.listen-player{
+  padding: 16px;
+  margin-bottom: 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--field-bg);
+}
+
+.listen-track-info{
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.listen-track-name{
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.listen-track-meta{
+  font-size: 12px;
+}
+
+/* Progress bar */
+.listen-progress{
+  margin-bottom: 12px;
+}
+
+.listen-progress-bar{
+  width: 100%;
+  height: 6px;
+  background: color-mix(in srgb, var(--fg) 12%, transparent);
+  border-radius: 3px;
+  cursor: pointer;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.listen-progress-fill{
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  width: 0;
+  transition: width 0.3s linear;
+}
+
+.listen-time{
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Controls */
+.listen-controls{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.listen-control-btn{
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--ease);
+  line-height: 1;
+}
+
+.listen-control-btn:hover{
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+/* Volume slider */
+.listen-volume{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.listen-volume input[type="range"]{
+  width: 120px;
+  accent-color: var(--accent);
+}
+
+/* -----------------------------
+   Listeners list
+------------------------------ */
+.listen-listeners{
+  margin-top: 12px;
+}
+
+.listen-listener-list{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.listen-listener-chip{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  font-size: 12px;
+}
+
+.listen-listener-chip img{
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* -----------------------------
+   Share / Room ID
+------------------------------ */
+.listen-share{
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.listen-share code{
+  font-size: 11px;
+  user-select: all;
+}
+
+/* -----------------------------
+   Waiting state
+------------------------------ */
+.listen-waiting{
+  padding: 24px;
+  text-align: center;
+  font-style: italic;
+}

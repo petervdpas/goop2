@@ -27,6 +27,9 @@ const (
 
 	// libp2p stream protocol ID for group document sharing
 	DocsProtoID = "/goop/docs/1.0.0"
+
+	// libp2p stream protocol ID for listening room audio streaming
+	ListenProtoID = "/goop/listen/1.0.0"
 )
 
 const (

@@ -14,6 +14,7 @@ import (
 	"github.com/petervdpas/goop2/internal/content"
 	"github.com/petervdpas/goop2/internal/docs"
 	"github.com/petervdpas/goop2/internal/group"
+	"github.com/petervdpas/goop2/internal/listen"
 	luapkg "github.com/petervdpas/goop2/internal/lua"
 	"github.com/petervdpas/goop2/internal/p2p"
 	"github.com/petervdpas/goop2/internal/proto"
@@ -315,6 +316,11 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	rtMgr := realtime.New(grpMgr, node.ID())
 	log.Printf("⚡ Realtime channels enabled")
 
+	// ── Listen room (wraps group protocol + binary audio stream)
+	listenMgr := listen.New(node.Host, grpMgr, node.ID())
+	defer listenMgr.Close()
+	log.Printf("🎵 Listen room enabled")
+
 	// ── File sharing store
 	docStore, err := docs.NewStore(o.PeerDir)
 	if err != nil {
@@ -386,6 +392,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			Chat:        chatMgr,
 			Groups:      grpMgr,
 			Realtime:    rtMgr,
+			Listen:      listenMgr,
 			DB:          db,
 			Docs:        docStore,
 			BaseURL:     url,

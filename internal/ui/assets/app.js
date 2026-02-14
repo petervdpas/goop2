@@ -23,6 +23,7 @@
     "goop-realtime.js",
     "goop-call.js",
     "goop-call-ui.js",
+    "goop-listen.js",
     "70-database.js",
     "75-groups.js",
     "76-documents.js",
