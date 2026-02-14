@@ -1,4 +1,4 @@
-// Listen room — host & listener UI logic
+// Listen group — host & listener UI logic
 (function () {
   if (!window.Goop) window.Goop = {};
 
@@ -39,11 +39,11 @@
         return r.json();
       });
     },
-    join: function (hostPeerId, roomId) {
+    join: function (hostPeerId, groupId) {
       return fetch("/api/listen/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ host_peer_id: hostPeerId, room_id: roomId }),
+        body: JSON.stringify({ host_peer_id: hostPeerId, group_id: groupId }),
       }).then(function (r) {
         if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
         return r.json();
@@ -60,14 +60,14 @@
     },
 
     // subscribe(callback) — SSE subscription for peer sites.
-    // callback receives the room object (or null) on every state change.
+    // callback receives the group object (or null) on every state change.
     // Returns { close: function } to stop the subscription.
     subscribe: function (callback) {
       var es = new EventSource("/api/listen/events");
       es.addEventListener("state", function (e) {
         try {
           var data = JSON.parse(e.data);
-          callback(data.room);
+          callback(data.group);
         } catch (err) {
           console.error("LISTEN subscribe parse error:", err);
         }
@@ -75,7 +75,7 @@
       es.addEventListener("connected", function () {
         // Fetch initial state on connect
         api.state().then(function (data) {
-          callback(data.room);
+          callback(data.group);
         });
       });
       return {
@@ -103,7 +103,7 @@
 
   // Host elements
   var hostName = document.getElementById("listen-host-name");
-  var roomIdEl = document.getElementById("listen-room-id");
+  var groupIdEl = document.getElementById("listen-group-id");
   var playerEl = document.getElementById("listen-player");
   var trackNameEl = document.getElementById("listen-track-name");
   var trackMetaEl = document.getElementById("listen-track-meta");
@@ -115,7 +115,7 @@
   var listenerList = document.getElementById("listen-listener-list");
 
   // Listener elements
-  var lRoomName = document.getElementById("listen-listener-room-name");
+  var lGroupName = document.getElementById("listen-listener-group-name");
   var lPlayerEl = document.getElementById("listen-listener-player");
   var lTrackName = document.getElementById("listen-listener-track-name");
   var lTrackMeta = document.getElementById("listen-listener-track-meta");
@@ -126,7 +126,7 @@
   var audioEl = document.getElementById("listen-audio");
   var volumeEl = document.getElementById("listen-volume");
 
-  var currentRoom = null;
+  var currentGroup = null;
   var progressTimer = null;
 
   function formatTime(s) {
@@ -154,13 +154,13 @@
   function startProgressTimer() {
     stopProgressTimer();
     progressTimer = setInterval(function () {
-      if (!currentRoom || !currentRoom.play_state || !currentRoom.play_state.playing) return;
-      var ps = currentRoom.play_state;
+      if (!currentGroup || !currentGroup.play_state || !currentGroup.play_state.playing) return;
+      var ps = currentGroup.play_state;
       var elapsed = (Date.now() - ps.updated_at) / 1000;
       var pos = ps.position + elapsed;
-      var dur = currentRoom.track ? currentRoom.track.duration : 0;
+      var dur = currentGroup.track ? currentGroup.track.duration : 0;
 
-      if (currentRoom.role === "host") {
+      if (currentGroup.role === "host") {
         updateProgress(pos, dur, progressFill, timeCurrent, timeTotal);
       } else {
         updateProgress(pos, dur, lProgressFill, lTimeCurrent, lTimeTotal);
@@ -175,36 +175,36 @@
     }
   }
 
-  function renderRoom(room) {
-    currentRoom = room;
+  function renderGroup(g) {
+    currentGroup = g;
     stopProgressTimer();
 
-    if (!room) {
+    if (!g) {
       showMode("idle");
       return;
     }
 
-    if (room.role === "host") {
+    if (g.role === "host") {
       showMode("host");
-      hostName.textContent = room.name;
-      roomIdEl.textContent = room.id;
+      hostName.textContent = g.name;
+      groupIdEl.textContent = g.id;
 
-      if (room.track) {
+      if (g.track) {
         playerEl.style.display = "";
-        trackNameEl.textContent = room.track.name;
+        trackNameEl.textContent = g.track.name;
         trackMetaEl.textContent =
-          Math.round(room.track.bitrate / 1000) + " kbps · " + formatTime(room.track.duration);
+          Math.round(g.track.bitrate / 1000) + " kbps · " + formatTime(g.track.duration);
 
-        if (room.play_state) {
-          if (room.play_state.playing) {
+        if (g.play_state) {
+          if (g.play_state.playing) {
             playBtn.style.display = "none";
             pauseBtn.style.display = "";
             startProgressTimer();
           } else {
             playBtn.style.display = "";
             pauseBtn.style.display = "none";
-            var dur = room.track.duration;
-            updateProgress(room.play_state.position, dur, progressFill, timeCurrent, timeTotal);
+            var dur = g.track.duration;
+            updateProgress(g.play_state.position, dur, progressFill, timeCurrent, timeTotal);
           }
         }
       } else {
@@ -212,9 +212,9 @@
       }
 
       // Render listeners
-      if (room.listeners && room.listeners.length > 0) {
+      if (g.listeners && g.listeners.length > 0) {
         listenerList.innerHTML = "";
-        room.listeners.forEach(function (pid) {
+        g.listeners.forEach(function (pid) {
           var chip = document.createElement("span");
           chip.className = "listen-listener-chip";
           var img = document.createElement("img");
@@ -231,19 +231,19 @@
     } else {
       // Listener mode
       showMode("listener");
-      lRoomName.textContent = room.name;
+      lGroupName.textContent = g.name;
 
-      if (room.track) {
+      if (g.track) {
         lPlayerEl.style.display = "";
         lWaiting.style.display = "none";
-        lTrackName.textContent = room.track.name;
+        lTrackName.textContent = g.track.name;
         lTrackMeta.textContent =
-          Math.round(room.track.bitrate / 1000) + " kbps · " + formatTime(room.track.duration);
+          Math.round(g.track.bitrate / 1000) + " kbps · " + formatTime(g.track.duration);
 
-        if (room.play_state) {
-          var dur = room.track.duration;
-          updateProgress(room.play_state.position, dur, lProgressFill, lTimeCurrent, lTimeTotal);
-          if (room.play_state.playing) {
+        if (g.play_state) {
+          var dur = g.track.duration;
+          updateProgress(g.play_state.position, dur, lProgressFill, lTimeCurrent, lTimeTotal);
+          if (g.play_state.playing) {
             startProgressTimer();
             connectAudio();
           }
@@ -275,9 +275,9 @@
   // ── Event handlers ────────────────────────────────────────────────────────
 
   document.getElementById("listen-create-btn").addEventListener("click", function () {
-    var name = document.getElementById("listen-room-name").value.trim() || "Listening Room";
-    api.create(name).then(function (room) {
-      renderRoom(room);
+    var name = document.getElementById("listen-group-name").value.trim() || "Listening Group";
+    api.create(name).then(function (g) {
+      renderGroup(g);
     }).catch(function (e) {
       if (window.Goop && Goop.toast) Goop.toast({ message: e.message, type: "error" });
     });
@@ -286,7 +286,7 @@
   document.getElementById("listen-close-btn").addEventListener("click", function () {
     api.close().then(function () {
       disconnectAudio();
-      renderRoom(null);
+      renderGroup(null);
     });
   });
 
@@ -308,18 +308,18 @@
 
   // Progress bar seeking (host only)
   document.getElementById("listen-progress-bar").addEventListener("click", function (e) {
-    if (!currentRoom || currentRoom.role !== "host" || !currentRoom.track) return;
+    if (!currentGroup || currentGroup.role !== "host" || !currentGroup.track) return;
     var rect = this.getBoundingClientRect();
     var pct = (e.clientX - rect.left) / rect.width;
-    var pos = pct * currentRoom.track.duration;
+    var pos = pct * currentGroup.track.duration;
     api.control("seek", pos);
   });
 
   document.getElementById("listen-join-btn").addEventListener("click", function () {
     var hostId = document.getElementById("listen-join-host").value.trim();
-    var roomId = document.getElementById("listen-join-room").value.trim();
-    if (!hostId || !roomId) return;
-    api.join(hostId, roomId).catch(function (e) {
+    var groupId = document.getElementById("listen-join-group").value.trim();
+    if (!hostId || !groupId) return;
+    api.join(hostId, groupId).catch(function (e) {
       if (window.Goop && Goop.toast) Goop.toast({ message: e.message, type: "error" });
     });
   });
@@ -327,7 +327,7 @@
   document.getElementById("listen-leave-btn").addEventListener("click", function () {
     disconnectAudio();
     api.leave().then(function () {
-      renderRoom(null);
+      renderGroup(null);
     });
   });
 
@@ -344,7 +344,7 @@
   sse.addEventListener("state", function (e) {
     try {
       var data = JSON.parse(e.data);
-      renderRoom(data.room);
+      renderGroup(data.group);
     } catch (err) {
       console.error("LISTEN SSE parse error:", err);
     }
@@ -353,7 +353,7 @@
   sse.addEventListener("connected", function () {
     // Fetch initial state
     api.state().then(function (data) {
-      renderRoom(data.room);
+      renderGroup(data.group);
     });
   });
 
@@ -363,6 +363,6 @@
 
   // Initial state fetch
   api.state().then(function (data) {
-    renderRoom(data.room);
+    renderGroup(data.group);
   });
 })();

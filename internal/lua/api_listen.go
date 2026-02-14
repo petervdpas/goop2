@@ -6,7 +6,7 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
-// listenStateFn returns the current room state as a Lua table.
+// listenStateFn returns the current group state as a Lua table.
 //
 //	result, err = goop.listen.state()
 func listenStateFn(engine *Engine) lua.LGFunction {
@@ -17,21 +17,21 @@ func listenStateFn(engine *Engine) lua.LGFunction {
 			L.Push(lua.LString("listen not available"))
 			return 2
 		}
-		room := lm.GetRoom()
-		if room == nil {
+		group := lm.GetGroup()
+		if group == nil {
 			L.Push(lua.LNil)
 			L.Push(lua.LNil)
 			return 2
 		}
-		L.Push(roomToLua(L, room))
+		L.Push(groupToLua(L, group))
 		L.Push(lua.LNil)
 		return 2
 	}
 }
 
-// listenCreateFn creates a new listening room.
+// listenCreateFn creates a new listening group.
 //
-//	result, err = goop.listen.create("My Room")
+//	result, err = goop.listen.create("My Group")
 func listenCreateFn(engine *Engine) lua.LGFunction {
 	return func(L *lua.LState) int {
 		lm := engine.listen
@@ -40,20 +40,20 @@ func listenCreateFn(engine *Engine) lua.LGFunction {
 			L.Push(lua.LString("listen not available"))
 			return 2
 		}
-		name := L.OptString(1, "Listening Room")
-		room, err := lm.CreateRoom(name)
+		name := L.OptString(1, "Listening Group")
+		group, err := lm.CreateGroup(name)
 		if err != nil {
 			L.Push(lua.LNil)
 			L.Push(lua.LString(err.Error()))
 			return 2
 		}
-		L.Push(roomToLua(L, room))
+		L.Push(groupToLua(L, group))
 		L.Push(lua.LNil)
 		return 2
 	}
 }
 
-// listenCloseFn closes the current room.
+// listenCloseFn closes the current group.
 //
 //	err = goop.listen.close()
 func listenCloseFn(engine *Engine) lua.LGFunction {
@@ -63,7 +63,7 @@ func listenCloseFn(engine *Engine) lua.LGFunction {
 			L.Push(lua.LString("listen not available"))
 			return 1
 		}
-		if err := lm.CloseRoom(); err != nil {
+		if err := lm.CloseGroup(); err != nil {
 			L.Push(lua.LString(err.Error()))
 			return 1
 		}
@@ -156,7 +156,7 @@ func listenSeekFn(engine *Engine) lua.LGFunction {
 
 // ── Lua table builders ───────────────────────────────────────────────────────
 
-func roomToLua(L *lua.LState, r *listen.Room) *lua.LTable {
+func groupToLua(L *lua.LState, r *listen.Group) *lua.LTable {
 	tbl := L.NewTable()
 	tbl.RawSetString("id", lua.LString(r.ID))
 	tbl.RawSetString("name", lua.LString(r.Name))

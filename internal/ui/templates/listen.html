@@ -1,20 +1,20 @@
 {{define "page.listen"}}
 <h1>Listen</h1>
-<p class="muted small">Host a listening room or join one — stream audio in real-time with friends.</p>
+<p class="muted small">Host a listening group or join one — stream audio in real-time with friends.</p>
 
 <div id="listen-page" class="listen-page">
-  <!-- No room state -->
+  <!-- No group state -->
   <div id="listen-idle" class="listen-section panel">
     <div class="listen-section-head">
-      <span class="listen-section-title">Start a Listening Room</span>
+      <span class="listen-section-title">Start a Listening Group</span>
     </div>
     <div class="listen-create-form">
       <div class="listen-form-group">
-        <label>Room Name</label>
-        <input type="text" id="listen-room-name" class="listen-input" placeholder="My Room" />
+        <label>Group Name</label>
+        <input type="text" id="listen-group-name" class="listen-input" placeholder="My Group" />
       </div>
       <div class="listen-form-actions">
-        <button id="listen-create-btn" class="listen-action-btn listen-btn-primary">Create Room</button>
+        <button id="listen-create-btn" class="listen-action-btn listen-btn-primary">Create Group</button>
       </div>
     </div>
   </div>
@@ -23,7 +23,7 @@
   <div id="listen-host" class="listen-section panel" style="display:none">
     <div class="listen-section-head">
       <span class="listen-section-title">Hosting: <span id="listen-host-name"></span></span>
-      <button id="listen-close-btn" class="listen-action-btn listen-btn-danger">Close Room</button>
+      <button id="listen-close-btn" class="listen-action-btn listen-btn-danger">Close Group</button>
     </div>
 
     <!-- Track loader -->
@@ -64,16 +64,16 @@
       </div>
     </div>
 
-    <!-- Room ID for sharing -->
+    <!-- Group ID for sharing -->
     <div class="listen-share">
-      <span class="muted small">Room ID: <code id="listen-room-id"></code></span>
+      <span class="muted small">Group ID: <code id="listen-group-id"></code></span>
     </div>
   </div>
 
   <!-- Listener mode -->
   <div id="listen-listener" class="listen-section panel" style="display:none">
     <div class="listen-section-head">
-      <span class="listen-section-title">Listening: <span id="listen-listener-room-name"></span></span>
+      <span class="listen-section-title">Listening: <span id="listen-listener-group-name"></span></span>
       <button id="listen-leave-btn" class="listen-action-btn listen-btn-danger">Leave</button>
     </div>
 
@@ -109,7 +109,7 @@
   <!-- Join section (always visible when idle) -->
   <div id="listen-join-section" class="listen-section panel">
     <div class="listen-section-head">
-      <span class="listen-section-title">Join a Room</span>
+      <span class="listen-section-title">Join a Group</span>
     </div>
     <div class="listen-join-form">
       <div class="listen-form-group">
@@ -117,8 +117,8 @@
         <input type="text" id="listen-join-host" class="listen-input" placeholder="Peer ID" />
       </div>
       <div class="listen-form-group">
-        <label>Room ID</label>
-        <input type="text" id="listen-join-room" class="listen-input" placeholder="listen-..." />
+        <label>Group ID</label>
+        <input type="text" id="listen-join-group" class="listen-input" placeholder="listen-..." />
       </div>
       <div class="listen-form-actions">
         <button id="listen-join-btn" class="listen-action-btn listen-btn-primary">Join</button>
