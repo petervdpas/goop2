@@ -23,14 +23,14 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 )
 
-// Manager manages a single listening room (hosting or listening).
+// Manager manages a single listening group (hosting or listening).
 type Manager struct {
 	host   host.Host
 	grp    *group.Manager
 	selfID string
 
-	mu   sync.RWMutex
-	room *Room
+	mu    sync.RWMutex
+	group *Group
 
 	// Host-side state
 	filePath string   // path to the loaded MP3
@@ -50,7 +50,7 @@ type Manager struct {
 
 	// SSE listeners for state changes
 	sseMu     sync.RWMutex
-	sseChans  map[chan *Room]struct{}
+	sseChans  map[chan *Group]struct{}
 }
 
 type listenerPipe struct {
@@ -66,7 +66,7 @@ func New(h host.Host, grp *group.Manager, selfID string) *Manager {
 		grp:      grp,
 		selfID:   selfID,
 		pipes:    make(map[string]*listenerPipe),
-		sseChans: make(map[chan *Room]struct{}),
+		sseChans: make(map[chan *Group]struct{}),
 	}
 
 	// Clean up any stale listen- groups from previous sessions
@@ -74,7 +74,7 @@ func New(h host.Host, grp *group.Manager, selfID string) *Manager {
 		for _, g := range rows {
 			if strings.HasPrefix(g.ID, "listen-") {
 				_ = grp.CloseGroup(g.ID)
-				log.Printf("LISTEN: Cleaned up stale room %s on startup", g.ID)
+				log.Printf("LISTEN: Cleaned up stale group %s on startup", g.ID)
 			}
 		}
 	}
@@ -87,16 +87,16 @@ func New(h host.Host, grp *group.Manager, selfID string) *Manager {
 
 // ── Host methods ─────────────────────────────────────────────────────────────
 
-// CreateRoom creates a new listening room. Only one room at a time.
-func (m *Manager) CreateRoom(name string) (*Room, error) {
+// CreateGroup creates a new listening group. Only one group at a time.
+func (m *Manager) CreateGroup(name string) (*Group, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.room != nil {
-		return nil, fmt.Errorf("already in a room")
+	if m.group != nil {
+		return nil, fmt.Errorf("already in a group")
 	}
 
-	id := generateRoomID()
+	id := generateListenID()
 
 	if err := m.grp.CreateGroup(id, name, "listen", 0); err != nil {
 		return nil, fmt.Errorf("create group: %w", err)
@@ -106,7 +106,7 @@ func (m *Manager) CreateRoom(name string) (*Room, error) {
 		return nil, fmt.Errorf("join own group: %w", err)
 	}
 
-	m.room = &Room{
+	m.group = &Group{
 		ID:   id,
 		Name: name,
 		Role: "host",
@@ -114,9 +114,9 @@ func (m *Manager) CreateRoom(name string) (*Room, error) {
 	m.paused = true
 	m.stopCh = make(chan struct{})
 
-	log.Printf("LISTEN: Created room %s (%s)", id, name)
+	log.Printf("LISTEN: Created group %s (%s)", id, name)
 	m.notifySSE()
-	return m.room, nil
+	return m.group, nil
 }
 
 // LoadTrack loads an MP3 file for streaming.
@@ -124,8 +124,8 @@ func (m *Manager) LoadTrack(filePath string) (*Track, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.room == nil || m.room.Role != "host" {
-		return nil, fmt.Errorf("not hosting a room")
+	if m.group == nil || m.group.Role != "host" {
+		return nil, fmt.Errorf("not hosting a group")
 	}
 
 	// Stop any current playback
@@ -145,8 +145,8 @@ func (m *Manager) LoadTrack(filePath string) (*Track, error) {
 		Bitrate:  info.Bitrate,
 		Format:   "mp3",
 	}
-	m.room.Track = track
-	m.room.PlayState = &PlayState{
+	m.group.Track = track
+	m.group.PlayState = &PlayState{
 		Playing:   false,
 		Position:  0,
 		UpdatedAt: time.Now().UnixMilli(),
@@ -165,20 +165,20 @@ func (m *Manager) Play() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.room == nil || m.room.Role != "host" {
-		return fmt.Errorf("not hosting a room")
+	if m.group == nil || m.group.Role != "host" {
+		return fmt.Errorf("not hosting a group")
 	}
-	if m.room.Track == nil {
+	if m.group.Track == nil {
 		return fmt.Errorf("no track loaded")
 	}
 
 	pos := 0.0
-	if m.room.PlayState != nil {
-		pos = m.room.PlayState.Position
+	if m.group.PlayState != nil {
+		pos = m.group.PlayState.Position
 	}
 
 	m.paused = false
-	m.room.PlayState = &PlayState{
+	m.group.PlayState = &PlayState{
 		Playing:   true,
 		Position:  pos,
 		UpdatedAt: time.Now().UnixMilli(),
@@ -199,15 +199,15 @@ func (m *Manager) Pause() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.room == nil || m.room.Role != "host" {
-		return fmt.Errorf("not hosting a room")
+	if m.group == nil || m.group.Role != "host" {
+		return fmt.Errorf("not hosting a group")
 	}
 
 	m.stopPlaybackLocked()
 	m.paused = true
 
 	pos := m.currentPosition()
-	m.room.PlayState = &PlayState{
+	m.group.PlayState = &PlayState{
 		Playing:   false,
 		Position:  pos,
 		UpdatedAt: time.Now().UnixMilli(),
@@ -225,17 +225,17 @@ func (m *Manager) Seek(position float64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.room == nil || m.room.Role != "host" {
-		return fmt.Errorf("not hosting a room")
+	if m.group == nil || m.group.Role != "host" {
+		return fmt.Errorf("not hosting a group")
 	}
-	if m.room.Track == nil {
+	if m.group.Track == nil {
 		return fmt.Errorf("no track loaded")
 	}
 
-	wasPlaying := m.room.PlayState != nil && m.room.PlayState.Playing
+	wasPlaying := m.group.PlayState != nil && m.group.PlayState.Playing
 	m.stopPlaybackLocked()
 
-	m.room.PlayState = &PlayState{
+	m.group.PlayState = &PlayState{
 		Playing:   wasPlaying,
 		Position:  position,
 		UpdatedAt: time.Now().UnixMilli(),
@@ -254,73 +254,73 @@ func (m *Manager) Seek(position float64) error {
 	return nil
 }
 
-// CloseRoom closes the listening room and disconnects all listeners.
-func (m *Manager) CloseRoom() error {
+// CloseGroup closes the listening group and disconnects all listeners.
+func (m *Manager) CloseGroup() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.room == nil {
+	if m.group == nil {
 		return nil
 	}
 
 	m.stopPlaybackLocked()
 
-	if m.room.Role == "host" {
+	if m.group.Role == "host" {
 		m.sendControl(ControlMsg{Action: "close"})
-		_ = m.grp.CloseGroup(m.room.ID)
+		_ = m.grp.CloseGroup(m.group.ID)
 	} else {
 		_ = m.grp.LeaveGroup()
 	}
 
 	m.closeHTTPPipeLocked()
-	m.room = nil
+	m.group = nil
 	m.filePath = ""
 
-	log.Printf("LISTEN: Room closed")
+	log.Printf("LISTEN: Group closed")
 	m.notifySSE()
 	return nil
 }
 
 // ── Listener methods ─────────────────────────────────────────────────────────
 
-// JoinRoom joins a remote listening room.
-func (m *Manager) JoinRoom(hostPeerID, roomID string) error {
+// JoinGroup joins a remote listening group.
+func (m *Manager) JoinGroup(hostPeerID, groupID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.room != nil {
-		return fmt.Errorf("already in a room")
+	if m.group != nil {
+		return fmt.Errorf("already in a group")
 	}
 
-	if err := m.grp.JoinRemoteGroup(context.TODO(), hostPeerID, roomID); err != nil {
+	if err := m.grp.JoinRemoteGroup(context.TODO(), hostPeerID, groupID); err != nil {
 		return fmt.Errorf("join group: %w", err)
 	}
 
-	m.room = &Room{
-		ID:   roomID,
-		Name: roomID,
+	m.group = &Group{
+		ID:   groupID,
+		Name: groupID,
 		Role: "listener",
 	}
 
-	log.Printf("LISTEN: Joined room %s on host %s", roomID, hostPeerID)
+	log.Printf("LISTEN: Joined group %s on host %s", groupID, hostPeerID)
 	m.notifySSE()
 	return nil
 }
 
-// LeaveRoom leaves the current listening room.
-func (m *Manager) LeaveRoom() error {
+// LeaveGroup leaves the current listening group.
+func (m *Manager) LeaveGroup() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.room == nil || m.room.Role != "listener" {
-		return fmt.Errorf("not in a listening room")
+	if m.group == nil || m.group.Role != "listener" {
+		return fmt.Errorf("not in a listening group")
 	}
 
 	_ = m.grp.LeaveGroup()
 	m.closeHTTPPipeLocked()
-	m.room = nil
+	m.group = nil
 
-	log.Printf("LISTEN: Left room")
+	log.Printf("LISTEN: Left group")
 	m.notifySSE()
 	return nil
 }
@@ -329,14 +329,14 @@ func (m *Manager) LeaveRoom() error {
 // The caller is responsible for closing it.
 func (m *Manager) AudioReader() (io.ReadCloser, error) {
 	m.mu.RLock()
-	room := m.room
+	lg := m.group
 	m.mu.RUnlock()
 
-	if room == nil {
-		return nil, fmt.Errorf("not in a room")
+	if lg == nil {
+		return nil, fmt.Errorf("not in a group")
 	}
 
-	if room.Role == "listener" {
+	if lg.Role == "listener" {
 		return m.connectAudioStream()
 	}
 
@@ -355,17 +355,17 @@ func (m *Manager) AudioReader() (io.ReadCloser, error) {
 	return r, nil
 }
 
-// GetRoom returns the current room state.
-func (m *Manager) GetRoom() *Room {
+// GetGroup returns the current group state.
+func (m *Manager) GetGroup() *Group {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	if m.room == nil {
+	if m.group == nil {
 		return nil
 	}
 
 	// Return a copy with up-to-date position
-	r := *m.room
+	r := *m.group
 	if r.PlayState != nil && r.PlayState.Playing {
 		elapsed := float64(time.Now().UnixMilli()-r.PlayState.UpdatedAt) / 1000.0
 		ps := *r.PlayState
@@ -377,9 +377,9 @@ func (m *Manager) GetRoom() *Room {
 
 // ── SSE subscription ─────────────────────────────────────────────────────────
 
-// SubscribeSSE returns a channel that receives room state updates.
-func (m *Manager) SubscribeSSE() (ch chan *Room, cancel func()) {
-	ch = make(chan *Room, 16)
+// SubscribeSSE returns a channel that receives group state updates.
+func (m *Manager) SubscribeSSE() (ch chan *Group, cancel func()) {
+	ch = make(chan *Group, 16)
 
 	m.sseMu.Lock()
 	m.sseChans[ch] = struct{}{}
@@ -397,14 +397,14 @@ func (m *Manager) SubscribeSSE() (ch chan *Room, cancel func()) {
 }
 
 func (m *Manager) notifySSE() {
-	room := m.room // caller holds mu
+	lg := m.group // caller holds mu
 
 	m.sseMu.RLock()
 	defer m.sseMu.RUnlock()
 
 	for ch := range m.sseChans {
 		select {
-		case ch <- room:
+		case ch <- lg:
 		default:
 		}
 	}
@@ -413,7 +413,7 @@ func (m *Manager) notifySSE() {
 // ── Streaming (host → listeners) ─────────────────────────────────────────────
 
 // handleAudioStream processes incoming listen protocol streams from listeners.
-// Wire format: "LISTEN <room_id>\n" → host sends raw MP3 bytes.
+// Wire format: "LISTEN <group_id>\n" → host sends raw MP3 bytes.
 func (m *Manager) handleAudioStream(s network.Stream) {
 	remotePeer := s.Conn().RemotePeer().String()
 	defer s.Close()
@@ -439,34 +439,34 @@ func (m *Manager) handleAudioStream(s network.Stream) {
 		fmt.Fprintf(s, "ERR bad request\n")
 		return
 	}
-	roomID := parts[1]
+	groupID := parts[1]
 
 	m.mu.RLock()
-	room := m.room
+	lg := m.group
 	m.mu.RUnlock()
 
-	if room == nil || room.ID != roomID || room.Role != "host" {
+	if lg == nil || lg.ID != groupID || lg.Role != "host" {
 		fmt.Fprintf(s, "ERR not found\n")
 		return
 	}
 
-	if room.Track == nil {
+	if lg.Track == nil {
 		fmt.Fprintf(s, "ERR no track\n")
 		return
 	}
 
 	// Send OK with track info
-	fmt.Fprintf(s, "OK %s %d %.2f\n", room.Track.Format, room.Track.Bitrate, room.Track.Duration)
+	fmt.Fprintf(s, "OK %s %d %.2f\n", lg.Track.Format, lg.Track.Bitrate, lg.Track.Duration)
 
 	log.Printf("LISTEN: Audio stream started for %s", remotePeer)
 
 	// Open file and seek to current position
 	m.mu.RLock()
 	pos := 0.0
-	if room.PlayState != nil {
-		pos = room.PlayState.Position
-		if room.PlayState.Playing {
-			elapsed := float64(time.Now().UnixMilli()-room.PlayState.UpdatedAt) / 1000.0
+	if lg.PlayState != nil {
+		pos = lg.PlayState.Position
+		if lg.PlayState.Playing {
+			elapsed := float64(time.Now().UnixMilli()-lg.PlayState.UpdatedAt) / 1000.0
 			pos += elapsed
 		}
 	}
@@ -490,12 +490,12 @@ func (m *Manager) handleAudioStream(s network.Stream) {
 	defer f.Close()
 
 	// Seek to byte position based on current playback position
-	byteOffset := int64(pos * float64(room.Track.Bitrate) / 8.0)
+	byteOffset := int64(pos * float64(lg.Track.Bitrate) / 8.0)
 	if byteOffset > 0 {
 		f.Seek(byteOffset, io.SeekStart)
 	}
 
-	// Create a done channel that closes when room state changes
+	// Create a done channel that closes when group state changes
 	done := make(chan struct{})
 	go func() {
 		ticker := time.NewTicker(500 * time.Millisecond)
@@ -506,10 +506,10 @@ func (m *Manager) handleAudioStream(s network.Stream) {
 				m.mu.RLock()
 				currentGen := m.seekGen
 				currentPaused := m.paused
-				currentRoom := m.room
+				currentGroup := m.group
 				m.mu.RUnlock()
 
-				if currentRoom == nil || currentRoom.ID != roomID || currentPaused || currentGen != gen {
+				if currentGroup == nil || currentGroup.ID != groupID || currentPaused || currentGen != gen {
 					close(done)
 					return
 				}
@@ -519,7 +519,7 @@ func (m *Manager) handleAudioStream(s network.Stream) {
 
 	rp := &ratePacer{
 		file:    f,
-		bitrate: room.Track.Bitrate,
+		bitrate: lg.Track.Bitrate,
 		done:    done,
 	}
 
@@ -534,10 +534,10 @@ func (m *Manager) handleAudioStream(s network.Stream) {
 // a reader for the audio data.
 func (m *Manager) connectAudioStream() (io.ReadCloser, error) {
 	m.mu.RLock()
-	room := m.room
+	lg := m.group
 	m.mu.RUnlock()
 
-	if room == nil || room.Role != "listener" {
+	if lg == nil || lg.Role != "listener" {
 		return nil, fmt.Errorf("not a listener")
 	}
 
@@ -557,7 +557,7 @@ func (m *Manager) connectAudioStream() (io.ReadCloser, error) {
 	}
 
 	// Send request
-	fmt.Fprintf(s, "LISTEN %s\n", room.ID)
+	fmt.Fprintf(s, "LISTEN %s\n", lg.ID)
 
 	// Read response line
 	buf := make([]byte, 256)
@@ -592,7 +592,7 @@ func (m *Manager) connectAudioStream() (io.ReadCloser, error) {
 
 // startStreaming opens the file and starts rate-pacing audio to the HTTP pipe.
 func (m *Manager) startStreaming(position float64) {
-	if m.filePath == "" || m.room == nil || m.room.Track == nil {
+	if m.filePath == "" || m.group == nil || m.group.Track == nil {
 		return
 	}
 
@@ -618,7 +618,7 @@ func (m *Manager) startStreaming(position float64) {
 	m.file = f
 
 	// Seek to byte position
-	byteOffset := int64(position * float64(m.room.Track.Bitrate) / 8.0)
+	byteOffset := int64(position * float64(m.group.Track.Bitrate) / 8.0)
 	if byteOffset > 0 {
 		f.Seek(byteOffset, io.SeekStart)
 	}
@@ -640,7 +640,7 @@ func (m *Manager) startStreaming(position float64) {
 			if byteOffset > 0 {
 				ff.Seek(byteOffset, io.SeekStart)
 			}
-			rp := &ratePacer{file: ff, bitrate: m.room.Track.Bitrate, done: stopCh}
+			rp := &ratePacer{file: ff, bitrate: m.group.Track.Bitrate, done: stopCh}
 			rp.stream(httpW)
 		}()
 	}
@@ -674,27 +674,27 @@ func (m *Manager) closeHTTPPipeLocked() {
 }
 
 func (m *Manager) currentPosition() float64 {
-	if m.room == nil || m.room.PlayState == nil {
+	if m.group == nil || m.group.PlayState == nil {
 		return 0
 	}
-	pos := m.room.PlayState.Position
-	if m.room.PlayState.Playing {
-		elapsed := float64(time.Now().UnixMilli()-m.room.PlayState.UpdatedAt) / 1000.0
+	pos := m.group.PlayState.Position
+	if m.group.PlayState.Playing {
+		elapsed := float64(time.Now().UnixMilli()-m.group.PlayState.UpdatedAt) / 1000.0
 		pos += elapsed
 	}
 	return pos
 }
 
 func (m *Manager) sendControl(msg ControlMsg) {
-	if m.room == nil {
+	if m.group == nil {
 		return
 	}
 	payload := map[string]any{
 		"app_type": "listen",
 		"listen":   msg,
 	}
-	if m.room.Role == "host" {
-		_ = m.grp.SendToGroupAsHost(m.room.ID, payload)
+	if m.group.Role == "host" {
+		_ = m.grp.SendToGroupAsHost(m.group.ID, payload)
 	} else {
 		_ = m.grp.SendToGroup(payload)
 	}
@@ -706,18 +706,18 @@ func (m *Manager) forwardGroupEvents() {
 
 	for evt := range evtCh {
 		m.mu.RLock()
-		room := m.room
+		lg := m.group
 		m.mu.RUnlock()
 
-		if room == nil {
+		if lg == nil {
 			// Check for welcome events with app_type "listen"
 			if evt.Type == "welcome" {
 				if wp, ok := evt.Payload.(map[string]any); ok {
 					if appType, _ := wp["app_type"].(string); appType == "listen" {
 						m.mu.Lock()
-						if m.room != nil && m.room.ID == evt.Group {
+						if m.group != nil && m.group.ID == evt.Group {
 							if name, ok := wp["group_name"].(string); ok {
-								m.room.Name = name
+								m.group.Name = name
 							}
 						}
 						m.mu.Unlock()
@@ -728,7 +728,7 @@ func (m *Manager) forwardGroupEvents() {
 			continue
 		}
 
-		if evt.Group != room.ID {
+		if evt.Group != lg.ID {
 			continue
 		}
 
@@ -743,26 +743,26 @@ func (m *Manager) forwardGroupEvents() {
 		case "close":
 			m.mu.Lock()
 			m.closeHTTPPipeLocked()
-			m.room = nil
+			m.group = nil
 			m.mu.Unlock()
 			m.notifySSELocked()
-			log.Printf("LISTEN: Room closed by host")
+			log.Printf("LISTEN: Group closed by host")
 		case "leave":
-			if room.Role == "host" {
+			if lg.Role == "host" {
 				// A listener left
 				log.Printf("LISTEN: Listener %s left", evt.From)
 			}
 		case "members":
 			// Update listener list
-			if room.Role == "host" {
+			if lg.Role == "host" {
 				if mp, ok := evt.Payload.(map[string]any); ok {
 					if members, ok := mp["members"].([]any); ok {
 						m.mu.Lock()
-						m.room.Listeners = make([]string, 0, len(members))
+						m.group.Listeners = make([]string, 0, len(members))
 						for _, member := range members {
 							if mi, ok := member.(map[string]any); ok {
 								if pid, ok := mi["peer_id"].(string); ok && pid != m.selfID {
-									m.room.Listeners = append(m.room.Listeners, pid)
+									m.group.Listeners = append(m.group.Listeners, pid)
 								}
 							}
 						}
@@ -799,14 +799,14 @@ func (m *Manager) handleControlEvent(payload any) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.room == nil {
+	if m.group == nil {
 		return
 	}
 
 	switch ctrl.Action {
 	case "load":
-		m.room.Track = ctrl.Track
-		m.room.PlayState = &PlayState{
+		m.group.Track = ctrl.Track
+		m.group.PlayState = &PlayState{
 			Playing:   false,
 			Position:  0,
 			UpdatedAt: time.Now().UnixMilli(),
@@ -814,7 +814,7 @@ func (m *Manager) handleControlEvent(payload any) {
 		log.Printf("LISTEN: Host loaded track: %s", ctrl.Track.Name)
 
 	case "play":
-		m.room.PlayState = &PlayState{
+		m.group.PlayState = &PlayState{
 			Playing:   true,
 			Position:  ctrl.Position,
 			UpdatedAt: time.Now().UnixMilli(),
@@ -822,7 +822,7 @@ func (m *Manager) handleControlEvent(payload any) {
 		log.Printf("LISTEN: Host started playback at %.1fs", ctrl.Position)
 
 	case "pause":
-		m.room.PlayState = &PlayState{
+		m.group.PlayState = &PlayState{
 			Playing:   false,
 			Position:  ctrl.Position,
 			UpdatedAt: time.Now().UnixMilli(),
@@ -830,8 +830,8 @@ func (m *Manager) handleControlEvent(payload any) {
 		log.Printf("LISTEN: Host paused at %.1fs", ctrl.Position)
 
 	case "seek":
-		wasPlaying := m.room.PlayState != nil && m.room.PlayState.Playing
-		m.room.PlayState = &PlayState{
+		wasPlaying := m.group.PlayState != nil && m.group.PlayState.Playing
+		m.group.PlayState = &PlayState{
 			Playing:   wasPlaying,
 			Position:  ctrl.Position,
 			UpdatedAt: time.Now().UnixMilli(),
@@ -841,7 +841,7 @@ func (m *Manager) handleControlEvent(payload any) {
 		log.Printf("LISTEN: Host seeked to %.1fs", ctrl.Position)
 
 	case "sync":
-		m.room.PlayState = &PlayState{
+		m.group.PlayState = &PlayState{
 			Playing:   true,
 			Position:  ctrl.Position,
 			UpdatedAt: time.Now().UnixMilli(),
@@ -849,8 +849,8 @@ func (m *Manager) handleControlEvent(payload any) {
 
 	case "close":
 		m.closeHTTPPipeLocked()
-		m.room = nil
-		log.Printf("LISTEN: Room closed by host")
+		m.group = nil
+		log.Printf("LISTEN: Group closed by host")
 	}
 
 	m.notifySSE()
@@ -858,7 +858,7 @@ func (m *Manager) handleControlEvent(payload any) {
 
 func (m *Manager) notifySSELocked() {
 	m.mu.RLock()
-	room := m.room
+	lg := m.group
 	m.mu.RUnlock()
 
 	m.sseMu.RLock()
@@ -866,7 +866,7 @@ func (m *Manager) notifySSELocked() {
 
 	for ch := range m.sseChans {
 		select {
-		case ch <- room:
+		case ch <- lg:
 		default:
 		}
 	}
@@ -887,10 +887,10 @@ func (m *Manager) Close() {
 	m.sseChans = nil
 	m.sseMu.Unlock()
 
-	m.room = nil
+	m.group = nil
 }
 
-func generateRoomID() string {
+func generateListenID() string {
 	b := make([]byte, 8)
 	_, _ = rand.Read(b)
 	return "listen-" + hex.EncodeToString(b)

@@ -1,10 +1,10 @@
-// Package listen implements a listening room — a host streams audio in
+// Package listen implements a listening group — a host streams audio in
 // real-time to connected listeners via the group protocol (control) and
 // a dedicated binary stream protocol (audio data).
 package listen
 
-// Room represents an active listening room.
-type Room struct {
+// Group represents an active listening group.
+type Group struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	Role string `json:"role"` // "host" or "listener"

@@ -9,10 +9,10 @@ import (
 	"github.com/petervdpas/goop2/internal/listen"
 )
 
-// RegisterListen adds listening room HTTP API endpoints.
+// RegisterListen adds listening group HTTP API endpoints.
 func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
 
-	// POST /api/listen/create — host creates a room
+	// POST /api/listen/create — host creates a group
 	mux.HandleFunc("/api/listen/create", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(w, r, http.MethodPost) {
 			return
@@ -24,23 +24,23 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
 			return
 		}
 		if req.Name == "" {
-			req.Name = "Listening Room"
+			req.Name = "Listening Group"
 		}
 
-		room, err := lm.CreateRoom(req.Name)
+		group, err := lm.CreateGroup(req.Name)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed: %v", err), http.StatusConflict)
 			return
 		}
-		writeJSON(w, room)
+		writeJSON(w, group)
 	})
 
-	// POST /api/listen/close — host closes room
+	// POST /api/listen/close — host closes group
 	mux.HandleFunc("/api/listen/close", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
-		if err := lm.CloseRoom(); err != nil {
+		if err := lm.CloseGroup(); err != nil {
 			http.Error(w, fmt.Sprintf("failed: %v", err), http.StatusInternalServerError)
 			return
 		}
@@ -107,24 +107,24 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
 		writeJSON(w, map[string]string{"status": "ok"})
 	})
 
-	// POST /api/listen/join — listener joins a room
+	// POST /api/listen/join — listener joins a group
 	mux.HandleFunc("/api/listen/join", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
 		var req struct {
 			HostPeerID string `json:"host_peer_id"`
-			RoomID     string `json:"room_id"`
+			GroupID    string `json:"group_id"`
 		}
 		if decodeJSON(w, r, &req) != nil {
 			return
 		}
-		if req.HostPeerID == "" || req.RoomID == "" {
-			http.Error(w, "missing host_peer_id or room_id", http.StatusBadRequest)
+		if req.HostPeerID == "" || req.GroupID == "" {
+			http.Error(w, "missing host_peer_id or group_id", http.StatusBadRequest)
 			return
 		}
 
-		if err := lm.JoinRoom(req.HostPeerID, req.RoomID); err != nil {
+		if err := lm.JoinGroup(req.HostPeerID, req.GroupID); err != nil {
 			http.Error(w, fmt.Sprintf("failed: %v", err), http.StatusConflict)
 			return
 		}
@@ -136,7 +136,7 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
 		if !requireMethod(w, r, http.MethodPost) {
 			return
 		}
-		if err := lm.LeaveRoom(); err != nil {
+		if err := lm.LeaveGroup(); err != nil {
 			http.Error(w, fmt.Sprintf("failed: %v", err), http.StatusInternalServerError)
 			return
 		}
@@ -180,17 +180,17 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
 		}
 	})
 
-	// GET /api/listen/state — current room state
+	// GET /api/listen/state — current group state
 	mux.HandleFunc("/api/listen/state", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
-		room := lm.GetRoom()
-		if room == nil {
-			writeJSON(w, map[string]any{"room": nil})
+		group := lm.GetGroup()
+		if group == nil {
+			writeJSON(w, map[string]any{"group": nil})
 			return
 		}
-		writeJSON(w, map[string]any{"room": room})
+		writeJSON(w, map[string]any{"group": group})
 	})
 
 	// GET /api/listen/events — SSE for state updates
@@ -218,11 +218,11 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
 			select {
 			case <-ctx.Done():
 				return
-			case room, ok := <-evtCh:
+			case group, ok := <-evtCh:
 				if !ok {
 					return
 				}
-				data, err := json.Marshal(map[string]any{"room": room})
+				data, err := json.Marshal(map[string]any{"group": group})
 				if err != nil {
 					log.Printf("LISTEN: marshal error: %v", err)
 					continue
