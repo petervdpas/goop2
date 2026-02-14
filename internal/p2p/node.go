@@ -144,6 +144,7 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 				libp2p.EnableHolePunching(),
 				libp2p.EnableAutoRelayWithStaticRelays([]peer.AddrInfo{*ri},
 					autorelay.WithBootDelay(0),
+					autorelay.WithBackoff(30*time.Second),
 				),
 				libp2p.ForceReachabilityPrivate(),
 			)

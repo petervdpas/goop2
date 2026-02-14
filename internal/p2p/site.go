@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"mime"
 	"net/http"
 	"os"
@@ -94,11 +95,19 @@ func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (m
 		return "", nil, err
 	}
 
+	// Log known addresses for diagnostics.
+	knownAddrs := n.Host.Peerstore().Addrs(pid)
+	log.Printf("SITE: dialing %s (%d known addrs)", peerID, len(knownAddrs))
+	for _, a := range knownAddrs {
+		log.Printf("SITE:   addr: %s", a)
+	}
+
 	// Clear any dial backoff so we get a fresh connection attempt.
 	if sw, ok := n.Host.Network().(*swarm.Swarm); ok {
 		sw.Backoff().Clear(pid)
 	}
 	if err := n.Host.Connect(ctx, peer.AddrInfo{ID: pid}); err != nil {
+		log.Printf("SITE: connect failed: %v", err)
 		return "", nil, fmt.Errorf("peer unreachable")
 	}
 
