@@ -296,6 +296,8 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 
 	// ensureLua is called by template apply when Lua files are detected.
 	// It enables Lua in config, starts the engine if needed, and rescans.
+	// setLuaListen is set after listenMgr is created, so ensureLua can wire it.
+	var setLuaListen func()
 	ensureLua := func() {
 		if c, err := config.Load(o.CfgPath); err == nil {
 			if !c.Lua.Enabled {
@@ -305,6 +307,9 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			}
 		}
 		startLua()
+		if setLuaListen != nil {
+			setLuaListen()
+		}
 		node.RescanLuaFunctions()
 	}
 
@@ -319,6 +324,14 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	// ── Listen room (wraps group protocol + binary audio stream)
 	listenMgr := listen.New(node.Host, grpMgr, node.ID())
 	defer listenMgr.Close()
+	if luaEngine != nil {
+		luaEngine.SetListen(listenMgr)
+	}
+	setLuaListen = func() {
+		if luaEngine != nil {
+			luaEngine.SetListen(listenMgr)
+		}
+	}
 	log.Printf("🎵 Listen room enabled")
 
 	// ── File sharing store

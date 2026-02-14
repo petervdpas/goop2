@@ -118,6 +118,17 @@ func injectGoopTable(L *lua.LState, inv *invocationCtx, kv *kvStore, engine *Eng
 	// goop.commands()
 	goop.RawSetString("commands", L.NewFunction(commandsFn(engine)))
 
+	// goop.listen
+	listenTbl := L.NewTable()
+	listenTbl.RawSetString("state", L.NewFunction(listenStateFn(engine)))
+	listenTbl.RawSetString("create", L.NewFunction(listenCreateFn(engine)))
+	listenTbl.RawSetString("close", L.NewFunction(listenCloseFn(engine)))
+	listenTbl.RawSetString("load", L.NewFunction(listenLoadFn(engine)))
+	listenTbl.RawSetString("play", L.NewFunction(listenPlayFn(engine)))
+	listenTbl.RawSetString("pause", L.NewFunction(listenPauseFn(engine)))
+	listenTbl.RawSetString("seek", L.NewFunction(listenSeekFn(engine)))
+	goop.RawSetString("listen", listenTbl)
+
 	L.SetGlobal("goop", goop)
 }
 

@@ -58,6 +58,37 @@
     state: function () {
       return fetch("/api/listen/state").then(function (r) { return r.json(); });
     },
+
+    // subscribe(callback) — SSE subscription for peer sites.
+    // callback receives the room object (or null) on every state change.
+    // Returns { close: function } to stop the subscription.
+    subscribe: function (callback) {
+      var es = new EventSource("/api/listen/events");
+      es.addEventListener("state", function (e) {
+        try {
+          var data = JSON.parse(e.data);
+          callback(data.room);
+        } catch (err) {
+          console.error("LISTEN subscribe parse error:", err);
+        }
+      });
+      es.addEventListener("connected", function () {
+        // Fetch initial state on connect
+        api.state().then(function (data) {
+          callback(data.room);
+        });
+      });
+      return {
+        close: function () {
+          es.close();
+        },
+      };
+    },
+
+    // streamURL() — returns the audio stream URL for use in <audio> elements.
+    streamURL: function () {
+      return "/api/listen/stream";
+    },
   };
 
   Goop.listen = api;

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/petervdpas/goop2/internal/config"
+	"github.com/petervdpas/goop2/internal/listen"
 	"github.com/petervdpas/goop2/internal/state"
 	"github.com/petervdpas/goop2/internal/storage"
 	"github.com/petervdpas/goop2/internal/util"
@@ -61,6 +62,7 @@ type Engine struct {
 	functionsDir string // site/lua/functions/ — data functions
 	kv           *kvStore
 	db           *storage.DB
+	listen       *listen.Manager
 	watcher      *fsnotify.Watcher
 	limiter      *rateLimiter
 	selfID       string
@@ -422,6 +424,11 @@ func (e *Engine) executeScript(ctx context.Context, inv *invocationCtx, proto *l
 // SetDB sets the database reference for goop.db access in data functions.
 func (e *Engine) SetDB(db *storage.DB) {
 	e.db = db
+}
+
+// SetListen sets the listen manager reference for goop.listen access in scripts.
+func (e *Engine) SetListen(lm *listen.Manager) {
+	e.listen = lm
 }
 
 // registryMaxSize derives a registry cap from the MaxMemoryMB config.
