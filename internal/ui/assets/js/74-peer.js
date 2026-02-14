@@ -58,10 +58,25 @@
         '<img class="avatar avatar-xs chat-msg-avatar" src="' + avatarUrl + '" alt="">' +
         '<div class="chat-msg-body">' +
           '<div class="msg-content' + emojiOnly + '">' + escapeHtml(converted) + '</div>' +
+          '<button class="msg-copy" data-text="' + escapeHtml(msg.content).replace(/"/g, '&quot;') + '" title="Copy">Copy</button>' +
           '<div class="msg-time">' + time + '</div>' +
         '</div>' +
       '</div>';
     }).join('');
+
+    // Wire copy buttons
+    messagesDiv.querySelectorAll('.msg-copy').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var text = btn.getAttribute('data-text');
+        navigator.clipboard.writeText(text).then(function() {
+          btn.textContent = 'Copied!';
+          setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+        }).catch(function() {
+          btn.textContent = 'Failed';
+          setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+        });
+      });
+    });
 
     // Scroll to bottom
     messagesDiv.scrollTop = messagesDiv.scrollHeight;

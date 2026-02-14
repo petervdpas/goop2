@@ -418,8 +418,23 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		})
 	}
 
+	// Track known peer content to suppress repetitive update logs.
+	seenContent := make(map[string]string)
 	node.RunPresenceLoop(ctx, func(m proto.PresenceMsg) {
-		log.Printf("[%s] %s -> %q", m.Type, m.PeerID, m.Content)
+		switch m.Type {
+		case proto.TypeOnline:
+			seenContent[m.PeerID] = m.Content
+			log.Printf("[%s] %s -> %q", m.Type, m.PeerID, m.Content)
+		case proto.TypeUpdate:
+			prev, known := seenContent[m.PeerID]
+			if !known || prev != m.Content {
+				seenContent[m.PeerID] = m.Content
+				log.Printf("[%s] %s -> %q", m.Type, m.PeerID, m.Content)
+			}
+		case proto.TypeOffline:
+			delete(seenContent, m.PeerID)
+			log.Printf("[%s] %s", m.Type, m.PeerID)
+		}
 	})
 
 	// Wait for relay circuit address before first publish so remote peers
@@ -533,7 +548,6 @@ func addPeerAddrs(h host.Host, peerID string, addrs []string) {
 	}
 	if len(maddrs) > 0 {
 		h.Peerstore().AddAddrs(pid, maddrs, 30*time.Second)
-		log.Printf("WAN: added %d addrs for %s", len(maddrs), peerID)
 	}
 }
 

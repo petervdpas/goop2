@@ -603,7 +603,7 @@
   function ensureListening() {
     if (listening) return;
     listening = true;
-    log('info', 'Starting to listen for call signaling messages');
+    log('debug', 'Starting to listen for call signaling messages');
     Goop.realtime.onMessage(handleSignaling);
   }
 

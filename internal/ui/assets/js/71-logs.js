@@ -49,8 +49,12 @@
   // Load snapshot then stream.
   api("/api/logs")
     .then(items => {
-      for (const it of items) {
-        appendLine(it.msg);
+      if (items.length > 0) {
+        box.textContent = items.map(it => it.msg).filter(Boolean).join("\n") + "\n";
+        if (box.textContent.length > maxChars) {
+          box.textContent = box.textContent.slice(box.textContent.length - maxChars);
+        }
+        box.scrollTop = box.scrollHeight;
       }
       const es = new EventSource("/api/logs/stream");
       es.addEventListener("message", (ev) => {
