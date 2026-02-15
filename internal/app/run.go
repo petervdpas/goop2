@@ -451,6 +451,10 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		node.SubscribeAddressChanges(ctx, func() {
 			publish(ctx, proto.TypeUpdate)
 		})
+		// Periodically refresh the relay connection to prevent stale state.
+		// This ensures the relay reservation stays active even when the TCP
+		// connection to the relay silently degrades.
+		node.StartRelayRefresh(ctx, 5*time.Minute)
 	}
 
 	go func() {
