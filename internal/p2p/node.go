@@ -265,12 +265,41 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 	h.SetStreamHandler(protocol.ID("/goop/relay-refresh/1.0.0"), func(s network.Stream) {
 		defer s.Close()
 		n.diag("relay-refresh: received pulse from rendezvous")
-		n.ensureRelayReservation(context.Background())
-		result := map[string]any{
-			"ok":          n.hasCircuitAddr(),
-			"has_circuit": n.hasCircuitAddr(),
+
+		// If we already have a circuit address, just report success.
+		if n.hasCircuitAddr() {
+			n.diag("relay-refresh: already have circuit address")
+			_ = json.NewEncoder(s).Encode(map[string]any{"ok": true, "has_circuit": true})
+			return
 		}
-		_ = json.NewEncoder(s).Encode(result)
+
+		// Light-touch nudge: clear backoff + refresh peerstore so AutoRelay
+		// can retry without us killing the connection that carries this stream.
+		n.nudgeRelay()
+
+		// Respond immediately with current state.
+		hasCircuit := n.hasCircuitAddr()
+		n.diag("relay-refresh: nudged, has_circuit=%v — scheduling background recovery", hasCircuit)
+		_ = json.NewEncoder(s).Encode(map[string]any{
+			"ok":          hasCircuit,
+			"has_circuit": hasCircuit,
+			"recovering":  !hasCircuit,
+		})
+
+		// If the nudge wasn't enough, schedule a full recovery in the
+		// background AFTER we've responded (so we don't kill this stream).
+		if !hasCircuit {
+			go func() {
+				// Give AutoRelay a moment to react to the nudge.
+				time.Sleep(n.relayRecoveryGrace)
+				if n.hasCircuitAddr() {
+					n.diag("relay-refresh: autorelay recovered after nudge")
+					return
+				}
+				n.diag("relay-refresh: nudge insufficient, running full recovery")
+				n.ensureRelayReservation(context.Background())
+			}()
+		}
 	})
 
 	return n, nil
@@ -698,6 +727,34 @@ func (n *Node) StartRelayRefresh(ctx context.Context, interval time.Duration) {
 			}
 		}
 	}()
+}
+
+// nudgeRelay is a non-destructive helper that clears dial backoff and
+// refreshes peerstore addresses for the relay peer. This gives AutoRelay
+// the best chance to re-obtain a reservation without tearing down the
+// existing connection (which would kill any stream running over it).
+// If not currently connected to the relay, it also dials.
+func (n *Node) nudgeRelay() {
+	if n.relayPeer == nil {
+		return
+	}
+
+	if sw, ok := n.Host.Network().(*swarm.Swarm); ok {
+		sw.Backoff().Clear(n.relayPeer.ID)
+	}
+	n.Host.Peerstore().AddAddrs(n.relayPeer.ID, n.relayPeer.Addrs, 10*time.Minute)
+
+	conns := n.Host.Network().ConnsToPeer(n.relayPeer.ID)
+	if len(conns) == 0 {
+		n.diag("relay [nudge]: not connected, dialing relay")
+		ctx, cancel := context.WithTimeout(context.Background(), n.relayConnectTimeout)
+		defer cancel()
+		if err := n.Host.Connect(ctx, *n.relayPeer); err != nil {
+			n.diag("relay [nudge]: connect failed: %v", err)
+		}
+	} else {
+		n.diag("relay [nudge]: %d connections exist, cleared backoff + refreshed addrs", len(conns))
+	}
 }
 
 // ensureRelayReservation tears down the relay connection and verifies that a
