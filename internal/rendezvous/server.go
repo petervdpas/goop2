@@ -516,6 +516,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/accounts.json", s.handleAccountsJSON)
 	mux.HandleFunc("/api/services/logs", s.handleServiceLogs)
 	mux.HandleFunc("/diag", s.handleDiagPeer)
+	mux.HandleFunc("/api/pulse", s.handlePulse)
 
 	// Registration endpoints
 	if s.registration != nil {
@@ -1373,6 +1374,64 @@ func (s *Server) handleDiagPeer(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(peerDiag)
+}
+
+// handlePulse tells a target peer to refresh its relay reservation.
+// Any peer can request this — when they can't reach a target peer, they
+// call POST /api/pulse?peer=<id> and the rendezvous opens a relay-refresh
+// stream to the target via the relay host.
+func (s *Server) handlePulse(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.relayHost == nil {
+		http.Error(w, "relay not enabled", http.StatusServiceUnavailable)
+		return
+	}
+
+	peerIDStr := r.URL.Query().Get("peer")
+	if peerIDStr == "" {
+		http.Error(w, "missing ?peer= parameter", http.StatusBadRequest)
+		return
+	}
+	pid, err := peer.Decode(peerIDStr)
+	if err != nil {
+		http.Error(w, "invalid peer ID", http.StatusBadRequest)
+		return
+	}
+
+	// Check if the relay host has a connection to this peer.
+	conns := s.relayHost.Network().ConnsToPeer(pid)
+	if len(conns) == 0 {
+		http.Error(w, "peer not connected to relay", http.StatusNotFound)
+		return
+	}
+
+	s.relayAddLog(fmt.Sprintf("pulse: refreshing relay for %s (requested by %s)", pid.String()[:16]+"...", extractIP(r.RemoteAddr)))
+
+	// Open a relay-refresh stream to the target peer.
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+
+	stream, err := s.relayHost.NewStream(ctx, pid, protocol.ID("/goop/relay-refresh/1.0.0"))
+	if err != nil {
+		s.relayAddLog(fmt.Sprintf("pulse: stream to %s failed: %v", pid.String()[:16]+"...", err))
+		http.Error(w, "pulse stream failed: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer stream.Close()
+
+	// Read the result from the peer.
+	var result map[string]any
+	if err := json.NewDecoder(io.LimitReader(stream, 4096)).Decode(&result); err != nil {
+		result = map[string]any{"ok": false, "error": err.Error()}
+	}
+
+	s.relayAddLog(fmt.Sprintf("pulse: %s responded: %v", pid.String()[:16]+"...", result))
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(result)
 }
 
 // serviceLogEntry is a single log line from a microservice.
