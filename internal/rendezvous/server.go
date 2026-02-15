@@ -467,7 +467,10 @@ func (s *Server) Start(ctx context.Context) error {
 
 		s.relayAddLog(fmt.Sprintf("started on port %d, peer ID %s (%d addrs)", s.relayPort, ri.PeerID, len(ri.Addrs)))
 
-		// Periodically log relay connection count.
+		// Periodically log relay connection count and check reservation health.
+		// Peers connected to the relay but not publishing a circuit address
+		// likely have a broken reservation — log them so the admin can see it
+		// without clicking Diagnose on each peer.
 		go func() {
 			t := time.NewTicker(60 * time.Second)
 			defer t.Stop()
@@ -476,13 +479,43 @@ func (s *Server) Start(ctx context.Context) error {
 				case <-ctx.Done():
 					return
 				case <-t.C:
-					peers := rh.Network().Peers()
-					if len(peers) > 0 {
-						var ids []string
-						for _, p := range peers {
-							ids = append(ids, p.String()[:16]+"...")
+					relayPeers := rh.Network().Peers()
+					if len(relayPeers) == 0 {
+						continue
+					}
+
+					var ids []string
+					for _, p := range relayPeers {
+						ids = append(ids, p.String()[:16]+"...")
+					}
+					s.relayAddLog(fmt.Sprintf("%d peers: %s", len(relayPeers), strings.Join(ids, ", ")))
+
+					// Cross-reference: which relay-connected peers have no circuit address?
+					s.mu.Lock()
+					var noReservation []string
+					for _, rp := range relayPeers {
+						rpID := rp.String()
+						if pr, ok := s.peers[rpID]; ok {
+							hasCircuit := false
+							for _, a := range pr.Addrs {
+								if strings.Contains(a, "p2p-circuit") {
+									hasCircuit = true
+									break
+								}
+							}
+							if !hasCircuit {
+								name := pr.Content
+								if name == "" {
+									name = rpID[:16] + "..."
+								}
+								noReservation = append(noReservation, name)
+							}
 						}
-						s.relayAddLog(fmt.Sprintf("%d peers: %s", len(peers), strings.Join(ids, ", ")))
+					}
+					s.mu.Unlock()
+
+					if len(noReservation) > 0 {
+						s.relayAddLog(fmt.Sprintf("NO_RESERVATION: %s (connected but no circuit address)", strings.Join(noReservation, ", ")))
 					}
 				}
 			}
