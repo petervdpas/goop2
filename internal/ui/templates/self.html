@@ -306,6 +306,59 @@
               </div>
             </div>
           </div>
+
+          <p class="muted small" style="margin:14px 0 10px">
+            Timing values pushed to clients via <code>/relay</code>.
+            0 = use hardcoded default.
+          </p>
+
+          <div class="grid2">
+            <div class="field">
+              <label>Cleanup delay (sec)</label>
+              <input name="presence_relay_cleanup_delay_sec"
+                     type="number" min="0"
+                     value="{{.Cfg.Presence.RelayCleanupDelaySec}}"
+                     placeholder="3">
+              <div class="hint">Wait before reconnecting after closing old relay connection. Default <code>3</code>.</div>
+            </div>
+            <div class="field">
+              <label>Poll deadline (sec)</label>
+              <input name="presence_relay_poll_deadline_sec"
+                     type="number" min="0"
+                     value="{{.Cfg.Presence.RelayPollDeadlineSec}}"
+                     placeholder="25">
+              <div class="hint">Max time to wait for reservation after reconnect. Default <code>25</code>.</div>
+            </div>
+          </div>
+          <div class="grid2">
+            <div class="field">
+              <label>Connect timeout (sec)</label>
+              <input name="presence_relay_connect_timeout_sec"
+                     type="number" min="0"
+                     value="{{.Cfg.Presence.RelayConnectTimeoutSec}}"
+                     placeholder="15">
+              <div class="hint">Dial timeout when connecting to relay peer. Default <code>15</code>.</div>
+            </div>
+            <div class="field">
+              <label>Refresh interval (sec)</label>
+              <input name="presence_relay_refresh_interval_sec"
+                     type="number" min="0"
+                     value="{{.Cfg.Presence.RelayRefreshIntervalSec}}"
+                     placeholder="300">
+              <div class="hint">Periodic check interval for missing circuit address. Default <code>300</code> (5 min).</div>
+            </div>
+          </div>
+          <div class="grid2">
+            <div class="field">
+              <label>Recovery grace (sec)</label>
+              <input name="presence_relay_recovery_grace_sec"
+                     type="number" min="0"
+                     value="{{.Cfg.Presence.RelayRecoveryGraceSec}}"
+                     placeholder="5">
+              <div class="hint">Grace period for AutoRelay self-recovery before manual recovery kicks in. Default <code>5</code>.</div>
+            </div>
+            <div class="field"></div>
+          </div>
         </div>
 
         <!-- Admin (visible when server is enabled) -->

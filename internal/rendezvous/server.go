@@ -36,6 +36,16 @@ const (
 	maxSSEClientsPerIP = 10   // per-IP SSE connection limit
 )
 
+// RelayTimingConfig holds relay timing values from the config file.
+// Zero values mean "use default".
+type RelayTimingConfig struct {
+	CleanupDelaySec    int
+	PollDeadlineSec    int
+	ConnectTimeoutSec  int
+	RefreshIntervalSec int
+	RecoveryGraceSec   int
+}
+
 type Server struct {
 	addr          string
 	externalURL   string // public URL for servers behind NAT/reverse proxy
@@ -85,6 +95,7 @@ type Server struct {
 	relayInfo    *RelayInfo // nil when relay is disabled
 	relayPort    int
 	relayKeyFile string
+	relayTiming  RelayTimingConfig
 
 	// per-IP rate limiter for /publish
 	rateMu     sync.Mutex
@@ -208,6 +219,11 @@ type adminVM struct {
 	HasRelay         bool
 	RelayPeerID      string
 	RelayPort        int
+	RelayCleanup     int
+	RelayPoll        int
+	RelayConnect     int
+	RelayRefresh     int
+	RelayGrace       int
 	Services         []serviceStatus
 	ServiceRows      []adminServiceRow
 	ChainIssues      []string
@@ -221,7 +237,7 @@ type docsVM struct {
 	Next    *DocPage
 }
 
-func New(addr string, peerDBPath string, adminPassword string, externalURL string, relayPort int, relayKeyFile string) *Server {
+func New(addr string, peerDBPath string, adminPassword string, externalURL string, relayPort int, relayKeyFile string, relayTiming RelayTimingConfig) *Server {
 	funcs := template.FuncMap{
 		"statusClass": func(t string) string {
 			switch t {
@@ -330,6 +346,7 @@ func New(addr string, peerDBPath string, adminPassword string, externalURL strin
 		docsSite:             newDocSite(),
 		relayPort:            relayPort,
 		relayKeyFile:         relayKeyFile,
+		relayTiming:          relayTiming,
 		rateWindow:           map[string]*rateBucket{},
 	}
 
@@ -430,6 +447,13 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 		s.relayHost = rh
 		s.relayInfo = ri
+
+		// Inject timing config into relay info for clients.
+		ri.CleanupDelaySec = s.relayTiming.CleanupDelaySec
+		ri.PollDeadlineSec = s.relayTiming.PollDeadlineSec
+		ri.ConnectTimeoutSec = s.relayTiming.ConnectTimeoutSec
+		ri.RefreshIntervalSec = s.relayTiming.RefreshIntervalSec
+		ri.RecoveryGraceSec = s.relayTiming.RecoveryGraceSec
 
 		// Log relay network events to the dedicated relay log.
 		rh.Network().Notify(&network.NotifyBundle{
@@ -1789,6 +1813,11 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		HasRelay:         s.relayHost != nil,
 		RelayPeerID:      relayPeerID,
 		RelayPort:        s.relayPort,
+		RelayCleanup:     s.relayTiming.CleanupDelaySec,
+		RelayPoll:        s.relayTiming.PollDeadlineSec,
+		RelayConnect:     s.relayTiming.ConnectTimeoutSec,
+		RelayRefresh:     s.relayTiming.RefreshIntervalSec,
+		RelayGrace:       s.relayTiming.RecoveryGraceSec,
 		Services:         services,
 		ServiceRows:      serviceRows,
 		ChainIssues:      chainIssues,

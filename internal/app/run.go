@@ -104,7 +104,13 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		if cfg.Presence.RelayKeyFile != "" {
 			relayKeyFile = util.ResolvePath(o.PeerDir, cfg.Presence.RelayKeyFile)
 		}
-		rv = rendezvous.New(addr, peerDBPath, cfg.Presence.AdminPassword, cfg.Presence.ExternalURL, cfg.Presence.RelayPort, relayKeyFile)
+		rv = rendezvous.New(addr, peerDBPath, cfg.Presence.AdminPassword, cfg.Presence.ExternalURL, cfg.Presence.RelayPort, relayKeyFile, rendezvous.RelayTimingConfig{
+			CleanupDelaySec:    cfg.Presence.RelayCleanupDelaySec,
+			PollDeadlineSec:    cfg.Presence.RelayPollDeadlineSec,
+			ConnectTimeoutSec:  cfg.Presence.RelayConnectTimeoutSec,
+			RefreshIntervalSec: cfg.Presence.RelayRefreshIntervalSec,
+			RecoveryGraceSec:   cfg.Presence.RelayRecoveryGraceSec,
+		})
 
 		// Wire external services (credits + registration + email + templates)
 		if cfg.Presence.UseServices {
@@ -460,7 +466,11 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		// Periodically refresh the relay connection to prevent stale state.
 		// This ensures the relay reservation stays active even when the TCP
 		// connection to the relay silently degrades.
-		node.StartRelayRefresh(ctx, 5*time.Minute)
+		refreshInterval := 5 * time.Minute
+		if relayInfo.RefreshIntervalSec > 0 {
+			refreshInterval = time.Duration(relayInfo.RefreshIntervalSec) * time.Second
+		}
+		node.StartRelayRefresh(ctx, refreshInterval)
 	}
 
 	go func() {

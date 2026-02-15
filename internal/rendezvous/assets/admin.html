@@ -64,7 +64,7 @@
             <div class="svc-list">
               {{if .HasRelay}}
               <div class="svc-topo-group">
-                <div class="svc-row">
+                <div class="svc-row" style="border-bottom:none;padding-bottom:0">
                   <div class="svc-row-left">
                     <span class="svc-dot svc-dot-ok"></span>
                     <strong>Relay</strong>
@@ -73,6 +73,15 @@
                   <div class="svc-row-right">
                     <span>port {{.RelayPort}}</span>
                     <code style="font-size:11px">{{.RelayPeerID}}</code>
+                  </div>
+                </div>
+                <div class="svc-row svc-dep-row" style="padding-left:2rem;padding-top:0.2rem;padding-bottom:0.2rem">
+                  <div class="svc-row-left" style="font-size:12px;color:var(--text-muted,#888)">
+                    cleanup={{.RelayCleanup}}s
+                    poll={{.RelayPoll}}s
+                    connect={{.RelayConnect}}s
+                    refresh={{.RelayRefresh}}s
+                    grace={{.RelayGrace}}s
                   </div>
                 </div>
               </div>

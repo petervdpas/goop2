@@ -110,7 +110,7 @@ func TestRemoteTemplatesIntegration(t *testing.T) {
 	defer tplSvc.Close()
 
 	// Start rendezvous server with remote templates provider
-	srv := New("127.0.0.1:18787", "", "", "", 0, "")
+	srv := New("127.0.0.1:18787", "", "", "", 0, "", RelayTimingConfig{})
 	srv.SetTemplatesProvider(NewRemoteTemplatesProvider(tplSvc.URL, ""))
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -263,7 +263,7 @@ func TestRemoteTemplatesIntegration(t *testing.T) {
 
 	t.Run("no templates without provider", func(t *testing.T) {
 		// Start a server without templates provider — /api/templates should 404
-		srv2 := New("127.0.0.1:18788", "", "", "", 0, "")
+		srv2 := New("127.0.0.1:18788", "", "", "", 0, "", RelayTimingConfig{})
 		ctx2, cancel2 := context.WithCancel(context.Background())
 		defer cancel2()
 		if err := srv2.Start(ctx2); err != nil {
