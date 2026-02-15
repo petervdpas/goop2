@@ -102,17 +102,18 @@ type rateBucket struct {
 }
 
 type peerRow struct {
-	PeerID         string `json:"peer_id"`
-	Type           string `json:"type"`
-	Content        string `json:"content"`
-	Email          string `json:"email,omitempty"`
-	AvatarHash     string `json:"avatar_hash,omitempty"`
-	ActiveTemplate string `json:"active_template,omitempty"`
-	TS             int64  `json:"ts"`
-	LastSeen       int64  `json:"last_seen"`
-	BytesSent      int64  `json:"bytes_sent"`
-	BytesReceived  int64  `json:"bytes_received"`
-	Verified       bool   `json:"verified"`
+	PeerID         string   `json:"peer_id"`
+	Type           string   `json:"type"`
+	Content        string   `json:"content"`
+	Email          string   `json:"email,omitempty"`
+	AvatarHash     string   `json:"avatar_hash,omitempty"`
+	ActiveTemplate string   `json:"active_template,omitempty"`
+	Addrs          []string `json:"addrs,omitempty"`
+	TS             int64    `json:"ts"`
+	LastSeen       int64    `json:"last_seen"`
+	BytesSent      int64    `json:"bytes_sent"`
+	BytesReceived  int64    `json:"bytes_received"`
+	Verified       bool     `json:"verified"`
 }
 
 type indexVM struct {
@@ -891,6 +892,7 @@ func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64, verified bool) 
 		Email:          pm.Email,
 		AvatarHash:     pm.AvatarHash,
 		ActiveTemplate: pm.ActiveTemplate,
+		Addrs:          pm.Addrs,
 		TS:             pm.TS,
 		LastSeen:       now,
 		BytesSent:      bytesSent,
@@ -1183,6 +1185,7 @@ func (s *Server) handleLogsJSON(w http.ResponseWriter, r *http.Request) {
 
 type relayPeerJSON struct {
 	PeerID string `json:"peer_id"`
+	Name   string `json:"name,omitempty"`
 	Addr   string `json:"addr"`
 	Dir    string `json:"dir"` // "inbound" or "outbound"
 }
@@ -1212,6 +1215,16 @@ func (s *Server) handleRelayStatusJSON(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Build peer ID → name map from rendezvous peers
+	s.mu.Lock()
+	peerNames := make(map[string]string, len(s.peers))
+	for _, p := range s.peers {
+		if p.Content != "" {
+			peerNames[p.PeerID] = p.Content
+		}
+	}
+	s.mu.Unlock()
+
 	var result relayStatusJSON
 
 	if s.relayHost != nil {
@@ -1220,6 +1233,7 @@ func (s *Server) handleRelayStatusJSON(w http.ResponseWriter, r *http.Request) {
 			for _, c := range conns {
 				result.Peers = append(result.Peers, relayPeerJSON{
 					PeerID: pid.String(),
+					Name:   peerNames[pid.String()],
 					Addr:   c.RemoteMultiaddr().String(),
 					Dir:    dirString(c.Stat().Direction),
 				})

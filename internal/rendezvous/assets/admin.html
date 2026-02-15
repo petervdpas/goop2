@@ -157,9 +157,11 @@
                   <div class="peer-label">{{.Content}}{{if not .Verified}} <span class="badge-unverified">unverified</span>{{end}}</div>
                   {{if .Email}}<div class="peer-email">{{.Email}}</div>{{end}}
                   <div class="peer-id">{{.PeerID}}</div>
+                  {{if .Addrs}}<details class="peer-addrs-details"><summary class="peer-addrs-summary">{{len .Addrs}} address{{if ne (len .Addrs) 1}}es{{end}}</summary><div class="peer-addrs">{{range .Addrs}}<div class="peer-addr">{{.}}</div>{{end}}</div></details>{{end}}
                   <div class="peer-stats">
                     <span class="stat-item" title="Sent">↑ {{fmtBytes .BytesSent}}</span>
                     <span class="stat-item" title="Received">↓ {{fmtBytes .BytesReceived}}</span>
+                    <button class="btn-copy-peer" onclick="copyPeerInfo(this)" title="Copy peer info">Copy</button>
                   </div>
                 </div>
                 {{end}}
@@ -229,8 +231,10 @@
           {{if .HasRelay}}
           <div class="dash-panel glass" data-log-panel="relay" style="display:none">
             <div class="dash-panel-header">
-              <span class="dash-panel-label"><span class="live-dot"></span> Relay Log — <span id="relay-peer-count">0</span> peers ({{.RelayPeerID}})</span>
+              <span class="dash-panel-label"><span class="live-dot"></span> Relay — <span id="relay-peer-count">0</span> peers</span>
+              <button class="btn btn-sm" onclick="copyRelayStatus()" title="Copy relay status to clipboard">Copy</button>
             </div>
+            <div id="relay-peers-container" style="padding:0 12px 8px"></div>
             <div class="logs-container" id="relay-logs-container">
               <div class="log-entry empty">Loading...</div>
             </div>
@@ -337,12 +341,17 @@
               var ls=p.last_seen?new Date(p.last_seen).toLocaleString():'';
               var av=avatarURI(p.content||'',p.email||'');
               var unverifiedBadge = p.verified ? '' : ' <span class="badge-unverified">unverified</span>';
+              var addrsHtml = '';
+              if(p.addrs&&p.addrs.length){
+                addrsHtml='<details class="peer-addrs-details"><summary class="peer-addrs-summary">'+p.addrs.length+' address'+(p.addrs.length!==1?'es':'')+'</summary><div class="peer-addrs">'+p.addrs.map(function(a){return '<div class="peer-addr">'+a+'</div>';}).join('')+'</div></details>';
+              }
               return '<div class="peer-card peer-row" data-status="'+sc+'" data-label="'+(p.content||'')+'">'
                 +'<div class="peer-header"><img class="peer-avatar" src="'+av+'" width="28" height="28"><span class="status-badge '+sc+'">'+p.type+'</span><span class="peer-time">'+ls+'</span></div>'
                 +'<div class="peer-label">'+(p.content||'Unknown')+unverifiedBadge+'</div>'
                 +(p.email?'<div class="peer-email">'+p.email+'</div>':'')
                 +'<div class="peer-id">'+p.peer_id+'</div>'
-                +'<div class="peer-stats"><span class="stat-item">↑ '+formatBytes(p.bytes_sent||0)+'</span><span class="stat-item">↓ '+formatBytes(p.bytes_received||0)+'</span></div>'
+                +addrsHtml
+                +'<div class="peer-stats"><span class="stat-item">↑ '+formatBytes(p.bytes_sent||0)+'</span><span class="stat-item">↓ '+formatBytes(p.bytes_received||0)+'</span><button class="btn-copy-peer" onclick="copyPeerInfo(this)" title="Copy peer info">Copy</button></div>'
                 +'</div>';
             }).join('')+'</div>';
             applyFilter();
@@ -383,13 +392,14 @@
             var pc=document.getElementById('relay-peer-count');
             if(pc) pc.textContent=d.peers?d.peers.length:0;
             var c=document.getElementById('relay-peers-container');
+            window._relayData = d;
             if(c){
               if(!d.peers||!d.peers.length){
                 c.innerHTML='<div class="empty-state" style="padding:24px"><div class="empty-icon">📭</div><p>No relay peers connected</p></div>';
               } else {
-                c.innerHTML='<table class="admin-table"><thead><tr><th>Peer ID</th><th>Address</th><th>Direction</th></tr></thead><tbody>'
+                c.innerHTML='<table class="admin-table"><thead><tr><th>Name</th><th>Peer ID</th><th>Address</th><th>Dir</th></tr></thead><tbody>'
                   +d.peers.map(function(p){
-                    return '<tr><td style="font-family:monospace;font-size:11px">'+p.peer_id+'</td><td style="font-family:monospace;font-size:11px">'+p.addr+'</td><td>'+p.dir+'</td></tr>';
+                    return '<tr><td>'+(p.name||'—')+'</td><td style="font-family:monospace;font-size:11px">'+p.peer_id+'</td><td style="font-family:monospace;font-size:11px">'+p.addr+'</td><td>'+p.dir+'</td></tr>';
                   }).join('')+'</tbody></table>';
               }
             }
@@ -590,6 +600,51 @@
         });
         if(tab==='services' && window.updateServiceLogs) updateServiceLogs();
         if(tab==='relay' && window.updateRelay) updateRelay();
+      }
+
+      // ── Copy helpers ──
+      function copyPeerInfo(btn){
+        var card = btn.closest('.peer-card');
+        if(!card) return;
+        var label = card.querySelector('.peer-label');
+        var email = card.querySelector('.peer-email');
+        var pid = card.querySelector('.peer-id');
+        var addrs = card.querySelectorAll('.peer-addr');
+        var lines = [];
+        if(label) lines.push('Name: ' + label.textContent.trim());
+        if(email) lines.push('Email: ' + email.textContent.trim());
+        if(pid) lines.push('Peer ID: ' + pid.textContent.trim());
+        if(addrs.length){
+          lines.push('Addresses:');
+          addrs.forEach(function(a){ lines.push('  ' + a.textContent.trim()); });
+        }
+        navigator.clipboard.writeText(lines.join('\n')).then(function(){
+          btn.textContent = 'Copied!';
+          setTimeout(function(){ btn.textContent = 'Copy'; }, 1500);
+        });
+      }
+
+      function copyRelayStatus(){
+        var d = window._relayData;
+        if(!d) return;
+        var lines = ['=== Relay Status ==='];
+        if(d.peers&&d.peers.length){
+          lines.push('Connected peers: ' + d.peers.length);
+          d.peers.forEach(function(p){
+            lines.push('  ' + (p.name||'unknown') + ' | ' + p.peer_id + ' | ' + p.addr + ' | ' + p.dir);
+          });
+        } else {
+          lines.push('Connected peers: 0');
+        }
+        if(d.logs&&d.logs.length){
+          lines.push('');
+          lines.push('=== Relay Log ===');
+          d.logs.forEach(function(l){ lines.push(l); });
+        }
+        navigator.clipboard.writeText(lines.join('\n')).then(function(){
+          var btn = document.querySelector('[onclick="copyRelayStatus()"]');
+          if(btn){ btn.textContent = 'Copied!'; setTimeout(function(){ btn.textContent = 'Copy'; }, 1500); }
+        });
       }
 
       // SPA navigation: fetch public pages without credentials so the

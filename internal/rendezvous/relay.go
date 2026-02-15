@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"time"
 
 	libp2p "github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -44,7 +45,23 @@ func StartRelay(port int, keyFile string, externalURL string) (host.Host, *Relay
 	// which defers startup until AutoNAT confirms public reachability.
 	// Since this is a dedicated relay server with port forwarding, we know
 	// it's publicly reachable — no need to wait for AutoNAT.
-	if _, err := relayv2.New(h); err != nil {
+	//
+	// Default limits are too restrictive for a private relay (Duration: 2min,
+	// Data: 128KB per relayed connection). GossipSub heartbeats exhaust
+	// these quickly, killing the data path while TCP stays alive.
+	if _, err := relayv2.New(h, relayv2.WithResources(relayv2.Resources{
+		Limit: &relayv2.RelayLimit{
+			Duration: 30 * time.Minute,
+			Data:     1 << 24, // 16 MB
+		},
+		ReservationTTL:         time.Hour,
+		MaxReservations:        128,
+		MaxCircuits:            64,
+		BufferSize:             4096,
+		MaxReservationsPerPeer: 8,
+		MaxReservationsPerIP:   16,
+		MaxReservationsPerASN:  64,
+	})); err != nil {
 		_ = h.Close()
 		return nil, nil, fmt.Errorf("relay service: %w", err)
 	}
