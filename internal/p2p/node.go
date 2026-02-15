@@ -57,6 +57,9 @@ type Node struct {
 	selfActiveTemplate func() string
 	peers              *state.PeerTable
 
+	// Presence TTL for direct peer addresses; circuit addresses use 10x this.
+	presenceTTL time.Duration
+
 	// Relay peer info for recovery after connection drops.
 	relayPeer *peer.AddrInfo
 
@@ -122,7 +125,7 @@ func loadOrCreateKey(keyFile string) (crypto.PrivKey, bool, error) {
 	return priv, true, nil
 }
 
-func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerTable, selfContent, selfEmail func() string, selfVideoDisabled func() bool, selfActiveTemplate func() string, relayInfo *rendezvous.RelayInfo) (*Node, error) {
+func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerTable, selfContent, selfEmail func() string, selfVideoDisabled func() bool, selfActiveTemplate func() string, relayInfo *rendezvous.RelayInfo, presenceTTL time.Duration) (*Node, error) {
 	priv, isNew, err := loadOrCreateKey(keyFile)
 	if err != nil {
 		return nil, err
@@ -206,6 +209,7 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 		selfVideoDisabled:  selfVideoDisabled,
 		selfActiveTemplate: selfActiveTemplate,
 		peers:              peers,
+		presenceTTL:        presenceTTL,
 	}
 
 	// Store relay peer info for recovery after connection drops.
@@ -428,6 +432,8 @@ func relayInfoToAddrInfo(ri *rendezvous.RelayInfo) (*peer.AddrInfo, error) {
 }
 
 // addPeerAddrs parses multiaddr strings and adds them to the peerstore.
+// Circuit relay addresses get a longer TTL since they represent a stable
+// relay path that outlives individual presence heartbeats.
 func (n *Node) addPeerAddrs(peerID string, addrs []string) {
 	if len(addrs) == 0 {
 		return
@@ -436,7 +442,7 @@ func (n *Node) addPeerAddrs(peerID string, addrs []string) {
 	if err != nil {
 		return
 	}
-	var maddrs []ma.Multiaddr
+	var direct, circuit []ma.Multiaddr
 	for _, s := range addrs {
 		a, err := ma.NewMultiaddr(s)
 		if err != nil {
@@ -447,10 +453,21 @@ func (n *Node) addPeerAddrs(peerID string, addrs []string) {
 				continue
 			}
 		}
-		maddrs = append(maddrs, a)
+		if isCircuitAddr(a) {
+			circuit = append(circuit, a)
+		} else {
+			direct = append(direct, a)
+		}
 	}
-	if len(maddrs) > 0 {
-		n.Host.Peerstore().AddAddrs(pid, maddrs, 30*time.Second)
+	ttl := n.presenceTTL
+	if ttl <= 0 {
+		ttl = 20 * time.Second
+	}
+	if len(direct) > 0 {
+		n.Host.Peerstore().AddAddrs(pid, direct, ttl)
+	}
+	if len(circuit) > 0 {
+		n.Host.Peerstore().AddAddrs(pid, circuit, ttl*10)
 	}
 }
 

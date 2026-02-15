@@ -200,6 +200,7 @@
         <div class="admin-section" data-section="logs">
           <div class="log-tab-bar">
             <button class="btn log-tab active" data-log-tab="rendezvous" onclick="switchLogTab('rendezvous')">Rendezvous</button>
+            {{if .HasRelay}}<button class="btn log-tab" data-log-tab="relay" onclick="switchLogTab('relay')">Relay</button>{{end}}
             {{if .Services}}<button class="btn log-tab" data-log-tab="services" onclick="switchLogTab('services')">Services</button>{{end}}
           </div>
           <div class="dash-panel glass" data-log-panel="rendezvous">
@@ -210,6 +211,16 @@
               <div class="log-entry empty">Loading...</div>
             </div>
           </div>
+          {{if .HasRelay}}
+          <div class="dash-panel glass" data-log-panel="relay" style="display:none">
+            <div class="dash-panel-header">
+              <span class="dash-panel-label"><span class="live-dot"></span> Relay Log — <span id="relay-peer-count">0</span> peers ({{.RelayPeerID}})</span>
+            </div>
+            <div class="logs-container" id="relay-logs-container">
+              <div class="log-entry empty">Loading...</div>
+            </div>
+          </div>
+          {{end}}
           {{if .Services}}
           <div class="dash-panel glass" data-log-panel="services" style="display:none">
             <div class="dash-panel-header">
@@ -278,22 +289,32 @@
             if (target === 'registrations' && !loaded.reg) { loaded.reg = true; loadRegistrations(); }
             if (target === 'accounts' && !loaded.acc)       { loaded.acc = true; loadAccounts(); }
             if (target === 'prices' && !loaded.prices)      { loaded.prices = true; loadPrices(); }
-            if (target === 'logs' && !loaded.logs)          { loaded.logs = true; updateLogs(); if(window.updateServiceLogs) updateServiceLogs(); }
+            if (target === 'logs' && !loaded.logs)          { loaded.logs = true; updateLogs(); if(window.updateServiceLogs) updateServiceLogs(); if(window.updateRelay) updateRelay(); }
           });
         });
       })();
 
-      // ── Live data ──
+      // ── Live data (only polls the active section) ──
       (function(){
         var R=2000;
 
+        // Track which admin section is currently visible.
+        var activeSection = 'overview';
+        var origClick = document.querySelectorAll('.admin-nav-item');
+        origClick.forEach(function(item){
+          if(item.classList.contains('active')) activeSection = item.getAttribute('data-section');
+          item.addEventListener('click', function(){ activeSection = item.getAttribute('data-section'); });
+        });
+
         async function updatePeers(){
           if(document.hidden)return;
-          var q=document.getElementById('q');if(q&&q===document.activeElement)return;
+          // Always update peer count (shown on overview), but skip full render unless on peers section
           try{
             var r=await fetch('/peers.json'),d=await r.json();
             document.getElementById('count').textContent=d.length;
             var nc=document.getElementById('nav-peer-count');if(nc)nc.textContent='('+d.length+')';
+            if(activeSection!=='peers')return;
+            var q=document.getElementById('q');if(q&&q===document.activeElement)return;
             var c=document.getElementById('peers-container');if(!c)return;
             if(!d.length){c.innerHTML='<div class="empty-state"><div class="empty-icon">📭</div><p>No peers connected yet</p><p class="empty-hint">Peers will appear here once they connect</p></div>';return;}
             c.innerHTML='<div class="peer-grid" id="peer-grid">'+d.map(function(p){
@@ -315,6 +336,7 @@
         setInterval(updatePeers,R);
 
         window.updateLogs = async function updateLogs(){
+          if(activeSection!=='logs')return;
           try{
             var r=await fetch('/logs.json'),l=await r.json(),c=document.getElementById('logs-container');if(!c)return;
             if(!l.length){c.innerHTML='<div class="log-entry empty">No logs yet</div>';return;}
@@ -325,6 +347,7 @@
 
         var svcColors = {credits:'#3498db',registration:'#2ecc71',email:'#e67e22',templates:'#9b59b6'};
         window.updateServiceLogs = async function updateServiceLogs(){
+          if(activeSection!=='logs')return;
           try{
             var r=await fetch('/api/services/logs'),d=await r.json(),c=document.getElementById('svc-logs-container');if(!c)return;
             if(!d||!d.length){c.innerHTML='<div class="log-entry empty">No service logs yet</div>';return;}
@@ -335,6 +358,37 @@
           }catch(e){console.error(e);}
         };
         setInterval(updateServiceLogs,R);
+
+        window.updateRelay = async function updateRelay(){
+          if(activeSection!=='logs')return;
+          var rt=document.querySelector('.log-tab[data-log-tab="relay"]');
+          if(!rt||!rt.classList.contains('active'))return;
+          try{
+            var r=await fetch('/relay-status.json'),d=await r.json();
+            var pc=document.getElementById('relay-peer-count');
+            if(pc) pc.textContent=d.peers?d.peers.length:0;
+            var c=document.getElementById('relay-peers-container');
+            if(c){
+              if(!d.peers||!d.peers.length){
+                c.innerHTML='<div class="empty-state" style="padding:24px"><div class="empty-icon">📭</div><p>No relay peers connected</p></div>';
+              } else {
+                c.innerHTML='<table class="admin-table"><thead><tr><th>Peer ID</th><th>Address</th><th>Direction</th></tr></thead><tbody>'
+                  +d.peers.map(function(p){
+                    return '<tr><td style="font-family:monospace;font-size:11px">'+p.peer_id+'</td><td style="font-family:monospace;font-size:11px">'+p.addr+'</td><td>'+p.dir+'</td></tr>';
+                  }).join('')+'</tbody></table>';
+              }
+            }
+            var lc=document.getElementById('relay-logs-container');
+            if(lc){
+              if(!d.logs||!d.logs.length){
+                lc.innerHTML='<div class="log-entry empty">No relay events yet</div>';
+              } else {
+                lc.innerHTML=d.logs.slice().reverse().map(function(x){return '<div class="log-entry">'+x+'</div>';}).join('');
+              }
+            }
+          }catch(e){console.error(e);}
+        };
+        setInterval(updateRelay,R);
 
         var q=document.getElementById('q');
         function applyFilter(){
@@ -520,6 +574,7 @@
           p.style.display = p.getAttribute('data-log-panel')===tab ? '' : 'none';
         });
         if(tab==='services' && window.updateServiceLogs) updateServiceLogs();
+        if(tab==='relay' && window.updateRelay) updateRelay();
       }
 
       // SPA navigation: fetch public pages without credentials so the
