@@ -225,7 +225,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	progress(step, total, "Creating P2P node")
 
 	keyPath := util.ResolvePath(o.PeerDir, cfg.Identity.KeyFile)
-	node, err := p2p.New(ctx, cfg.P2P.ListenPort, keyPath, peers, selfContent, selfEmail, selfVideoDisabled, selfActiveTemplate, relayInfo)
+	node, err := p2p.New(ctx, cfg.P2P.ListenPort, keyPath, peers, selfContent, selfEmail, selfVideoDisabled, selfActiveTemplate, relayInfo, time.Duration(cfg.Presence.TTLSec)*time.Second)
 	if err != nil {
 		return err
 	}
@@ -352,7 +352,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			switch pm.Type {
 			case proto.TypeOnline, proto.TypeUpdate:
 				peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.Verified)
-				addPeerAddrs(node.Host, pm.PeerID, pm.Addrs)
+				addPeerAddrs(node.Host, pm.PeerID, pm.Addrs, time.Duration(cfg.Presence.TTLSec)*time.Second)
 			case proto.TypeOffline:
 				peers.Remove(pm.PeerID)
 			}
@@ -524,7 +524,9 @@ func isCircuitAddr(a ma.Multiaddr) bool {
 }
 
 // addPeerAddrs parses multiaddr strings and adds them to the peerstore for the given peer.
-func addPeerAddrs(h host.Host, peerID string, addrs []string) {
+// Direct addresses use the configured presence TTL. Circuit relay addresses get 10x the TTL
+// since they represent a stable relay path that outlives individual heartbeats.
+func addPeerAddrs(h host.Host, peerID string, addrs []string, ttl time.Duration) {
 	if len(addrs) == 0 {
 		return
 	}
@@ -532,22 +534,38 @@ func addPeerAddrs(h host.Host, peerID string, addrs []string) {
 	if err != nil {
 		return
 	}
-	var maddrs []ma.Multiaddr
+	var direct, circuit []ma.Multiaddr
 	for _, s := range addrs {
 		a, err := ma.NewMultiaddr(s)
 		if err != nil {
 			continue
 		}
-		// Only accept non-loopback addresses
 		if ip, err := manet.ToIP(a); err == nil {
 			if ip.IsLoopback() || ip.IsLinkLocalUnicast() {
 				continue
 			}
 		}
-		maddrs = append(maddrs, a)
+		if isCircuitMultiaddr(a) {
+			circuit = append(circuit, a)
+		} else {
+			direct = append(direct, a)
+		}
 	}
-	if len(maddrs) > 0 {
-		h.Peerstore().AddAddrs(pid, maddrs, 30*time.Second)
+	if len(direct) > 0 {
+		h.Peerstore().AddAddrs(pid, direct, ttl)
 	}
+	if len(circuit) > 0 {
+		h.Peerstore().AddAddrs(pid, circuit, ttl*10)
+	}
+}
+
+// isCircuitMultiaddr returns true if the multiaddr contains a /p2p-circuit component.
+func isCircuitMultiaddr(a ma.Multiaddr) bool {
+	for _, p := range a.Protocols() {
+		if p.Code == ma.P_CIRCUIT {
+			return true
+		}
+	}
+	return false
 }
 

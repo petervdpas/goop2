@@ -23,6 +23,7 @@ import (
 	"github.com/petervdpas/goop2/internal/util"
 
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/tdewolff/minify/v2"
 	mincss "github.com/tdewolff/minify/v2/css"
 )
@@ -54,6 +55,11 @@ type Server struct {
 	logMu   sync.Mutex
 	logs    []string
 	maxLogs int
+
+	// relay-specific log buffer for admin Relay section
+	relayLogMu   sync.Mutex
+	relayLogs    []string
+	maxRelayLogs int
 
 	tmpl         *template.Template
 	adminTmpl    *template.Template
@@ -198,6 +204,9 @@ type adminVM struct {
 	HasCredits       bool
 	HasRegistrations bool
 	HasAccounts      bool
+	HasRelay         bool
+	RelayPeerID      string
+	RelayPort        int
 	Services         []serviceStatus
 	ServiceRows      []adminServiceRow
 	ChainIssues      []string
@@ -305,6 +314,8 @@ func New(addr string, peerDBPath string, adminPassword string, externalURL strin
 		peers:                map[string]peerRow{},
 		logs:                 make([]string, 0, 500),
 		maxLogs:              500,
+		relayLogs:            make([]string, 0, 500),
+		maxRelayLogs:         500,
 		tmpl:                 tmpl,
 		adminTmpl:            adminTmpl,
 		docsTmpl:             docsTmpl,
@@ -419,6 +430,39 @@ func (s *Server) Start(ctx context.Context) error {
 		s.relayHost = rh
 		s.relayInfo = ri
 
+		// Log relay network events to the dedicated relay log.
+		rh.Network().Notify(&network.NotifyBundle{
+			ConnectedF: func(_ network.Network, c network.Conn) {
+				s.relayAddLog(fmt.Sprintf("peer connected: %s from %s (%s)", c.RemotePeer(), c.RemoteMultiaddr(), dirString(c.Stat().Direction)))
+			},
+			DisconnectedF: func(_ network.Network, c network.Conn) {
+				s.relayAddLog(fmt.Sprintf("peer disconnected: %s (%s)", c.RemotePeer(), c.RemoteMultiaddr()))
+			},
+		})
+
+		s.relayAddLog(fmt.Sprintf("started on port %d, peer ID %s (%d addrs)", s.relayPort, ri.PeerID, len(ri.Addrs)))
+
+		// Periodically log relay connection count.
+		go func() {
+			t := time.NewTicker(60 * time.Second)
+			defer t.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-t.C:
+					peers := rh.Network().Peers()
+					if len(peers) > 0 {
+						var ids []string
+						for _, p := range peers {
+							ids = append(ids, p.String()[:16]+"...")
+						}
+						s.relayAddLog(fmt.Sprintf("%d peers: %s", len(peers), strings.Join(ids, ", ")))
+					}
+				}
+			}
+		}()
+
 		// Shut down relay when context ends
 		go func() {
 			<-ctx.Done()
@@ -463,6 +507,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/admin", s.handleAdmin)
 	mux.HandleFunc("/peers.json", s.handlePeersJSON)
 	mux.HandleFunc("/logs.json", s.handleLogsJSON)
+	mux.HandleFunc("/relay-status.json", s.handleRelayStatusJSON)
 	mux.HandleFunc("/registrations.json", s.handleRegistrationsJSON)
 	mux.HandleFunc("/accounts.json", s.handleAccountsJSON)
 	mux.HandleFunc("/api/services/logs", s.handleServiceLogs)
@@ -1136,6 +1181,61 @@ func (s *Server) handleLogsJSON(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(logs)
 }
 
+type relayPeerJSON struct {
+	PeerID string `json:"peer_id"`
+	Addr   string `json:"addr"`
+	Dir    string `json:"dir"` // "inbound" or "outbound"
+}
+
+func dirString(d network.Direction) string {
+	switch d {
+	case network.DirInbound:
+		return "inbound"
+	case network.DirOutbound:
+		return "outbound"
+	default:
+		return "unknown"
+	}
+}
+
+type relayStatusJSON struct {
+	Peers []relayPeerJSON `json:"peers"`
+	Logs  []string        `json:"logs"`
+}
+
+func (s *Server) handleRelayStatusJSON(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.requireAdmin(w, r) {
+		return
+	}
+
+	var result relayStatusJSON
+
+	if s.relayHost != nil {
+		for _, pid := range s.relayHost.Network().Peers() {
+			conns := s.relayHost.Network().ConnsToPeer(pid)
+			for _, c := range conns {
+				result.Peers = append(result.Peers, relayPeerJSON{
+					PeerID: pid.String(),
+					Addr:   c.RemoteMultiaddr().String(),
+					Dir:    dirString(c.Stat().Direction),
+				})
+			}
+		}
+	}
+
+	s.relayLogMu.Lock()
+	result.Logs = make([]string, len(s.relayLogs))
+	copy(result.Logs, s.relayLogs)
+	s.relayLogMu.Unlock()
+
+	w.Header().Set("content-type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(result)
+}
+
 func (s *Server) addLog(msg string) {
 	s.logMu.Lock()
 	defer s.logMu.Unlock()
@@ -1150,6 +1250,22 @@ func (s *Server) addLog(msg string) {
 
 	// Also log to console
 	log.Println(msg)
+}
+
+// relayAddLog appends a log entry to the relay-specific log buffer.
+func (s *Server) relayAddLog(msg string) {
+	s.relayLogMu.Lock()
+	defer s.relayLogMu.Unlock()
+
+	timestamp := time.Now().Format("15:04:05")
+	logLine := fmt.Sprintf("[%s] %s", timestamp, msg)
+
+	s.relayLogs = append(s.relayLogs, logLine)
+	if len(s.relayLogs) > s.maxRelayLogs {
+		s.relayLogs = s.relayLogs[len(s.relayLogs)-s.maxRelayLogs:]
+	}
+
+	log.Printf("relay: %s", msg)
 }
 
 // serviceLogEntry is a single log line from a microservice.
@@ -1495,6 +1611,11 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("content-type", "text/html; charset=utf-8")
+	relayPeerID := ""
+	if s.relayInfo != nil {
+		relayPeerID = s.relayInfo.PeerID
+	}
+
 	_ = s.adminTmpl.Execute(w, adminVM{
 		Title:            "Goop² Admin",
 		PeerCount:        len(peers),
@@ -1503,6 +1624,9 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		HasCredits:       hasCredits,
 		HasRegistrations: hasRegistrations,
 		HasAccounts:      hasAccounts,
+		HasRelay:         s.relayHost != nil,
+		RelayPeerID:      relayPeerID,
+		RelayPort:        s.relayPort,
 		Services:         services,
 		ServiceRows:      serviceRows,
 		ChainIssues:      chainIssues,
