@@ -65,6 +65,12 @@ type Node struct {
 	// Relay peer info for recovery after connection drops.
 	relayPeer *peer.AddrInfo
 
+	// Relay timing (from rendezvous server config).
+	relayCleanupDelay   time.Duration
+	relayPollDeadline   time.Duration
+	relayConnectTimeout time.Duration
+	relayRecoveryGrace  time.Duration
+
 	// Set by EnableSite in site.go
 	siteRoot string
 
@@ -238,6 +244,11 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 		if ri, err := relayInfoToAddrInfo(relayInfo); err == nil {
 			n.relayPeer = ri
 		}
+		// Extract timing from server-pushed config (0 = use default).
+		n.relayCleanupDelay = durOrDefault(relayInfo.CleanupDelaySec, 3*time.Second)
+		n.relayPollDeadline = durOrDefault(relayInfo.PollDeadlineSec, 25*time.Second)
+		n.relayConnectTimeout = durOrDefault(relayInfo.ConnectTimeoutSec, 15*time.Second)
+		n.relayRecoveryGrace = durOrDefault(relayInfo.RecoveryGraceSec, 5*time.Second)
 	}
 
 	// Diagnostic protocol — the rendezvous server queries this via
@@ -595,6 +606,15 @@ func (n *Node) refreshRelay(ctx context.Context, label string) bool {
 		for _, c := range conns {
 			_ = c.Close()
 		}
+		// Let the relay server clean up the old reservation before we
+		// reconnect. Relay v2 enforces MaxReservationsPerPeer=1; if we
+		// reconnect too fast the old slot is still occupied and the new
+		// reservation is rejected.
+		select {
+		case <-time.After(n.relayCleanupDelay):
+		case <-ctx.Done():
+			return false
+		}
 	} else {
 		n.diag("relay [%s]: no relay connections, reconnecting", label)
 	}
@@ -604,20 +624,20 @@ func (n *Node) refreshRelay(ctx context.Context, label string) bool {
 	}
 	n.Host.Peerstore().AddAddrs(n.relayPeer.ID, n.relayPeer.Addrs, 10*time.Minute)
 
-	connCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	connCtx, cancel := context.WithTimeout(ctx, n.relayConnectTimeout)
 	defer cancel()
 	if err := n.Host.Connect(connCtx, *n.relayPeer); err != nil {
 		n.diag("relay [%s]: connect failed: %v", label, err)
 		return false
 	}
 
-	deadline := time.After(8 * time.Second)
-	tick := time.NewTicker(200 * time.Millisecond)
+	deadline := time.After(n.relayPollDeadline)
+	tick := time.NewTicker(500 * time.Millisecond)
 	defer tick.Stop()
 	for {
 		select {
 		case <-deadline:
-			n.diag("relay [%s]: reservation NOT restored after 8s", label)
+			n.diag("relay [%s]: reservation NOT restored after %s", label, n.relayPollDeadline)
 			return false
 		case <-tick.C:
 			if n.hasCircuitAddr() {
@@ -631,14 +651,14 @@ func (n *Node) refreshRelay(ctx context.Context, label string) bool {
 }
 
 // recoverRelay is called when the circuit address is lost (from
-// SubscribeAddressChanges). Gives AutoRelay 5s to self-recover first.
+// SubscribeAddressChanges). Gives AutoRelay a grace period to self-recover first.
 func (n *Node) recoverRelay(ctx context.Context) {
 	if n.relayPeer == nil {
 		return
 	}
 
 	select {
-	case <-time.After(5 * time.Second):
+	case <-time.After(n.relayRecoveryGrace):
 	case <-ctx.Done():
 		return
 	}
@@ -656,7 +676,8 @@ func (n *Node) recoverRelay(ctx context.Context) {
 	n.refreshRelay(ctx, "recover")
 }
 
-// StartRelayRefresh periodically forces a fresh relay reservation.
+// StartRelayRefresh periodically checks the relay reservation and forces
+// a refresh only when the circuit address is missing.
 func (n *Node) StartRelayRefresh(ctx context.Context, interval time.Duration) {
 	if n.relayPeer == nil {
 		return
@@ -669,6 +690,10 @@ func (n *Node) StartRelayRefresh(ctx context.Context, interval time.Duration) {
 			case <-ctx.Done():
 				return
 			case <-t.C:
+				if n.hasCircuitAddr() {
+					continue // reservation healthy, nothing to do
+				}
+				n.diag("relay: periodic check — no circuit address, refreshing")
 				n.ensureRelayReservation(ctx)
 			}
 		}
@@ -719,6 +744,14 @@ func (n *Node) injectRelayAddrs(pid peer.ID, logIt bool) {
 		}
 		n.Host.Peerstore().AddAddr(pid, circuitAddr, 2*time.Minute)
 	}
+}
+
+// durOrDefault converts seconds to a duration, falling back to def when sec <= 0.
+func durOrDefault(sec int, def time.Duration) time.Duration {
+	if sec > 0 {
+		return time.Duration(sec) * time.Second
+	}
+	return def
 }
 
 // relayInfoToAddrInfo converts a RelayInfo (from the rendezvous server) into

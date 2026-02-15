@@ -82,6 +82,14 @@ type Presence struct {
 	// Path to the relay identity key file. Default "data/relay.key".
 	RelayKeyFile string `json:"relay_key_file"`
 
+	// Relay timing (seconds). Pushed to clients via /relay.
+	// 0 = use default. Only validated when RelayPort > 0.
+	RelayCleanupDelaySec    int `json:"relay_cleanup_delay_sec"`
+	RelayPollDeadlineSec    int `json:"relay_poll_deadline_sec"`
+	RelayConnectTimeoutSec  int `json:"relay_connect_timeout_sec"`
+	RelayRefreshIntervalSec int `json:"relay_refresh_interval_sec"`
+	RelayRecoveryGraceSec   int `json:"relay_recovery_grace_sec"`
+
 	// When true, external microservices (credits, registration, email, templates)
 	// are wired up using the URLs below. When false, services are disabled even
 	// if URLs are set — useful for running a LAN-only server without microservices.
@@ -156,8 +164,13 @@ func Default() Config {
 			RendezvousBind:      "127.0.0.1",
 			RendezvousWAN:       "",
 			RendezvousOnly:      false,
-			RelayPort:           0,
-			RelayKeyFile:        "data/relay.key",
+			RelayPort:               0,
+			RelayKeyFile:            "data/relay.key",
+			RelayCleanupDelaySec:    3,
+			RelayPollDeadlineSec:    25,
+			RelayConnectTimeoutSec:  15,
+			RelayRefreshIntervalSec: 300,
+			RelayRecoveryGraceSec:   5,
 		},
 		Profile: Profile{
 			Label: "hello",
@@ -246,6 +259,21 @@ func (c *Config) Validate() error {
 		}
 		if c.Presence.RelayPort > 65535 {
 			return errors.New("presence.relay_port must be 1..65535")
+		}
+		if c.Presence.RelayCleanupDelaySec < 0 {
+			return errors.New("presence.relay_cleanup_delay_sec must be >= 0")
+		}
+		if c.Presence.RelayPollDeadlineSec < 0 {
+			return errors.New("presence.relay_poll_deadline_sec must be >= 0")
+		}
+		if c.Presence.RelayConnectTimeoutSec < 0 {
+			return errors.New("presence.relay_connect_timeout_sec must be >= 0")
+		}
+		if c.Presence.RelayRefreshIntervalSec < 0 {
+			return errors.New("presence.relay_refresh_interval_sec must be >= 0")
+		}
+		if c.Presence.RelayRecoveryGraceSec < 0 {
+			return errors.New("presence.relay_recovery_grace_sec must be >= 0")
 		}
 	}
 

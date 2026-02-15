@@ -21,6 +21,13 @@ import (
 type RelayInfo struct {
 	PeerID string   `json:"peer_id"`
 	Addrs  []string `json:"addrs"`
+
+	// Timing values pushed from the server config.
+	CleanupDelaySec    int `json:"cleanup_delay_sec"`
+	PollDeadlineSec    int `json:"poll_deadline_sec"`
+	ConnectTimeoutSec  int `json:"connect_timeout_sec"`
+	RefreshIntervalSec int `json:"refresh_interval_sec"`
+	RecoveryGraceSec   int `json:"recovery_grace_sec"`
 }
 
 // StartRelay creates a libp2p host that acts as a circuit relay v2 server.
