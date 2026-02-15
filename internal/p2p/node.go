@@ -34,6 +34,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 	"github.com/libp2p/go-libp2p/p2p/net/swarm"
+	relayv2client "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/client"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 )
@@ -658,6 +659,20 @@ func (n *Node) refreshRelay(ctx context.Context, label string) bool {
 	if err := n.Host.Connect(connCtx, *n.relayPeer); err != nil {
 		n.diag("relay [%s]: connect failed: %v", label, err)
 		return false
+	}
+
+	// Try a direct reservation request — this is what AutoRelay does
+	// internally, but we do it explicitly to (a) get the exact error if
+	// it fails, and (b) kick-start the reservation without waiting for
+	// AutoRelay's backoff timer.
+	resCtx, resCancel := context.WithTimeout(ctx, 15*time.Second)
+	rsvp, resErr := relayv2client.Reserve(resCtx, n.Host, *n.relayPeer)
+	resCancel()
+	if resErr != nil {
+		n.diag("relay [%s]: direct Reserve failed: %v", label, resErr)
+	} else {
+		n.diag("relay [%s]: direct Reserve OK, expires %s, %d addrs",
+			label, rsvp.Expiration.Format("15:04:05"), len(rsvp.Addrs))
 	}
 
 	deadline := time.After(n.relayPollDeadline)
