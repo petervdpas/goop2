@@ -24,6 +24,8 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/tdewolff/minify/v2"
 	mincss "github.com/tdewolff/minify/v2/css"
 )
@@ -504,6 +506,7 @@ func (s *Server) Start(ctx context.Context) error {
 		handleRelayInfo(w, r, s.relayInfo)
 	})
 
+
 	// Admin-protected endpoints
 	mux.HandleFunc("/admin", s.handleAdmin)
 	mux.HandleFunc("/peers.json", s.handlePeersJSON)
@@ -512,6 +515,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/registrations.json", s.handleRegistrationsJSON)
 	mux.HandleFunc("/accounts.json", s.handleAccountsJSON)
 	mux.HandleFunc("/api/services/logs", s.handleServiceLogs)
+	mux.HandleFunc("/diag", s.handleDiagPeer)
 
 	// Registration endpoints
 	if s.registration != nil {
@@ -1280,6 +1284,95 @@ func (s *Server) relayAddLog(msg string) {
 	}
 
 	log.Printf("relay: %s", msg)
+}
+
+// handleDiagPeer queries a peer's diagnostic info via the relay host connection.
+// Admin-only. The relay host opens a /goop/diag/1.0.0 stream to the peer and
+// returns the diagnostic snapshot.
+func (s *Server) handleDiagPeer(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.requireAdmin(w, r) {
+		return
+	}
+	if s.relayHost == nil {
+		http.Error(w, "relay not enabled", http.StatusServiceUnavailable)
+		return
+	}
+
+	peerIDStr := r.URL.Query().Get("peer")
+	if peerIDStr == "" {
+		http.Error(w, "missing ?peer= parameter", http.StatusBadRequest)
+		return
+	}
+	pid, err := peer.Decode(peerIDStr)
+	if err != nil {
+		http.Error(w, "invalid peer ID", http.StatusBadRequest)
+		return
+	}
+
+	// Check if the relay host has a connection to this peer.
+	conns := s.relayHost.Network().ConnsToPeer(pid)
+	if len(conns) == 0 {
+		http.Error(w, "peer not connected to relay", http.StatusNotFound)
+		return
+	}
+
+	// Gather relay-side info about this peer.
+	now := time.Now()
+	var relayConns []map[string]any
+	for _, c := range conns {
+		age := now.Sub(c.Stat().Opened)
+		relayConns = append(relayConns, map[string]any{
+			"addr":    c.RemoteMultiaddr().String(),
+			"dir":     dirString(c.Stat().Direction),
+			"age":     age.Truncate(time.Second).String(),
+			"streams": len(c.GetStreams()),
+		})
+	}
+
+	// Resolve peer name from heartbeat data.
+	s.mu.Lock()
+	peerName := ""
+	if p, ok := s.peers[peerIDStr]; ok {
+		peerName = p.Content
+	}
+	s.mu.Unlock()
+
+	// Open a diagnostic stream to the peer via the relay connection.
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	stream, err := s.relayHost.NewStream(ctx, pid, protocol.ID("/goop/diag/1.0.0"))
+	if err != nil {
+		// Peer doesn't support the protocol or stream failed.
+		// Return what we know from the relay side.
+		result := map[string]any{
+			"peer_id":      peerIDStr,
+			"name":         peerName,
+			"relay_view":   relayConns,
+			"stream_error": err.Error(),
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_ = json.NewEncoder(w).Encode(result)
+		return
+	}
+	defer stream.Close()
+
+	// Read the peer's diagnostic snapshot.
+	var peerDiag map[string]any
+	if err := json.NewDecoder(io.LimitReader(stream, 64*1024)).Decode(&peerDiag); err != nil {
+		peerDiag = map[string]any{"decode_error": err.Error()}
+	}
+
+	// Merge relay-side view into the response.
+	peerDiag["name"] = peerName
+	peerDiag["relay_view"] = relayConns
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(peerDiag)
 }
 
 // serviceLogEntry is a single log line from a microservice.

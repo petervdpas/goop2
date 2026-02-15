@@ -7,10 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"time"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/petervdpas/goop2/internal/avatar"
 	"github.com/petervdpas/goop2/internal/docs"
@@ -78,6 +80,14 @@ type Node struct {
 	// Set by EnableDocs in docs.go
 	docsStore    *docs.Store
 	groupChecker GroupChecker
+
+	// Diagnostic ring buffer for relay operations.
+	diagMu   sync.Mutex
+	diagLogs []string
+	diagMax  int
+
+	// Node start time for uptime reporting.
+	startTime time.Time
 }
 
 type mdnsNotifee struct {
@@ -210,6 +220,9 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 		selfActiveTemplate: selfActiveTemplate,
 		peers:              peers,
 		presenceTTL:        presenceTTL,
+		diagLogs:           make([]string, 0, 200),
+		diagMax:            200,
+		startTime:          time.Now(),
 	}
 
 	// Store relay peer info for recovery after connection drops.
@@ -219,7 +232,176 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 		}
 	}
 
+	// Diagnostic protocol — the rendezvous server queries this via
+	// the relay host connection to get relay health info from any peer.
+	h.SetStreamHandler(protocol.ID("/goop/diag/1.0.0"), func(s network.Stream) {
+		defer s.Close()
+		snap := n.DiagSnapshot()
+		_ = json.NewEncoder(s).Encode(snap)
+	})
+
 	return n, nil
+}
+
+// diag logs a relay diagnostic message and stores it in the ring buffer.
+// The rendezvous server can query this buffer via the /goop/diag/1.0.0 stream.
+func (n *Node) diag(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	log.Print(msg)
+
+	ts := time.Now().Format("15:04:05")
+	entry := fmt.Sprintf("[%s] %s", ts, msg)
+
+	n.diagMu.Lock()
+	n.diagLogs = append(n.diagLogs, entry)
+	if len(n.diagLogs) > n.diagMax {
+		n.diagLogs = n.diagLogs[len(n.diagLogs)-n.diagMax:]
+	}
+	n.diagMu.Unlock()
+}
+
+// DiagSnapshot returns a diagnostic report for this peer, queried by the
+// rendezvous server via the /goop/diag/1.0.0 stream protocol.
+func (n *Node) DiagSnapshot() map[string]any {
+	now := time.Now()
+
+	// ── Host addresses ──
+	var addrs []string
+	hasCircuit := false
+	for _, a := range n.Host.Addrs() {
+		s := a.String()
+		addrs = append(addrs, s)
+		if isCircuitAddr(a) {
+			hasCircuit = true
+		}
+	}
+
+	// ── Listen addresses (local bind addresses) ──
+	var listenAddrs []string
+	for _, a := range n.Host.Network().ListenAddresses() {
+		listenAddrs = append(listenAddrs, a.String())
+	}
+
+	// ── Relay config & connection details ──
+	relayConns := 0
+	var relayConfig map[string]any
+	var relayConnDetails []map[string]any
+	var relayPeerstoreAddrs []string
+	if n.relayPeer != nil {
+		// Configured relay info
+		var cfgAddrs []string
+		for _, a := range n.relayPeer.Addrs {
+			cfgAddrs = append(cfgAddrs, a.String())
+		}
+		relayConfig = map[string]any{
+			"peer_id": n.relayPeer.ID.String(),
+			"addrs":   cfgAddrs,
+		}
+
+		// Peerstore addresses for relay (these expire — key debugging info)
+		for _, a := range n.Host.Peerstore().Addrs(n.relayPeer.ID) {
+			relayPeerstoreAddrs = append(relayPeerstoreAddrs, a.String())
+		}
+
+		// Actual connections to relay
+		conns := n.Host.Network().ConnsToPeer(n.relayPeer.ID)
+		relayConns = len(conns)
+		for _, c := range conns {
+			age := now.Sub(c.Stat().Opened)
+			detail := map[string]any{
+				"addr":    c.RemoteMultiaddr().String(),
+				"dir":     dirString(c.Stat().Direction),
+				"age":     age.Truncate(time.Second).String(),
+				"streams": len(c.GetStreams()),
+			}
+			relayConnDetails = append(relayConnDetails, detail)
+		}
+	}
+
+	// ── All connected peers with connection details ──
+	var connectedPeerDetails []map[string]any
+	for _, pid := range n.Host.Network().Peers() {
+		conns := n.Host.Network().ConnsToPeer(pid)
+		for _, c := range conns {
+			age := now.Sub(c.Stat().Opened)
+			detail := map[string]any{
+				"peer_id": pid.String(),
+				"addr":    c.RemoteMultiaddr().String(),
+				"dir":     dirString(c.Stat().Direction),
+				"age":     age.Truncate(time.Second).String(),
+				"streams": len(c.GetStreams()),
+			}
+			// Mark if this is the relay peer
+			if n.relayPeer != nil && pid == n.relayPeer.ID {
+				detail["is_relay"] = true
+			}
+			connectedPeerDetails = append(connectedPeerDetails, detail)
+		}
+	}
+
+	// ── Uptime ──
+	uptime := now.Sub(n.startTime)
+
+	// ── Site status ──
+	hasSite := n.siteRoot != ""
+
+	// ── Recent diag logs ──
+	n.diagMu.Lock()
+	logs := make([]string, len(n.diagLogs))
+	copy(logs, n.diagLogs)
+	n.diagMu.Unlock()
+
+	// ── OS / runtime info ──
+	hostname, _ := os.Hostname()
+
+	result := map[string]any{
+		"peer_id":         n.Host.ID().String(),
+		"addrs":           addrs,
+		"listen_addrs":    listenAddrs,
+		"has_circuit":     hasCircuit,
+		"relay_conns":     relayConns,
+		"connected_peers": len(n.Host.Network().Peers()),
+		"uptime":          uptime.Truncate(time.Second).String(),
+		"started":         n.startTime.Format("2006-01-02 15:04:05"),
+		"presence_ttl":    n.presenceTTL.String(),
+		"has_site":        hasSite,
+		"hostname":        hostname,
+		"os":              runtime.GOOS,
+		"arch":            runtime.GOARCH,
+		"go_version":      runtime.Version(),
+		"num_goroutine":   runtime.NumGoroutine(),
+		"logs":            logs,
+	}
+
+	if relayConfig != nil {
+		result["relay_config"] = relayConfig
+	}
+	if len(relayConnDetails) > 0 {
+		result["relay_conn_details"] = relayConnDetails
+	}
+	if len(relayPeerstoreAddrs) > 0 {
+		result["relay_peerstore_addrs"] = relayPeerstoreAddrs
+	} else if n.relayPeer != nil {
+		// Explicitly mark as empty — means addresses expired!
+		result["relay_peerstore_addrs"] = []string{}
+	}
+	if len(connectedPeerDetails) > 0 {
+		result["connected_peer_details"] = connectedPeerDetails
+	}
+
+	return result
+}
+
+// dirString converts a network.Direction to a human-readable string.
+func dirString(d network.Direction) string {
+	switch d {
+	case network.DirInbound:
+		return "inbound"
+	case network.DirOutbound:
+		return "outbound"
+	default:
+		return "unknown"
+	}
 }
 
 // SetLuaDispatcher sets the Lua engine for lua-call/lua-list data operations.
@@ -374,8 +556,8 @@ func (n *Node) SubscribeAddressChanges(ctx context.Context, onChange func()) {
 }
 
 // recoverRelay clears swarm dial backoff for the relay peer, re-adds its
-// addresses to the peerstore, and reconnects. This gives autorelay a fresh
-// connection so it can re-obtain a reservation.
+// addresses to the peerstore, reconnects, and waits for AutoRelay to
+// re-obtain a reservation (verified by circuit address appearing).
 func (n *Node) recoverRelay(ctx context.Context) {
 	if n.relayPeer == nil {
 		return
@@ -389,8 +571,16 @@ func (n *Node) recoverRelay(ctx context.Context) {
 	}
 
 	if n.hasCircuitAddr() {
-		log.Printf("relay: autorelay recovered on its own")
+		n.diag("relay: autorelay recovered on its own")
 		return
+	}
+
+	// Close existing connections — they may be alive at TCP level but
+	// useless for relay (reservation expired, data path broken).
+	conns := n.Host.Network().ConnsToPeer(n.relayPeer.ID)
+	for _, c := range conns {
+		n.diag("relay: closing stale connection: %s", c.RemoteMultiaddr())
+		_ = c.Close()
 	}
 
 	// Clear swarm dial backoff so we get a fresh connection attempt.
@@ -406,17 +596,36 @@ func (n *Node) recoverRelay(ctx context.Context) {
 	defer cancel()
 
 	if err := n.Host.Connect(connCtx, *n.relayPeer); err != nil {
-		log.Printf("relay: recovery connect failed: %v", err)
+		n.diag("relay: recovery connect failed: %v", err)
 		return
 	}
 
-	log.Printf("relay: reconnected to relay peer, waiting for reservation...")
+	n.diag("relay: reconnected to relay peer, waiting for reservation...")
+
+	// Wait for AutoRelay to re-obtain the reservation (circuit address appears).
+	deadline := time.After(5 * time.Second)
+	tick := time.NewTicker(200 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		select {
+		case <-deadline:
+			n.diag("relay: reservation timeout after recovery")
+			return
+		case <-tick.C:
+			if n.hasCircuitAddr() {
+				n.diag("relay: reservation restored after recovery")
+				return
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
-// StartRelayRefresh periodically forces a fresh relay connection to prevent
-// stale relay state. Without this, the TCP connection to the relay stays alive
-// but the reservation/data path silently dies, making the peer unreachable
-// through the relay while appearing connected.
+// StartRelayRefresh periodically forces a fresh relay reservation. Without
+// this, the TCP connection to the relay stays alive but the reservation/data
+// path silently dies, making the peer unreachable through the relay while
+// appearing connected.
 func (n *Node) StartRelayRefresh(ctx context.Context, interval time.Duration) {
 	if n.relayPeer == nil {
 		return
@@ -429,24 +638,60 @@ func (n *Node) StartRelayRefresh(ctx context.Context, interval time.Duration) {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				if !n.hasCircuitAddr() {
-					// No circuit address — recoverRelay will handle this.
-					continue
-				}
-				// Close existing relay connections to force AutoRelay to refresh.
-				conns := n.Host.Network().ConnsToPeer(n.relayPeer.ID)
-				if len(conns) == 0 {
-					continue
-				}
-				log.Printf("relay: refreshing relay connection (%d conns)", len(conns))
-				for _, c := range conns {
-					_ = c.Close()
-				}
-				// AutoRelay will detect the lost connection and re-reserve.
-				// recoverRelay will also kick in via SubscribeAddressChanges if needed.
+				n.ensureRelayReservation(ctx)
 			}
 		}
 	}()
+}
+
+// ensureRelayReservation tears down the current relay connection, reconnects,
+// and verifies that a circuit address (reservation) comes back. This is the
+// equivalent of a targeted restart for the relay subsystem.
+func (n *Node) ensureRelayReservation(ctx context.Context) {
+	// Step 1: Close all existing relay connections.
+	conns := n.Host.Network().ConnsToPeer(n.relayPeer.ID)
+	if len(conns) > 0 {
+		n.diag("relay: refresh — closing %d relay connections", len(conns))
+		for _, c := range conns {
+			_ = c.Close()
+		}
+	} else {
+		n.diag("relay: refresh — no relay connections, reconnecting")
+	}
+
+	// Step 2: Clear dial backoff and refresh relay addresses in peerstore.
+	if sw, ok := n.Host.Network().(*swarm.Swarm); ok {
+		sw.Backoff().Clear(n.relayPeer.ID)
+	}
+	n.Host.Peerstore().AddAddrs(n.relayPeer.ID, n.relayPeer.Addrs, 10*time.Minute)
+
+	// Step 3: Reconnect to relay.
+	connCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	if err := n.Host.Connect(connCtx, *n.relayPeer); err != nil {
+		n.diag("relay: refresh — connect failed: %v", err)
+		return
+	}
+
+	// Step 4: Wait for AutoRelay to obtain a fresh reservation.
+	// Typically takes <2s; if not back in 8s, let SubscribeAddressChanges handle it.
+	deadline := time.After(8 * time.Second)
+	tick := time.NewTicker(200 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		select {
+		case <-deadline:
+			n.diag("relay: refresh — reservation NOT restored after 8s")
+			return
+		case <-tick.C:
+			if n.hasCircuitAddr() {
+				n.diag("relay: refresh — reservation confirmed")
+				return
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // relayInfoToAddrInfo converts a RelayInfo (from the rendezvous server) into

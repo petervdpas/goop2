@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"mime"
 	"net/http"
 	"os"
@@ -90,14 +89,15 @@ func (n *Node) handleSiteStream(s network.Stream) {
 	_, _ = s.Write(b)
 }
 
-// dialPeer attempts to connect to a peer, returning the addresses tried and any error.
-func (n *Node) dialPeer(ctx context.Context, pid peer.ID) (addrStrs []string, err error) {
+// dialAndOpenStream connects to a peer and opens a SITE protocol stream.
+// Returns the addresses that were tried, the open stream (on success), or an error.
+func (n *Node) dialAndOpenStream(ctx context.Context, pid peer.ID) (addrStrs []string, st network.Stream, err error) {
 	knownAddrs := n.Host.Peerstore().Addrs(pid)
-	log.Printf("SITE: dialing %s (%d known addrs)", pid, len(knownAddrs))
+	n.diag("SITE: dialing %s (%d known addrs)", pid, len(knownAddrs))
 	for _, a := range knownAddrs {
 		s := a.String()
 		addrStrs = append(addrStrs, s)
-		log.Printf("SITE:   addr: %s", s)
+		n.diag("SITE:   addr: %s", s)
 	}
 
 	// Clear any dial backoff so we get a fresh connection attempt.
@@ -105,10 +105,16 @@ func (n *Node) dialPeer(ctx context.Context, pid peer.ID) (addrStrs []string, er
 		sw.Backoff().Clear(pid)
 	}
 	if err := n.Host.Connect(ctx, peer.AddrInfo{ID: pid}); err != nil {
-		log.Printf("SITE: connect failed: %v", err)
-		return addrStrs, err
+		n.diag("SITE: connect failed: %v", err)
+		return addrStrs, nil, fmt.Errorf("connect: %w", err)
 	}
-	return addrStrs, nil
+
+	st, err = n.Host.NewStream(ctx, pid, protocol.ID(proto.SiteProtoID))
+	if err != nil {
+		n.diag("SITE: stream open failed: %v", err)
+		return addrStrs, nil, fmt.Errorf("stream: %w", err)
+	}
+	return addrStrs, st, nil
 }
 
 // forceRelayRecovery closes all connections to the relay peer and reconnects,
@@ -121,7 +127,7 @@ func (n *Node) forceRelayRecovery(ctx context.Context) {
 	// Close existing connections to the relay — this forces a fresh start.
 	conns := n.Host.Network().ConnsToPeer(n.relayPeer.ID)
 	for _, c := range conns {
-		log.Printf("SITE: closing stale relay connection: %s", c.RemoteMultiaddr())
+		n.diag("SITE: closing stale relay connection: %s", c.RemoteMultiaddr())
 		_ = c.Close()
 	}
 
@@ -138,10 +144,10 @@ func (n *Node) forceRelayRecovery(ctx context.Context) {
 	connCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	if err := n.Host.Connect(connCtx, *n.relayPeer); err != nil {
-		log.Printf("SITE: relay recovery connect failed: %v", err)
+		n.diag("SITE: relay recovery connect failed: %v", err)
 		return
 	}
-	log.Printf("SITE: relay recovered, waiting for reservation...")
+	n.diag("SITE: relay recovered, waiting for reservation...")
 
 	// Wait briefly for AutoRelay to re-establish reservation.
 	deadline := time.After(8 * time.Second)
@@ -150,11 +156,11 @@ func (n *Node) forceRelayRecovery(ctx context.Context) {
 	for {
 		select {
 		case <-deadline:
-			log.Printf("SITE: relay reservation timeout")
+			n.diag("SITE: relay reservation timeout")
 			return
 		case <-tick.C:
 			if n.hasCircuitAddr() {
-				log.Printf("SITE: relay reservation restored")
+				n.diag("SITE: relay reservation restored")
 				return
 			}
 		case <-ctx.Done():
@@ -169,10 +175,10 @@ func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (m
 		return "", nil, err
 	}
 
-	addrStrs, connectErr := n.dialPeer(ctx, pid)
-	if connectErr != nil {
-		// If the peer has circuit addresses and we have a relay, the relay
-		// connection may be stale. Force-recover and retry once.
+	addrStrs, st, dialErr := n.dialAndOpenStream(ctx, pid)
+	if dialErr != nil {
+		// Check if the peer has circuit addresses — stale relay connection
+		// may have fooled Connect or caused NewStream to timeout.
 		hasCircuit := false
 		for _, a := range addrStrs {
 			if strings.Contains(a, "p2p-circuit") {
@@ -181,19 +187,22 @@ func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (m
 			}
 		}
 		if hasCircuit && n.relayPeer != nil {
-			log.Printf("SITE: relay dial failed, recovering relay and retrying...")
-			n.forceRelayRecovery(ctx)
-			addrStrs, connectErr = n.dialPeer(ctx, pid)
+			n.diag("SITE: relay path failed, recovering relay and retrying...")
+			// Close stale connections to both relay AND target peer.
+			for _, c := range n.Host.Network().ConnsToPeer(pid) {
+				_ = c.Close()
+			}
+			// Use a FRESH context — the original is likely expired after
+			// the first dial hung for its full timeout on the stale relay.
+			retryCtx, retryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer retryCancel()
+			n.forceRelayRecovery(retryCtx)
+			addrStrs, st, dialErr = n.dialAndOpenStream(retryCtx, pid)
 		}
-		if connectErr != nil {
-			detail := fmt.Sprintf("peer unreachable\naddrs: %s\nerror: %v", strings.Join(addrStrs, ", "), connectErr)
+		if dialErr != nil {
+			detail := fmt.Sprintf("peer unreachable\naddrs: %s\nerror: %v", strings.Join(addrStrs, ", "), dialErr)
 			return "", nil, fmt.Errorf("%s", detail)
 		}
-	}
-
-	st, err := n.Host.NewStream(ctx, pid, protocol.ID(proto.SiteProtoID))
-	if err != nil {
-		return "", nil, fmt.Errorf("peer unreachable\nerror: stream open failed: %v", err)
 	}
 	defer st.Close()
 

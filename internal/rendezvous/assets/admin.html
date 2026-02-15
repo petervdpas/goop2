@@ -252,6 +252,19 @@
           {{end}}
         </div>
 
+        <!-- ── Peer Diagnostics (hidden, shown via Diagnose button) ── -->
+        <div class="admin-section" data-section="diag" style="display:none">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+            <button class="btn" onclick="closeDiag()">Back</button>
+            <h2 id="diag-title" style="margin:0">Peer Diagnostics</h2>
+            <button class="btn btn-sm" id="diag-refresh-btn" onclick="refreshDiag()" style="margin-left:auto">Refresh</button>
+            <button class="btn btn-sm" onclick="copyDiagResult()">Copy</button>
+          </div>
+          <div id="diag-view">
+            <div style="padding:24px;color:var(--muted)">Querying peer via relay...</div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -351,7 +364,7 @@
                 +(p.email?'<div class="peer-email">'+p.email+'</div>':'')
                 +'<div class="peer-id">'+p.peer_id+'</div>'
                 +addrsHtml
-                +'<div class="peer-stats"><span class="stat-item">↑ '+formatBytes(p.bytes_sent||0)+'</span><span class="stat-item">↓ '+formatBytes(p.bytes_received||0)+'</span><button class="btn-copy-peer" onclick="copyPeerInfo(this)" title="Copy peer info">Copy</button></div>'
+                +'<div class="peer-stats"><span class="stat-item">↑ '+formatBytes(p.bytes_sent||0)+'</span><span class="stat-item">↓ '+formatBytes(p.bytes_received||0)+'</span><button class="btn-copy-peer" onclick="diagnosePeer(\''+p.peer_id+'\',\''+(p.content||'').replace(/\'/g,'')+'\')">Diagnose</button><button class="btn-copy-peer" onclick="copyPeerInfo(this)" title="Copy peer info">Copy</button></div>'
                 +'</div>';
             }).join('')+'</div>';
             applyFilter();
@@ -621,6 +634,229 @@
         navigator.clipboard.writeText(lines.join('\n')).then(function(){
           btn.textContent = 'Copied!';
           setTimeout(function(){ btn.textContent = 'Copy'; }, 1500);
+        });
+      }
+
+      var _diagPeerID = '';
+      var _diagPeerName = '';
+
+      function diagnosePeer(peerID, name){
+        _diagPeerID = peerID;
+        _diagPeerName = name || peerID.substring(0,12);
+
+        // Switch to the diag section
+        document.querySelectorAll('.admin-section').forEach(function(s){ s.style.display='none'; s.classList.remove('active'); });
+        document.querySelectorAll('.admin-nav-item').forEach(function(n){ n.classList.remove('active'); });
+        var diagSec = document.querySelector('[data-section="diag"]');
+        diagSec.style.display = '';
+        diagSec.classList.add('active');
+
+        document.getElementById('diag-title').textContent = 'Diagnostics: ' + _diagPeerName;
+        document.getElementById('diag-view').innerHTML = '<div style="padding:24px;color:var(--muted)">Querying peer via relay connection...</div>';
+        refreshDiag();
+      }
+
+      function refreshDiag(){
+        if(!_diagPeerID) return;
+        var btn = document.getElementById('diag-refresh-btn');
+        if(btn){ btn.disabled=true; btn.textContent='Querying...'; }
+        fetch('/diag?peer='+encodeURIComponent(_diagPeerID))
+          .then(function(r){
+            if(!r.ok) return r.text().then(function(t){ throw new Error(t); });
+            return r.json();
+          })
+          .then(function(d){
+            window._lastDiag = d;
+            renderDiag(d);
+          })
+          .catch(function(err){
+            document.getElementById('diag-view').innerHTML = '<div class="dash-panel glass" style="padding:16px;color:#f44">Failed: '+err.message+'</div>';
+          })
+          .finally(function(){
+            if(btn){ btn.disabled=false; btn.textContent='Refresh'; }
+          });
+      }
+
+      function renderDiag(d){
+        var v = document.getElementById('diag-view');
+        var html = '';
+
+        // Stream error banner (peer doesn't support diag protocol)
+        if(d.stream_error){
+          html += '<div class="dash-panel glass" style="margin-bottom:16px;padding:12px 16px;color:#f80"><strong>Stream error:</strong> '+d.stream_error+'<br><small style="color:var(--muted)">Peer may be running an older version without diagnostic support. Relay-side info is shown below.</small></div>';
+        }
+
+        // ── Status cards row ──
+        html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px">';
+        html += '<div class="dash-panel glass" style="padding:14px;text-align:center"><div style="font-size:28px;font-weight:700;color:'+(d.has_circuit?'#4f4':'#f44')+'">'+(d.has_circuit?'YES':'NO')+'</div><div style="font-size:12px;color:var(--muted)">Circuit Address</div></div>';
+        html += '<div class="dash-panel glass" style="padding:14px;text-align:center"><div style="font-size:28px;font-weight:700">'+d.relay_conns+'</div><div style="font-size:12px;color:var(--muted)">Relay Connections</div></div>';
+        html += '<div class="dash-panel glass" style="padding:14px;text-align:center"><div style="font-size:28px;font-weight:700">'+d.connected_peers+'</div><div style="font-size:12px;color:var(--muted)">Connected Peers</div></div>';
+        if(d.uptime) html += '<div class="dash-panel glass" style="padding:14px;text-align:center"><div style="font-size:20px;font-weight:700">'+d.uptime+'</div><div style="font-size:12px;color:var(--muted)">Uptime</div></div>';
+        if(d.num_goroutine) html += '<div class="dash-panel glass" style="padding:14px;text-align:center"><div style="font-size:28px;font-weight:700">'+d.num_goroutine+'</div><div style="font-size:12px;color:var(--muted)">Goroutines</div></div>';
+        html += '</div>';
+
+        // ── System info ──
+        if(d.hostname||d.os||d.go_version){
+          html += '<div class="dash-panel glass" style="margin-bottom:16px"><div class="dash-panel-header"><span class="dash-panel-label">System</span></div>';
+          html += '<div style="padding:8px 14px;font-size:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:4px 24px">';
+          if(d.hostname) html += '<div><span style="color:var(--muted)">Hostname:</span> <strong>'+d.hostname+'</strong></div>';
+          if(d.os) html += '<div><span style="color:var(--muted)">OS/Arch:</span> '+d.os+'/'+d.arch+'</div>';
+          if(d.go_version) html += '<div><span style="color:var(--muted)">Go:</span> '+d.go_version+'</div>';
+          if(d.started) html += '<div><span style="color:var(--muted)">Started:</span> '+d.started+'</div>';
+          if(d.presence_ttl) html += '<div><span style="color:var(--muted)">Presence TTL:</span> '+d.presence_ttl+'</div>';
+          html += '<div><span style="color:var(--muted)">Site:</span> '+(d.has_site?'<span style="color:#4f4">enabled</span>':'<span style="color:#f44">disabled</span>')+'</div>';
+          html += '</div></div>';
+        }
+
+        // ── Relay config & peerstore ──
+        if(d.relay_config){
+          html += '<div class="dash-panel glass" style="margin-bottom:16px"><div class="dash-panel-header"><span class="dash-panel-label">Relay Config</span></div>';
+          html += '<div style="padding:8px 14px;font-size:12px">';
+          html += '<div style="margin-bottom:4px"><span style="color:var(--muted)">Relay Peer ID:</span> <code style="font-size:11px">'+d.relay_config.peer_id+'</code></div>';
+          if(d.relay_config.addrs&&d.relay_config.addrs.length){
+            html += '<div style="margin-bottom:4px"><span style="color:var(--muted)">Configured addrs:</span></div>';
+            d.relay_config.addrs.forEach(function(a){ html += '<div style="padding-left:12px;font-family:monospace;font-size:11px">'+a+'</div>'; });
+          }
+          // Peerstore addresses — critical: if empty, relay addresses have expired
+          var psAddrs = d.relay_peerstore_addrs;
+          if(psAddrs!==undefined){
+            var psColor = (psAddrs&&psAddrs.length>0)?'var(--text)':'#f44';
+            var psLabel = (psAddrs&&psAddrs.length>0)?psAddrs.length+' cached':'EMPTY (expired!)';
+            html += '<div style="margin-top:6px"><span style="color:var(--muted)">Peerstore addrs:</span> <span style="color:'+psColor+'">'+psLabel+'</span></div>';
+            if(psAddrs&&psAddrs.length){
+              psAddrs.forEach(function(a){ html += '<div style="padding-left:12px;font-family:monospace;font-size:11px">'+a+'</div>'; });
+            }
+          }
+          html += '</div></div>';
+        }
+
+        // ── Relay connection details (from peer's perspective) ──
+        if(d.relay_conn_details&&d.relay_conn_details.length){
+          html += '<div class="dash-panel glass" style="margin-bottom:16px"><div class="dash-panel-header"><span class="dash-panel-label">Relay Connections (peer side)</span></div>';
+          html += '<table class="admin-table"><thead><tr><th>Address</th><th>Dir</th><th>Age</th><th>Streams</th></tr></thead><tbody>';
+          d.relay_conn_details.forEach(function(c){
+            html += '<tr><td style="font-family:monospace;font-size:11px">'+c.addr+'</td><td>'+c.dir+'</td><td>'+c.age+'</td><td>'+c.streams+'</td></tr>';
+          });
+          html += '</tbody></table></div>';
+        }
+
+        // ── Relay view (relay-side connection info from server) ──
+        if(d.relay_view&&d.relay_view.length){
+          html += '<div class="dash-panel glass" style="margin-bottom:16px"><div class="dash-panel-header"><span class="dash-panel-label">Relay Connections (server side)</span></div>';
+          html += '<table class="admin-table"><thead><tr><th>Address</th><th>Dir</th><th>Age</th><th>Streams</th></tr></thead><tbody>';
+          d.relay_view.forEach(function(c){
+            html += '<tr><td style="font-family:monospace;font-size:11px">'+c.addr+'</td><td>'+(c.dir||'')+'</td><td>'+(c.age||'')+'</td><td>'+(c.streams!==undefined?c.streams:'')+'</td></tr>';
+          });
+          html += '</tbody></table></div>';
+        }
+
+        // ── Host addresses ──
+        html += '<div class="dash-panel glass" style="margin-bottom:16px"><div class="dash-panel-header"><span class="dash-panel-label">Addresses ('+(d.addrs?d.addrs.length:0)+')</span></div>';
+        html += '<div style="padding:8px 14px;font-size:12px;font-family:monospace">';
+        if(d.addrs&&d.addrs.length){
+          d.addrs.forEach(function(a){
+            var isCircuit = a.indexOf('p2p-circuit')!==-1;
+            html += '<div style="padding:2px 0;color:'+(isCircuit?'#0af':'var(--text)')+'">'+a+(isCircuit?' <span style="background:rgba(0,170,255,0.15);padding:1px 6px;border-radius:4px;font-size:10px">circuit</span>':'')+'</div>';
+          });
+        } else {
+          html += '<div style="color:var(--muted)">No addresses</div>';
+        }
+        html += '</div></div>';
+
+        // ── Listen addresses ──
+        if(d.listen_addrs&&d.listen_addrs.length){
+          html += '<div class="dash-panel glass" style="margin-bottom:16px"><div class="dash-panel-header"><span class="dash-panel-label">Listen Addresses</span></div>';
+          html += '<div style="padding:8px 14px;font-size:12px;font-family:monospace">';
+          d.listen_addrs.forEach(function(a){ html += '<div style="padding:2px 0">'+a+'</div>'; });
+          html += '</div></div>';
+        }
+
+        // ── Connected peers details ──
+        if(d.connected_peer_details&&d.connected_peer_details.length){
+          html += '<div class="dash-panel glass" style="margin-bottom:16px"><div class="dash-panel-header"><span class="dash-panel-label">Connected Peers ('+d.connected_peer_details.length+' connections)</span></div>';
+          html += '<table class="admin-table"><thead><tr><th>Peer</th><th>Address</th><th>Dir</th><th>Age</th><th>Streams</th></tr></thead><tbody>';
+          d.connected_peer_details.forEach(function(c){
+            var label = c.peer_id.substring(0,16)+'...';
+            if(c.is_relay) label += ' <span style="background:rgba(0,170,255,0.15);padding:1px 6px;border-radius:4px;font-size:10px;color:#0af">relay</span>';
+            html += '<tr><td style="font-size:11px">'+label+'</td><td style="font-family:monospace;font-size:11px">'+c.addr+'</td><td>'+c.dir+'</td><td>'+c.age+'</td><td>'+c.streams+'</td></tr>';
+          });
+          html += '</tbody></table></div>';
+        }
+
+        // ── Relay log ──
+        html += '<div class="dash-panel glass"><div class="dash-panel-header"><span class="dash-panel-label">Diagnostic Log ('+(d.logs?d.logs.length:0)+' entries)</span></div>';
+        html += '<div class="logs-container" style="max-height:400px;overflow-y:auto">';
+        if(d.logs&&d.logs.length){
+          d.logs.slice().reverse().forEach(function(l){
+            html += '<div class="log-entry">'+l+'</div>';
+          });
+        } else {
+          html += '<div class="log-entry empty">No diagnostic log entries yet</div>';
+        }
+        html += '</div></div>';
+
+        v.innerHTML = html;
+      }
+
+      function closeDiag(){
+        document.querySelector('[data-section="diag"]').style.display = 'none';
+        // Return to peers section
+        document.querySelectorAll('.admin-section').forEach(function(s){ s.style.display='none'; s.classList.remove('active'); });
+        var peersSection = document.querySelector('[data-section="peers"]');
+        peersSection.style.display = '';
+        peersSection.classList.add('active');
+        document.querySelectorAll('.admin-nav-item').forEach(function(n){
+          n.classList.remove('active');
+          if(n.getAttribute('data-section')==='peers') n.classList.add('active');
+        });
+      }
+
+      function copyDiagResult(){
+        var d = window._lastDiag;
+        if(!d) return;
+        var lines = ['=== Peer Diagnostics ==='];
+        lines.push('Peer ID: ' + d.peer_id);
+        if(d.name) lines.push('Name: ' + d.name);
+        if(d.hostname) lines.push('Hostname: ' + d.hostname);
+        if(d.os) lines.push('OS/Arch: ' + d.os + '/' + d.arch);
+        if(d.go_version) lines.push('Go: ' + d.go_version);
+        if(d.uptime) lines.push('Uptime: ' + d.uptime);
+        if(d.started) lines.push('Started: ' + d.started);
+        if(d.num_goroutine) lines.push('Goroutines: ' + d.num_goroutine);
+        lines.push('Circuit address: ' + (d.has_circuit?'YES':'NO'));
+        lines.push('Relay connections: ' + d.relay_conns);
+        lines.push('Connected peers: ' + d.connected_peers);
+        if(d.presence_ttl) lines.push('Presence TTL: ' + d.presence_ttl);
+        lines.push('Site: ' + (d.has_site?'enabled':'disabled'));
+        if(d.stream_error) { lines.push(''); lines.push('*** Stream error: ' + d.stream_error); }
+        if(d.relay_config) {
+          lines.push(''); lines.push('=== Relay Config ===');
+          lines.push('Relay Peer ID: ' + d.relay_config.peer_id);
+          if(d.relay_config.addrs) d.relay_config.addrs.forEach(function(a){ lines.push('  cfg: ' + a); });
+          var ps = d.relay_peerstore_addrs;
+          if(ps!==undefined){
+            if(ps&&ps.length) { ps.forEach(function(a){ lines.push('  ps:  ' + a); }); }
+            else { lines.push('  ps:  EMPTY (expired!)'); }
+          }
+        }
+        if(d.relay_conn_details&&d.relay_conn_details.length) {
+          lines.push(''); lines.push('=== Relay Connections (peer side) ===');
+          d.relay_conn_details.forEach(function(c){ lines.push('  ' + c.addr + ' | ' + c.dir + ' | age ' + c.age + ' | ' + c.streams + ' streams'); });
+        }
+        if(d.relay_view&&d.relay_view.length) {
+          lines.push(''); lines.push('=== Relay Connections (server side) ===');
+          d.relay_view.forEach(function(c){ lines.push('  ' + c.addr + ' | ' + (c.dir||'') + ' | age ' + (c.age||'') + ' | ' + (c.streams!==undefined?c.streams:'') + ' streams'); });
+        }
+        if(d.addrs) { lines.push(''); lines.push('=== Host Addresses ==='); d.addrs.forEach(function(a){ lines.push('  ' + a); }); }
+        if(d.listen_addrs&&d.listen_addrs.length) { lines.push(''); lines.push('=== Listen Addresses ==='); d.listen_addrs.forEach(function(a){ lines.push('  ' + a); }); }
+        if(d.connected_peer_details&&d.connected_peer_details.length) {
+          lines.push(''); lines.push('=== Connected Peers ===');
+          d.connected_peer_details.forEach(function(c){ lines.push('  ' + c.peer_id.substring(0,16) + '... | ' + c.addr + ' | ' + c.dir + ' | age ' + c.age + ' | ' + c.streams + ' streams' + (c.is_relay?' [RELAY]':'')); });
+        }
+        if(d.logs) { lines.push(''); lines.push('=== Diagnostic Log ==='); d.logs.forEach(function(l){ lines.push('  ' + l); }); }
+        navigator.clipboard.writeText(lines.join('\n')).then(function(){
+          var btn = document.querySelector('[onclick="copyDiagResult()"]');
+          if(btn){ btn.textContent='Copied!'; setTimeout(function(){btn.textContent='Copy';},1500); }
         });
       }
 
