@@ -8,7 +8,6 @@ type MessageType string
 const (
 	MessageTypeDirect    MessageType = "direct"    // 1-to-1 message
 	MessageTypeBroadcast MessageType = "broadcast" // public broadcast to all peers
-	MessageTypeSite      MessageType = "site"      // site-specific group chat
 )
 
 // Message represents a chat message between peers
@@ -19,7 +18,6 @@ type Message struct {
 	Type      MessageType `json:"type"`      // message type
 	Content   string      `json:"content"`   // message content
 	Timestamp int64       `json:"timestamp"` // unix timestamp in milliseconds
-	SiteID    string      `json:"site_id"`   // optional: site context for the message
 }
 
 // NewMessage creates a new direct message
@@ -45,17 +43,6 @@ func NewBroadcast(from, content string) *Message {
 	}
 }
 
-// NewSiteMessage creates a new site-specific message
-func NewSiteMessage(from, siteID, content string) *Message {
-	return &Message{
-		ID:        generateID(),
-		From:      from,
-		Type:      MessageTypeSite,
-		Content:   content,
-		SiteID:    siteID,
-		Timestamp: time.Now().UnixMilli(),
-	}
-}
 
 // generateID creates a unique message ID
 func generateID() string {
