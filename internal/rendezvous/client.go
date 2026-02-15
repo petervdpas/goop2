@@ -305,7 +305,10 @@ func (c *Client) PulsePeer(ctx context.Context, peerID string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.HTTP.Do(req)
+	// Use a client without the default 10s timeout — the pulse operation
+	// triggers relay refresh on the target (up to 23s). The ctx controls
+	// the actual deadline.
+	resp, err := (&http.Client{}).Do(req)
 	if err != nil {
 		return err
 	}

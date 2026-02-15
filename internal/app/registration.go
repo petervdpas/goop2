@@ -7,8 +7,7 @@ import (
 )
 
 // setupRegistration configures the registration provider. When registrationURL
-// is set, a remote registration service is used. Otherwise the built-in
-// registration handlers are used.
+// is set, a remote registration service is used. Otherwise registration is disabled.
 func setupRegistration(rv *rendezvous.Server, registrationURL, adminToken string) {
 	if registrationURL == "" {
 		return
