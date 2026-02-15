@@ -176,33 +176,31 @@ func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (m
 	}
 
 	addrStrs, st, dialErr := n.dialAndOpenStream(ctx, pid)
+	if dialErr != nil && n.relayPeer != nil {
+		n.diag("SITE: direct dial failed, attempting relay recovery...")
+
+		// Close stale connections to both relay AND target peer.
+		for _, c := range n.Host.Network().ConnsToPeer(pid) {
+			_ = c.Close()
+		}
+
+		// Use a FRESH context — the original is likely expired after
+		// the first dial hung for its full timeout.
+		retryCtx, retryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer retryCancel()
+
+		n.forceRelayRecovery(retryCtx)
+
+		// Inject a constructed circuit relay address for the target peer
+		// so the retry can route through the relay even if the peer never
+		// published a circuit address in its presence messages.
+		n.addRelayAddrForPeer(pid)
+
+		addrStrs, st, dialErr = n.dialAndOpenStream(retryCtx, pid)
+	}
 	if dialErr != nil {
-		// Check if the peer has circuit addresses — stale relay connection
-		// may have fooled Connect or caused NewStream to timeout.
-		hasCircuit := false
-		for _, a := range addrStrs {
-			if strings.Contains(a, "p2p-circuit") {
-				hasCircuit = true
-				break
-			}
-		}
-		if hasCircuit && n.relayPeer != nil {
-			n.diag("SITE: relay path failed, recovering relay and retrying...")
-			// Close stale connections to both relay AND target peer.
-			for _, c := range n.Host.Network().ConnsToPeer(pid) {
-				_ = c.Close()
-			}
-			// Use a FRESH context — the original is likely expired after
-			// the first dial hung for its full timeout on the stale relay.
-			retryCtx, retryCancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer retryCancel()
-			n.forceRelayRecovery(retryCtx)
-			addrStrs, st, dialErr = n.dialAndOpenStream(retryCtx, pid)
-		}
-		if dialErr != nil {
-			detail := fmt.Sprintf("peer unreachable\naddrs: %s\nerror: %v", strings.Join(addrStrs, ", "), dialErr)
-			return "", nil, fmt.Errorf("%s", detail)
-		}
+		detail := fmt.Sprintf("peer unreachable\naddrs: %s\nerror: %v", strings.Join(addrStrs, ", "), dialErr)
+		return "", nil, fmt.Errorf("%s", detail)
 	}
 	defer st.Close()
 
