@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/petervdpas/goop2/internal/proto"
 
@@ -89,16 +90,10 @@ func (n *Node) handleSiteStream(s network.Stream) {
 	_, _ = s.Write(b)
 }
 
-func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (mimeType string, data []byte, err error) {
-	pid, err := peer.Decode(peerID)
-	if err != nil {
-		return "", nil, err
-	}
-
-	// Log known addresses for diagnostics.
+// dialPeer attempts to connect to a peer, returning the addresses tried and any error.
+func (n *Node) dialPeer(ctx context.Context, pid peer.ID) (addrStrs []string, err error) {
 	knownAddrs := n.Host.Peerstore().Addrs(pid)
-	log.Printf("SITE: dialing %s (%d known addrs)", peerID, len(knownAddrs))
-	var addrStrs []string
+	log.Printf("SITE: dialing %s (%d known addrs)", pid, len(knownAddrs))
 	for _, a := range knownAddrs {
 		s := a.String()
 		addrStrs = append(addrStrs, s)
@@ -111,13 +106,94 @@ func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (m
 	}
 	if err := n.Host.Connect(ctx, peer.AddrInfo{ID: pid}); err != nil {
 		log.Printf("SITE: connect failed: %v", err)
-		detail := fmt.Sprintf("peer unreachable\naddrs: %s\nerror: %v", strings.Join(addrStrs, ", "), err)
-		return "", nil, fmt.Errorf("%s", detail)
+		return addrStrs, err
+	}
+	return addrStrs, nil
+}
+
+// forceRelayRecovery closes all connections to the relay peer and reconnects,
+// forcing AutoRelay to obtain a fresh reservation.
+func (n *Node) forceRelayRecovery(ctx context.Context) {
+	if n.relayPeer == nil {
+		return
+	}
+
+	// Close existing connections to the relay — this forces a fresh start.
+	conns := n.Host.Network().ConnsToPeer(n.relayPeer.ID)
+	for _, c := range conns {
+		log.Printf("SITE: closing stale relay connection: %s", c.RemoteMultiaddr())
+		_ = c.Close()
+	}
+
+	// Also close connections to the TARGET peer (they may be stale relay streams).
+	// The caller will re-dial after recovery.
+
+	// Clear backoff and re-add relay addresses.
+	if sw, ok := n.Host.Network().(*swarm.Swarm); ok {
+		sw.Backoff().Clear(n.relayPeer.ID)
+	}
+	n.Host.Peerstore().AddAddrs(n.relayPeer.ID, n.relayPeer.Addrs, 10*time.Minute)
+
+	// Reconnect to relay.
+	connCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if err := n.Host.Connect(connCtx, *n.relayPeer); err != nil {
+		log.Printf("SITE: relay recovery connect failed: %v", err)
+		return
+	}
+	log.Printf("SITE: relay recovered, waiting for reservation...")
+
+	// Wait briefly for AutoRelay to re-establish reservation.
+	deadline := time.After(8 * time.Second)
+	tick := time.NewTicker(500 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		select {
+		case <-deadline:
+			log.Printf("SITE: relay reservation timeout")
+			return
+		case <-tick.C:
+			if n.hasCircuitAddr() {
+				log.Printf("SITE: relay reservation restored")
+				return
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (mimeType string, data []byte, err error) {
+	pid, err := peer.Decode(peerID)
+	if err != nil {
+		return "", nil, err
+	}
+
+	addrStrs, connectErr := n.dialPeer(ctx, pid)
+	if connectErr != nil {
+		// If the peer has circuit addresses and we have a relay, the relay
+		// connection may be stale. Force-recover and retry once.
+		hasCircuit := false
+		for _, a := range addrStrs {
+			if strings.Contains(a, "p2p-circuit") {
+				hasCircuit = true
+				break
+			}
+		}
+		if hasCircuit && n.relayPeer != nil {
+			log.Printf("SITE: relay dial failed, recovering relay and retrying...")
+			n.forceRelayRecovery(ctx)
+			addrStrs, connectErr = n.dialPeer(ctx, pid)
+		}
+		if connectErr != nil {
+			detail := fmt.Sprintf("peer unreachable\naddrs: %s\nerror: %v", strings.Join(addrStrs, ", "), connectErr)
+			return "", nil, fmt.Errorf("%s", detail)
+		}
 	}
 
 	st, err := n.Host.NewStream(ctx, pid, protocol.ID(proto.SiteProtoID))
 	if err != nil {
-		return "", nil, fmt.Errorf("peer unreachable")
+		return "", nil, fmt.Errorf("peer unreachable\nerror: stream open failed: %v", err)
 	}
 	defer st.Close()
 

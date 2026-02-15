@@ -413,6 +413,42 @@ func (n *Node) recoverRelay(ctx context.Context) {
 	log.Printf("relay: reconnected to relay peer, waiting for reservation...")
 }
 
+// StartRelayRefresh periodically forces a fresh relay connection to prevent
+// stale relay state. Without this, the TCP connection to the relay stays alive
+// but the reservation/data path silently dies, making the peer unreachable
+// through the relay while appearing connected.
+func (n *Node) StartRelayRefresh(ctx context.Context, interval time.Duration) {
+	if n.relayPeer == nil {
+		return
+	}
+	go func() {
+		t := time.NewTicker(interval)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				if !n.hasCircuitAddr() {
+					// No circuit address — recoverRelay will handle this.
+					continue
+				}
+				// Close existing relay connections to force AutoRelay to refresh.
+				conns := n.Host.Network().ConnsToPeer(n.relayPeer.ID)
+				if len(conns) == 0 {
+					continue
+				}
+				log.Printf("relay: refreshing relay connection (%d conns)", len(conns))
+				for _, c := range conns {
+					_ = c.Close()
+				}
+				// AutoRelay will detect the lost connection and re-reserve.
+				// recoverRelay will also kick in via SubscribeAddressChanges if needed.
+			}
+		}
+	}()
+}
+
 // relayInfoToAddrInfo converts a RelayInfo (from the rendezvous server) into
 // a libp2p peer.AddrInfo suitable for autorelay.
 func relayInfoToAddrInfo(ri *rendezvous.RelayInfo) (*peer.AddrInfo, error) {
