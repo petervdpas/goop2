@@ -56,12 +56,27 @@
             </div>
           </div>
 
-          {{if .ServiceRows}}
+          {{if or .ServiceRows .HasRelay}}
           <div class="dash-panel glass">
             <div class="dash-panel-header">
               <span class="dash-panel-label">Services</span>
             </div>
             <div class="svc-list">
+              {{if .HasRelay}}
+              <div class="svc-topo-group">
+                <div class="svc-row">
+                  <div class="svc-row-left">
+                    <span class="svc-dot svc-dot-ok"></span>
+                    <strong>Relay</strong>
+                    <span class="svc-badge svc-badge-ok">(active)</span>
+                  </div>
+                  <div class="svc-row-right">
+                    <span>port {{.RelayPort}}</span>
+                    <code style="font-size:11px">{{.RelayPeerID}}</code>
+                  </div>
+                </div>
+              </div>
+              {{end}}
               {{range .ServiceRows}}
               <div class="svc-topo-group">
                 <div class="svc-row"{{if .Dependencies}} style="border-bottom:none;padding-bottom:0"{{end}}>
