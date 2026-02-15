@@ -8,7 +8,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -286,11 +285,6 @@ func (m *Manager) Close() {
 	m.mu.Lock()
 	m.channels = nil
 	m.mu.Unlock()
-}
-
-// MarshalChannel returns JSON for a channel (for HTTP responses).
-func MarshalChannel(ch *Channel) ([]byte, error) {
-	return json.Marshal(ch)
 }
 
 func generateChannelID() string {

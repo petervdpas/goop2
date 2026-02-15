@@ -496,7 +496,6 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	log.Println("========================================")
 	publish(context.Background(), proto.TypeOffline)
 	log.Println("PEER: Offline message sent")
-	_ = rv
 	return nil
 }
 
