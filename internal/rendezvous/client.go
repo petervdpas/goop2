@@ -294,6 +294,29 @@ func (c *Client) DownloadTemplateBundle(ctx context.Context, dir, peerID string)
 	return resp.Body, nil
 }
 
+// PulsePeer asks the rendezvous server to tell a target peer to refresh its
+// relay reservation. This is called by the requesting peer when it can't
+// reach the target through the relay.
+func (c *Client) PulsePeer(ctx context.Context, peerID string) error {
+	if c.BaseURL == "" {
+		return nil
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/api/pulse?peer="+peerID, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return err
+	}
+	io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("pulse: status %s", resp.Status)
+	}
+	return nil
+}
+
 // SubscribeEvents connects to /events and calls onMsg for each "data: <json>" message.
 // It reconnects automatically with a small backoff until ctx is cancelled.
 func (c *Client) SubscribeEvents(ctx context.Context, onMsg func(proto.PresenceMsg)) {

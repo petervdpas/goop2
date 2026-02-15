@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os/exec"
 	"strings"
 	"time"
 )
@@ -38,15 +37,6 @@ func WaitTCP(addr string, timeout time.Duration) error {
 		time.Sleep(100 * time.Millisecond)
 	}
 	return fmt.Errorf("timeout waiting for %s", addr)
-}
-
-// OpenBrowser opens the system default browser.
-// Still useful for dev / debugging.
-func OpenBrowser(url string) error {
-	cmd := exec.Command("xdg-open", url)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	return cmd.Start()
 }
 
 func logBanner(peerDir, cfgPath string) {

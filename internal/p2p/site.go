@@ -117,58 +117,6 @@ func (n *Node) dialAndOpenStream(ctx context.Context, pid peer.ID) (addrStrs []s
 	return addrStrs, st, nil
 }
 
-// forceRelayRecovery closes all connections to the relay peer and reconnects,
-// forcing AutoRelay to obtain a fresh reservation.
-func (n *Node) forceRelayRecovery(ctx context.Context) {
-	if n.relayPeer == nil {
-		return
-	}
-
-	// Close existing connections to the relay — this forces a fresh start.
-	conns := n.Host.Network().ConnsToPeer(n.relayPeer.ID)
-	for _, c := range conns {
-		n.diag("SITE: closing stale relay connection: %s", c.RemoteMultiaddr())
-		_ = c.Close()
-	}
-
-	// Also close connections to the TARGET peer (they may be stale relay streams).
-	// The caller will re-dial after recovery.
-
-	// Clear backoff and re-add relay addresses.
-	if sw, ok := n.Host.Network().(*swarm.Swarm); ok {
-		sw.Backoff().Clear(n.relayPeer.ID)
-	}
-	n.Host.Peerstore().AddAddrs(n.relayPeer.ID, n.relayPeer.Addrs, 10*time.Minute)
-
-	// Reconnect to relay.
-	connCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	if err := n.Host.Connect(connCtx, *n.relayPeer); err != nil {
-		n.diag("SITE: relay recovery connect failed: %v", err)
-		return
-	}
-	n.diag("SITE: relay recovered, waiting for reservation...")
-
-	// Wait briefly for AutoRelay to re-establish reservation.
-	deadline := time.After(8 * time.Second)
-	tick := time.NewTicker(500 * time.Millisecond)
-	defer tick.Stop()
-	for {
-		select {
-		case <-deadline:
-			n.diag("SITE: relay reservation timeout")
-			return
-		case <-tick.C:
-			if n.hasCircuitAddr() {
-				n.diag("SITE: relay reservation restored")
-				return
-			}
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
 func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (mimeType string, data []byte, err error) {
 	pid, err := peer.Decode(peerID)
 	if err != nil {
@@ -177,23 +125,29 @@ func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (m
 
 	addrStrs, st, dialErr := n.dialAndOpenStream(ctx, pid)
 	if dialErr != nil && n.relayPeer != nil {
-		n.diag("SITE: direct dial failed, attempting relay recovery...")
+		n.diag("SITE: dial failed for %s, pulsing via rendezvous", pid.ShortString())
 
-		// Close stale connections to both relay AND target peer.
+		// Close stale connections to the target peer.
 		for _, c := range n.Host.Network().ConnsToPeer(pid) {
 			_ = c.Close()
 		}
 
-		// Use a FRESH context — the original is likely expired after
-		// the first dial hung for its full timeout.
+		// Fresh context — the original likely expired during the dial.
 		retryCtx, retryCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer retryCancel()
 
-		n.forceRelayRecovery(retryCtx)
+		// Pulse the target peer via rendezvous — tells it to refresh
+		// its relay reservation. This is the primary recovery mechanism.
+		if n.pulseFn != nil {
+			if err := n.pulseFn(retryCtx, peerID); err != nil {
+				n.diag("SITE: pulse failed: %v", err)
+			} else {
+				n.diag("SITE: pulse succeeded for %s", pid.ShortString())
+			}
+		}
 
-		// Inject a constructed circuit relay address for the target peer
-		// so the retry can route through the relay even if the peer never
-		// published a circuit address in its presence messages.
+		// Inject a circuit relay address for the target so we can
+		// route through the relay even if they never published one.
 		n.addRelayAddrForPeer(pid)
 
 		addrStrs, st, dialErr = n.dialAndOpenStream(retryCtx, pid)

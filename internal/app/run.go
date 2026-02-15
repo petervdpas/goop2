@@ -24,11 +24,6 @@ import (
 	"github.com/petervdpas/goop2/internal/storage"
 	"github.com/petervdpas/goop2/internal/util"
 	"github.com/petervdpas/goop2/internal/viewer"
-
-	"github.com/libp2p/go-libp2p/core/host"
-	"github.com/libp2p/go-libp2p/core/peer"
-	ma "github.com/multiformats/go-multiaddr"
-	manet "github.com/multiformats/go-multiaddr/net"
 )
 
 type Options struct {
@@ -37,11 +32,6 @@ type Options struct {
 	Cfg       config.Config
 	BridgeURL string
 	Progress  func(step, total int, label string)
-}
-
-type runtime struct {
-	node  *p2p.Node
-	peers *state.PeerTable
 }
 
 func Run(ctx context.Context, opt Options) error {
@@ -352,7 +342,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			switch pm.Type {
 			case proto.TypeOnline, proto.TypeUpdate:
 				peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.Verified)
-				addPeerAddrs(node.Host, pm.PeerID, pm.Addrs, time.Duration(cfg.Presence.TTLSec)*time.Second)
+				node.AddPeerAddrs(pm.PeerID, pm.Addrs)
 			case proto.TypeOffline:
 				peers.Remove(pm.PeerID)
 			}
@@ -361,7 +351,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 
 	publish := func(pctx context.Context, typ string) {
 		node.Publish(pctx, typ)
-		addrs := wanAddrs(node.Host)
+		addrs := node.WanAddrs()
 		for _, c := range rvClients {
 			cc := c
 			go func() {
@@ -437,6 +427,22 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		}
 	})
 
+	// Wire pulse function — when FetchSiteFile can't reach a peer, it asks
+	// the rendezvous to pulse the target peer's relay reservation.
+	if len(rvClients) > 0 {
+		node.SetPulseFn(func(pctx context.Context, peerID string) error {
+			var lastErr error
+			for _, c := range rvClients {
+				if err := c.PulsePeer(pctx, peerID); err != nil {
+					lastErr = err
+				} else {
+					return nil // success on any client is enough
+				}
+			}
+			return lastErr
+		})
+	}
+
 	// Wait for relay circuit address before first publish so remote peers
 	// receive our circuit address immediately (avoids backoff race).
 	if relayInfo != nil {
@@ -494,82 +500,4 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	return nil
 }
 
-// wanAddrs returns the host's multiaddresses filtered to exclude loopback
-// and link-local addresses, suitable for sharing with WAN peers.
-// Circuit relay addresses (p2p-circuit) are always included.
-func wanAddrs(h host.Host) []string {
-	var out []string
-	for _, a := range h.Addrs() {
-		// Always include circuit relay addresses.
-		if isCircuitAddr(a) {
-			out = append(out, a.String())
-			continue
-		}
-		ip, err := manet.ToIP(a)
-		if err != nil {
-			continue
-		}
-		if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
-			continue
-		}
-		out = append(out, a.String())
-	}
-	return out
-}
-
-// isCircuitAddr returns true if the multiaddr contains a /p2p-circuit component.
-func isCircuitAddr(a ma.Multiaddr) bool {
-	for _, p := range a.Protocols() {
-		if p.Code == ma.P_CIRCUIT {
-			return true
-		}
-	}
-	return false
-}
-
-// addPeerAddrs parses multiaddr strings and adds them to the peerstore for the given peer.
-// Direct addresses use the configured presence TTL. Circuit relay addresses get 10x the TTL
-// since they represent a stable relay path that outlives individual heartbeats.
-func addPeerAddrs(h host.Host, peerID string, addrs []string, ttl time.Duration) {
-	if len(addrs) == 0 {
-		return
-	}
-	pid, err := peer.Decode(peerID)
-	if err != nil {
-		return
-	}
-	var direct, circuit []ma.Multiaddr
-	for _, s := range addrs {
-		a, err := ma.NewMultiaddr(s)
-		if err != nil {
-			continue
-		}
-		if ip, err := manet.ToIP(a); err == nil {
-			if ip.IsLoopback() || ip.IsLinkLocalUnicast() {
-				continue
-			}
-		}
-		if isCircuitMultiaddr(a) {
-			circuit = append(circuit, a)
-		} else {
-			direct = append(direct, a)
-		}
-	}
-	if len(direct) > 0 {
-		h.Peerstore().AddAddrs(pid, direct, ttl)
-	}
-	if len(circuit) > 0 {
-		h.Peerstore().AddAddrs(pid, circuit, ttl*10)
-	}
-}
-
-// isCircuitMultiaddr returns true if the multiaddr contains a /p2p-circuit component.
-func isCircuitMultiaddr(a ma.Multiaddr) bool {
-	for _, p := range a.Protocols() {
-		if p.Code == ma.P_CIRCUIT {
-			return true
-		}
-	}
-	return false
-}
 
