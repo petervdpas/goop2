@@ -676,8 +676,10 @@ func (s *Server) Start(ctx context.Context) error {
 		s.templates.RegisterRoutes(mux) // /api/templates/prices (exact match, with auth)
 		proxy := s.templates.Proxy()
 		mux.HandleFunc("/api/templates", func(w http.ResponseWriter, r *http.Request) {
-			// Gate listing: require verified email when registration is enabled
-			if s.registration != nil && s.registration.RegistrationRequired() {
+			// Gate listing: require verified email when registration is enabled.
+			// Admin users (Basic Auth) bypass the gate so the admin panel can
+			// load template metadata (icons, names) for the price editor.
+			if s.registration != nil && s.registration.RegistrationRequired() && !s.isAdmin(r) {
 				peerID := getPeerID(r)
 				if peerID == "" {
 					http.Error(w, "register and verify your email to access the template store", http.StatusForbidden)
@@ -1791,6 +1793,15 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		ServiceRows:      serviceRows,
 		ChainIssues:      chainIssues,
 	})
+}
+
+// isAdmin returns true if the request carries valid admin Basic Auth credentials.
+func (s *Server) isAdmin(r *http.Request) bool {
+	if s.adminPassword == "" {
+		return false
+	}
+	user, pass, ok := r.BasicAuth()
+	return ok && user == "admin" && pass == s.adminPassword
 }
 
 // requireAdmin checks HTTP Basic Auth. Returns true if authorized.
