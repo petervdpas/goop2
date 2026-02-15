@@ -133,7 +133,7 @@ func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (m
 		}
 
 		// Fresh context — the original likely expired during the dial.
-		retryCtx, retryCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		retryCtx, retryCancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer retryCancel()
 
 		// Pulse the target peer via rendezvous — tells it to refresh
@@ -150,7 +150,24 @@ func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (m
 		// route through the relay even if they never published one.
 		n.addRelayAddrForPeer(pid)
 
-		addrStrs, st, dialErr = n.dialAndOpenStream(retryCtx, pid)
+		// Retry with backoff — the target may still be recovering its
+		// relay reservation (pulse takes up to 23s, self-recovery up to 15s).
+		for attempt := 1; attempt <= 3; attempt++ {
+			addrStrs, st, dialErr = n.dialAndOpenStream(retryCtx, pid)
+			if dialErr == nil {
+				break
+			}
+			n.diag("SITE: retry %d/3 failed for %s: %v", attempt, pid.ShortString(), dialErr)
+			if attempt < 3 {
+				select {
+				case <-retryCtx.Done():
+					break
+				case <-time.After(time.Duration(attempt*3) * time.Second):
+				}
+				// Re-inject in case peerstore TTL expired during wait.
+				n.addRelayAddrForPeer(pid)
+			}
+		}
 	}
 	if dialErr != nil {
 		detail := fmt.Sprintf("peer unreachable\naddrs: %s\nerror: %v", strings.Join(addrStrs, ", "), dialErr)

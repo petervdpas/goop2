@@ -2,9 +2,7 @@ package rendezvous
 
 import (
 	"context"
-	"crypto/rand"
 	"embed"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -546,10 +544,6 @@ func (s *Server) Start(ctx context.Context) error {
 				http.Error(w, "registration not available", http.StatusNotFound)
 			}
 		})
-	} else {
-		// Built-in registration handlers
-		mux.HandleFunc("/register", s.handleRegister)
-		mux.HandleFunc("/verify", s.handleVerify)
 	}
 
 	// SSE: stream messages to subscribers
@@ -2212,135 +2206,11 @@ func (s *Server) handleRegisterRemote(w http.ResponseWriter, r *http.Request) {
 	s.renderRegister(w, vm)
 }
 
-func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
-	if s.registerTmpl == nil {
-		http.Error(w, "registration not available", http.StatusNotFound)
-		return
-	}
-
-	if s.peerDB == nil {
-		http.Error(w, "registration requires database", http.StatusServiceUnavailable)
-		return
-	}
-
-	vm := registerVM{Title: "Register — Goop² Rendezvous"}
-
-	if r.Method == http.MethodPost {
-		if err := r.ParseForm(); err != nil {
-			vm.Error = "Invalid form data"
-			s.renderRegister(w, vm)
-			return
-		}
-
-		email := strings.TrimSpace(r.FormValue("email"))
-		if email == "" {
-			vm.Error = "Email is required"
-			vm.Email = email
-			s.renderRegister(w, vm)
-			return
-		}
-
-		// Basic email validation
-		if !strings.Contains(email, "@") || !strings.Contains(email, ".") {
-			vm.Error = "Please enter a valid email address"
-			vm.Email = email
-			s.renderRegister(w, vm)
-			return
-		}
-
-		// Check if already verified
-		if s.peerDB.isEmailVerified(email) {
-			vm.Error = "This email is already registered and verified"
-			vm.Email = email
-			s.renderRegister(w, vm)
-			return
-		}
-
-		// Generate verification token
-		token := generateToken()
-
-		// Save registration
-		if err := s.peerDB.createRegistration(email, token); err != nil {
-			vm.Error = "Failed to create registration"
-			vm.Email = email
-			s.renderRegister(w, vm)
-			return
-		}
-
-		// Build verification URL
-		baseURL := s.externalURL
-		if baseURL == "" {
-			baseURL = "http://" + r.Host
-		}
-		verifyURL := baseURL + "/verify?token=" + token
-
-		// Log the verification link to console (SMTP is handled by
-		// the standalone registration service when configured)
-		log.Printf("────────────────────────────────────────────────────────")
-		log.Printf("VERIFICATION LINK for %s:", email)
-		log.Printf("   %s", verifyURL)
-		log.Printf("────────────────────────────────────────────────────────")
-
-		s.addLog(fmt.Sprintf("Registration requested: %s", email))
-
-		vm.Success = true
-		vm.Email = email
-		s.renderRegister(w, vm)
-		return
-	}
-
-	// GET: show registration form
-	s.renderRegister(w, vm)
-}
-
 func (s *Server) renderRegister(w http.ResponseWriter, vm registerVM) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.registerTmpl.Execute(w, vm); err != nil {
 		log.Printf("register template error: %v", err)
 	}
-}
-
-func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	if s.peerDB == nil {
-		http.Error(w, "verification requires database", http.StatusServiceUnavailable)
-		return
-	}
-
-	token := r.URL.Query().Get("token")
-	if token == "" {
-		http.Error(w, "missing token", http.StatusBadRequest)
-		return
-	}
-
-	email, ok := s.peerDB.verifyRegistration(token)
-	if !ok {
-		http.Error(w, "invalid or expired token", http.StatusBadRequest)
-		return
-	}
-
-	s.addLog(fmt.Sprintf("Email verified: %s", email))
-	log.Printf("Email verified: %s", email)
-
-	// Show success page
-	if s.registerTmpl != nil {
-		vm := registerVM{
-			Title:    "Verified — Goop² Rendezvous",
-			Email:    email,
-			Success:  true,
-			Verified: true,
-		}
-		s.renderRegister(w, vm)
-		return
-	}
-
-	// Fallback text response
-	w.Header().Set("Content-Type", "text/plain")
-	fmt.Fprintf(w, "Email %s verified successfully!\n", email)
 }
 
 func (s *Server) handleRegistrationsJSON(w http.ResponseWriter, r *http.Request) {
@@ -2352,7 +2222,6 @@ func (s *Server) handleRegistrationsJSON(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Delegate to remote registration service when configured
 	if s.registration != nil {
 		data, err := s.registration.FetchRegistrations()
 		if err != nil {
@@ -2365,21 +2234,8 @@ func (s *Server) handleRegistrationsJSON(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Fallback to local peerDB
-	if s.peerDB == nil {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte("[]"))
-		return
-	}
-
-	regs, err := s.peerDB.listRegistrations()
-	if err != nil {
-		http.Error(w, "database error", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_ = json.NewEncoder(w).Encode(regs)
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write([]byte("[]"))
 }
 
 func (s *Server) handleAccountsJSON(w http.ResponseWriter, r *http.Request) {
@@ -2408,12 +2264,3 @@ func (s *Server) handleAccountsJSON(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
-// generateToken creates a random URL-safe token.
-func generateToken() string {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		// Fallback to timestamp-based token
-		return fmt.Sprintf("%d", time.Now().UnixNano())
-	}
-	return base64.URLEncoding.EncodeToString(b)
-}
