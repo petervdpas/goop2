@@ -98,8 +98,11 @@ func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (m
 	// Log known addresses for diagnostics.
 	knownAddrs := n.Host.Peerstore().Addrs(pid)
 	log.Printf("SITE: dialing %s (%d known addrs)", peerID, len(knownAddrs))
+	var addrStrs []string
 	for _, a := range knownAddrs {
-		log.Printf("SITE:   addr: %s", a)
+		s := a.String()
+		addrStrs = append(addrStrs, s)
+		log.Printf("SITE:   addr: %s", s)
 	}
 
 	// Clear any dial backoff so we get a fresh connection attempt.
@@ -108,7 +111,8 @@ func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (m
 	}
 	if err := n.Host.Connect(ctx, peer.AddrInfo{ID: pid}); err != nil {
 		log.Printf("SITE: connect failed: %v", err)
-		return "", nil, fmt.Errorf("peer unreachable")
+		detail := fmt.Sprintf("peer unreachable\naddrs: %s\nerror: %v", strings.Join(addrStrs, ", "), err)
+		return "", nil, fmt.Errorf("%s", detail)
 	}
 
 	st, err := n.Host.NewStream(ctx, pid, protocol.ID(proto.SiteProtoID))
