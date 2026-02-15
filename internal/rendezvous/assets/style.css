@@ -516,9 +516,35 @@ h1 {
   border: 1px solid var(--border);
 }
 
+.peer-addrs-details {
+  margin-top: 6px;
+}
+
+.peer-addrs-summary {
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.peer-addrs-summary:hover { color: var(--text); }
+
+.peer-addrs {
+  margin-top: 4px;
+  font-size: 10px;
+  font-family: monospace;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.peer-addr {
+  word-break: break-all;
+  padding: 1px 0;
+}
+
 .peer-stats {
   display: flex;
   gap: 14px;
+  align-items: center;
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid var(--border);
@@ -530,8 +556,31 @@ h1 {
   color: var(--text-muted);
 }
 
-.stat-item:first-child { color: var(--green); }
-.stat-item:last-child  { color: var(--blue); }
+.stat-item:nth-child(1) { color: var(--green); }
+.stat-item:nth-child(2) { color: var(--blue); }
+
+.btn-copy-peer {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-inset);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.btn-copy-peer:hover { color: var(--text); border-color: var(--text-muted); }
+
+.btn-sm {
+  font-size: 11px;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-inset);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.btn-sm:hover { color: var(--text); border-color: var(--text-muted); }
 
 /* ─── Unverified badge ─── */
 .badge-unverified {
