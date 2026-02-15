@@ -161,7 +161,7 @@
                   <div class="peer-stats">
                     <span class="stat-item" title="Sent">↑ {{fmtBytes .BytesSent}}</span>
                     <span class="stat-item" title="Received">↓ {{fmtBytes .BytesReceived}}</span>
-                    <button class="btn-copy-peer" onclick="copyPeerInfo(this)" title="Copy peer info">Copy</button>
+                    <button class="btn-copy-peer" onclick="diagnosePeer('{{.PeerID}}','{{.Content}}')">Diagnose</button>
                   </div>
                 </div>
                 {{end}}
@@ -337,6 +337,8 @@
           if(item.classList.contains('active')) activeSection = item.getAttribute('data-section');
           item.addEventListener('click', function(){ activeSection = item.getAttribute('data-section'); });
         });
+        // Expose setter so diagnosePeer/closeDiag can update the active section.
+        window._setActiveSection = function(s){ activeSection = s; };
 
         async function updatePeers(){
           if(document.hidden)return;
@@ -364,7 +366,7 @@
                 +(p.email?'<div class="peer-email">'+p.email+'</div>':'')
                 +'<div class="peer-id">'+p.peer_id+'</div>'
                 +addrsHtml
-                +'<div class="peer-stats"><span class="stat-item">↑ '+formatBytes(p.bytes_sent||0)+'</span><span class="stat-item">↓ '+formatBytes(p.bytes_received||0)+'</span><button class="btn-copy-peer" onclick="diagnosePeer(\''+p.peer_id+'\',\''+(p.content||'').replace(/\'/g,'')+'\')">Diagnose</button><button class="btn-copy-peer" onclick="copyPeerInfo(this)" title="Copy peer info">Copy</button></div>'
+                +'<div class="peer-stats"><span class="stat-item">↑ '+formatBytes(p.bytes_sent||0)+'</span><span class="stat-item">↓ '+formatBytes(p.bytes_received||0)+'</span><button class="btn-copy-peer" onclick="diagnosePeer(\''+p.peer_id+'\',\''+(p.content||'').replace(/\'/g,'')+'\')">Diagnose</button></div>'
                 +'</div>';
             }).join('')+'</div>';
             applyFilter();
@@ -615,28 +617,6 @@
         if(tab==='relay' && window.updateRelay) updateRelay();
       }
 
-      // ── Copy helpers ──
-      function copyPeerInfo(btn){
-        var card = btn.closest('.peer-card');
-        if(!card) return;
-        var label = card.querySelector('.peer-label');
-        var email = card.querySelector('.peer-email');
-        var pid = card.querySelector('.peer-id');
-        var addrs = card.querySelectorAll('.peer-addr');
-        var lines = [];
-        if(label) lines.push('Name: ' + label.textContent.trim());
-        if(email) lines.push('Email: ' + email.textContent.trim());
-        if(pid) lines.push('Peer ID: ' + pid.textContent.trim());
-        if(addrs.length){
-          lines.push('Addresses:');
-          addrs.forEach(function(a){ lines.push('  ' + a.textContent.trim()); });
-        }
-        navigator.clipboard.writeText(lines.join('\n')).then(function(){
-          btn.textContent = 'Copied!';
-          setTimeout(function(){ btn.textContent = 'Copy'; }, 1500);
-        });
-      }
-
       var _diagPeerID = '';
       var _diagPeerName = '';
 
@@ -644,12 +624,13 @@
         _diagPeerID = peerID;
         _diagPeerName = name || peerID.substring(0,12);
 
-        // Switch to the diag section
+        // Switch to the diag section and pause live polling
         document.querySelectorAll('.admin-section').forEach(function(s){ s.style.display='none'; s.classList.remove('active'); });
         document.querySelectorAll('.admin-nav-item').forEach(function(n){ n.classList.remove('active'); });
         var diagSec = document.querySelector('[data-section="diag"]');
         diagSec.style.display = '';
         diagSec.classList.add('active');
+        if(window._setActiveSection) window._setActiveSection('diag');
 
         document.getElementById('diag-title').textContent = 'Diagnostics: ' + _diagPeerName;
         document.getElementById('diag-view').innerHTML = '<div style="padding:24px;color:var(--muted)">Querying peer via relay connection...</div>';
@@ -800,7 +781,7 @@
 
       function closeDiag(){
         document.querySelector('[data-section="diag"]').style.display = 'none';
-        // Return to peers section
+        // Return to peers section and resume live polling
         document.querySelectorAll('.admin-section').forEach(function(s){ s.style.display='none'; s.classList.remove('active'); });
         var peersSection = document.querySelector('[data-section="peers"]');
         peersSection.style.display = '';
@@ -809,6 +790,8 @@
           n.classList.remove('active');
           if(n.getAttribute('data-section')==='peers') n.classList.add('active');
         });
+        // Tell the live poller we're back on peers so it renders immediately
+        if(window._setActiveSection) window._setActiveSection('peers');
       }
 
       function copyDiagResult(){

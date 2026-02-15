@@ -694,6 +694,30 @@ func (n *Node) ensureRelayReservation(ctx context.Context) {
 	}
 }
 
+// addRelayAddrForPeer constructs a circuit relay address for a target peer
+// and adds it to the peerstore. This allows dialing a peer through the relay
+// even if the peer never published a circuit address in its presence.
+// Address format: <relay-addr>/p2p/<relay-id>/p2p-circuit
+// When logIt is true, entries are written to the diagnostic log.
+func (n *Node) addRelayAddrForPeer(pid peer.ID) {
+	n.injectRelayAddrs(pid, true)
+}
+
+func (n *Node) injectRelayAddrs(pid peer.ID, logIt bool) {
+	if n.relayPeer == nil {
+		return
+	}
+	for _, raddr := range n.relayPeer.Addrs {
+		circuitAddr := raddr.Encapsulate(
+			ma.StringCast("/p2p/" + n.relayPeer.ID.String() + "/p2p-circuit"),
+		)
+		if logIt {
+			n.diag("relay: injecting circuit addr for %s: %s", pid.ShortString(), circuitAddr)
+		}
+		n.Host.Peerstore().AddAddr(pid, circuitAddr, 2*time.Minute)
+	}
+}
+
 // relayInfoToAddrInfo converts a RelayInfo (from the rendezvous server) into
 // a libp2p peer.AddrInfo suitable for autorelay.
 func relayInfoToAddrInfo(ri *rendezvous.RelayInfo) (*peer.AddrInfo, error) {
@@ -749,6 +773,13 @@ func (n *Node) addPeerAddrs(peerID string, addrs []string) {
 	}
 	if len(circuit) > 0 {
 		n.Host.Peerstore().AddAddrs(pid, circuit, ttl*10)
+	}
+
+	// If the peer published no circuit address but we have a relay configured,
+	// proactively inject a constructed circuit relay address. This ensures we
+	// can reach peers that failed to obtain their own relay reservation.
+	if len(circuit) == 0 && n.relayPeer != nil && pid != n.relayPeer.ID {
+		n.injectRelayAddrs(pid, false)
 	}
 }
 
