@@ -139,13 +139,13 @@ func (p *peerDB) loadAll() ([]peerRow, error) {
 	return result, rows.Err()
 }
 
-// lookupEmail returns the email for a peer ID, or "" if not found.
+// lookupEmail returns the email for a verified peer ID, or "" if not found/unverified.
 func (p *peerDB) lookupEmail(peerID string) string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	var email string
-	err := p.db.QueryRow("SELECT email FROM peers WHERE peer_id = ?", peerID).Scan(&email)
+	err := p.db.QueryRow("SELECT email FROM peers WHERE peer_id = ? AND verified = 1", peerID).Scan(&email)
 	if err != nil {
 		return ""
 	}

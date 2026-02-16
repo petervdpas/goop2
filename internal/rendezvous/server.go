@@ -125,6 +125,9 @@ type peerRow struct {
 	BytesSent      int64    `json:"bytes_sent"`
 	BytesReceived  int64    `json:"bytes_received"`
 	Verified       bool     `json:"verified"`
+
+	// Internal-only: stored server-side, never broadcast to peers.
+	verificationToken string
 }
 
 type indexVM struct {
@@ -385,10 +388,11 @@ func (s *Server) SetCreditProvider(cp CreditProvider) {
 }
 
 // GetEmailForPeer resolves a peer ID to an email address.
+// Only returns the email if the peer is verified (has a valid token).
 // Checks in-memory peers first, then falls back to peerDB.
 func (s *Server) GetEmailForPeer(peerID string) string {
 	s.mu.Lock()
-	if p, ok := s.peers[peerID]; ok && p.Email != "" {
+	if p, ok := s.peers[peerID]; ok && p.Email != "" && p.Verified {
 		s.mu.Unlock()
 		return p.Email
 	}
@@ -396,6 +400,17 @@ func (s *Server) GetEmailForPeer(peerID string) string {
 
 	if s.peerDB != nil {
 		return s.peerDB.lookupEmail(peerID)
+	}
+	return ""
+}
+
+// GetTokenForPeer returns the stored verification token for a peer.
+// Used to pass downstream to services for defense-in-depth validation.
+func (s *Server) GetTokenForPeer(peerID string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if p, ok := s.peers[peerID]; ok && p.Verified {
+		return p.verificationToken
 	}
 	return ""
 }
@@ -693,7 +708,8 @@ func (s *Server) Start(ctx context.Context) error {
 			}
 		}
 
-		// Strip verification token before broadcasting to peers
+		// Save token server-side before stripping from broadcast message
+		peerToken := pm.VerificationToken
 		pm.VerificationToken = ""
 
 		// normalize timestamp if caller didn't set it
@@ -710,7 +726,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 		// update peer snapshot for / and /peers.json
 		// Always store and broadcast — mark unverified peers
-		s.upsertPeer(pm, msgSize, isRegistered)
+		s.upsertPeer(pm, msgSize, isRegistered, peerToken)
 		s.addLog(fmt.Sprintf("Received %s from %s: %q (verified=%v)", pm.Type, pm.PeerID, pm.Content, isRegistered))
 		s.broadcast(b)
 
@@ -748,8 +764,8 @@ func (s *Server) Start(ctx context.Context) error {
 				s.mu.Lock()
 				peer, known := s.peers[peerID]
 				s.mu.Unlock()
-				if !known || peer.Email == "" || !s.registration.IsEmailVerified(peer.Email) {
-					http.Error(w, "register and verify your email to access the template store", http.StatusForbidden)
+				if !known || !peer.Verified {
+					http.Error(w, "register and verify your email, then enter the token in settings", http.StatusForbidden)
 					return
 				}
 			}
@@ -920,7 +936,7 @@ func (s *Server) broadcast(b []byte) {
 	}
 }
 
-func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64, verified bool) {
+func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64, verified bool, verificationToken string) {
 	now := time.Now().UnixMilli()
 
 	s.mu.Lock()
@@ -947,18 +963,19 @@ func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64, verified bool) 
 	}
 
 	row := peerRow{
-		PeerID:         pm.PeerID,
-		Type:           pm.Type,
-		Content:        pm.Content,
-		Email:          pm.Email,
-		AvatarHash:     pm.AvatarHash,
-		ActiveTemplate: pm.ActiveTemplate,
-		Addrs:          pm.Addrs,
-		TS:             pm.TS,
-		LastSeen:       now,
-		BytesSent:      bytesSent,
-		BytesReceived:  bytesReceived,
-		Verified:       verified,
+		PeerID:            pm.PeerID,
+		Type:              pm.Type,
+		Content:           pm.Content,
+		Email:             pm.Email,
+		AvatarHash:        pm.AvatarHash,
+		ActiveTemplate:    pm.ActiveTemplate,
+		Addrs:             pm.Addrs,
+		TS:                pm.TS,
+		LastSeen:          now,
+		BytesSent:         bytesSent,
+		BytesReceived:     bytesReceived,
+		Verified:          verified,
+		verificationToken: verificationToken,
 	}
 	s.peers[pm.PeerID] = row
 	s.peersDirty = true
@@ -1699,13 +1716,21 @@ func (s *Server) handleCredits(w http.ResponseWriter, r *http.Request) {
 		vm.PeerID = peerID
 
 		reqURL := cp.baseURL + "/api/credits/store-data"
+		var token string
 		if peerID != "" {
 			if email := cp.emailResolver(peerID); email != "" {
 				reqURL += "?email=" + url.QueryEscape(email)
 			}
+			if cp.tokenResolver != nil {
+				token = cp.tokenResolver(peerID)
+			}
 		}
 
-		resp, err := cp.client.Get(reqURL)
+		req, _ := http.NewRequest("GET", reqURL, nil)
+		if token != "" {
+			req.Header.Set("X-Verification-Token", token)
+		}
+		resp, err := cp.client.Do(req)
 		if err == nil {
 			defer resp.Body.Close()
 			var data struct {
@@ -2107,8 +2132,8 @@ func (s *Server) handleTemplateRoutesRemote(w http.ResponseWriter, r *http.Reque
 			s.mu.Lock()
 			peer, known := s.peers[peerID]
 			s.mu.Unlock()
-			if !known || peer.Email == "" || !s.registration.IsEmailVerified(peer.Email) {
-				http.Error(w, "registration required", http.StatusForbidden)
+			if !known || !peer.Verified {
+				http.Error(w, "registration required — verify your email and enter the token in settings", http.StatusForbidden)
 				return
 			}
 		}
@@ -2118,9 +2143,12 @@ func (s *Server) handleTemplateRoutesRemote(w http.ResponseWriter, r *http.Reque
 			http.Error(w, "payment required", http.StatusPaymentRequired)
 			return
 		}
-		// Inject email header so the templates service can do its own credit check
+		// Inject email + token headers so the templates service can do its own checks
 		if email := s.GetEmailForPeer(peerID); email != "" {
 			r.Header.Set("X-Goop-Email", email)
+		}
+		if token := s.GetTokenForPeer(peerID); token != "" {
+			r.Header.Set("X-Verification-Token", token)
 		}
 	}
 

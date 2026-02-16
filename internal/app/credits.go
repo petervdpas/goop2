@@ -13,5 +13,5 @@ func setupCredits(rv *rendezvous.Server, creditsURL, adminToken string) {
 		return
 	}
 	log.Printf("Credits service: %s", creditsURL)
-	rv.SetCreditProvider(rendezvous.NewRemoteCreditProvider(creditsURL, rv.GetEmailForPeer, adminToken))
+	rv.SetCreditProvider(rendezvous.NewRemoteCreditProvider(creditsURL, rv.GetEmailForPeer, rv.GetTokenForPeer, adminToken))
 }

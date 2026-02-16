@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -100,8 +101,14 @@ func (p *RemoteRegistrationProvider) IsEmailVerified(email string) bool {
 
 // IsEmailTokenValid queries the registration service to check if an email+token pair is valid.
 func (p *RemoteRegistrationProvider) IsEmailTokenValid(email, token string) bool {
-	reqURL := fmt.Sprintf("%s/api/reg/validate?email=%s&token=%s", p.baseURL, url.QueryEscape(email), url.QueryEscape(token))
-	resp, err := p.client.Get(reqURL)
+	body, _ := json.Marshal(map[string]string{"email": email, "token": token})
+	req, err := http.NewRequest("POST", p.baseURL+"/api/reg/validate", strings.NewReader(string(body)))
+	if err != nil {
+		log.Printf("registration: token validate error: %v", err)
+		return false
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := p.client.Do(req)
 	if err != nil {
 		log.Printf("registration: token validate error: %v", err)
 		return false
