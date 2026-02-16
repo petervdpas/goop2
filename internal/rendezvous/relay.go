@@ -9,11 +9,13 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	libp2p "github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
+	pbv2 "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/pb"
 	relayv2 "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
 )
 
@@ -30,10 +32,85 @@ type RelayInfo struct {
 	RecoveryGraceSec   int `json:"recovery_grace_sec"`
 }
 
+// relayTracer logs circuit relay events to the relay log via a callback.
+type relayTracer struct {
+	logFn          func(string)
+	openCircuits   atomic.Int32
+	bytesRelayed   atomic.Int64
+}
+
+func (t *relayTracer) RelayStatus(enabled bool) {
+	if enabled {
+		t.logFn("relay service enabled")
+	} else {
+		t.logFn("relay service disabled")
+	}
+}
+
+func (t *relayTracer) ConnectionOpened() {
+	n := t.openCircuits.Add(1)
+	t.logFn(fmt.Sprintf("CIRCUIT opened (active: %d)", n))
+}
+
+func (t *relayTracer) ConnectionClosed(d time.Duration) {
+	n := t.openCircuits.Add(-1)
+	t.logFn(fmt.Sprintf("CIRCUIT closed after %s (active: %d)", d.Truncate(time.Second), n))
+}
+
+func (t *relayTracer) ConnectionRequestHandled(status pbv2.Status) {
+	if status != pbv2.Status_OK {
+		t.logFn(fmt.Sprintf("CIRCUIT request: %s", statusString(status)))
+	}
+}
+
+func (t *relayTracer) ReservationAllowed(isRenewal bool) {
+	if isRenewal {
+		t.logFn("reservation renewed")
+	} else {
+		t.logFn("reservation created")
+	}
+}
+
+func (t *relayTracer) ReservationClosed(cnt int) {
+	t.logFn(fmt.Sprintf("reservation closed (%d remaining)", cnt))
+}
+
+func (t *relayTracer) ReservationRequestHandled(status pbv2.Status) {
+	if status != pbv2.Status_OK {
+		t.logFn(fmt.Sprintf("reservation request: %s", statusString(status)))
+	}
+}
+
+func (t *relayTracer) BytesTransferred(cnt int) {
+	t.bytesRelayed.Add(int64(cnt))
+}
+
+func statusString(s pbv2.Status) string {
+	switch s {
+	case pbv2.Status_OK:
+		return "OK"
+	case pbv2.Status_RESERVATION_REFUSED:
+		return "RESERVATION_REFUSED"
+	case pbv2.Status_RESOURCE_LIMIT_EXCEEDED:
+		return "RESOURCE_LIMIT_EXCEEDED"
+	case pbv2.Status_PERMISSION_DENIED:
+		return "PERMISSION_DENIED"
+	case pbv2.Status_NO_RESERVATION:
+		return "NO_RESERVATION"
+	case pbv2.Status_CONNECTION_FAILED:
+		return "CONNECTION_FAILED"
+	case pbv2.Status_MALFORMED_MESSAGE:
+		return "MALFORMED_MESSAGE"
+	default:
+		return fmt.Sprintf("status_%d", s)
+	}
+}
+
 // StartRelay creates a libp2p host that acts as a circuit relay v2 server.
 // externalURL, if set, is used to derive the public IP so WAN peers get a
 // reachable address (e.g. /ip4/<public>/tcp/<port>/p2p/<id>).
-func StartRelay(port int, keyFile string, externalURL string) (host.Host, *RelayInfo, error) {
+// logFn is called for circuit events (nil = log.Printf).
+func StartRelay(port int, keyFile string, externalURL string, logFn func(string)) (host.Host, *RelayInfo, error) {
 	priv, err := loadOrCreateRelayKey(keyFile)
 	if err != nil {
 		return nil, nil, fmt.Errorf("relay key: %w", err)
@@ -56,6 +133,10 @@ func StartRelay(port int, keyFile string, externalURL string) (host.Host, *Relay
 	// Default limits are too restrictive for a private relay (Duration: 2min,
 	// Data: 128KB per relayed connection). GossipSub heartbeats exhaust
 	// these quickly, killing the data path while TCP stays alive.
+	if logFn == nil {
+		logFn = func(msg string) { log.Print(msg) }
+	}
+	tracer := &relayTracer{logFn: logFn}
 	if _, err := relayv2.New(h, relayv2.WithResources(relayv2.Resources{
 		Limit: &relayv2.RelayLimit{
 			Duration: 30 * time.Minute,
@@ -68,7 +149,7 @@ func StartRelay(port int, keyFile string, externalURL string) (host.Host, *Relay
 		MaxReservationsPerPeer: 8,
 		MaxReservationsPerIP:   16,
 		MaxReservationsPerASN:  64,
-	})); err != nil {
+	}), relayv2.WithMetricsTracer(tracer)); err != nil {
 		_ = h.Close()
 		return nil, nil, fmt.Errorf("relay service: %w", err)
 	}
