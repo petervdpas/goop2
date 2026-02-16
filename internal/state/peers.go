@@ -70,6 +70,17 @@ func (t *PeerTable) Get(id string) (SeenPeer, bool) {
 	return sp, ok
 }
 
+// IDs returns the peer IDs currently in the table.
+func (t *PeerTable) IDs() []string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	ids := make([]string, 0, len(t.peers))
+	for id := range t.peers {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
 func (t *PeerTable) Snapshot() map[string]SeenPeer {
 	t.mu.Lock()
 	defer t.mu.Unlock()
