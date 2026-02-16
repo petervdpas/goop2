@@ -133,18 +133,7 @@ func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (m
 
 	addrStrs, st, dialErr := n.dialAndOpenStream(ctx, pid)
 	if dialErr != nil && n.relayPeer != nil {
-		n.diag("SITE: dial failed for %s, pulsing via rendezvous", pid.ShortString())
-
-		// Close stale connections to the target peer.
-		for _, c := range n.Host.Network().ConnsToPeer(pid) {
-			_ = c.Close()
-		}
-
-		// Remove direct addresses — they're unreachable (that's why
-		// we're here). Keep only circuit addresses so Host.Connect()
-		// doesn't re-establish a broken direct connection that
-		// NewStream() would then pick over the working circuit.
-		n.Host.Peerstore().ClearAddrs(pid)
+		n.diag("SITE: dial failed for %s, falling back to relay circuit", pid.ShortString())
 
 		// Fresh context — the original likely expired during the dial.
 		retryCtx, retryCancel := context.WithTimeout(context.Background(), 45*time.Second)
@@ -160,30 +149,35 @@ func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (m
 			}
 		}
 
-		// Inject a circuit relay address for the target so we can
-		// route through the relay even if they never published one.
-		// After ClearAddrs, this is the ONLY address — ensuring
-		// we only dial via the relay circuit.
-		n.addRelayAddrForPeer(pid)
-
 		// Retry with per-attempt timeout — prevents one hanging
 		// NewStream() from consuming the entire retry budget.
 		for attempt := 1; attempt <= 3; attempt++ {
+			// Before each attempt: close connections that may have been
+			// (re-)established by background activity (presence heartbeats,
+			// identify rounds) and purge ALL peerstore addresses. Then
+			// inject ONLY the circuit relay address — forcing the dial
+			// through the relay. Without this, Host.Connect() may
+			// re-establish a broken direct TCP connection that NewStream()
+			// then picks over the working circuit.
+			for _, c := range n.Host.Network().ConnsToPeer(pid) {
+				_ = c.Close()
+			}
+			n.Host.Peerstore().ClearAddrs(pid)
+			n.addRelayAddrForPeer(pid)
+
 			attemptCtx, attemptCancel := context.WithTimeout(retryCtx, 15*time.Second)
 			addrStrs, st, dialErr = n.dialAndOpenStream(attemptCtx, pid)
 			attemptCancel()
 			if dialErr == nil {
 				break
 			}
-			n.diag("SITE: retry %d/3 failed for %s: %v", attempt, pid.ShortString(), dialErr)
+			n.diag("SITE: relay retry %d/3 failed for %s: %v", attempt, pid.ShortString(), dialErr)
 			if attempt < 3 {
 				select {
 				case <-retryCtx.Done():
 					break
 				case <-time.After(time.Duration(attempt*3) * time.Second):
 				}
-				// Re-inject in case peerstore TTL expired during wait.
-				n.addRelayAddrForPeer(pid)
 			}
 		}
 	}
