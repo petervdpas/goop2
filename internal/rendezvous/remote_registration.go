@@ -98,6 +98,25 @@ func (p *RemoteRegistrationProvider) IsEmailVerified(email string) bool {
 	return result.Verified
 }
 
+// IsEmailTokenValid queries the registration service to check if an email+token pair is valid.
+func (p *RemoteRegistrationProvider) IsEmailTokenValid(email, token string) bool {
+	reqURL := fmt.Sprintf("%s/api/reg/validate?email=%s&token=%s", p.baseURL, url.QueryEscape(email), url.QueryEscape(token))
+	resp, err := p.client.Get(reqURL)
+	if err != nil {
+		log.Printf("registration: token validate error: %v", err)
+		return false
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Valid bool `json:"valid"`
+	}
+	if err := readJSON(resp, &result); err != nil {
+		return false
+	}
+	return result.Valid
+}
+
 // fetchStatus fetches and caches /api/reg/status (registration_required, version).
 func (p *RemoteRegistrationProvider) fetchStatus() {
 	var result struct {

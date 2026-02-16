@@ -27,14 +27,15 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 
 		var req struct {
-			Label          *string `json:"label"`
-			Email          *string `json:"email"`
-			Theme          *string `json:"theme"`
-			PreferredCam   *string `json:"preferred_cam"`
-			PreferredMic   *string `json:"preferred_mic"`
-			VideoDisabled  *bool   `json:"video_disabled"`
-			HideUnverified *bool   `json:"hide_unverified"`
-			UseServices    *bool   `json:"use_services"`
+			Label             *string `json:"label"`
+			Email             *string `json:"email"`
+			VerificationToken *string `json:"verification_token"`
+			Theme             *string `json:"theme"`
+			PreferredCam      *string `json:"preferred_cam"`
+			PreferredMic      *string `json:"preferred_mic"`
+			VideoDisabled     *bool   `json:"video_disabled"`
+			HideUnverified    *bool   `json:"hide_unverified"`
+			UseServices       *bool   `json:"use_services"`
 		}
 		if decodeJSON(w, r, &req) != nil {
 			return
@@ -51,6 +52,9 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 		if req.Email != nil {
 			cfg.Profile.Email = strings.TrimSpace(*req.Email)
+		}
+		if req.VerificationToken != nil {
+			cfg.Profile.VerificationToken = strings.TrimSpace(*req.VerificationToken)
 		}
 		if req.Theme != nil && isValidTheme(*req.Theme) {
 			cfg.Viewer.Theme = *req.Theme
@@ -90,13 +94,14 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			return
 		}
 		writeJSON(w, map[string]interface{}{
-			"label":           cfg.Profile.Label,
-			"email":           cfg.Profile.Email,
-			"theme":           cfg.Viewer.Theme,
-			"preferred_cam":   cfg.Viewer.PreferredCam,
-			"preferred_mic":   cfg.Viewer.PreferredMic,
-			"video_disabled":  cfg.Viewer.VideoDisabled,
-			"hide_unverified": cfg.Viewer.HideUnverified,
+			"label":              cfg.Profile.Label,
+			"email":              cfg.Profile.Email,
+			"verification_token": cfg.Profile.VerificationToken,
+			"theme":              cfg.Viewer.Theme,
+			"preferred_cam":      cfg.Viewer.PreferredCam,
+			"preferred_mic":      cfg.Viewer.PreferredMic,
+			"video_disabled":     cfg.Viewer.VideoDisabled,
+			"hide_unverified":    cfg.Viewer.HideUnverified,
 		})
 	})
 

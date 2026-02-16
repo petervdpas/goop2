@@ -2,11 +2,12 @@
 package viewmodels
 
 type BaseVM struct {
-	Title       string
-	Active      string
-	SelfName    string
-	SelfEmail   string
-	SelfID      string
+	Title                 string
+	Active                string
+	SelfName              string
+	SelfEmail             string
+	SelfVerificationToken string
+	SelfID                string
 	ContentTmpl string
 	BaseURL     string
 	Debug       bool

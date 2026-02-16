@@ -18,12 +18,14 @@ import (
 func baseVM(title, active, contentTmpl string, d Deps) viewmodels.BaseVM {
 	debug := false
 	theme := "dark"
+	verificationToken := ""
 
 	// Reload config from disk to get latest theme/debug settings
 	if d.CfgPath != "" {
 		if cfg, err := config.Load(d.CfgPath); err == nil {
 			debug = cfg.Viewer.Debug
 			theme = cfg.Viewer.Theme
+			verificationToken = cfg.Profile.VerificationToken
 		}
 	}
 
@@ -36,19 +38,20 @@ func baseVM(title, active, contentTmpl string, d Deps) viewmodels.BaseVM {
 	}
 
 	return viewmodels.BaseVM{
-		Title:          title,
-		Active:         active,
-		ContentTmpl:    contentTmpl,
-		SelfName:       safeCall(d.SelfLabel),
-		SelfEmail:      safeCall(d.SelfEmail),
-		SelfID:         selfID,
-		BaseURL:        d.BaseURL,
-		Debug:          debug,
-		Theme:          theme,
-		RendezvousOnly: d.RendezvousOnly,
-		RendezvousURL:  d.RendezvousURL,
-		BridgeURL:      d.BridgeURL,
-		WhichOS:        runtime.GOOS,
+		Title:                 title,
+		Active:                active,
+		ContentTmpl:           contentTmpl,
+		SelfName:              safeCall(d.SelfLabel),
+		SelfEmail:             safeCall(d.SelfEmail),
+		SelfVerificationToken: verificationToken,
+		SelfID:                selfID,
+		BaseURL:               d.BaseURL,
+		Debug:                 debug,
+		Theme:                 theme,
+		RendezvousOnly:        d.RendezvousOnly,
+		RendezvousURL:         d.RendezvousURL,
+		BridgeURL:             d.BridgeURL,
+		WhichOS:               runtime.GOOS,
 	}
 }
 
