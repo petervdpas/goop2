@@ -46,9 +46,10 @@ type PresenceMsg struct {
 	AvatarHash      string   `json:"avatarHash,omitempty"`
 	VideoDisabled   bool     `json:"videoDisabled,omitempty"`   // Peer has video/audio calls disabled
 	ActiveTemplate  string   `json:"activeTemplate,omitempty"`  // Currently applied template dir name
-	Addrs           []string `json:"addrs,omitempty"`           // Multiaddresses for WAN connectivity
-	TS              int64    `json:"ts"`
-	Verified        bool     `json:"verified,omitempty"` // Set by rendezvous server (email verified)
+	Addrs             []string `json:"addrs,omitempty"`             // Multiaddresses for WAN connectivity
+	VerificationToken string   `json:"verificationToken,omitempty"` // Set by client, validated + stripped by server
+	TS                int64    `json:"ts"`
+	Verified          bool     `json:"verified,omitempty"` // Set by rendezvous server (email verified)
 }
 
 func NowMillis() int64 { return time.Now().UnixMilli() }

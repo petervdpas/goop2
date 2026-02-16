@@ -686,12 +686,15 @@ func (s *Server) Start(ctx context.Context) error {
 		// Check registration if the registration service requires it
 		isRegistered := true
 		if s.registration != nil && s.registration.RegistrationRequired() {
-			if pm.Email == "" {
+			if pm.Email == "" || pm.VerificationToken == "" {
 				isRegistered = false
 			} else {
-				isRegistered = s.registration.IsEmailVerified(pm.Email)
+				isRegistered = s.registration.IsEmailTokenValid(pm.Email, pm.VerificationToken)
 			}
 		}
+
+		// Strip verification token before broadcasting to peers
+		pm.VerificationToken = ""
 
 		// normalize timestamp if caller didn't set it
 		if pm.TS == 0 {

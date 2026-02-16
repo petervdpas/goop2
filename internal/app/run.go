@@ -157,6 +157,13 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		return cfg.Viewer.ActiveTemplate
 	}
 
+	selfVerificationToken := func() string {
+		if c, err := config.LoadPartial(o.CfgPath); err == nil {
+			return c.Profile.VerificationToken
+		}
+		return cfg.Profile.VerificationToken
+	}
+
 	if cfg.Presence.RendezvousOnly {
 		log.Printf("mode: rendezvous-only")
 
@@ -370,8 +377,9 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 					Email:          selfEmail(),
 					AvatarHash:     avatarStore.Hash(),
 					VideoDisabled:  selfVideoDisabled(),
-					ActiveTemplate: selfActiveTemplate(),
-					Addrs:          addrs,
+					ActiveTemplate:    selfActiveTemplate(),
+					VerificationToken: selfVerificationToken(),
+					Addrs:             addrs,
 					TS:             proto.NowMillis(),
 				})
 			}()

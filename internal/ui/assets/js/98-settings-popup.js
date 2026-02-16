@@ -28,6 +28,7 @@
   function buildDialog() {
     var label = btn.getAttribute('data-label') || '';
     var email = btn.getAttribute('data-email') || '';
+    var verificationToken = btn.getAttribute('data-verification-token') || '';
     var theme = document.documentElement.getAttribute('data-theme') || 'dark';
 
     backdrop = el('div', 'ed-dlg-backdrop');
@@ -58,6 +59,15 @@
 
     var emailInput = inputField('Email', email, 'settings-email');
     body.appendChild(emailInput);
+
+    var tokenField = passwordField('Verification Token', verificationToken, 'settings-token');
+    body.appendChild(tokenField);
+
+    var tokenHint = el('div', 'small muted');
+    tokenHint.textContent = 'Paste the token from your verification email to prove account ownership';
+    tokenHint.style.marginTop = '-8px';
+    tokenHint.style.fontSize = '11px';
+    body.appendChild(tokenHint);
 
     // ── Theme section ──
     body.appendChild(sectionLabel('Appearance'));
@@ -132,6 +142,7 @@
     backdrop._refs = {
       labelInput: labelInput.querySelector('input'),
       emailInput: emailInput.querySelector('input'),
+      verificationTokenInput: tokenField.querySelector('input'),
       themeEl: themeEl,
       camEl: camEl,
       micEl: micEl
@@ -157,6 +168,36 @@
     inp.placeholder = placeholder;
     inp.value = value;
     wrap.appendChild(inp);
+    return wrap;
+  }
+
+  function passwordField(placeholder, value, id) {
+    var wrap = el('div', '', '');
+    wrap.style.position = 'relative';
+    var inp = el('input', 'ed-dlg-input');
+    inp.type = 'password';
+    inp.id = id;
+    inp.placeholder = placeholder;
+    inp.value = value;
+    inp.style.paddingRight = '36px';
+    wrap.appendChild(inp);
+
+    var toggle = el('button', '');
+    toggle.type = 'button';
+    toggle.title = 'Show/hide token';
+    toggle.style.cssText = 'position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:4px;color:var(--muted);font-size:16px;line-height:1';
+    toggle.innerHTML = '&#x1F441;';
+    toggle.onclick = function() {
+      if (inp.type === 'password') {
+        inp.type = 'text';
+        toggle.style.opacity = '1';
+      } else {
+        inp.type = 'password';
+        toggle.style.opacity = '0.5';
+      }
+    };
+    toggle.style.opacity = '0.5';
+    wrap.appendChild(toggle);
     return wrap;
   }
 
@@ -252,6 +293,7 @@
 
     var labelVal = (refs.labelInput.value || '').trim();
     var emailVal = (refs.emailInput.value || '').trim();
+    var tokenVal = (refs.verificationTokenInput.value || '').trim();
 
     // Determine selected theme
     var themeVal = (gs && refs.themeEl) ? Goop.select.val(refs.themeEl) : (document.documentElement.getAttribute('data-theme') || 'dark');
@@ -263,6 +305,7 @@
     var payload = {
       label: labelVal,
       email: emailVal,
+      verification_token: tokenVal,
       theme: themeVal,
       preferred_cam: camVal,
       preferred_mic: micVal
@@ -283,6 +326,7 @@
       // Update the cog data attrs for next open
       btn.setAttribute('data-label', labelVal);
       btn.setAttribute('data-email', emailVal);
+      btn.setAttribute('data-verification-token', tokenVal);
 
       closePopup();
     }).catch(function(err) {
