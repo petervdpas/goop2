@@ -111,9 +111,17 @@ func (n *Node) dialAndOpenStream(ctx context.Context, pid peer.ID) (addrStrs []s
 
 	st, err = n.Host.NewStream(ctx, pid, protocol.ID(proto.SiteProtoID))
 	if err != nil {
+		// Log which connections exist — helps diagnose when NewStream
+		// picks a broken connection over a working one.
+		conns := n.Host.Network().ConnsToPeer(pid)
+		for _, c := range conns {
+			n.diag("SITE:   conn: %s (%s, %d streams)",
+				c.RemoteMultiaddr(), dirString(c.Stat().Direction), len(c.GetStreams()))
+		}
 		n.diag("SITE: stream open failed: %v", err)
 		return addrStrs, nil, fmt.Errorf("stream: %w", err)
 	}
+	n.diag("SITE: stream opened via %s", st.Conn().RemoteMultiaddr())
 	return addrStrs, st, nil
 }
 
@@ -132,6 +140,12 @@ func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (m
 			_ = c.Close()
 		}
 
+		// Remove direct addresses — they're unreachable (that's why
+		// we're here). Keep only circuit addresses so Host.Connect()
+		// doesn't re-establish a broken direct connection that
+		// NewStream() would then pick over the working circuit.
+		n.Host.Peerstore().ClearAddrs(pid)
+
 		// Fresh context — the original likely expired during the dial.
 		retryCtx, retryCancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer retryCancel()
@@ -148,12 +162,16 @@ func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (m
 
 		// Inject a circuit relay address for the target so we can
 		// route through the relay even if they never published one.
+		// After ClearAddrs, this is the ONLY address — ensuring
+		// we only dial via the relay circuit.
 		n.addRelayAddrForPeer(pid)
 
-		// Retry with backoff — the target may still be recovering its
-		// relay reservation (pulse takes up to 23s, self-recovery up to 15s).
+		// Retry with per-attempt timeout — prevents one hanging
+		// NewStream() from consuming the entire retry budget.
 		for attempt := 1; attempt <= 3; attempt++ {
-			addrStrs, st, dialErr = n.dialAndOpenStream(retryCtx, pid)
+			attemptCtx, attemptCancel := context.WithTimeout(retryCtx, 15*time.Second)
+			addrStrs, st, dialErr = n.dialAndOpenStream(attemptCtx, pid)
+			attemptCancel()
 			if dialErr == nil {
 				break
 			}
