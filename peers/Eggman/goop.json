@@ -25,6 +25,11 @@
     "external_url": "",
     "relay_port": 0,
     "relay_key_file": "data/relay.key",
+    "relay_cleanup_delay_sec": 3,
+    "relay_poll_deadline_sec": 25,
+    "relay_connect_timeout_sec": 15,
+    "relay_refresh_interval_sec": 300,
+    "relay_recovery_grace_sec": 5,
     "use_services": false,
     "credits_url": "",
     "registration_url": "",
@@ -37,14 +42,15 @@
   },
   "profile": {
     "label": "Eggman",
-    "email": "humpty@dumpty.com"
+    "email": "humpty@dumpty.com",
+    "verification_token": ""
   },
   "viewer": {
     "http_addr": ":7777",
     "debug": true,
     "theme": "dark",
-    "preferred_cam": "cHdJOK7AdHhAqo2zbcoYZBxEameqar07RjOMDUfrhFM=",
-    "preferred_mic": "U9Qmyevdblbgalaepi9ZBJe7LdFOSf1f162v1etqHhg=",
+    "preferred_cam": "",
+    "preferred_mic": "",
     "video_disabled": true,
     "hide_unverified": false,
     "active_template": "enquete"
