@@ -408,6 +408,23 @@ func (n *Node) DiagSnapshot() map[string]any {
 	// ── Site status ──
 	hasSite := n.siteRoot != ""
 
+	// ── Registered protocol handlers ──
+	var protocols []string
+	for _, p := range n.Host.Mux().Protocols() {
+		protocols = append(protocols, string(p))
+	}
+
+	// ── Relay timing (what this peer is using) ──
+	var relayTiming map[string]any
+	if n.relayPeer != nil {
+		relayTiming = map[string]any{
+			"cleanup_delay":   n.relayCleanupDelay.String(),
+			"poll_deadline":   n.relayPollDeadline.String(),
+			"connect_timeout": n.relayConnectTimeout.String(),
+			"recovery_grace":  n.relayRecoveryGrace.String(),
+		}
+	}
+
 	// ── Recent diag logs ──
 	n.diagMu.Lock()
 	logs := make([]string, len(n.diagLogs))
@@ -436,6 +453,12 @@ func (n *Node) DiagSnapshot() map[string]any {
 		"logs":            logs,
 	}
 
+	if len(protocols) > 0 {
+		result["protocols"] = protocols
+	}
+	if relayTiming != nil {
+		result["relay_timing"] = relayTiming
+	}
 	if relayConfig != nil {
 		result["relay_config"] = relayConfig
 	}

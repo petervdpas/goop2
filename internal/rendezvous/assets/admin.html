@@ -700,6 +700,28 @@
           html += '</div></div>';
         }
 
+        // ── Relay timing (what the peer is using) ──
+        if(d.relay_timing){
+          html += '<div class="dash-panel glass" style="margin-bottom:16px"><div class="dash-panel-header"><span class="dash-panel-label">Relay Timing</span></div>';
+          html += '<div style="padding:8px 14px;font-size:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:4px 24px">';
+          html += '<div><span style="color:var(--muted)">Cleanup delay:</span> '+d.relay_timing.cleanup_delay+'</div>';
+          html += '<div><span style="color:var(--muted)">Poll deadline:</span> '+d.relay_timing.poll_deadline+'</div>';
+          html += '<div><span style="color:var(--muted)">Connect timeout:</span> '+d.relay_timing.connect_timeout+'</div>';
+          html += '<div><span style="color:var(--muted)">Recovery grace:</span> '+d.relay_timing.recovery_grace+'</div>';
+          html += '</div></div>';
+        }
+
+        // ── Protocols (registered stream handlers) ──
+        if(d.protocols&&d.protocols.length){
+          html += '<div class="dash-panel glass" style="margin-bottom:16px"><div class="dash-panel-header"><span class="dash-panel-label">Protocols ('+d.protocols.length+')</span></div>';
+          html += '<div style="padding:8px 14px;font-size:11px;font-family:monospace;display:flex;flex-wrap:wrap;gap:4px 12px">';
+          d.protocols.forEach(function(p){
+            var isGoop = p.indexOf('/goop/')!==-1;
+            html += '<span style="'+(isGoop?'color:#0af':'color:var(--muted)')+'">'+p+'</span>';
+          });
+          html += '</div></div>';
+        }
+
         // ── Relay config & peerstore ──
         if(d.relay_config){
           html += '<div class="dash-panel glass" style="margin-bottom:16px"><div class="dash-panel-header"><span class="dash-panel-label">Relay Config</span></div>';
@@ -791,25 +813,15 @@
       }
 
       function closeDiag(){
-        // Set active section FIRST so updatePeers will render
-        if(window._setActiveSection) window._setActiveSection('peers');
+        // Hide diag section (not in sidebar, needs explicit inline hide)
+        var diag = document.querySelector('[data-section="diag"]');
+        diag.style.display = 'none';
+        diag.classList.remove('active');
 
-        // Clear ALL inline display styles so the CSS class system works again.
-        // diagnosePeer() set style.display='none' on every section, which
-        // overrides CSS classes and breaks sidebar navigation permanently.
-        document.querySelectorAll('.admin-section').forEach(function(s){
-          s.style.display = '';
-          s.classList.remove('active');
-        });
-        // Hide diag (it's not in sidebar nav, so it needs explicit inline hide)
-        document.querySelector('[data-section="diag"]').style.display = 'none';
-
-        // Activate peers section via class (same mechanism as sidebar nav)
-        document.querySelector('[data-section="peers"]').classList.add('active');
-        document.querySelectorAll('.admin-nav-item').forEach(function(n){
-          n.classList.remove('active');
-          if(n.getAttribute('data-section')==='peers') n.classList.add('active');
-        });
+        // Navigate to peers via sidebar click — same proven code path
+        // as normal sidebar navigation (toggles classes, sets activeSection).
+        var peersNav = document.querySelector('.admin-nav-item[data-section="peers"]');
+        if (peersNav) peersNav.click();
 
         // Immediately fetch and render peers — don't wait for the 2s poll
         if(window.updatePeers) window.updatePeers();
@@ -833,6 +845,14 @@
         if(d.presence_ttl) lines.push('Presence TTL: ' + d.presence_ttl);
         lines.push('Site: ' + (d.has_site?'enabled':'disabled'));
         if(d.stream_error) { lines.push(''); lines.push('*** Stream error: ' + d.stream_error); }
+        if(d.relay_timing) {
+          lines.push(''); lines.push('=== Relay Timing ===');
+          lines.push('  cleanup=' + d.relay_timing.cleanup_delay + ' poll=' + d.relay_timing.poll_deadline + ' connect=' + d.relay_timing.connect_timeout + ' grace=' + d.relay_timing.recovery_grace);
+        }
+        if(d.protocols&&d.protocols.length) {
+          lines.push(''); lines.push('=== Protocols (' + d.protocols.length + ') ===');
+          d.protocols.forEach(function(p){ lines.push('  ' + p); });
+        }
         if(d.relay_config) {
           lines.push(''); lines.push('=== Relay Config ===');
           lines.push('Relay Peer ID: ' + d.relay_config.peer_id);
