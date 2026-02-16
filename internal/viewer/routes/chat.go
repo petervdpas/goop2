@@ -9,10 +9,11 @@ import (
 	"time"
 
 	"github.com/petervdpas/goop2/internal/chat"
+	"github.com/petervdpas/goop2/internal/state"
 )
 
 // RegisterChat adds chat-related HTTP endpoints
-func RegisterChat(mux *http.ServeMux, chatMgr *chat.Manager) {
+func RegisterChat(mux *http.ServeMux, chatMgr *chat.Manager, peers *state.PeerTable) {
 	// Send a direct message
 	mux.HandleFunc("/api/chat/send", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(w, r, http.MethodPost) {
@@ -70,7 +71,7 @@ func RegisterChat(mux *http.ServeMux, chatMgr *chat.Manager) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		if err := chatMgr.SendBroadcast(ctx, req.Content); err != nil {
+		if err := chatMgr.SendBroadcast(ctx, req.Content, peers.IDs()); err != nil {
 			log.Printf("Failed to send broadcast: %v", err)
 			http.Error(w, fmt.Sprintf("Failed to broadcast: %v", err), http.StatusInternalServerError)
 			return

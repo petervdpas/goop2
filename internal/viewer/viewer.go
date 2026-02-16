@@ -95,7 +95,7 @@ func Start(addr string, v Viewer) error {
 
 	// Register chat endpoints if chat manager is available
 	if v.Chat != nil {
-		routes.RegisterChat(mux, v.Chat)
+		routes.RegisterChat(mux, v.Chat, v.Peers)
 	}
 
 	// Register data/storage endpoints if DB is available

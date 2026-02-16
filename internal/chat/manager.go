@@ -91,24 +91,35 @@ func (m *Manager) SendDirect(ctx context.Context, toPeerID, content string) erro
 	return nil
 }
 
-// SendBroadcast sends a message to all connected peers
-func (m *Manager) SendBroadcast(ctx context.Context, content string) error {
+// SendBroadcast sends a message to the given application-level peers.
+// It dials each peer via peerstore addresses (including relay circuits),
+// so WAN peers that aren't yet connected will be reached automatically.
+func (m *Manager) SendBroadcast(ctx context.Context, content string, targetPeerIDs []string) error {
 	msg := NewBroadcast(m.localPeerID, content)
 
-	// Get all connected peers
-	peers := m.host.Network().Peers()
-	if len(peers) == 0 {
+	if len(targetPeerIDs) == 0 {
 		// Still store locally even if no peers
 		m.addMessage(msg)
-		log.Printf("CHAT: Broadcast message stored (no peers connected)")
+		log.Printf("CHAT: Broadcast message stored (no target peers)")
 		return nil
 	}
 
 	var lastErr error
 	sentCount := 0
 
-	for _, peerID := range peers {
-		// Open stream to peer
+	for _, rawID := range targetPeerIDs {
+		peerID, err := peer.Decode(rawID)
+		if err != nil {
+			log.Printf("CHAT: Skipping invalid peer ID %q: %v", rawID, err)
+			continue
+		}
+
+		// Skip self
+		if peerID == m.host.ID() {
+			continue
+		}
+
+		// NewStream dials via peerstore addresses if not already connected
 		stream, err := m.host.NewStream(ctx, peerID, protocol.ID(ChatProtocolID))
 		if err != nil {
 			lastErr = err
@@ -131,7 +142,7 @@ func (m *Manager) SendBroadcast(ctx context.Context, content string) error {
 	// Store in local buffer (outgoing)
 	m.addMessage(msg)
 
-	log.Printf("CHAT: Broadcast sent to %d/%d peers", sentCount, len(peers))
+	log.Printf("CHAT: Broadcast sent to %d/%d peers", sentCount, len(targetPeerIDs))
 
 	if sentCount == 0 && lastErr != nil {
 		return fmt.Errorf("failed to send to any peer: %w", lastErr)
