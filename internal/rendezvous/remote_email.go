@@ -1,15 +1,14 @@
 package rendezvous
 
 import (
-	"encoding/json"
-	"io"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/petervdpas/goop2/internal/util"
 )
 
 // RemoteEmailProvider proxies email endpoints to a standalone
@@ -29,7 +28,7 @@ type RemoteEmailProvider struct {
 // NewRemoteEmailProvider creates a provider that talks to the email service.
 func NewRemoteEmailProvider(baseURL string) *RemoteEmailProvider {
 	return &RemoteEmailProvider{
-		baseURL: strings.TrimRight(baseURL, "/"),
+		baseURL: util.NormalizeURL(baseURL),
 		client:  &http.Client{Timeout: 5 * time.Second},
 	}
 }
@@ -49,41 +48,17 @@ func (p *RemoteEmailProvider) RegisterRoutes(mux *http.ServeMux) {
 
 // fetchStatus fetches and caches /api/email/status.
 func (p *RemoteEmailProvider) fetchStatus() {
-	const cacheTTL = 30 * time.Second
-
-	p.emailCacheMu.RLock()
-	if time.Since(p.emailCachedAt) < cacheTTL {
-		p.emailCacheMu.RUnlock()
-		return
-	}
-	p.emailCacheMu.RUnlock()
-
-	resp, err := p.client.Get(p.baseURL + "/api/email/status")
-	if err != nil {
-		log.Printf("email: status check error: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-
 	var result struct {
 		Version    string `json:"version"`
 		APIVersion int    `json:"api_version"`
 		DummyMode  bool   `json:"dummy_mode"`
 	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return
-	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return
-	}
-
-	p.emailCacheMu.Lock()
-	p.emailVersion = result.Version
-	p.emailAPIVersion = result.APIVersion
-	p.emailDummyMode = result.DummyMode
-	p.emailCachedAt = time.Now()
-	p.emailCacheMu.Unlock()
+	fetchCachedStatus(&p.emailCacheMu, &p.emailCachedAt,
+		p.client, p.baseURL+"/api/email/status", "email", &result, func() {
+			p.emailVersion = result.Version
+			p.emailAPIVersion = result.APIVersion
+			p.emailDummyMode = result.DummyMode
+		})
 }
 
 // Version returns the cached version string from the email service.

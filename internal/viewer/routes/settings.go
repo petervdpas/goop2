@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -217,93 +216,13 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 
 		client := &http.Client{Timeout: 3 * time.Second}
-		check := func(baseURL string) bool {
-			if baseURL == "" {
-				return false
-			}
-			resp, err := client.Get(strings.TrimRight(baseURL, "/") + "/healthz")
-			if err != nil {
-				return false
-			}
-			resp.Body.Close()
-			return resp.StatusCode == http.StatusOK
-		}
 
-		// Fetch registration service status
-		regResult := map[string]interface{}{
-			"url": cfg.Presence.RegistrationURL,
-			"ok":  check(cfg.Presence.RegistrationURL),
-		}
-		if cfg.Presence.RegistrationURL != "" {
-			if resp, err := client.Get(strings.TrimRight(cfg.Presence.RegistrationURL, "/") + "/api/reg/status"); err == nil {
-				var status map[string]interface{}
-				json.NewDecoder(resp.Body).Decode(&status)
-				resp.Body.Close()
-				if v, ok := status["registration_required"]; ok {
-					regResult["registration_required"] = v
-				}
-				if v, ok := status["dummy_mode"]; ok {
-					regResult["dummy_mode"] = v
-				}
-			}
-		}
-
-		// Fetch credits service status
-		creditsResult := map[string]interface{}{
-			"url": cfg.Presence.CreditsURL,
-			"ok":  check(cfg.Presence.CreditsURL),
-		}
-		if cfg.Presence.CreditsURL != "" {
-			if resp, err := client.Get(strings.TrimRight(cfg.Presence.CreditsURL, "/") + "/api/credits/store-data"); err == nil {
-				var status map[string]interface{}
-				json.NewDecoder(resp.Body).Decode(&status)
-				resp.Body.Close()
-				if v, ok := status["dummy_mode"]; ok {
-					creditsResult["dummy_mode"] = v
-				}
-			}
-		}
-
-		// Fetch email service status
-		emailResult := map[string]interface{}{
-			"url": cfg.Presence.EmailURL,
-			"ok":  check(cfg.Presence.EmailURL),
-		}
-		if cfg.Presence.EmailURL != "" {
-			if resp, err := client.Get(strings.TrimRight(cfg.Presence.EmailURL, "/") + "/api/email/status"); err == nil {
-				var status map[string]interface{}
-				json.NewDecoder(resp.Body).Decode(&status)
-				resp.Body.Close()
-				if v, ok := status["dummy_mode"]; ok {
-					emailResult["dummy_mode"] = v
-				}
-			}
-		}
-
-		// Fetch templates service status
-		templatesResult := map[string]interface{}{
-			"url": cfg.Presence.TemplatesURL,
-			"ok":  check(cfg.Presence.TemplatesURL),
-		}
-		if cfg.Presence.TemplatesURL != "" {
-			if resp, err := client.Get(strings.TrimRight(cfg.Presence.TemplatesURL, "/") + "/api/templates/status"); err == nil {
-				var status map[string]interface{}
-				json.NewDecoder(resp.Body).Decode(&status)
-				resp.Body.Close()
-				if v, ok := status["dummy_mode"]; ok {
-					templatesResult["dummy_mode"] = v
-				}
-			}
-		}
-
-		result := map[string]interface{}{
-			"registration": regResult,
-			"credits":      creditsResult,
-			"email":        emailResult,
-			"templates":    templatesResult,
-		}
-
-		writeJSON(w, result)
+		writeJSON(w, map[string]interface{}{
+			"registration": fetchServiceHealth(client, cfg.Presence.RegistrationURL, "/api/reg/status", []string{"registration_required", "dummy_mode"}),
+			"credits":      fetchServiceHealth(client, cfg.Presence.CreditsURL, "/api/credits/store-data", []string{"dummy_mode"}),
+			"email":        fetchServiceHealth(client, cfg.Presence.EmailURL, "/api/email/status", []string{"dummy_mode"}),
+			"templates":    fetchServiceHealth(client, cfg.Presence.TemplatesURL, "/api/templates/status", []string{"dummy_mode"}),
+		})
 	})
 
 	// Single-service health check using a URL from the form (not saved config)
@@ -313,68 +232,24 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 
 		svcURL := strings.TrimSpace(r.URL.Query().Get("url"))
-		svcType := r.URL.Query().Get("type") // "registration", "credits", or "email"
+		svcType := r.URL.Query().Get("type") // "registration", "credits", "email", or "templates"
 		if svcURL == "" {
 			writeJSON(w, map[string]interface{}{"ok": false, "error": "no url"})
 			return
 		}
 
+		statusPaths := map[string]string{
+			"registration": "/api/reg/status",
+			"credits":      "/api/credits/store-data",
+			"email":        "/api/email/status",
+			"templates":    "/api/templates/status",
+		}
+
 		client := &http.Client{Timeout: 3 * time.Second}
-		base := strings.TrimRight(svcURL, "/")
-
-		resp, err := client.Get(base + "/healthz")
-		if err != nil {
-			writeJSON(w, map[string]interface{}{"ok": false, "error": "not reachable"})
-			return
+		result := fetchServiceHealth(client, svcURL, statusPaths[svcType], []string{"dummy_mode"})
+		if !result["ok"].(bool) {
+			result["error"] = "not reachable"
 		}
-		resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			writeJSON(w, map[string]interface{}{"ok": false, "error": "not reachable"})
-			return
-		}
-
-		result := map[string]interface{}{"ok": true}
-
-		// Fetch extra status info based on service type
-		switch svcType {
-		case "registration":
-			if r2, err := client.Get(base + "/api/reg/status"); err == nil {
-				var status map[string]interface{}
-				json.NewDecoder(r2.Body).Decode(&status)
-				r2.Body.Close()
-				if v, ok := status["dummy_mode"]; ok {
-					result["dummy_mode"] = v
-				}
-			}
-		case "credits":
-			if r2, err := client.Get(base + "/api/credits/store-data"); err == nil {
-				var status map[string]interface{}
-				json.NewDecoder(r2.Body).Decode(&status)
-				r2.Body.Close()
-				if v, ok := status["dummy_mode"]; ok {
-					result["dummy_mode"] = v
-				}
-			}
-		case "email":
-			if r2, err := client.Get(base + "/api/email/status"); err == nil {
-				var status map[string]interface{}
-				json.NewDecoder(r2.Body).Decode(&status)
-				r2.Body.Close()
-				if v, ok := status["dummy_mode"]; ok {
-					result["dummy_mode"] = v
-				}
-			}
-		case "templates":
-			if r2, err := client.Get(base + "/api/templates/status"); err == nil {
-				var status map[string]interface{}
-				json.NewDecoder(r2.Body).Decode(&status)
-				r2.Body.Close()
-				if v, ok := status["dummy_mode"]; ok {
-					result["dummy_mode"] = v
-				}
-			}
-		}
-
 		writeJSON(w, result)
 	})
 }

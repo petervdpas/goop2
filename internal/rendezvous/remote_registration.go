@@ -8,9 +8,10 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/petervdpas/goop2/internal/util"
 )
 
 // RemoteRegistrationProvider proxies registration endpoints to a standalone
@@ -21,18 +22,18 @@ type RemoteRegistrationProvider struct {
 	client     *http.Client
 
 	// cached status from /api/reg/status
-	regRequired   bool
-	regVersion    string
-	regAPIVersion int
+	regRequired    bool
+	regVersion     string
+	regAPIVersion  int
 	regGrantAmount int
-	regCachedAt   time.Time
-	regCacheMu    sync.RWMutex
+	regCachedAt    time.Time
+	regCacheMu     sync.RWMutex
 }
 
 // NewRemoteRegistrationProvider creates a provider that talks to the registration service.
 func NewRemoteRegistrationProvider(baseURL, adminToken string) *RemoteRegistrationProvider {
 	return &RemoteRegistrationProvider{
-		baseURL:    strings.TrimRight(baseURL, "/"),
+		baseURL:    util.NormalizeURL(baseURL),
 		adminToken: adminToken,
 		client:     &http.Client{Timeout: 5 * time.Second},
 	}
@@ -66,17 +67,12 @@ func (p *RemoteRegistrationProvider) HandleVerify(token string) (email string, o
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", false
-	}
-
 	var result struct {
 		Status   string `json:"status"`
 		Email    string `json:"email"`
 		Verified bool   `json:"verified"`
 	}
-	if err := json.Unmarshal(body, &result); err != nil {
+	if err := readJSON(resp, &result); err != nil {
 		return "", false
 	}
 
@@ -93,15 +89,10 @@ func (p *RemoteRegistrationProvider) IsEmailVerified(email string) bool {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return false
-	}
-
 	var result struct {
 		Verified bool `json:"verified"`
 	}
-	if err := json.Unmarshal(body, &result); err != nil {
+	if err := readJSON(resp, &result); err != nil {
 		return false
 	}
 	return result.Verified
@@ -109,43 +100,19 @@ func (p *RemoteRegistrationProvider) IsEmailVerified(email string) bool {
 
 // fetchStatus fetches and caches /api/reg/status (registration_required, version).
 func (p *RemoteRegistrationProvider) fetchStatus() {
-	const cacheTTL = 30 * time.Second
-
-	p.regCacheMu.RLock()
-	if time.Since(p.regCachedAt) < cacheTTL {
-		p.regCacheMu.RUnlock()
-		return
-	}
-	p.regCacheMu.RUnlock()
-
-	resp, err := p.client.Get(p.baseURL + "/api/reg/status")
-	if err != nil {
-		log.Printf("registration: status check error: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-
 	var result struct {
 		RegistrationRequired bool   `json:"registration_required"`
 		Version              string `json:"version"`
 		APIVersion           int    `json:"api_version"`
 		GrantAmount          int    `json:"grant_amount"`
 	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return
-	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return
-	}
-
-	p.regCacheMu.Lock()
-	p.regRequired = result.RegistrationRequired
-	p.regVersion = result.Version
-	p.regAPIVersion = result.APIVersion
-	p.regGrantAmount = result.GrantAmount
-	p.regCachedAt = time.Now()
-	p.regCacheMu.Unlock()
+	fetchCachedStatus(&p.regCacheMu, &p.regCachedAt,
+		p.client, p.baseURL+"/api/reg/status", "registration", &result, func() {
+			p.regRequired = result.RegistrationRequired
+			p.regVersion = result.Version
+			p.regAPIVersion = result.APIVersion
+			p.regGrantAmount = result.GrantAmount
+		})
 }
 
 // RegistrationRequired queries the registration service to check if
@@ -187,9 +154,7 @@ func (p *RemoteRegistrationProvider) FetchRegistrations() (json.RawMessage, erro
 	if err != nil {
 		return nil, err
 	}
-	if p.adminToken != "" {
-		req.Header.Set("Authorization", "Bearer "+p.adminToken)
-	}
+	setAuthHeader(req, p.adminToken)
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("registration service: %w", err)
@@ -204,4 +169,3 @@ func (p *RemoteRegistrationProvider) FetchRegistrations() (json.RawMessage, erro
 	}
 	return json.RawMessage(body), nil
 }
-

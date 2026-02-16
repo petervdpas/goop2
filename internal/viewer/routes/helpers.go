@@ -249,6 +249,43 @@ func requireLocal(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
+// fetchServiceHealth checks /healthz and optionally fetches extra fields
+// from a status endpoint. Returns {"url", "ok", ...extracted fields}.
+func fetchServiceHealth(client *http.Client, baseURL, statusPath string, fields []string) map[string]interface{} {
+	base := strings.TrimRight(baseURL, "/")
+	result := map[string]interface{}{
+		"url": baseURL,
+		"ok":  false,
+	}
+	if baseURL == "" {
+		return result
+	}
+
+	resp, err := client.Get(base + "/healthz")
+	if err != nil {
+		return result
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return result
+	}
+	result["ok"] = true
+
+	if statusPath != "" {
+		if r2, err := client.Get(base + statusPath); err == nil {
+			var status map[string]interface{}
+			json.NewDecoder(r2.Body).Decode(&status)
+			r2.Body.Close()
+			for _, f := range fields {
+				if v, ok := status[f]; ok {
+					result[f] = v
+				}
+			}
+		}
+	}
+	return result
+}
+
 func sseHeaders(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")

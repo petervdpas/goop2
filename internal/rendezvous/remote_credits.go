@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/petervdpas/goop2/internal/util"
 )
 
 // RemoteCreditProvider implements CreditProvider by making HTTP calls
@@ -25,7 +27,7 @@ type RemoteCreditProvider struct {
 // The emailResolver translates a peer ID into an email address.
 func NewRemoteCreditProvider(baseURL string, emailResolver func(string) string, adminToken string) *RemoteCreditProvider {
 	return &RemoteCreditProvider{
-		baseURL:       strings.TrimRight(baseURL, "/"),
+		baseURL:       util.NormalizeURL(baseURL),
 		adminToken:    adminToken,
 		client:        &http.Client{Timeout: 5 * time.Second},
 		emailResolver: emailResolver,
@@ -245,11 +247,6 @@ func (p *RemoteCreditProvider) StorePageData(r *http.Request) StorePageData {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return noCreditsStoreData()
-	}
-
 	var data struct {
 		CreditsActive bool   `json:"credits_active"`
 		Email         string `json:"email"`
@@ -261,7 +258,7 @@ func (p *RemoteCreditProvider) StorePageData(r *http.Request) StorePageData {
 			Label  string `json:"label"`
 		} `json:"credit_packs"`
 	}
-	if err := json.Unmarshal(body, &data); err != nil {
+	if err := readJSON(resp, &data); err != nil {
 		return noCreditsStoreData()
 	}
 
@@ -340,9 +337,7 @@ func (p *RemoteCreditProvider) FetchAccounts() (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	if p.adminToken != "" {
-		req.Header.Set("Authorization", "Bearer "+p.adminToken)
-	}
+	setAuthHeader(req, p.adminToken)
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("credits service: %w", err)

@@ -18,6 +18,11 @@ const (
 	ShortTimeout          = 2 * time.Second
 )
 
+// NormalizeURL strips trailing slashes from a base URL.
+func NormalizeURL(baseURL string) string {
+	return strings.TrimRight(baseURL, "/")
+}
+
 // ResolvePath joins base and rel, but if rel is an absolute path it is returned
 // directly (cleaned). Go's filepath.Join strips leading slashes from later
 // arguments, so filepath.Join("a", "/b") returns "a/b" not "/b".  This helper

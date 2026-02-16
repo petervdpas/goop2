@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/petervdpas/goop2/internal/util"
 )
 
 // RemoteTemplatesProvider proxies template endpoints to a standalone
@@ -32,7 +34,7 @@ type RemoteTemplatesProvider struct {
 
 // NewRemoteTemplatesProvider creates a provider that talks to the templates service.
 func NewRemoteTemplatesProvider(baseURL, adminToken string) *RemoteTemplatesProvider {
-	base := strings.TrimRight(baseURL, "/")
+	base := util.NormalizeURL(baseURL)
 	target, _ := url.Parse(base)
 	return &RemoteTemplatesProvider{
 		baseURL:    base,
@@ -67,9 +69,7 @@ func (p *RemoteTemplatesProvider) handlePrices(w http.ResponseWriter, r *http.Re
 			return
 		}
 		req.Header.Set("Content-Type", "application/json")
-		if p.adminToken != "" {
-			req.Header.Set("Authorization", "Bearer "+p.adminToken)
-		}
+		setAuthHeader(req, p.adminToken)
 		resp, err := p.client.Do(req)
 		if err != nil {
 			log.Printf("templates: price save error: %v", err)
@@ -108,43 +108,19 @@ func (p *RemoteTemplatesProvider) FetchTemplates() ([]StoreMeta, error) {
 
 // fetchStatus fetches and caches /api/templates/status.
 func (p *RemoteTemplatesProvider) fetchStatus() {
-	const cacheTTL = 30 * time.Second
-
-	p.tplCacheMu.RLock()
-	if time.Since(p.tplCachedAt) < cacheTTL {
-		p.tplCacheMu.RUnlock()
-		return
-	}
-	p.tplCacheMu.RUnlock()
-
-	resp, err := p.client.Get(p.baseURL + "/api/templates/status")
-	if err != nil {
-		log.Printf("templates: status check error: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-
 	var result struct {
 		Version       string `json:"version"`
 		APIVersion    int    `json:"api_version"`
 		DummyMode     bool   `json:"dummy_mode"`
 		TemplateCount int    `json:"template_count"`
 	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return
-	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return
-	}
-
-	p.tplCacheMu.Lock()
-	p.tplVersion = result.Version
-	p.tplAPIVersion = result.APIVersion
-	p.tplDummyMode = result.DummyMode
-	p.tplTemplateCount = result.TemplateCount
-	p.tplCachedAt = time.Now()
-	p.tplCacheMu.Unlock()
+	fetchCachedStatus(&p.tplCacheMu, &p.tplCachedAt,
+		p.client, p.baseURL+"/api/templates/status", "templates", &result, func() {
+			p.tplVersion = result.Version
+			p.tplAPIVersion = result.APIVersion
+			p.tplDummyMode = result.DummyMode
+			p.tplTemplateCount = result.TemplateCount
+		})
 }
 
 // Version returns the cached version string from the templates service.
