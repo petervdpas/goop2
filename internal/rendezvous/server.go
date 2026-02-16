@@ -441,7 +441,7 @@ func (s *Server) SetLocalTemplateStore(ts *LocalTemplateStore) {
 func (s *Server) Start(ctx context.Context) error {
 	// Start circuit relay v2 host if configured
 	if s.relayPort > 0 {
-		rh, ri, err := StartRelay(s.relayPort, s.relayKeyFile, s.externalURL)
+		rh, ri, err := StartRelay(s.relayPort, s.relayKeyFile, s.externalURL, s.relayAddLog)
 		if err != nil {
 			return fmt.Errorf("start relay: %w", err)
 		}
