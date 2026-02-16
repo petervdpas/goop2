@@ -21,29 +21,49 @@ type RemoteCreditProvider struct {
 	adminToken    string
 	client        *http.Client
 	emailResolver func(string) string // peer_id → email
+	tokenResolver func(string) string // peer_id → verification token
 }
 
 // NewRemoteCreditProvider creates a provider that talks to the credits service.
 // The emailResolver translates a peer ID into an email address.
-func NewRemoteCreditProvider(baseURL string, emailResolver func(string) string, adminToken string) *RemoteCreditProvider {
+// The tokenResolver translates a peer ID into a verification token.
+func NewRemoteCreditProvider(baseURL string, emailResolver, tokenResolver func(string) string, adminToken string) *RemoteCreditProvider {
 	return &RemoteCreditProvider{
 		baseURL:       util.NormalizeURL(baseURL),
 		adminToken:    adminToken,
 		client:        &http.Client{Timeout: 5 * time.Second},
 		emailResolver: emailResolver,
+		tokenResolver: tokenResolver,
 	}
+}
+
+// resolvePeerID extracts the peer_id from a request.
+func resolvePeerID(r *http.Request) string {
+	if h := r.Header.Get("X-Goop-Peer-ID"); h != "" {
+		return h
+	}
+	return r.URL.Query().Get("peer_id")
 }
 
 // resolveEmail extracts peer_id from a request and resolves it to email.
 func (p *RemoteCreditProvider) resolveEmail(r *http.Request) string {
-	peerID := r.Header.Get("X-Goop-Peer-ID")
-	if peerID == "" {
-		peerID = r.URL.Query().Get("peer_id")
-	}
+	peerID := resolvePeerID(r)
 	if peerID == "" {
 		return ""
 	}
 	return p.emailResolver(peerID)
+}
+
+// resolveToken extracts peer_id from a request and resolves it to a verification token.
+func (p *RemoteCreditProvider) resolveToken(r *http.Request) string {
+	peerID := resolvePeerID(r)
+	if peerID == "" {
+		return ""
+	}
+	if p.tokenResolver == nil {
+		return ""
+	}
+	return p.tokenResolver(peerID)
 }
 
 // RegisterRoutes sets up handlers for /api/credits/* that translate peer_id→email
@@ -67,7 +87,7 @@ func (p *RemoteCreditProvider) proxyBalance(w http.ResponseWriter, r *http.Reque
 		json.NewEncoder(w).Encode(map[string]int{"balance": 0})
 		return
 	}
-	p.proxyGet(w, "/api/credits/balance", url.Values{"email": {email}})
+	p.proxyGetWithToken(w, "/api/credits/balance", url.Values{"email": {email}}, p.resolveToken(r))
 }
 
 // proxyPostJSON is the shared handler for POST endpoints that need
@@ -76,6 +96,7 @@ func (p *RemoteCreditProvider) proxyBalance(w http.ResponseWriter, r *http.Reque
 // then forwards the JSON POST to the credits service at path.
 func (p *RemoteCreditProvider) proxyPostJSON(w http.ResponseWriter, r *http.Request, path string, reqPtr any, addEmail func(email string) map[string]any) {
 	email := p.resolveEmail(r)
+	token := p.resolveToken(r)
 	if err := json.NewDecoder(r.Body).Decode(reqPtr); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
@@ -88,11 +109,16 @@ func (p *RemoteCreditProvider) proxyPostJSON(w http.ResponseWriter, r *http.Requ
 	outBody := addEmail(email)
 	log.Printf("credits: proxy %s → email=%s payload=%v", path, email, outBody)
 	body, _ := json.Marshal(outBody)
-	resp, err := p.client.Post(
-		p.baseURL+path,
-		"application/json",
-		strings.NewReader(string(body)),
-	)
+	req, err := http.NewRequest("POST", p.baseURL+path, strings.NewReader(string(body)))
+	if err != nil {
+		http.Error(w, "credits service error", http.StatusBadGateway)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("X-Verification-Token", token)
+	}
+	resp, err := p.client.Do(req)
 	if err != nil {
 		log.Printf("credits: POST %s failed: %v", path, err)
 		http.Error(w, "credits service error", http.StatusBadGateway)
@@ -134,14 +160,21 @@ func (p *RemoteCreditProvider) proxySpend(w http.ResponseWriter, r *http.Request
 	})
 }
 
-// proxyGet forwards a GET request to the credits service with the given
-// path and query parameters, then copies the response back to the client.
-func (p *RemoteCreditProvider) proxyGet(w http.ResponseWriter, path string, params url.Values) {
+// proxyGetWithToken forwards a GET with an optional verification token header.
+func (p *RemoteCreditProvider) proxyGetWithToken(w http.ResponseWriter, path string, params url.Values, token string) {
 	reqURL := p.baseURL + path
 	if q := params.Encode(); q != "" {
 		reqURL += "?" + q
 	}
-	resp, err := p.client.Get(reqURL)
+	req, err := http.NewRequest("GET", reqURL, nil)
+	if err != nil {
+		http.Error(w, "credits service error", http.StatusBadGateway)
+		return
+	}
+	if token != "" {
+		req.Header.Set("X-Verification-Token", token)
+	}
+	resp, err := p.client.Do(req)
 	if err != nil {
 		log.Printf("credits: GET %s failed: %v", path, err)
 		http.Error(w, "credits service error", http.StatusBadGateway)
@@ -157,7 +190,7 @@ func (p *RemoteCreditProvider) proxyAccess(w http.ResponseWriter, r *http.Reques
 	if email := p.resolveEmail(r); email != "" {
 		params.Set("email", email)
 	}
-	p.proxyGet(w, "/api/credits/access", params)
+	p.proxyGetWithToken(w, "/api/credits/access", params, p.resolveToken(r))
 }
 
 // proxyStoreData translates peer_id→email for GET /api/credits/store-data
@@ -166,7 +199,7 @@ func (p *RemoteCreditProvider) proxyStoreData(w http.ResponseWriter, r *http.Req
 	if email := p.resolveEmail(r); email != "" {
 		params.Set("email", email)
 	}
-	p.proxyGet(w, "/api/credits/store-data", params)
+	p.proxyGetWithToken(w, "/api/credits/store-data", params, p.resolveToken(r))
 }
 
 // proxyTemplateInfo translates peer_id→email for GET /api/credits/template-info
@@ -175,7 +208,7 @@ func (p *RemoteCreditProvider) proxyTemplateInfo(w http.ResponseWriter, r *http.
 	if email := p.resolveEmail(r); email != "" {
 		params.Set("email", email)
 	}
-	p.proxyGet(w, "/api/credits/template-info", params)
+	p.proxyGetWithToken(w, "/api/credits/template-info", params, p.resolveToken(r))
 }
 
 // creditsStatus holds the cached status fields from the credits service.
@@ -209,13 +242,22 @@ func (p *RemoteCreditProvider) fetchStoreStatus() creditsStatus {
 // TemplateAccessAllowed calls the credits service to check template access.
 func (p *RemoteCreditProvider) TemplateAccessAllowed(r *http.Request, tpl StoreMeta) bool {
 	email := p.resolveEmail(r)
+	token := p.resolveToken(r)
 
 	reqURL := fmt.Sprintf("%s/api/credits/access?template_dir=%s", p.baseURL, url.QueryEscape(tpl.Dir))
 	if email != "" {
 		reqURL += "&email=" + url.QueryEscape(email)
 	}
 
-	resp, err := p.client.Get(reqURL)
+	req, err := http.NewRequest("GET", reqURL, nil)
+	if err != nil {
+		log.Printf("credits: access check error: %v", err)
+		return true // fail open
+	}
+	if token != "" {
+		req.Header.Set("X-Verification-Token", token)
+	}
+	resp, err := p.client.Do(req)
 	if err != nil {
 		log.Printf("credits: access check error: %v", err)
 		return true // fail open
@@ -234,13 +276,22 @@ func (p *RemoteCreditProvider) TemplateAccessAllowed(r *http.Request, tpl StoreM
 // StorePageData calls the credits service for store page data and renders HTML locally.
 func (p *RemoteCreditProvider) StorePageData(r *http.Request) StorePageData {
 	email := p.resolveEmail(r)
+	token := p.resolveToken(r)
 
 	reqURL := p.baseURL + "/api/credits/store-data"
 	if email != "" {
 		reqURL += "?email=" + url.QueryEscape(email)
 	}
 
-	resp, err := p.client.Get(reqURL)
+	req, err := http.NewRequest("GET", reqURL, nil)
+	if err != nil {
+		log.Printf("credits: store-data error: %v", err)
+		return noCreditsStoreData()
+	}
+	if token != "" {
+		req.Header.Set("X-Verification-Token", token)
+	}
+	resp, err := p.client.Do(req)
 	if err != nil {
 		log.Printf("credits: store-data error: %v", err)
 		return noCreditsStoreData()
@@ -297,13 +348,22 @@ func (p *RemoteCreditProvider) StorePageData(r *http.Request) StorePageData {
 // TemplateStoreInfo calls the credits service for per-template info and renders HTML locally.
 func (p *RemoteCreditProvider) TemplateStoreInfo(r *http.Request, tpl StoreMeta) TemplateStoreInfo {
 	email := p.resolveEmail(r)
+	token := p.resolveToken(r)
 
 	reqURL := fmt.Sprintf("%s/api/credits/template-info?template_dir=%s", p.baseURL, url.QueryEscape(tpl.Dir))
 	if email != "" {
 		reqURL += "&email=" + url.QueryEscape(email)
 	}
 
-	resp, err := p.client.Get(reqURL)
+	req, err := http.NewRequest("GET", reqURL, nil)
+	if err != nil {
+		log.Printf("credits: template-info error: %v", err)
+		return TemplateStoreInfo{PriceLabel: `<span class="tpl-price-free">Free</span>`}
+	}
+	if token != "" {
+		req.Header.Set("X-Verification-Token", token)
+	}
+	resp, err := p.client.Do(req)
 	if err != nil {
 		log.Printf("credits: template-info error: %v", err)
 		return TemplateStoreInfo{PriceLabel: `<span class="tpl-price-free">Free</span>`}
