@@ -197,7 +197,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	}
 	if strings.TrimSpace(cfg.Presence.RendezvousWAN) != "" {
 		rvClients = append(rvClients,
-			rendezvous.NewClient(strings.TrimRight(cfg.Presence.RendezvousWAN, "/")))
+			rendezvous.NewClient(util.NormalizeURL(cfg.Presence.RendezvousWAN)))
 	}
 
 	peers := state.NewPeerTable()

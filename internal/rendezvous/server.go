@@ -324,7 +324,7 @@ func New(addr string, peerDBPath string, adminPassword string, externalURL strin
 
 	s := &Server{
 		addr:          addr,
-		externalURL:   strings.TrimRight(externalURL, "/"),
+		externalURL:   util.NormalizeURL(externalURL),
 		adminPassword: adminPassword,
 		clients:       map[chan []byte]struct{}{},
 		clientIPs:            map[chan []byte]string{},
@@ -1884,7 +1884,7 @@ func (s *Server) requireAdmin(w http.ResponseWriter, r *http.Request) bool {
 // checkServiceHealth pings a service's /healthz endpoint.
 func checkServiceHealth(baseURL string) bool {
 	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get(strings.TrimRight(baseURL, "/") + "/healthz")
+	resp, err := client.Get(util.NormalizeURL(baseURL) + "/healthz")
 	if err != nil {
 		return false
 	}
@@ -1911,7 +1911,7 @@ func topologyPath(name string) string {
 // fetchTopology calls a service's topology endpoint and decodes the response.
 func fetchTopology(baseURL, serviceName string) (topologyInfo, error) {
 	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get(strings.TrimRight(baseURL, "/") + topologyPath(serviceName))
+	resp, err := client.Get(util.NormalizeURL(baseURL) + topologyPath(serviceName))
 	if err != nil {
 		return topologyInfo{}, err
 	}

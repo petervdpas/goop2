@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/petervdpas/goop2/internal/proto"
+	"github.com/petervdpas/goop2/internal/util"
 )
 
 type Client struct {
@@ -21,7 +22,7 @@ type Client struct {
 
 func NewClient(baseURL string) *Client {
 	baseURL = strings.TrimSpace(baseURL)
-	baseURL = strings.TrimRight(baseURL, "/")
+	baseURL = util.NormalizeURL(baseURL)
 	return &Client{
 		BaseURL: baseURL,
 		HTTP: &http.Client{
