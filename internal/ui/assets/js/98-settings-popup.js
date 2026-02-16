@@ -60,14 +60,8 @@
     var emailInput = inputField('Email', email, 'settings-email');
     body.appendChild(emailInput);
 
-    var tokenField = passwordField('Verification Token', verificationToken, 'settings-token');
+    var tokenField = passwordField('Verification token (from email)', verificationToken, 'settings-token');
     body.appendChild(tokenField);
-
-    var tokenHint = el('div', 'small muted');
-    tokenHint.textContent = 'Paste the token from your verification email to prove account ownership';
-    tokenHint.style.marginTop = '-8px';
-    tokenHint.style.fontSize = '11px';
-    body.appendChild(tokenHint);
 
     // ── Theme section ──
     body.appendChild(sectionLabel('Appearance'));
@@ -79,17 +73,11 @@
     // ── Devices section (hidden if video_disabled) ──
     var devicesLabel = sectionLabel('Devices');
     devicesLabel.id = 'settings-devices-label';
-    body.appendChild(devicesLabel);
-
-    // Linux warning
     var osType = document.body.getAttribute('data-os') || '';
     if (osType === 'linux') {
-      var linuxWarn = el('div', 'banner warn small');
-      linuxWarn.id = 'settings-linux-warning';
-      linuxWarn.innerHTML = 'Video/audio calls may not work on Linux due to WebKitGTK limitations.';
-      linuxWarn.style.marginBottom = '8px';
-      body.appendChild(linuxWarn);
+      devicesLabel.innerHTML += ' <span style="font-weight:400;font-size:10px;text-transform:none;letter-spacing:0;opacity:0.7">(may not work on Linux)</span>';
     }
+    body.appendChild(devicesLabel);
 
     var defaultDev = [{ value: '', label: 'System default' }];
     var camField = selectField('Camera', {
