@@ -13,20 +13,12 @@ import (
 func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
 
 	// POST /api/listen/create — host creates a group
-	mux.HandleFunc("/api/listen/create", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
-		var req struct {
-			Name string `json:"name"`
-		}
-		if decodeJSON(w, r, &req) != nil {
-			return
-		}
+	handlePost(mux, "/api/listen/create", func(w http.ResponseWriter, r *http.Request, req struct {
+		Name string `json:"name"`
+	}) {
 		if req.Name == "" {
 			req.Name = "Listening Group"
 		}
-
 		group, err := lm.CreateGroup(req.Name)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed: %v", err), http.StatusConflict)
@@ -36,10 +28,7 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
 	})
 
 	// POST /api/listen/close — host closes group
-	mux.HandleFunc("/api/listen/close", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
+	handlePostAction(mux, "/api/listen/close", func(w http.ResponseWriter, r *http.Request) {
 		if err := lm.CloseGroup(); err != nil {
 			http.Error(w, fmt.Sprintf("failed: %v", err), http.StatusInternalServerError)
 			return
@@ -48,24 +37,16 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
 	})
 
 	// POST /api/listen/load — host loads an MP3 file
-	mux.HandleFunc("/api/listen/load", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
+	handlePost(mux, "/api/listen/load", func(w http.ResponseWriter, r *http.Request, req struct {
+		FilePath string `json:"file_path"`
+	}) {
 		if !requireLocal(w, r) {
-			return
-		}
-		var req struct {
-			FilePath string `json:"file_path"`
-		}
-		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 		if req.FilePath == "" {
 			http.Error(w, "missing file_path", http.StatusBadRequest)
 			return
 		}
-
 		track, err := lm.LoadTrack(req.FilePath)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed: %v", err), http.StatusBadRequest)
@@ -75,18 +56,10 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
 	})
 
 	// POST /api/listen/control — host play/pause/seek
-	mux.HandleFunc("/api/listen/control", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
-		var req struct {
-			Action   string  `json:"action"`
-			Position float64 `json:"position"`
-		}
-		if decodeJSON(w, r, &req) != nil {
-			return
-		}
-
+	handlePost(mux, "/api/listen/control", func(w http.ResponseWriter, r *http.Request, req struct {
+		Action   string  `json:"action"`
+		Position float64 `json:"position"`
+	}) {
 		var err error
 		switch req.Action {
 		case "play":
@@ -99,7 +72,6 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
 			http.Error(w, "unknown action: "+req.Action, http.StatusBadRequest)
 			return
 		}
-
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed: %v", err), http.StatusInternalServerError)
 			return
@@ -108,22 +80,14 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
 	})
 
 	// POST /api/listen/join — listener joins a group
-	mux.HandleFunc("/api/listen/join", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
-		var req struct {
-			HostPeerID string `json:"host_peer_id"`
-			GroupID    string `json:"group_id"`
-		}
-		if decodeJSON(w, r, &req) != nil {
-			return
-		}
+	handlePost(mux, "/api/listen/join", func(w http.ResponseWriter, r *http.Request, req struct {
+		HostPeerID string `json:"host_peer_id"`
+		GroupID    string `json:"group_id"`
+	}) {
 		if req.HostPeerID == "" || req.GroupID == "" {
 			http.Error(w, "missing host_peer_id or group_id", http.StatusBadRequest)
 			return
 		}
-
 		if err := lm.JoinGroup(req.HostPeerID, req.GroupID); err != nil {
 			http.Error(w, fmt.Sprintf("failed: %v", err), http.StatusConflict)
 			return
@@ -132,10 +96,7 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
 	})
 
 	// POST /api/listen/leave — listener leaves
-	mux.HandleFunc("/api/listen/leave", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
+	handlePostAction(mux, "/api/listen/leave", func(w http.ResponseWriter, r *http.Request) {
 		if err := lm.LeaveGroup(); err != nil {
 			http.Error(w, fmt.Sprintf("failed: %v", err), http.StatusInternalServerError)
 			return
@@ -144,11 +105,7 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
 	})
 
 	// GET /api/listen/stream — audio stream (Content-Type: audio/mpeg)
-	mux.HandleFunc("/api/listen/stream", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
-
+	handleGet(mux, "/api/listen/stream", func(w http.ResponseWriter, r *http.Request) {
 		reader, err := lm.AudioReader()
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed: %v", err), http.StatusServiceUnavailable)
@@ -181,10 +138,7 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
 	})
 
 	// GET /api/listen/state — current group state
-	mux.HandleFunc("/api/listen/state", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
+	handleGet(mux, "/api/listen/state", func(w http.ResponseWriter, r *http.Request) {
 		group := lm.GetGroup()
 		if group == nil {
 			writeJSON(w, map[string]any{"group": nil})
@@ -194,11 +148,7 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
 	})
 
 	// GET /api/listen/events — SSE for state updates
-	mux.HandleFunc("/api/listen/events", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
-
+	handleGet(mux, "/api/listen/events", func(w http.ResponseWriter, r *http.Request) {
 		sseHeaders(w)
 
 		flusher, ok := w.(http.Flusher)

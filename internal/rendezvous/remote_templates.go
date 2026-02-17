@@ -9,39 +9,42 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
-	"sync"
-	"time"
-
-	"github.com/petervdpas/goop2/internal/util"
 )
 
 // RemoteTemplatesProvider proxies template endpoints to a standalone
 // templates service and provides status/version info.
 type RemoteTemplatesProvider struct {
-	baseURL    string
-	adminToken string
-	client     *http.Client
-	proxy      *httputil.ReverseProxy
+	remoteBase
+	proxy *httputil.ReverseProxy
 
-	// cached status from /api/templates/status
-	tplVersion       string
-	tplAPIVersion    int
-	tplDummyMode     bool
-	tplTemplateCount int
-	tplCachedAt      time.Time
-	tplCacheMu       sync.RWMutex
+	// extra cached status field
+	templateCount int
 }
 
 // NewRemoteTemplatesProvider creates a provider that talks to the templates service.
 func NewRemoteTemplatesProvider(baseURL, adminToken string) *RemoteTemplatesProvider {
-	base := util.NormalizeURL(baseURL)
-	target, _ := url.Parse(base)
-	return &RemoteTemplatesProvider{
-		baseURL:    base,
-		adminToken: adminToken,
-		client:     &http.Client{Timeout: 5 * time.Second},
+	base := newRemoteBase(baseURL, adminToken)
+	target, _ := url.Parse(base.baseURL)
+	p := &RemoteTemplatesProvider{
+		remoteBase: base,
 		proxy:      httputil.NewSingleHostReverseProxy(target),
 	}
+	p.fetchFn = func() {
+		var result struct {
+			Version       string `json:"version"`
+			APIVersion    int    `json:"api_version"`
+			DummyMode     bool   `json:"dummy_mode"`
+			TemplateCount int    `json:"template_count"`
+		}
+		fetchCachedStatus(&p.cacheMu, &p.cachedAt,
+			p.client, p.baseURL+"/api/templates/status", "templates", &result, func() {
+				p.version = result.Version
+				p.apiVersion = result.APIVersion
+				p.dummyMode = result.DummyMode
+				p.templateCount = result.TemplateCount
+			})
+	}
+	return p
 }
 
 // RegisterRoutes registers /api/templates/prices handlers that inject the
@@ -106,51 +109,10 @@ func (p *RemoteTemplatesProvider) FetchTemplates() ([]StoreMeta, error) {
 	return out, nil
 }
 
-// fetchStatus fetches and caches /api/templates/status.
-func (p *RemoteTemplatesProvider) fetchStatus() {
-	var result struct {
-		Version       string `json:"version"`
-		APIVersion    int    `json:"api_version"`
-		DummyMode     bool   `json:"dummy_mode"`
-		TemplateCount int    `json:"template_count"`
-	}
-	fetchCachedStatus(&p.tplCacheMu, &p.tplCachedAt,
-		p.client, p.baseURL+"/api/templates/status", "templates", &result, func() {
-			p.tplVersion = result.Version
-			p.tplAPIVersion = result.APIVersion
-			p.tplDummyMode = result.DummyMode
-			p.tplTemplateCount = result.TemplateCount
-		})
-}
-
-// Version returns the cached version string from the templates service.
-func (p *RemoteTemplatesProvider) Version() string {
-	p.fetchStatus()
-	p.tplCacheMu.RLock()
-	defer p.tplCacheMu.RUnlock()
-	return p.tplVersion
-}
-
-// APIVersion returns the cached API version from the templates service.
-func (p *RemoteTemplatesProvider) APIVersion() int {
-	p.fetchStatus()
-	p.tplCacheMu.RLock()
-	defer p.tplCacheMu.RUnlock()
-	return p.tplAPIVersion
-}
-
-// DummyMode returns the cached dummy_mode flag from the templates service.
-func (p *RemoteTemplatesProvider) DummyMode() bool {
-	p.fetchStatus()
-	p.tplCacheMu.RLock()
-	defer p.tplCacheMu.RUnlock()
-	return p.tplDummyMode
-}
-
 // TemplateCount returns the cached template count from the templates service.
 func (p *RemoteTemplatesProvider) TemplateCount() int {
 	p.fetchStatus()
-	p.tplCacheMu.RLock()
-	defer p.tplCacheMu.RUnlock()
-	return p.tplTemplateCount
+	p.cacheMu.RLock()
+	defer p.cacheMu.RUnlock()
+	return p.templateCount
 }

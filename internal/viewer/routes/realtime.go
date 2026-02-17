@@ -12,115 +12,71 @@ import (
 // RegisterRealtime adds realtime channel HTTP API endpoints.
 func RegisterRealtime(mux *http.ServeMux, rtMgr *realtime.Manager, selfID string) {
 	// POST /api/realtime/connect — create channel + invite peer
-	mux.HandleFunc("/api/realtime/connect", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
-
-		var req struct {
-			PeerID string `json:"peer_id"`
-		}
-		if decodeJSON(w, r, &req) != nil {
-			return
-		}
+	handlePost(mux, "/api/realtime/connect", func(w http.ResponseWriter, r *http.Request, req struct {
+		PeerID string `json:"peer_id"`
+	}) {
 		if req.PeerID == "" {
 			http.Error(w, "missing peer_id", http.StatusBadRequest)
 			return
 		}
-
 		ch, err := rtMgr.CreateChannel(r.Context(), req.PeerID)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed: %v", err), http.StatusInternalServerError)
 			return
 		}
-
 		writeJSON(w, ch)
 	})
 
 	// POST /api/realtime/accept — accept incoming channel
-	mux.HandleFunc("/api/realtime/accept", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
-
-		var req struct {
-			ChannelID  string `json:"channel_id"`
-			HostPeerID string `json:"host_peer_id"`
-		}
-		if decodeJSON(w, r, &req) != nil {
-			return
-		}
+	handlePost(mux, "/api/realtime/accept", func(w http.ResponseWriter, r *http.Request, req struct {
+		ChannelID  string `json:"channel_id"`
+		HostPeerID string `json:"host_peer_id"`
+	}) {
 		if req.ChannelID == "" || req.HostPeerID == "" {
 			http.Error(w, "missing channel_id or host_peer_id", http.StatusBadRequest)
 			return
 		}
-
 		ch, err := rtMgr.AcceptChannel(r.Context(), req.ChannelID, req.HostPeerID)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed: %v", err), http.StatusInternalServerError)
 			return
 		}
-
 		writeJSON(w, ch)
 	})
 
 	// POST /api/realtime/send — send message on channel
-	mux.HandleFunc("/api/realtime/send", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
-
-		var req struct {
-			ChannelID string `json:"channel_id"`
-			Payload   any    `json:"payload"`
-		}
-		if decodeJSON(w, r, &req) != nil {
-			return
-		}
+	handlePost(mux, "/api/realtime/send", func(w http.ResponseWriter, r *http.Request, req struct {
+		ChannelID string `json:"channel_id"`
+		Payload   any    `json:"payload"`
+	}) {
 		if req.ChannelID == "" {
 			http.Error(w, "missing channel_id", http.StatusBadRequest)
 			return
 		}
-
 		if err := rtMgr.Send(req.ChannelID, req.Payload); err != nil {
 			http.Error(w, fmt.Sprintf("send failed: %v", err), http.StatusInternalServerError)
 			return
 		}
-
 		writeJSON(w, map[string]string{"status": "sent"})
 	})
 
 	// POST /api/realtime/close — close channel
-	mux.HandleFunc("/api/realtime/close", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
-
-		var req struct {
-			ChannelID string `json:"channel_id"`
-		}
-		if decodeJSON(w, r, &req) != nil {
-			return
-		}
+	handlePost(mux, "/api/realtime/close", func(w http.ResponseWriter, r *http.Request, req struct {
+		ChannelID string `json:"channel_id"`
+	}) {
 		if req.ChannelID == "" {
 			http.Error(w, "missing channel_id", http.StatusBadRequest)
 			return
 		}
-
 		if err := rtMgr.CloseChannel(req.ChannelID); err != nil {
 			http.Error(w, fmt.Sprintf("close failed: %v", err), http.StatusInternalServerError)
 			return
 		}
-
 		writeJSON(w, map[string]string{"status": "closed"})
 	})
 
 	// GET /api/realtime/channels — list active channels
-	mux.HandleFunc("/api/realtime/channels", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
-
+	handleGet(mux, "/api/realtime/channels", func(w http.ResponseWriter, r *http.Request) {
 		channels := rtMgr.ListChannels()
 		if channels == nil {
 			channels = []*realtime.Channel{}
@@ -129,11 +85,7 @@ func RegisterRealtime(mux *http.ServeMux, rtMgr *realtime.Manager, selfID string
 	})
 
 	// GET /api/realtime/events?channel=X — SSE stream for a channel (or all)
-	mux.HandleFunc("/api/realtime/events", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
-
+	handleGet(mux, "/api/realtime/events", func(w http.ResponseWriter, r *http.Request) {
 		sseHeaders(w)
 
 		flusher, ok := w.(http.Flusher)

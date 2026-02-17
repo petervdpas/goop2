@@ -9,10 +9,7 @@ import (
 )
 
 func registerOfflineRoutes(mux *http.ServeMux, d Deps) {
-	mux.HandleFunc("/offline", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
+	handlePostAction(mux, "/offline", func(w http.ResponseWriter, r *http.Request) {
 		d.Node.Publish(context.Background(), proto.TypeOffline)
 		http.Redirect(w, r, "/peers", http.StatusFound)
 	})

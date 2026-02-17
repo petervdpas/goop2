@@ -114,13 +114,30 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 
 		// Wire external services (credits + registration + email + templates)
 		if cfg.Presence.UseServices {
-			setupCredits(rv, cfg.Presence.CreditsURL, cfg.Presence.CreditsAdminToken)
-			setupRegistration(rv, cfg.Presence.RegistrationURL, cfg.Presence.RegistrationAdminToken)
-			setupEmail(rv, cfg.Presence.EmailURL)
-			setupTemplates(rv, cfg.Presence.TemplatesURL, cfg.Presence.TemplatesAdminToken, cfg.Presence.TemplatesDir, o.PeerDir)
-		} else {
-			// No services — still allow local template store
-			setupTemplates(rv, "", "", cfg.Presence.TemplatesDir, o.PeerDir)
+			setupMicroService("Credits", cfg.Presence.CreditsURL, func() {
+				rv.SetCreditProvider(rendezvous.NewRemoteCreditProvider(
+					cfg.Presence.CreditsURL, rv.GetEmailForPeer, rv.GetTokenForPeer, cfg.Presence.CreditsAdminToken))
+			})
+			setupMicroService("Registration", cfg.Presence.RegistrationURL, func() {
+				rv.SetRegistrationProvider(rendezvous.NewRemoteRegistrationProvider(
+					cfg.Presence.RegistrationURL, cfg.Presence.RegistrationAdminToken))
+			})
+			setupMicroService("Email", cfg.Presence.EmailURL, func() {
+				rv.SetEmailProvider(rendezvous.NewRemoteEmailProvider(cfg.Presence.EmailURL))
+			})
+			setupMicroService("Templates", cfg.Presence.TemplatesURL, func() {
+				rv.SetTemplatesProvider(rendezvous.NewRemoteTemplatesProvider(
+					cfg.Presence.TemplatesURL, cfg.Presence.TemplatesAdminToken))
+			})
+		}
+
+		// Local template store fallback (works with or without services)
+		if cfg.Presence.TemplatesDir != "" && (cfg.Presence.TemplatesURL == "" || !cfg.Presence.UseServices) {
+			dir := util.ResolvePath(o.PeerDir, cfg.Presence.TemplatesDir)
+			if store := rendezvous.NewLocalTemplateStore(dir); store != nil {
+				log.Printf("Local template store: %s (%d templates)", dir, store.Count())
+				rv.SetLocalTemplateStore(store)
+			}
 		}
 
 		step++

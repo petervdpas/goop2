@@ -9,40 +9,40 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
-	"sync"
-	"time"
-
-	"github.com/petervdpas/goop2/internal/util"
 )
 
 // RemoteRegistrationProvider proxies registration endpoints to a standalone
 // registration service and provides email verification checks.
 type RemoteRegistrationProvider struct {
-	baseURL    string
-	adminToken string
-	client     *http.Client
+	remoteBase
 
-	// cached status from /api/reg/status
+	// extra cached status fields
 	regRequired    bool
-	regVersion     string
-	regAPIVersion  int
 	regGrantAmount int
-	regCachedAt    time.Time
-	regCacheMu     sync.RWMutex
 }
 
 // NewRemoteRegistrationProvider creates a provider that talks to the registration service.
 func NewRemoteRegistrationProvider(baseURL, adminToken string) *RemoteRegistrationProvider {
-	return &RemoteRegistrationProvider{
-		baseURL:    util.NormalizeURL(baseURL),
-		adminToken: adminToken,
-		client:     &http.Client{Timeout: 5 * time.Second},
+	p := &RemoteRegistrationProvider{remoteBase: newRemoteBase(baseURL, adminToken)}
+	p.fetchFn = func() {
+		var result struct {
+			RegistrationRequired bool   `json:"registration_required"`
+			Version              string `json:"version"`
+			APIVersion           int    `json:"api_version"`
+			GrantAmount          int    `json:"grant_amount"`
+		}
+		fetchCachedStatus(&p.cacheMu, &p.cachedAt,
+			p.client, p.baseURL+"/api/reg/status", "registration", &result, func() {
+				p.regRequired = result.RegistrationRequired
+				p.version = result.Version
+				p.apiVersion = result.APIVersion
+				p.regGrantAmount = result.GrantAmount
+			})
 	}
+	return p
 }
 
 // RegisterRoutes sets up reverse proxies for registration endpoints.
-// The verifyRender callback is called to render a nice HTML page for /verify
-// instead of returning raw JSON.
 func (p *RemoteRegistrationProvider) RegisterRoutes(mux *http.ServeMux) {
 	target, err := url.Parse(p.baseURL)
 	if err != nil {
@@ -124,53 +124,20 @@ func (p *RemoteRegistrationProvider) IsEmailTokenValid(email, token string) bool
 	return result.Valid
 }
 
-// fetchStatus fetches and caches /api/reg/status (registration_required, version).
-func (p *RemoteRegistrationProvider) fetchStatus() {
-	var result struct {
-		RegistrationRequired bool   `json:"registration_required"`
-		Version              string `json:"version"`
-		APIVersion           int    `json:"api_version"`
-		GrantAmount          int    `json:"grant_amount"`
-	}
-	fetchCachedStatus(&p.regCacheMu, &p.regCachedAt,
-		p.client, p.baseURL+"/api/reg/status", "registration", &result, func() {
-			p.regRequired = result.RegistrationRequired
-			p.regVersion = result.Version
-			p.regAPIVersion = result.APIVersion
-			p.regGrantAmount = result.GrantAmount
-		})
-}
-
 // RegistrationRequired queries the registration service to check if
 // registration is required. The result is cached for 30 seconds.
 func (p *RemoteRegistrationProvider) RegistrationRequired() bool {
 	p.fetchStatus()
-	p.regCacheMu.RLock()
-	defer p.regCacheMu.RUnlock()
+	p.cacheMu.RLock()
+	defer p.cacheMu.RUnlock()
 	return p.regRequired
-}
-
-// Version returns the cached version string from the registration service.
-func (p *RemoteRegistrationProvider) Version() string {
-	p.fetchStatus()
-	p.regCacheMu.RLock()
-	defer p.regCacheMu.RUnlock()
-	return p.regVersion
-}
-
-// APIVersion returns the cached API version from the registration service.
-func (p *RemoteRegistrationProvider) APIVersion() int {
-	p.fetchStatus()
-	p.regCacheMu.RLock()
-	defer p.regCacheMu.RUnlock()
-	return p.regAPIVersion
 }
 
 // GrantAmount returns the cached grant_amount from the registration service.
 func (p *RemoteRegistrationProvider) GrantAmount() int {
 	p.fetchStatus()
-	p.regCacheMu.RLock()
-	defer p.regCacheMu.RUnlock()
+	p.cacheMu.RLock()
+	defer p.cacheMu.RUnlock()
 	return p.regGrantAmount
 }
 

@@ -107,19 +107,11 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	})
 
 	// POST /api/templates/apply — apply a built-in template (resets site + db)
-	mux.HandleFunc("/api/templates/apply", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
+	handlePost(mux, "/api/templates/apply", func(w http.ResponseWriter, r *http.Request, req struct {
+		Template string `json:"template"`
+		CSRF     string `json:"csrf"`
+	}) {
 		if !requireLocal(w, r) {
-			return
-		}
-
-		var req struct {
-			Template string `json:"template"`
-			CSRF     string `json:"csrf"`
-		}
-		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 		if req.CSRF != csrf {
@@ -169,19 +161,11 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	})
 
 	// POST /api/templates/apply-store — apply a store template (resets site + db)
-	mux.HandleFunc("/api/templates/apply-store", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
+	handlePost(mux, "/api/templates/apply-store", func(w http.ResponseWriter, r *http.Request, req struct {
+		Template string `json:"template"`
+		CSRF     string `json:"csrf"`
+	}) {
 		if !requireLocal(w, r) {
-			return
-		}
-
-		var req struct {
-			Template string `json:"template"`
-			CSRF     string `json:"csrf"`
-		}
-		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 		if req.CSRF != csrf {

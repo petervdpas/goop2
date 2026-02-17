@@ -86,11 +86,8 @@ func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	})
 
 	// POST /edit/save
-	mux.HandleFunc("/edit/save", func(w http.ResponseWriter, r *http.Request) {
+	handleFormPost(mux, "/edit/save", csrf, func(w http.ResponseWriter, r *http.Request) {
 		if !requireContentStore(w, d.Content) {
-			return
-		}
-		if err := validatePOSTRequest(w, r, csrf); err != nil {
 			return
 		}
 
@@ -112,11 +109,8 @@ func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	})
 
 	// POST /edit/mkdir
-	mux.HandleFunc("/edit/mkdir", func(w http.ResponseWriter, r *http.Request) {
+	handleFormPost(mux, "/edit/mkdir", csrf, func(w http.ResponseWriter, r *http.Request) {
 		if !requireContentStore(w, d.Content) {
-			return
-		}
-		if err := validatePOSTRequest(w, r, csrf); err != nil {
 			return
 		}
 
@@ -140,11 +134,8 @@ func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	})
 
 	// POST /edit/new
-	mux.HandleFunc("/edit/new", func(w http.ResponseWriter, r *http.Request) {
+	handleFormPost(mux, "/edit/new", csrf, func(w http.ResponseWriter, r *http.Request) {
 		if !requireContentStore(w, d.Content) {
-			return
-		}
-		if err := validatePOSTRequest(w, r, csrf); err != nil {
 			return
 		}
 
@@ -181,11 +172,8 @@ func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	})
 
 	// POST /edit/delete
-	mux.HandleFunc("/edit/delete", func(w http.ResponseWriter, r *http.Request) {
+	handleFormPost(mux, "/edit/delete", csrf, func(w http.ResponseWriter, r *http.Request) {
 		if !requireContentStore(w, d.Content) {
-			return
-		}
-		if err := validatePOSTRequest(w, r, csrf); err != nil {
 			return
 		}
 
@@ -214,11 +202,8 @@ func registerEditorRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	})
 
 	// POST /edit/rename
-	mux.HandleFunc("/edit/rename", func(w http.ResponseWriter, r *http.Request) {
+	handleFormPost(mux, "/edit/rename", csrf, func(w http.ResponseWriter, r *http.Request) {
 		if !requireContentStore(w, d.Content) {
-			return
-		}
-		if err := validatePOSTRequest(w, r, csrf); err != nil {
 			return
 		}
 

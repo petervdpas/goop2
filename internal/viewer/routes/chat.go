@@ -15,20 +15,10 @@ import (
 // RegisterChat adds chat-related HTTP endpoints
 func RegisterChat(mux *http.ServeMux, chatMgr *chat.Manager, peers *state.PeerTable) {
 	// Send a direct message
-	mux.HandleFunc("/api/chat/send", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
-
-		var req struct {
-			To      string `json:"to"`
-			Content string `json:"content"`
-		}
-
-		if decodeJSON(w, r, &req) != nil {
-			return
-		}
-
+	handlePost(mux, "/api/chat/send", func(w http.ResponseWriter, r *http.Request, req struct {
+		To      string `json:"to"`
+		Content string `json:"content"`
+	}) {
 		if req.To == "" || req.Content == "" {
 			http.Error(w, "Missing to or content", http.StatusBadRequest)
 			return
@@ -50,19 +40,9 @@ func RegisterChat(mux *http.ServeMux, chatMgr *chat.Manager, peers *state.PeerTa
 	})
 
 	// Send a broadcast message
-	mux.HandleFunc("/api/chat/broadcast", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
-
-		var req struct {
-			Content string `json:"content"`
-		}
-
-		if decodeJSON(w, r, &req) != nil {
-			return
-		}
-
+	handlePost(mux, "/api/chat/broadcast", func(w http.ResponseWriter, r *http.Request, req struct {
+		Content string `json:"content"`
+	}) {
 		if req.Content == "" {
 			http.Error(w, "Missing content", http.StatusBadRequest)
 			return
@@ -84,29 +64,18 @@ func RegisterChat(mux *http.ServeMux, chatMgr *chat.Manager, peers *state.PeerTa
 	})
 
 	// Get broadcast messages
-	mux.HandleFunc("/api/chat/broadcasts", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
-
-		messages := chatMgr.GetBroadcasts()
-		writeJSON(w, messages)
+	handleGet(mux, "/api/chat/broadcasts", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, chatMgr.GetBroadcasts())
 	})
 
 	// Get all messages
-	mux.HandleFunc("/api/chat/messages", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
-
+	handleGet(mux, "/api/chat/messages", func(w http.ResponseWriter, r *http.Request) {
 		peerID := r.URL.Query().Get("peer")
 
 		var messages []*chat.Message
 		if peerID != "" {
-			// Get conversation with specific peer
 			messages = chatMgr.GetConversation(peerID)
 		} else {
-			// Get all messages
 			messages = chatMgr.GetMessages()
 		}
 
@@ -114,12 +83,7 @@ func RegisterChat(mux *http.ServeMux, chatMgr *chat.Manager, peers *state.PeerTa
 	})
 
 	// SSE endpoint for live chat updates
-	mux.HandleFunc("/api/chat/events", func(w http.ResponseWriter, r *http.Request) {
-		// Only allow GET
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
-
+	handleGet(mux, "/api/chat/events", func(w http.ResponseWriter, r *http.Request) {
 		sseHeaders(w)
 
 		flusher, ok := w.(http.Flusher)
@@ -146,7 +110,6 @@ func RegisterChat(mux *http.ServeMux, chatMgr *chat.Manager, peers *state.PeerTa
 					return
 				}
 
-				// Send message as SSE event
 				data, err := json.Marshal(msg)
 				if err != nil {
 					log.Printf("Failed to marshal chat message: %v", err)

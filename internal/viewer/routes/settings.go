@@ -18,26 +18,18 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 	// Quick settings API — partial update, only non-nil fields are written.
 	// Used by settings popup (all fields), theme toggle (theme only), etc.
-	mux.HandleFunc("/api/settings/quick", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
+	handlePost(mux, "/api/settings/quick", func(w http.ResponseWriter, r *http.Request, req struct {
+		Label             *string `json:"label"`
+		Email             *string `json:"email"`
+		VerificationToken *string `json:"verification_token"`
+		Theme             *string `json:"theme"`
+		PreferredCam      *string `json:"preferred_cam"`
+		PreferredMic      *string `json:"preferred_mic"`
+		VideoDisabled     *bool   `json:"video_disabled"`
+		HideUnverified    *bool   `json:"hide_unverified"`
+		UseServices       *bool   `json:"use_services"`
+	}) {
 		if !requireLocal(w, r) {
-			return
-		}
-
-		var req struct {
-			Label             *string `json:"label"`
-			Email             *string `json:"email"`
-			VerificationToken *string `json:"verification_token"`
-			Theme             *string `json:"theme"`
-			PreferredCam      *string `json:"preferred_cam"`
-			PreferredMic      *string `json:"preferred_mic"`
-			VideoDisabled     *bool   `json:"video_disabled"`
-			HideUnverified    *bool   `json:"hide_unverified"`
-			UseServices       *bool   `json:"use_services"`
-		}
-		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 
@@ -84,10 +76,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	})
 
 	// GET quick settings (used by settings popup + call JS to read device prefs)
-	mux.HandleFunc("/api/settings/quick/get", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
+	handleGet(mux, "/api/settings/quick/get", func(w http.ResponseWriter, r *http.Request) {
 		cfg, err := config.Load(d.CfgPath)
 		if err != nil {
 			http.Error(w, "failed to load config", http.StatusInternalServerError)
@@ -105,11 +94,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		})
 	})
 
-	mux.HandleFunc("/settings/save", func(w http.ResponseWriter, r *http.Request) {
-		if err := validatePOSTRequest(w, r, csrf); err != nil {
-			return
-		}
-
+	handleFormPost(mux, "/settings/save", csrf, func(w http.ResponseWriter, r *http.Request) {
 		cfg, err := config.Load(d.CfgPath)
 		if err != nil {
 			http.Error(w, "failed to load config: "+err.Error(), http.StatusInternalServerError)
@@ -209,11 +194,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	})
 
 	// Health check endpoint for external services
-	mux.HandleFunc("/api/services/health", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
-
+	handleGet(mux, "/api/services/health", func(w http.ResponseWriter, r *http.Request) {
 		cfg, err := config.Load(d.CfgPath)
 		if err != nil {
 			http.Error(w, "failed to load config", http.StatusInternalServerError)
@@ -231,11 +212,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	})
 
 	// Single-service health check using a URL from the form (not saved config)
-	mux.HandleFunc("/api/services/check", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
-
+	handleGet(mux, "/api/services/check", func(w http.ResponseWriter, r *http.Request) {
 		svcURL := strings.TrimSpace(r.URL.Query().Get("url"))
 		svcType := r.URL.Query().Get("type") // "registration", "credits", "email", or "templates"
 		if svcURL == "" {

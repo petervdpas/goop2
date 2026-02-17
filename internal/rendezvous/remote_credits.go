@@ -9,17 +9,12 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
-
-	"github.com/petervdpas/goop2/internal/util"
 )
 
 // RemoteCreditProvider implements CreditProvider by making HTTP calls
 // to a standalone credits service, translating peer_id → email.
 type RemoteCreditProvider struct {
-	baseURL       string
-	adminToken    string
-	client        *http.Client
+	remoteBase
 	emailResolver func(string) string // peer_id → email
 	tokenResolver func(string) string // peer_id → verification token
 }
@@ -29,9 +24,7 @@ type RemoteCreditProvider struct {
 // The tokenResolver translates a peer ID into a verification token.
 func NewRemoteCreditProvider(baseURL string, emailResolver, tokenResolver func(string) string, adminToken string) *RemoteCreditProvider {
 	return &RemoteCreditProvider{
-		baseURL:       util.NormalizeURL(baseURL),
-		adminToken:    adminToken,
-		client:        &http.Client{Timeout: 5 * time.Second},
+		remoteBase:    newRemoteBase(baseURL, adminToken),
 		emailResolver: emailResolver,
 		tokenResolver: tokenResolver,
 	}

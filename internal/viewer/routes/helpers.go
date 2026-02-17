@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/petervdpas/goop2/internal/config"
+	"github.com/petervdpas/goop2/internal/ui/render"
 	"github.com/petervdpas/goop2/internal/ui/viewmodels"
 )
 
@@ -242,6 +243,54 @@ func requireMethod(w http.ResponseWriter, r *http.Request, method string) bool {
 	return true
 }
 
+// handlePost registers a POST handler that decodes a JSON body into T
+// before calling fn. Method check and decode errors are handled automatically.
+func handlePost[T any](mux *http.ServeMux, path string, fn func(http.ResponseWriter, *http.Request, T)) {
+	mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+		if !requireMethod(w, r, http.MethodPost) {
+			return
+		}
+		var req T
+		if decodeJSON(w, r, &req) != nil {
+			return
+		}
+		fn(w, r, req)
+	})
+}
+
+// handleGet registers a GET handler with an automatic method check.
+func handleGet(mux *http.ServeMux, path string, fn func(http.ResponseWriter, *http.Request)) {
+	mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+		if !requireMethod(w, r, http.MethodGet) {
+			return
+		}
+		fn(w, r)
+	})
+}
+
+// handlePostAction registers a POST handler with no JSON body decoding.
+// Use for endpoints that either have no request body or read it themselves.
+func handlePostAction(mux *http.ServeMux, path string, fn func(http.ResponseWriter, *http.Request)) {
+	mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+		if !requireMethod(w, r, http.MethodPost) {
+			return
+		}
+		fn(w, r)
+	})
+}
+
+// handleFormPost registers a POST handler that validates CSRF + parses form data.
+// Method check, localhost check, form parsing, and CSRF validation are handled
+// automatically. The handler receives the request with r.PostForm populated.
+func handleFormPost(mux *http.ServeMux, path, csrf string, fn func(http.ResponseWriter, *http.Request)) {
+	mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+		if err := validatePOSTRequest(w, r, csrf); err != nil {
+			return
+		}
+		fn(w, r)
+	})
+}
+
 // requireLocal checks that the request originates from localhost and sends
 // 403 if it doesn't. Returns true if the request is local.
 func requireLocal(w http.ResponseWriter, r *http.Request) bool {
@@ -287,6 +336,24 @@ func fetchServiceHealth(client *http.Client, baseURL, statusPath string, fields 
 		}
 	}
 	return result
+}
+
+// simplePage describes a page that only needs a BaseVM (no extra fields).
+type simplePage struct {
+	path        string // URL path, e.g. "/logs"
+	title       string // page title
+	active      string // active nav tab
+	contentTmpl string // template name
+}
+
+// registerSimplePages registers handlers for pages that only need a BaseVM.
+func registerSimplePages(mux *http.ServeMux, d Deps, pages []simplePage) {
+	for _, pg := range pages {
+		pg := pg // capture loop variable
+		mux.HandleFunc(pg.path, func(w http.ResponseWriter, r *http.Request) {
+			render.Render(w, baseVM(pg.title, pg.active, pg.contentTmpl, d))
+		})
+	}
 }
 
 func sseHeaders(w http.ResponseWriter) {

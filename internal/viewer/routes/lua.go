@@ -114,11 +114,7 @@ func registerLuaRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	})
 
 	// POST /lua/save — save a script
-	mux.HandleFunc("/lua/save", func(w http.ResponseWriter, r *http.Request) {
-		if err := validatePOSTRequest(w, r, csrf); err != nil {
-			return
-		}
-
+	handleFormPost(mux, "/lua/save", csrf, func(w http.ResponseWriter, r *http.Request) {
 		name := getTrimmedPostFormValue(r.PostForm, "name")
 		content := r.PostForm.Get("content")
 		isFunc := r.PostForm.Get("is_func") == "1"
@@ -154,11 +150,7 @@ func registerLuaRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	})
 
 	// POST /lua/new — create a new empty script
-	mux.HandleFunc("/lua/new", func(w http.ResponseWriter, r *http.Request) {
-		if err := validatePOSTRequest(w, r, csrf); err != nil {
-			return
-		}
-
+	handleFormPost(mux, "/lua/new", csrf, func(w http.ResponseWriter, r *http.Request) {
 		name := getTrimmedPostFormValue(r.PostForm, "name")
 		isFunc := r.PostForm.Get("is_func") == "1"
 
@@ -204,11 +196,7 @@ func registerLuaRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	})
 
 	// POST /lua/delete — delete a script
-	mux.HandleFunc("/lua/delete", func(w http.ResponseWriter, r *http.Request) {
-		if err := validatePOSTRequest(w, r, csrf); err != nil {
-			return
-		}
-
+	handleFormPost(mux, "/lua/delete", csrf, func(w http.ResponseWriter, r *http.Request) {
 		name := getTrimmedPostFormValue(r.PostForm, "name")
 		isFunc := r.PostForm.Get("is_func") == "1"
 
@@ -230,20 +218,12 @@ func registerLuaRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	})
 
 	// POST /api/lua/prefabs/apply — install prefab scripts
-	mux.HandleFunc("/api/lua/prefabs/apply", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
+	handlePost(mux, "/api/lua/prefabs/apply", func(w http.ResponseWriter, r *http.Request, req struct {
+		Prefab string `json:"prefab"`
+		Script string `json:"script"` // optional: install single script (name without .lua)
+		CSRF   string `json:"csrf"`
+	}) {
 		if !requireLocal(w, r) {
-			return
-		}
-
-		var req struct {
-			Prefab string `json:"prefab"`
-			Script string `json:"script"` // optional: install single script (name without .lua)
-			CSRF   string `json:"csrf"`
-		}
-		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 		if req.CSRF != csrf {

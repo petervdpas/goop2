@@ -90,27 +90,18 @@ func registerHomeRoutes(mux *http.ServeMux, d Deps) {
 
 
 	// Probe all peers synchronously and return the updated list.
-	mux.HandleFunc("/api/peers/probe", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
+	handlePostAction(mux, "/api/peers/probe", func(w http.ResponseWriter, r *http.Request) {
 		d.Node.ProbeAllPeers(r.Context())
 		writeJSON(w, viewmodels.BuildPeerRows(d.Peers.Snapshot()))
 	})
 
 	// JSON endpoint for peers list
-	mux.HandleFunc("/api/peers", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
+	handleGet(mux, "/api/peers", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, viewmodels.BuildPeerRows(d.Peers.Snapshot()))
 	})
 
 	// JSON endpoint for self identity
-	mux.HandleFunc("/api/self", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
+	handleGet(mux, "/api/self", func(w http.ResponseWriter, r *http.Request) {
 		avatarHash := ""
 		if d.AvatarStore != nil {
 			avatarHash = d.AvatarStore.Hash()

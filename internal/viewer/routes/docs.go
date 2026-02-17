@@ -20,10 +20,7 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 	}
 
 	// List my shared files for a group
-	mux.HandleFunc("/api/docs/my", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
+	handleGet(mux, "/api/docs/my", func(w http.ResponseWriter, r *http.Request) {
 		groupID := r.URL.Query().Get("group_id")
 		if groupID == "" {
 			http.Error(w, "Missing group_id", http.StatusBadRequest)
@@ -121,19 +118,11 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 	})
 
 	// Delete a shared file
-	mux.HandleFunc("/api/docs/delete", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
+	handlePost(mux, "/api/docs/delete", func(w http.ResponseWriter, r *http.Request, req struct {
+		GroupID  string `json:"group_id"`
+		Filename string `json:"filename"`
+	}) {
 		if !requireLocal(w, r) {
-			return
-		}
-
-		var req struct {
-			GroupID  string `json:"group_id"`
-			Filename string `json:"filename"`
-		}
-		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 		if req.GroupID == "" || req.Filename == "" {
@@ -161,11 +150,7 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 	})
 
 	// Browse: aggregate file lists from all group members
-	mux.HandleFunc("/api/docs/browse", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
-
+	handleGet(mux, "/api/docs/browse", func(w http.ResponseWriter, r *http.Request) {
 		groupID := r.URL.Query().Get("group_id")
 		if groupID == "" {
 			http.Error(w, "Missing group_id", http.StatusBadRequest)
@@ -272,11 +257,7 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 	})
 
 	// Download a file (from own store or proxy from remote peer)
-	mux.HandleFunc("/api/docs/download", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
-
+	handleGet(mux, "/api/docs/download", func(w http.ResponseWriter, r *http.Request) {
 		peerID := r.URL.Query().Get("peer_id")
 		groupID := r.URL.Query().Get("group_id")
 		filename := r.URL.Query().Get("file")

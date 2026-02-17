@@ -67,16 +67,19 @@ func Register(mux *http.ServeMux, d Deps) {
 	registerSelfRoutes(mux, d, csrf)
 	registerEditorRoutes(mux, d, csrf)
 	registerSettingsRoutes(mux, d, csrf)
-	registerLogsUIRoutes(mux, d)
-	registerDatabaseRoutes(mux, d)
+	registerSimplePages(mux, d, []simplePage{
+		{"/logs", "Logs", "logs", "page.logs"},
+		{"/database", "Database", "database", "page.database"},
+		{"/documents", "Files", "documents", "page.documents"},
+		{"/self/groups", "Groups", "self", "page.groups"},
+		{"/create/groups", "Create Groups", "create", "page.create_groups"},
+	})
 	registerOfflineRoutes(mux, d)
 	registerSiteAPIRoutes(mux, d)
 	registerTemplateRoutes(mux, d, csrf)
 	registerCreditsUIRoutes(mux, d)
 	registerExportRoutes(mux, d, csrf)
 	registerLuaRoutes(mux, d, csrf)
-	registerGroupsUIRoutes(mux, d)
-	registerDocsUIRoutes(mux, d)
 	registerDocsRoutes(mux, d)
 	registerAvatarRoutes(mux, d)
 }
@@ -99,7 +102,9 @@ func RegisterMinimal(mux *http.ServeMux, d Deps) {
 	registerAPILogRoutes(mux, d)
 	registerSelfRoutes(mux, d, csrf)
 	registerSettingsRoutes(mux, d, csrf)
-	registerLogsUIRoutes(mux, d)
+	registerSimplePages(mux, d, []simplePage{
+		{"/logs", "Logs", "logs", "page.logs"},
+	})
 	registerAvatarRoutes(mux, d)
 
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
