@@ -55,6 +55,19 @@ func InitTemplates() error {
 	return initErr
 }
 
+// RenderStandalone executes a named template directly (no layout wrapper).
+// Use for standalone pages like error screens that don't need nav/footer.
+func RenderStandalone(w http.ResponseWriter, name string, data any) {
+	if err := InitTemplates(); err != nil {
+		http.Error(w, fmt.Sprintf("template init error: %v", err), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.ExecuteTemplate(w, name, data); err != nil {
+		http.Error(w, fmt.Sprintf("template error: %v", err), http.StatusInternalServerError)
+	}
+}
+
 // Always execute the shared layout. Layout chooses the page body via .ContentTmpl.
 func Render(w http.ResponseWriter, data any) {
 	if err := InitTemplates(); err != nil {
