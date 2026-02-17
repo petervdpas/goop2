@@ -36,7 +36,7 @@ func proxyPeerSite(v Viewer) http.HandlerFunc {
 					"font-src 'self' data:; "+
 					"connect-src 'self'; "+
 					"base-uri 'none'; "+
-					"frame-ancestors 'none'",
+					"frame-ancestors 'self'",
 			)
 		}
 

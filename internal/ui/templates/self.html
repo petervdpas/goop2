@@ -42,7 +42,7 @@
       {{else}}
         <a class="btn identity-site-btn"
            href="{{printf "%s/p/%s/" .BaseURL .SelfID}}"
-           onclick="return openExternal(this.href)"
+           onclick="return openSite('{{.SelfID}}', '{{.Cfg.Profile.Label}}')"
            rel="noopener">Open my site</a>
       {{end}}
       <div class="identity-details">
@@ -132,6 +132,19 @@
                 <span class="slider"></span>
               </label>
               <span class="muted small">Only show peers with verified email addresses</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Open sites in external browser</label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <label class="switch" title="Open peer sites in external browser instead of embedded tabs">
+                <input type="checkbox"
+                       name="viewer_open_sites_external"
+                       {{if .Cfg.Viewer.OpenSitesExternal}}checked{{end}}>
+                <span class="slider"></span>
+              </label>
+              <span class="muted small">When off, peer sites open in embedded tabs within the app</span>
             </div>
           </div>
 

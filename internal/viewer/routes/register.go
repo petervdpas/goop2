@@ -73,6 +73,7 @@ func Register(mux *http.ServeMux, d Deps) {
 		{"/documents", "Files", "documents", "page.documents"},
 		{"/self/groups", "Groups", "self", "page.groups"},
 		{"/create/groups", "Create Groups", "create", "page.create_groups"},
+		{"/view", "View", "view", "page.view"},
 	})
 	registerOfflineRoutes(mux, d)
 	registerSiteAPIRoutes(mux, d)

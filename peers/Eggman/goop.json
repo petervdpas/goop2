@@ -47,13 +47,14 @@
   },
   "viewer": {
     "http_addr": ":7777",
-    "debug": true,
+    "debug": false,
     "theme": "dark",
     "preferred_cam": "",
     "preferred_mic": "",
     "video_disabled": true,
     "hide_unverified": false,
-    "active_template": "enquete"
+    "active_template": "tictactoe",
+    "open_sites_external": true
   },
   "lua": {
     "enabled": true,

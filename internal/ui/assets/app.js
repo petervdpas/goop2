@@ -28,6 +28,7 @@
     "70-database.js",
     "71-logs.js",
     "72-lua.js",
+    "73-view.js",
     "74-peer.js",
     "75-groups.js",
     "76-documents.js",

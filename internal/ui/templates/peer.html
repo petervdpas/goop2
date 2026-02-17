@@ -18,7 +18,7 @@
   </div>
   <a class="btn identity-site-btn"
      href="{{printf "%s/p/%s/" .BaseURL .PeerID}}"
-     onclick="return openExternal(this.href)"
+     onclick="return openSite('{{.PeerID}}', document.getElementById('peer-name') ? document.getElementById('peer-name').textContent.trim() : '{{.PeerID}}')"
      rel="noopener">Open site</a>
 </div>
 

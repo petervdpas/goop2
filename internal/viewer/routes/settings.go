@@ -27,6 +27,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		PreferredMic      *string `json:"preferred_mic"`
 		VideoDisabled     *bool   `json:"video_disabled"`
 		HideUnverified    *bool   `json:"hide_unverified"`
+		OpenSitesExternal *bool   `json:"open_sites_external"`
 		UseServices       *bool   `json:"use_services"`
 	}) {
 		if !requireLocal(w, r) {
@@ -63,6 +64,9 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		if req.HideUnverified != nil {
 			cfg.Viewer.HideUnverified = *req.HideUnverified
 		}
+		if req.OpenSitesExternal != nil {
+			cfg.Viewer.OpenSitesExternal = *req.OpenSitesExternal
+		}
 		if req.UseServices != nil {
 			cfg.Presence.UseServices = *req.UseServices
 		}
@@ -83,14 +87,15 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			return
 		}
 		writeJSON(w, map[string]interface{}{
-			"label":              cfg.Profile.Label,
-			"email":              cfg.Profile.Email,
-			"verification_token": cfg.Profile.VerificationToken,
-			"theme":              cfg.Viewer.Theme,
-			"preferred_cam":      cfg.Viewer.PreferredCam,
-			"preferred_mic":      cfg.Viewer.PreferredMic,
-			"video_disabled":     cfg.Viewer.VideoDisabled,
-			"hide_unverified":    cfg.Viewer.HideUnverified,
+			"label":                cfg.Profile.Label,
+			"email":                cfg.Profile.Email,
+			"verification_token":   cfg.Profile.VerificationToken,
+			"theme":                cfg.Viewer.Theme,
+			"preferred_cam":        cfg.Viewer.PreferredCam,
+			"preferred_mic":        cfg.Viewer.PreferredMic,
+			"video_disabled":       cfg.Viewer.VideoDisabled,
+			"hide_unverified":      cfg.Viewer.HideUnverified,
+			"open_sites_external":  cfg.Viewer.OpenSitesExternal,
 		})
 	})
 
@@ -106,6 +111,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		cfg.Viewer.Debug = formBool(r.PostForm, "viewer_debug")
 		cfg.Viewer.VideoDisabled = formBool(r.PostForm, "viewer_video_disabled")
 		cfg.Viewer.HideUnverified = formBool(r.PostForm, "viewer_hide_unverified")
+		cfg.Viewer.OpenSitesExternal = formBool(r.PostForm, "viewer_open_sites_external")
 
 		// P2P / presence fields are only in the form when not in rendezvous-only mode.
 		if v := getTrimmedPostFormValue(r.PostForm, "p2p_mdns_tag"); v != "" {

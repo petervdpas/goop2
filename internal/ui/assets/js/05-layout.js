@@ -11,6 +11,25 @@
     return false;
   };
 
+  // ── Read open_sites_external synchronously from server-rendered data attribute ──
+  window._openSitesExternal = document.body.dataset.openSitesExternal === 'true';
+
+  // ── openSite: embedded tab or external browser depending on setting ──
+  window.openSite = function(peerID, peerName) {
+    if (window._openSitesExternal) {
+      var fullUrl = window.location.origin + '/p/' + peerID + '/';
+      return openExternal(fullUrl);
+    }
+    window.location.href = '/view?open=' + encodeURIComponent(peerID) + '&name=' + encodeURIComponent(peerName || '');
+    return false;
+  };
+
+  // Show "View" nav only when embedded mode is on (open_sites_external=false)
+  var navView = document.getElementById('nav-view');
+  if (navView) {
+    navView.style.display = window._openSitesExternal ? 'none' : '';
+  }
+
   // ── Chat notifications (only when logged in) ──
   var selfID = document.body.dataset.selfId;
   if (selfID) {
