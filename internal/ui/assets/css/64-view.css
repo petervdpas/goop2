@@ -15,8 +15,8 @@
 
 .view-tabs {
   display: flex;
-  gap: 2px;
-  padding: 6px 10px 0;
+  gap: 4px;
+  padding: 8px 12px 0;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
   overflow-x: auto;
@@ -27,21 +27,30 @@
   display: none;
 }
 
+.view-tabs-hint {
+  margin-left: auto;
+  align-self: center;
+  padding: 0 8px;
+  white-space: nowrap;
+  opacity: 0.5;
+  font-size: 11px;
+}
+
 .view-tab {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 6px 6px 0 0;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 8px 8px 0 0;
   background: transparent;
   border: 1px solid transparent;
   border-bottom: none;
   color: var(--muted);
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   white-space: nowrap;
   transition: background var(--ease), color var(--ease);
-  max-width: 200px;
+  max-width: 220px;
 }
 
 .view-tab:hover {
@@ -101,4 +110,41 @@
   align-items: center;
   justify-content: center;
   flex: 1;
+}
+
+/* Tab context menu */
+.view-ctx {
+  position: fixed;
+  z-index: 9999;
+  min-width: 160px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: var(--shadow-md);
+}
+
+.view-ctx.hidden { display: none; }
+
+.view-ctx button {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.view-ctx button:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.view-ctx hr {
+  border: 0;
+  height: 1px;
+  background: var(--line);
+  margin: 4px 0;
 }
