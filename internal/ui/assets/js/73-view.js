@@ -53,10 +53,21 @@
     history.replaceState(null, '', '/view');
   }
 
-  function getBaseURL() {
-    var body = document.body;
-    // Try to get base URL from data attribute or peers page
-    return '';
+  function removeTab(peerID) {
+    var tabs = loadTabs();
+    tabs = tabs.filter(function(t) { return t.id !== peerID; });
+    saveTabs(tabs);
+
+    if (tabs.length === 0) {
+      setActive('');
+      window.location.href = '/peers';
+      return;
+    }
+
+    if (getActive() === peerID) {
+      setActive(tabs[0].id);
+    }
+    renderTabs();
   }
 
   function renderTabs() {
@@ -123,21 +134,7 @@
     tabsBar.querySelectorAll('.view-tab-close').forEach(function(btn) {
       btn.addEventListener('click', function(e) {
         e.stopPropagation();
-        var id = btn.getAttribute('data-close-id');
-        var tabs = loadTabs();
-        tabs = tabs.filter(function(t) { return t.id !== id; });
-        saveTabs(tabs);
-
-        if (tabs.length === 0) {
-          setActive('');
-          window.location.href = '/peers';
-          return;
-        }
-
-        if (getActive() === id) {
-          setActive(tabs[0].id);
-        }
-        renderTabs();
+        removeTab(btn.getAttribute('data-close-id'));
       });
     });
   }
@@ -158,4 +155,23 @@
   }
 
   renderTabs();
+
+  // Auto-close tabs when peers drop off the network
+  var peersSSE = new EventSource('/api/peers/events');
+
+  peersSSE.addEventListener('remove', function(e) {
+    try {
+      var data = JSON.parse(e.data);
+      if (data.peer_id) {
+        var tabs = loadTabs();
+        if (tabs.some(function(t) { return t.id === data.peer_id; })) {
+          removeTab(data.peer_id);
+        }
+      }
+    } catch(err) {}
+  });
+
+  peersSSE.onerror = function() {
+    console.error('View: peers SSE connection lost');
+  };
 })();
