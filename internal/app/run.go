@@ -495,6 +495,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	node.SubscribeAddressChanges(ctx, func() {
 		publish(ctx, proto.TypeUpdate)
 	})
+	node.SubscribeConnectionEvents(ctx)
 	if relayInfo != nil {
 		// Periodically refresh the relay connection to prevent stale state.
 		// This ensures the relay reservation stays active even when the TCP

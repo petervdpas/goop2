@@ -98,7 +98,8 @@
         '<span class="view-tab-label">' + escapeHtml(tab.name) + '</span>' +
         '<button class="view-tab-close" data-close-id="' + escapeAttr(tab.id) + '" title="Close tab">&times;</button>' +
       '</div>';
-    }).join('');
+    }).join('') +
+    '<span class="view-tabs-hint muted small">right-click tab for options</span>';
 
     // Render iframe for active tab
     if (emptyMsg) emptyMsg.style.display = 'none';
@@ -137,12 +138,102 @@
         removeTab(btn.getAttribute('data-close-id'));
       });
     });
+
+    // Attach context menu on right-click
+    tabsBar.querySelectorAll('.view-tab').forEach(function(el) {
+      el.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        var id = el.getAttribute('data-tab-id');
+        showCtxMenu(e.clientX, e.clientY, id);
+      });
+    });
   }
+
+  // ── Tab context menu ──
+  var ctxMenu = document.createElement('div');
+  ctxMenu.className = 'view-ctx hidden';
+  ctxMenu.innerHTML =
+    '<button data-action="refresh">Refresh</button>' +
+    '<button data-action="open-external">Open in Browser</button>' +
+    '<hr>' +
+    '<button data-action="close-others">Close Other Tabs</button>' +
+    '<button data-action="close">Close</button>';
+  document.body.appendChild(ctxMenu);
+
+  var ctxTarget = null;
+
+  function showCtxMenu(x, y, tabId) {
+    ctxTarget = tabId;
+
+    // Show/hide "Close Other Tabs" depending on tab count
+    var others = ctxMenu.querySelector('[data-action="close-others"]');
+    if (others) others.style.display = loadTabs().length > 1 ? 'block' : 'none';
+
+    ctxMenu.style.left = x + 'px';
+    ctxMenu.style.top = y + 'px';
+    ctxMenu.classList.remove('hidden');
+
+    // Keep menu within viewport
+    requestAnimationFrame(function() {
+      var rect = ctxMenu.getBoundingClientRect();
+      if (rect.right > window.innerWidth) ctxMenu.style.left = (x - rect.width) + 'px';
+      if (rect.bottom > window.innerHeight) ctxMenu.style.top = (y - rect.height) + 'px';
+    });
+  }
+
+  function hideCtxMenu() {
+    ctxMenu.classList.add('hidden');
+    ctxTarget = null;
+  }
+
+  document.addEventListener('click', hideCtxMenu);
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') hideCtxMenu();
+  });
+
+  ctxMenu.addEventListener('click', function(e) {
+    var btn = e.target.closest('button[data-action]');
+    if (!btn || !ctxTarget) return;
+
+    e.preventDefault();
+    var id = ctxTarget;
+    hideCtxMenu();
+
+    switch (btn.dataset.action) {
+      case 'refresh':
+        // Activate the tab if not active, then reload its iframe
+        if (getActive() !== id) {
+          setActive(id);
+          renderTabs();
+        }
+        var frame = frameContainer.querySelector('.view-frame');
+        if (frame) frame.src = frame.src;
+        break;
+
+      case 'open-external':
+        var fullUrl = window.location.origin + '/p/' + id + '/';
+        openExternal(fullUrl);
+        break;
+
+      case 'close-others':
+        var tabs = loadTabs();
+        var keep = tabs.filter(function(t) { return t.id === id; });
+        saveTabs(keep);
+        setActive(id);
+        renderTabs();
+        break;
+
+      case 'close':
+        removeTab(id);
+        break;
+    }
+  });
 
   function updateNavView(show) {
     var navView = document.getElementById('nav-view');
     if (navView) {
-      navView.style.display = show ? '' : 'none';
+      // In embedded mode, always keep the View nav visible
+      navView.style.display = (show || !window._openSitesExternal) ? '' : 'none';
     }
   }
 
