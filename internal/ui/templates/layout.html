@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/assets/app.css" />
     <script src="/assets/app.js"></script>
   </head>
-  <body data-os="{{.WhichOS}}"{{if .SelfID}} data-self-id="{{.SelfID}}"{{end}}>
+  <body data-os="{{.WhichOS}}"{{if .SelfID}} data-self-id="{{.SelfID}}"{{end}} data-open-sites-external="{{.OpenSitesExternal}}">
     <div class="app">
       <header class="topbar">
         <div class="brand">
@@ -37,6 +37,7 @@
             <a class="navitem {{if isActive .Active "database"}}active{{end}}" href="{{.BaseURL}}/database">Database</a>
             <a class="navitem {{if isActive .Active "documents"}}active{{end}}" href="{{.BaseURL}}/documents">Files</a>
             <a class="navitem {{if isActive .Active "logs"}}active{{end}}" href="{{.BaseURL}}/logs">Logs</a>
+            <a class="navitem {{if isActive .Active "view"}}active{{end}}" href="{{.BaseURL}}/view" id="nav-view" style="display:none">View</a>
           </nav>
         {{else if .RendezvousOnly}}
           <nav class="topnav">

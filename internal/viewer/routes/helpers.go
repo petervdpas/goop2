@@ -20,6 +20,7 @@ func baseVM(title, active, contentTmpl string, d Deps) viewmodels.BaseVM {
 	debug := false
 	theme := "dark"
 	verificationToken := ""
+	openSitesExternal := false
 
 	// Reload config from disk to get latest theme/debug settings
 	if d.CfgPath != "" {
@@ -27,6 +28,7 @@ func baseVM(title, active, contentTmpl string, d Deps) viewmodels.BaseVM {
 			debug = cfg.Viewer.Debug
 			theme = cfg.Viewer.Theme
 			verificationToken = cfg.Profile.VerificationToken
+			openSitesExternal = cfg.Viewer.OpenSitesExternal
 		}
 	}
 
@@ -53,6 +55,7 @@ func baseVM(title, active, contentTmpl string, d Deps) viewmodels.BaseVM {
 		RendezvousURL:         d.RendezvousURL,
 		BridgeURL:             d.BridgeURL,
 		WhichOS:               runtime.GOOS,
+		OpenSitesExternal:     openSitesExternal,
 	}
 }
 

@@ -22,4 +22,7 @@ type BaseVM struct {
 
 	// Platform detection for UI warnings (e.g. "linux", "windows", "darwin")
 	WhichOS string
+
+	// When true, peer sites open in system browser instead of embedded tabs
+	OpenSitesExternal bool
 }

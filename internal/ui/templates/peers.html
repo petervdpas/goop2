@@ -47,7 +47,7 @@
             {{end}}
             <a class="btn"
                href="{{printf "%s/p/%s/" $.BaseURL .ID}}"
-               onclick="return openExternal(this.href)"
+               onclick="return openSite('{{.ID}}', '{{if .Content}}{{.Content}}{{else}}{{shortID .ID}}{{end}}')"
                rel="noopener">
               Open Site
             </a>

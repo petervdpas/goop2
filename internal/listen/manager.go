@@ -500,19 +500,16 @@ func (m *Manager) handleAudioStream(s network.Stream) {
 	go func() {
 		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				m.mu.RLock()
-				currentGen := m.seekGen
-				currentPaused := m.paused
-				currentGroup := m.group
-				m.mu.RUnlock()
+		for range ticker.C {
+			m.mu.RLock()
+			currentGen := m.seekGen
+			currentPaused := m.paused
+			currentGroup := m.group
+			m.mu.RUnlock()
 
-				if currentGroup == nil || currentGroup.ID != groupID || currentPaused || currentGen != gen {
-					close(done)
-					return
-				}
+			if currentGroup == nil || currentGroup.ID != groupID || currentPaused || currentGen != gen {
+				close(done)
+				return
 			}
 		}
 	}()

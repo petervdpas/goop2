@@ -90,7 +90,7 @@
           '</svg>' +
         '</button>'
         ) +
-        '<a class="btn" href="' + escapeHtml(baseURL) + '/p/' + peer.ID + '/" onclick="return openExternal(this.href)" rel="noopener">' +
+        '<a class="btn" href="' + escapeHtml(baseURL) + '/p/' + peer.ID + '/" onclick="return openSite(\'' + escapeAttr(peer.ID) + '\', \'' + escapeAttr(peerName) + '\')" rel="noopener">' +
           'Open Site' +
         '</a>' +
       '</div>' +
@@ -353,6 +353,10 @@
   };
 
   var escapeHtml = Goop.core.escapeHtml;
+
+  function escapeAttr(s) {
+    return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
 
   function emojify(text) {
     return window.Goop && window.Goop.emoji ? window.Goop.emoji.emojify(text) : text;
