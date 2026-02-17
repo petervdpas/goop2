@@ -354,8 +354,12 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			}
 			switch pm.Type {
 			case proto.TypeOnline, proto.TypeUpdate:
+				_, known := peers.Get(pm.PeerID)
 				peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.Verified)
 				node.AddPeerAddrs(pm.PeerID, pm.Addrs)
+				if !known {
+					go node.ProbePeer(ctx, pm.PeerID)
+				}
 			case proto.TypeOffline:
 				peers.Remove(pm.PeerID)
 			}
@@ -429,6 +433,9 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		case proto.TypeOnline:
 			seenContent[m.PeerID] = m.Content
 			log.Printf("[%s] %s -> %q", m.Type, m.PeerID, m.Content)
+			// Probe new peer's reachability immediately so unreachable
+			// peers are grayed out within seconds of appearing.
+			go node.ProbePeer(ctx, m.PeerID)
 		case proto.TypeUpdate:
 			prev, known := seenContent[m.PeerID]
 			if !known || prev != m.Content {
@@ -465,12 +472,13 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 
 	publish(ctx, proto.TypeOnline)
 
-	// Re-publish when circuit relay addresses appear or disappear so remote
-	// peers always have our latest reachable addresses.
+	// Re-publish and re-probe when our addresses change (network switch,
+	// relay address appears/disappears).  Always subscribe — not just when
+	// relay is configured — so LAN↔WAN transitions trigger probes.
+	node.SubscribeAddressChanges(ctx, func() {
+		publish(ctx, proto.TypeUpdate)
+	})
 	if relayInfo != nil {
-		node.SubscribeAddressChanges(ctx, func() {
-			publish(ctx, proto.TypeUpdate)
-		})
 		// Periodically refresh the relay connection to prevent stale state.
 		// This ensures the relay reservation stays active even when the TCP
 		// connection to the relay silently degrades.

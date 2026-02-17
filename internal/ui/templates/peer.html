@@ -22,6 +22,15 @@
      rel="noopener">Open site</a>
 </div>
 
+{{if not .Reachable}}
+<div class="peer-unreachable-banner">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+  </svg>
+  Peer unreachable
+</div>
+{{end}}
+
 <div class="chat-header">
   <h2 style="margin:0;">Chat</h2>
   <div class="chat-call-actions">
@@ -58,8 +67,8 @@
   </div>
   {{end}}
   <form class="chat-input" id="chat-form">
-    <input type="text" id="chat-message" placeholder="Type a message..." autocomplete="off" required>
-    <button type="submit">Send</button>
+    <input type="text" id="chat-message" placeholder="{{if not .Reachable}}Peer unreachable{{else}}Type a message...{{end}}" autocomplete="off" required {{if not .Reachable}}disabled{{end}}>
+    <button type="submit" {{if not .Reachable}}disabled{{end}}>Send</button>
   </form>
 </div>
 </div>

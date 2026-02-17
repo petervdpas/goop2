@@ -16,6 +16,7 @@ type PeerRow struct {
 	VideoDisabled  bool      `json:"VideoDisabled"`
 	ActiveTemplate string    `json:"ActiveTemplate"`
 	Verified       bool      `json:"Verified"`
+	Reachable      bool      `json:"Reachable"`
 	LastSeen       time.Time `json:"LastSeen"`
 }
 
@@ -37,6 +38,7 @@ func BuildPeerRows(m map[string]state.SeenPeer) []PeerRow {
 			VideoDisabled:  sp.VideoDisabled,
 			ActiveTemplate: sp.ActiveTemplate,
 			Verified:       sp.Verified,
+			Reachable:      sp.Reachable,
 			LastSeen:       sp.LastSeen,
 		})
 	}
