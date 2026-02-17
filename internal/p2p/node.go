@@ -103,6 +103,7 @@ type Node struct {
 	// pulseFn calls the rendezvous server to pulse a target peer,
 	// triggering it to refresh its relay reservation.
 	pulseFn func(ctx context.Context, peerID string) error
+
 }
 
 type mdnsNotifee struct {
@@ -901,11 +902,19 @@ func (n *Node) AddPeerAddrs(peerID string, addrs []string) {
 	if ttl <= 0 {
 		ttl = 20 * time.Second
 	}
+	// Keep addresses in the peerstore long enough to survive a network
+	// switch.  Heartbeats refresh them, so a 2-minute floor is safe and
+	// means LAN addresses are still available when probing after switching
+	// from WAN→LAN (before mDNS rediscovers).
+	addrTTL := ttl
+	if addrTTL < 2*time.Minute {
+		addrTTL = 2 * time.Minute
+	}
 	if len(direct) > 0 {
-		n.Host.Peerstore().AddAddrs(pid, direct, ttl)
+		n.Host.Peerstore().AddAddrs(pid, direct, addrTTL)
 	}
 	if len(circuit) > 0 {
-		n.Host.Peerstore().AddAddrs(pid, circuit, ttl*10)
+		n.Host.Peerstore().AddAddrs(pid, circuit, addrTTL*5)
 	}
 
 	// If the peer published no circuit address but we have a relay configured,
@@ -948,6 +957,54 @@ func (n *Node) RunPresenceLoop(ctx context.Context, onEvent func(msg proto.Prese
 			}
 		}
 	}()
+}
+
+// ProbePeer tests whether we can open a direct/relay stream to the
+// peer.  NewStream is the only reliable check — Connectedness can be
+// true from GossipSub overlay connections that don't imply direct
+// reachability.  We clear the swarm dial backoff first so that a
+// network switch doesn't cause stale "don't retry" entries to block
+// fresh dial attempts.
+func (n *Node) ProbePeer(ctx context.Context, rawID string) {
+	pid, err := peer.Decode(rawID)
+	if err != nil {
+		return
+	}
+	if sw, ok := n.Host.Network().(*swarm.Swarm); ok {
+		sw.Backoff().Clear(pid)
+	}
+	addrs := n.Host.Peerstore().Addrs(pid)
+	log.Printf("probe %s: starting (addrs=%d, connected=%v)", rawID[:16], len(addrs), n.Host.Network().Connectedness(pid) == network.Connected)
+	probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	start := time.Now()
+	s, err := n.Host.NewStream(probeCtx, pid, protocol.ID(proto.ContentProtoID))
+	elapsed := time.Since(start)
+	if err != nil {
+		log.Printf("probe %s: UNREACHABLE (%s) err=%v", rawID[:16], elapsed, err)
+		n.peers.SetReachable(rawID, false)
+		return
+	}
+	s.Close()
+	log.Printf("probe %s: REACHABLE (%s)", rawID[:16], elapsed)
+	n.peers.SetReachable(rawID, true)
+}
+
+// ProbeAllPeers probes every known peer in parallel and blocks until done.
+func (n *Node) ProbeAllPeers(ctx context.Context) {
+	ids := n.peers.IDs()
+	if len(ids) == 0 {
+		return
+	}
+	var wg sync.WaitGroup
+	for _, rawID := range ids {
+		wg.Add(1)
+		go func(id string) {
+			defer wg.Done()
+			n.ProbePeer(ctx, id)
+		}(rawID)
+	}
+	wg.Wait()
 }
 
 // FetchContent fetches the peer's content using the libp2p stream protocol.

@@ -10,4 +10,5 @@ type PeerContentVM struct {
 	VideoDisabled     bool
 	SelfVideoDisabled bool
 	LuaEnabled        bool
+	Reachable         bool
 }

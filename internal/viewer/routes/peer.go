@@ -25,11 +25,13 @@ func registerPeerRoutes(mux *http.ServeMux, d Deps) {
 		peerEmail := ""
 		avatarHash := ""
 		videoDisabled := false
+		reachable := true
 		if d.Peers != nil {
 			if sp, ok := d.Peers.Get(peerID); ok {
 				peerEmail = sp.Email
 				avatarHash = sp.AvatarHash
 				videoDisabled = sp.VideoDisabled
+				reachable = sp.Reachable
 			}
 		}
 
@@ -51,6 +53,7 @@ func registerPeerRoutes(mux *http.ServeMux, d Deps) {
 			VideoDisabled:     videoDisabled,
 			SelfVideoDisabled: selfVideoDisabled,
 			LuaEnabled:        luaEnabled,
+			Reachable:         reachable,
 		}
 		render.Render(w, vm)
 	})

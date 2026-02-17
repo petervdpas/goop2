@@ -55,7 +55,9 @@
 
     var peerName = peer.Content || shortId;
 
-    return '<li class="peerrow" data-peer-id="' + escapeHtml(peer.ID) + '">' +
+    var unreachableClass = peer.Reachable === false ? ' peer-unreachable' : '';
+
+    return '<li class="peerrow' + unreachableClass + '" data-peer-id="' + escapeHtml(peer.ID) + '">' +
       '<img class="avatar avatar-md" src="' + avatarSrc + '" alt="">' +
       '<div class="peerleft">' +
         '<div class="peer-name-row">' +
@@ -362,4 +364,18 @@
 
   // Initial load
   loadBroadcasts();
+
+  // Reachability: probe peers and render the result directly.
+  var probing = false;
+  function triggerProbe() {
+    if (probing) return;
+    probing = true;
+    api('/api/peers/probe', {})
+      .then(function(peers) { if (peers) renderPeersList(peers); })
+      .catch(function() {})
+      .then(function() { probing = false; });
+  }
+
+  triggerProbe();
+  setInterval(triggerProbe, 5000);
 })();

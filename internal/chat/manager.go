@@ -91,64 +91,58 @@ func (m *Manager) SendDirect(ctx context.Context, toPeerID, content string) erro
 	return nil
 }
 
-// SendBroadcast sends a message to the given application-level peers.
-// It dials each peer via peerstore addresses (including relay circuits),
-// so WAN peers that aren't yet connected will be reached automatically.
-func (m *Manager) SendBroadcast(ctx context.Context, content string, targetPeerIDs []string) error {
+// SendBroadcast stores the message locally and delivers it to the given
+// application-level peers in the background.  The caller returns immediately
+// so the UI can show the message without waiting for relay dials.
+func (m *Manager) SendBroadcast(_ context.Context, content string, targetPeerIDs []string) error {
 	msg := NewBroadcast(m.localPeerID, content)
 
+	// Store locally first so the sender sees the message right away.
+	m.addMessage(msg)
+
 	if len(targetPeerIDs) == 0 {
-		// Still store locally even if no peers
-		m.addMessage(msg)
 		log.Printf("CHAT: Broadcast message stored (no target peers)")
 		return nil
 	}
 
-	var lastErr error
-	sentCount := 0
+	// Deliver to peers in the background — relay dials can take seconds.
+	go m.deliverBroadcast(msg, targetPeerIDs)
 
+	return nil
+}
+
+// deliverBroadcast sends msg to each peer, dialling via peerstore addresses
+// (including relay circuits) when not already connected.
+func (m *Manager) deliverBroadcast(msg *Message, targetPeerIDs []string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	var sentCount int
 	for _, rawID := range targetPeerIDs {
 		peerID, err := peer.Decode(rawID)
 		if err != nil {
 			log.Printf("CHAT: Skipping invalid peer ID %q: %v", rawID, err)
 			continue
 		}
-
-		// Skip self
 		if peerID == m.host.ID() {
 			continue
 		}
 
-		// NewStream dials via peerstore addresses if not already connected
 		stream, err := m.host.NewStream(ctx, peerID, protocol.ID(ChatProtocolID))
 		if err != nil {
-			lastErr = err
 			log.Printf("CHAT: Failed to open stream to %s for broadcast: %v", peerID, err)
 			continue
 		}
-
-		// Send message as JSON
 		if err := json.NewEncoder(stream).Encode(msg); err != nil {
 			stream.Close()
-			lastErr = err
 			log.Printf("CHAT: Failed to send broadcast to %s: %v", peerID, err)
 			continue
 		}
-
 		stream.Close()
 		sentCount++
 	}
 
-	// Store in local buffer (outgoing)
-	m.addMessage(msg)
-
-	log.Printf("CHAT: Broadcast sent to %d/%d peers", sentCount, len(targetPeerIDs))
-
-	if sentCount == 0 && lastErr != nil {
-		return fmt.Errorf("failed to send to any peer: %w", lastErr)
-	}
-
-	return nil
+	log.Printf("CHAT: Broadcast delivered to %d/%d peers", sentCount, len(targetPeerIDs))
 }
 
 // GetMessages returns all messages in the buffer

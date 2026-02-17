@@ -49,6 +49,25 @@
 
 .peerrow:last-child{ border-bottom:0; }
 
+.peerrow.peer-unreachable{
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.peer-unreachable-banner{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin-top: 12px;
+  border-radius: var(--radius);
+  background: rgba(243, 156, 18, 0.10);
+  border: 1px solid rgba(243, 156, 18, 0.25);
+  color: #f39c12;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .peerleft{
   display:flex;
   flex-direction:column;

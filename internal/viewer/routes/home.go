@@ -88,6 +88,16 @@ func registerHomeRoutes(mux *http.ServeMux, d Deps) {
 		}
 	})
 
+
+	// Probe all peers synchronously and return the updated list.
+	mux.HandleFunc("/api/peers/probe", func(w http.ResponseWriter, r *http.Request) {
+		if !requireMethod(w, r, http.MethodPost) {
+			return
+		}
+		d.Node.ProbeAllPeers(r.Context())
+		writeJSON(w, viewmodels.BuildPeerRows(d.Peers.Snapshot()))
+	})
+
 	// JSON endpoint for peers list
 	mux.HandleFunc("/api/peers", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(w, r, http.MethodGet) {

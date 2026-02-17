@@ -13,6 +13,7 @@ type SeenPeer struct {
 	VideoDisabled  bool
 	ActiveTemplate string
 	Verified       bool
+	Reachable      bool
 	LastSeen       time.Time
 }
 
@@ -40,7 +41,11 @@ func NewPeerTable() *PeerTable {
 func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled bool, activeTemplate string, verified bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	peer := SeenPeer{Content: content, Email: email, AvatarHash: avatarHash, VideoDisabled: videoDisabled, ActiveTemplate: activeTemplate, Verified: verified, LastSeen: time.Now()}
+	reachable := true // optimistic: peer just announced itself
+	if existing, ok := t.peers[id]; ok {
+		reachable = existing.Reachable
+	}
+	peer := SeenPeer{Content: content, Email: email, AvatarHash: avatarHash, VideoDisabled: videoDisabled, ActiveTemplate: activeTemplate, Verified: verified, Reachable: reachable, LastSeen: time.Now()}
 	t.peers[id] = peer
 	t.notifyListeners(PeerEvent{Type: "update", PeerID: id, Peer: &peer})
 }
@@ -79,6 +84,22 @@ func (t *PeerTable) IDs() []string {
 		ids = append(ids, id)
 	}
 	return ids
+}
+
+// SetReachable updates the Reachable flag for a peer, firing a PeerEvent only on change.
+func (t *PeerTable) SetReachable(id string, reachable bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	sp, ok := t.peers[id]
+	if !ok {
+		return
+	}
+	if sp.Reachable == reachable {
+		return
+	}
+	sp.Reachable = reachable
+	t.peers[id] = sp
+	t.notifyListeners(PeerEvent{Type: "update", PeerID: id, Peer: &sp})
 }
 
 func (t *PeerTable) Snapshot() map[string]SeenPeer {
