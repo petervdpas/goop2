@@ -54,7 +54,7 @@
     "video_disabled": true,
     "hide_unverified": false,
     "active_template": "tictactoe",
-    "open_sites_external": true
+    "open_sites_external": false
   },
   "lua": {
     "enabled": true,
