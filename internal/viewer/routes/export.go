@@ -32,10 +32,7 @@ type TablePolicyExport struct {
 
 func registerExportRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	// GET /api/site/export — download site as zip
-	mux.HandleFunc("/api/site/export", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
+	handleGet(mux, "/api/site/export", func(w http.ResponseWriter, r *http.Request) {
 		if !requireLocal(w, r) {
 			return
 		}
@@ -162,10 +159,7 @@ func registerExportRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	})
 
 	// POST /api/site/import — upload and apply zip
-	mux.HandleFunc("/api/site/import", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
+	handlePostAction(mux, "/api/site/import", func(w http.ResponseWriter, r *http.Request) {
 		if !requireLocal(w, r) {
 			return
 		}

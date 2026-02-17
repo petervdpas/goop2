@@ -9,10 +9,7 @@ import (
 
 func registerSiteAPIRoutes(mux *http.ServeMux, d Deps) {
 	// List site files as a flat tree
-	mux.HandleFunc("/api/site/files", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
+	handleGet(mux, "/api/site/files", func(w http.ResponseWriter, r *http.Request) {
 		if d.Content == nil {
 			http.Error(w, "content store not configured", http.StatusInternalServerError)
 			return
@@ -28,10 +25,7 @@ func registerSiteAPIRoutes(mux *http.ServeMux, d Deps) {
 	})
 
 	// Upload a file to the site content store (multipart)
-	mux.HandleFunc("/api/site/upload", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
+	handlePostAction(mux, "/api/site/upload", func(w http.ResponseWriter, r *http.Request) {
 		if d.Content == nil {
 			http.Error(w, "content store not configured", http.StatusInternalServerError)
 			return
@@ -75,19 +69,11 @@ func registerSiteAPIRoutes(mux *http.ServeMux, d Deps) {
 	})
 
 	// Delete a file from the site content store
-	mux.HandleFunc("/api/site/delete", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
+	handlePost(mux, "/api/site/delete", func(w http.ResponseWriter, r *http.Request, req struct {
+		Path string `json:"path"`
+	}) {
 		if d.Content == nil {
 			http.Error(w, "content store not configured", http.StatusInternalServerError)
-			return
-		}
-
-		var req struct {
-			Path string `json:"path"`
-		}
-		if decodeJSON(w, r, &req) != nil {
 			return
 		}
 		if req.Path == "" {

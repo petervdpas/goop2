@@ -16,7 +16,7 @@ import (
 
 // RegisterGroups adds group-related HTTP API endpoints.
 func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
-	// Create a hosted group
+	// Create a hosted group / list hosted groups
 	mux.HandleFunc("/api/groups", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
@@ -53,7 +53,6 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 				groups = []storage.GroupRow{}
 			}
 
-			// Enrich with member counts and host-in-group status
 			type groupWithMembers struct {
 				storage.GroupRow
 				MemberCount int                `json:"member_count"`
@@ -82,16 +81,9 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 	})
 
 	// Host joins own group
-	mux.HandleFunc("/api/groups/join-own", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
-		var req struct {
-			GroupID string `json:"group_id"`
-		}
-		if decodeJSON(w, r, &req) != nil {
-			return
-		}
+	handlePost(mux, "/api/groups/join-own", func(w http.ResponseWriter, r *http.Request, req struct {
+		GroupID string `json:"group_id"`
+	}) {
 		if req.GroupID == "" {
 			http.Error(w, "Missing group_id", http.StatusBadRequest)
 			return
@@ -104,16 +96,9 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 	})
 
 	// Host leaves own group
-	mux.HandleFunc("/api/groups/leave-own", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
-		var req struct {
-			GroupID string `json:"group_id"`
-		}
-		if decodeJSON(w, r, &req) != nil {
-			return
-		}
+	handlePost(mux, "/api/groups/leave-own", func(w http.ResponseWriter, r *http.Request, req struct {
+		GroupID string `json:"group_id"`
+	}) {
 		if req.GroupID == "" {
 			http.Error(w, "Missing group_id", http.StatusBadRequest)
 			return
@@ -126,16 +111,9 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 	})
 
 	// Close/delete a hosted group
-	mux.HandleFunc("/api/groups/close", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
-		var req struct {
-			GroupID string `json:"group_id"`
-		}
-		if decodeJSON(w, r, &req) != nil {
-			return
-		}
+	handlePost(mux, "/api/groups/close", func(w http.ResponseWriter, r *http.Request, req struct {
+		GroupID string `json:"group_id"`
+	}) {
 		if req.GroupID == "" {
 			http.Error(w, "Missing group_id", http.StatusBadRequest)
 			return
@@ -148,42 +126,29 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 	})
 
 	// List subscriptions
-	mux.HandleFunc("/api/groups/subscriptions", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
+	handleGet(mux, "/api/groups/subscriptions", func(w http.ResponseWriter, r *http.Request) {
 		subs, err := grpMgr.ListSubscriptions()
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to list subscriptions: %v", err), http.StatusInternalServerError)
 			return
 		}
 
-		// Also include active connection info
 		hostPeer, groupID, connected := grpMgr.ActiveGroup()
-		result := map[string]any{
+		writeJSON(w, map[string]any{
 			"subscriptions": subs,
 			"active": map[string]any{
 				"connected":    connected,
 				"host_peer_id": hostPeer,
 				"group_id":     groupID,
 			},
-		}
-
-		writeJSON(w, result)
+		})
 	})
 
 	// Join a remote group
-	mux.HandleFunc("/api/groups/join", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
-		var req struct {
-			HostPeerID string `json:"host_peer_id"`
-			GroupID    string `json:"group_id"`
-		}
-		if decodeJSON(w, r, &req) != nil {
-			return
-		}
+	handlePost(mux, "/api/groups/join", func(w http.ResponseWriter, r *http.Request, req struct {
+		HostPeerID string `json:"host_peer_id"`
+		GroupID    string `json:"group_id"`
+	}) {
 		if req.HostPeerID == "" || req.GroupID == "" {
 			http.Error(w, "Missing host_peer_id or group_id", http.StatusBadRequest)
 			return
@@ -201,17 +166,10 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 	})
 
 	// Invite a peer to a hosted group
-	mux.HandleFunc("/api/groups/invite", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
-		var req struct {
-			GroupID string `json:"group_id"`
-			PeerID  string `json:"peer_id"`
-		}
-		if decodeJSON(w, r, &req) != nil {
-			return
-		}
+	handlePost(mux, "/api/groups/invite", func(w http.ResponseWriter, r *http.Request, req struct {
+		GroupID string `json:"group_id"`
+		PeerID  string `json:"peer_id"`
+	}) {
 		if req.GroupID == "" || req.PeerID == "" {
 			http.Error(w, "Missing group_id or peer_id", http.StatusBadRequest)
 			return
@@ -229,17 +187,10 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 	})
 
 	// Rejoin a subscription (reconnect to a previously joined group)
-	mux.HandleFunc("/api/groups/rejoin", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
-		var req struct {
-			HostPeerID string `json:"host_peer_id"`
-			GroupID    string `json:"group_id"`
-		}
-		if decodeJSON(w, r, &req) != nil {
-			return
-		}
+	handlePost(mux, "/api/groups/rejoin", func(w http.ResponseWriter, r *http.Request, req struct {
+		HostPeerID string `json:"host_peer_id"`
+		GroupID    string `json:"group_id"`
+	}) {
 		if req.HostPeerID == "" || req.GroupID == "" {
 			http.Error(w, "Missing host_peer_id or group_id", http.StatusBadRequest)
 			return
@@ -257,17 +208,10 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 	})
 
 	// Remove a stale subscription
-	mux.HandleFunc("/api/groups/subscriptions/remove", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
-		var req struct {
-			HostPeerID string `json:"host_peer_id"`
-			GroupID    string `json:"group_id"`
-		}
-		if decodeJSON(w, r, &req) != nil {
-			return
-		}
+	handlePost(mux, "/api/groups/subscriptions/remove", func(w http.ResponseWriter, r *http.Request, req struct {
+		HostPeerID string `json:"host_peer_id"`
+		GroupID    string `json:"group_id"`
+	}) {
 		if req.HostPeerID == "" || req.GroupID == "" {
 			http.Error(w, "Missing host_peer_id or group_id", http.StatusBadRequest)
 			return
@@ -282,10 +226,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 	})
 
 	// Leave current group
-	mux.HandleFunc("/api/groups/leave", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
+	handlePostAction(mux, "/api/groups/leave", func(w http.ResponseWriter, r *http.Request) {
 		if err := grpMgr.LeaveGroup(); err != nil {
 			http.Error(w, fmt.Sprintf("Failed to leave group: %v", err), http.StatusInternalServerError)
 			return
@@ -294,26 +235,16 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 	})
 
 	// Send message to current group (client-side) or hosted group (host-side)
-	mux.HandleFunc("/api/groups/send", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
-		var req struct {
-			Payload any `json:"payload"`
-			GroupID string      `json:"group_id"` // optional: if set, send as host to hosted group
-		}
-		if decodeJSON(w, r, &req) != nil {
-			return
-		}
-
-		// If group_id is specified and we host that group, send as host
+	handlePost(mux, "/api/groups/send", func(w http.ResponseWriter, r *http.Request, req struct {
+		Payload any    `json:"payload"`
+		GroupID string `json:"group_id"`
+	}) {
 		if req.GroupID != "" && grpMgr.IsGroupHost(req.GroupID) {
 			if err := grpMgr.SendToGroupAsHost(req.GroupID, req.Payload); err != nil {
 				http.Error(w, fmt.Sprintf("Failed to send: %v", err), http.StatusInternalServerError)
 				return
 			}
 		} else {
-			// Send via active client connection
 			if err := grpMgr.SendToGroup(req.Payload); err != nil {
 				http.Error(w, fmt.Sprintf("Failed to send: %v", err), http.StatusInternalServerError)
 				return
@@ -324,11 +255,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 	})
 
 	// SSE endpoint for group events
-	mux.HandleFunc("/api/groups/events", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
-
+	handleGet(mux, "/api/groups/events", func(w http.ResponseWriter, r *http.Request) {
 		sseHeaders(w)
 
 		flusher, ok := w.(http.Flusher)

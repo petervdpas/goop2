@@ -12,10 +12,7 @@ import (
 
 func registerAvatarRoutes(mux *http.ServeMux, d Deps) {
 	// POST /api/avatar/upload — upload own avatar (multipart, max 256KB)
-	mux.HandleFunc("/api/avatar/upload", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodPost) {
-			return
-		}
+	handlePostAction(mux, "/api/avatar/upload", func(w http.ResponseWriter, r *http.Request) {
 		if !requireLocal(w, r) {
 			return
 		}
@@ -81,11 +78,7 @@ func registerAvatarRoutes(mux *http.ServeMux, d Deps) {
 	})
 
 	// GET /api/avatar — serve own avatar (or initials SVG fallback)
-	mux.HandleFunc("/api/avatar", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
-
+	handleGet(mux, "/api/avatar", func(w http.ResponseWriter, r *http.Request) {
 		// If path has an extra segment, it's a peer avatar request
 		rest := strings.TrimPrefix(r.URL.Path, "/api/avatar")
 		rest = strings.TrimPrefix(rest, "/")
@@ -111,10 +104,7 @@ func registerAvatarRoutes(mux *http.ServeMux, d Deps) {
 	})
 
 	// GET /api/avatar/{peerID} — serve a remote peer's avatar
-	mux.HandleFunc("/api/avatar/peer/", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
+	handleGet(mux, "/api/avatar/peer/", func(w http.ResponseWriter, r *http.Request) {
 		peerID := strings.TrimPrefix(r.URL.Path, "/api/avatar/peer/")
 		if peerID == "" {
 			http.Error(w, "missing peer id", http.StatusBadRequest)
