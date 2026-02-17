@@ -23,12 +23,11 @@ type RemoteTemplatesProvider struct {
 
 // NewRemoteTemplatesProvider creates a provider that talks to the templates service.
 func NewRemoteTemplatesProvider(baseURL, adminToken string) *RemoteTemplatesProvider {
-	base := newRemoteBase(baseURL, adminToken)
-	target, _ := url.Parse(base.baseURL)
 	p := &RemoteTemplatesProvider{
-		remoteBase: base,
-		proxy:      httputil.NewSingleHostReverseProxy(target),
+		remoteBase: newRemoteBase(baseURL, adminToken),
 	}
+	target, _ := url.Parse(p.baseURL)
+	p.proxy = httputil.NewSingleHostReverseProxy(target)
 	p.fetchFn = func() {
 		var result struct {
 			Version       string `json:"version"`
