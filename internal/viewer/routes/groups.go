@@ -15,7 +15,7 @@ import (
 )
 
 // RegisterGroups adds group-related HTTP API endpoints.
-func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
+func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, peerName func(id string) string) {
 	// Create a hosted group / list hosted groups
 	mux.HandleFunc("/api/groups", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -53,22 +53,27 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 				groups = []storage.GroupRow{}
 			}
 
+			type memberWithName struct {
+				group.MemberInfo
+				Name string `json:"name,omitempty"`
+			}
 			type groupWithMembers struct {
 				storage.GroupRow
-				MemberCount int                `json:"member_count"`
-				Members     []group.MemberInfo `json:"members"`
-				HostInGroup bool               `json:"host_in_group"`
+				MemberCount int             `json:"member_count"`
+				Members     []memberWithName `json:"members"`
+				HostInGroup bool             `json:"host_in_group"`
 			}
 			result := make([]groupWithMembers, len(groups))
 			for i, g := range groups {
-				members := grpMgr.HostedGroupMembers(g.ID)
-				if members == nil {
-					members = []group.MemberInfo{}
+				raw := grpMgr.HostedGroupMembers(g.ID)
+				named := make([]memberWithName, 0, len(raw))
+				for _, m := range raw {
+					named = append(named, memberWithName{MemberInfo: m, Name: peerName(m.PeerID)})
 				}
 				result[i] = groupWithMembers{
 					GroupRow:    g,
-					MemberCount: len(members),
-					Members:     members,
+					MemberCount: len(named),
+					Members:     named,
 					HostInGroup: grpMgr.HostInGroup(g.ID),
 				}
 			}
@@ -232,6 +237,38 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string) {
 			return
 		}
 		writeJSON(w, map[string]string{"status": "left"})
+	})
+
+	// POST /api/groups/kick — remove a member from a hosted group
+	handlePost(mux, "/api/groups/kick", func(w http.ResponseWriter, r *http.Request, req struct {
+		GroupID string `json:"group_id"`
+		PeerID  string `json:"peer_id"`
+	}) {
+		if req.GroupID == "" || req.PeerID == "" {
+			http.Error(w, "missing group_id or peer_id", http.StatusBadRequest)
+			return
+		}
+		if err := grpMgr.KickMember(req.GroupID, req.PeerID); err != nil {
+			http.Error(w, fmt.Sprintf("kick failed: %v", err), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, map[string]string{"status": "kicked"})
+	})
+
+	// POST /api/groups/max-members — update max member limit for a hosted group
+	handlePost(mux, "/api/groups/max-members", func(w http.ResponseWriter, r *http.Request, req struct {
+		GroupID    string `json:"group_id"`
+		MaxMembers int    `json:"max_members"`
+	}) {
+		if req.GroupID == "" {
+			http.Error(w, "missing group_id", http.StatusBadRequest)
+			return
+		}
+		if err := grpMgr.SetMaxMembers(req.GroupID, req.MaxMembers); err != nil {
+			http.Error(w, fmt.Sprintf("failed: %v", err), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, map[string]string{"status": "ok"})
 	})
 
 	// Send message to current group (client-side) or hosted group (host-side)

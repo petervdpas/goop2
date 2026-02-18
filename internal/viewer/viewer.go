@@ -105,7 +105,18 @@ func Start(addr string, v Viewer) error {
 
 	// Register group endpoints if group manager is available
 	if v.Groups != nil {
-		routes.RegisterGroups(mux, v.Groups, v.Node.ID())
+		routes.RegisterGroups(mux, v.Groups, v.Node.ID(), func(id string) string {
+			if id == v.Node.ID() {
+				return v.SelfLabel()
+			}
+			if v.Peers == nil {
+				return ""
+			}
+			if sp, ok := v.Peers.Snapshot()[id]; ok {
+				return sp.Content
+			}
+			return ""
+		})
 	}
 
 	// Register realtime channel endpoints if realtime manager is available

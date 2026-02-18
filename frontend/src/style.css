@@ -460,12 +460,12 @@ html[data-theme="light"] .launcher-splash img{
 }
 
 /* Your original tile classes (still supported) */
-.tileList{ display:flex; flex-direction:column; gap: 10px; }
+.tileList{ display:flex; flex-direction:column; gap: 4px; }
 
 .tile{
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 12px 14px;
+  padding: 7px 12px;
   background: color-mix(in srgb, var(--panel2) 60%, transparent);
   cursor:pointer;
   transition: background var(--ease), border-color var(--ease), transform var(--ease);
@@ -476,8 +476,8 @@ html[data-theme="light"] .launcher-splash img{
   transform: translateY(-0.5px);
 }
 
-.tileLeft{ display:flex; gap: 12px; align-items:flex-start; }
-.tileMeta{ display:flex; flex-direction:column; gap: 6px; min-width:0; }
+.tileLeft{ display:flex; gap: 10px; align-items:center; }
+.tileMeta{ display:flex; flex-direction:column; gap: 1px; min-width:0; }
 .tileNameRow{ display:flex; align-items:center; gap: 8px; }
 .tileName{ font-weight: 800; }
 .tilePath{ color: var(--muted); font-size: 12px; }

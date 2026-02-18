@@ -25,9 +25,10 @@ import (
 
 // Manager manages a single listening group (hosting or listening).
 type Manager struct {
-	host   host.Host
-	grp    *group.Manager
-	selfID string
+	host    host.Host
+	grp     *group.Manager
+	selfID  string
+	dataDir string // directory for persisting queue state
 
 	mu    sync.RWMutex
 	group *Group
@@ -62,13 +63,21 @@ type listenerPipe struct {
 	cancel func()
 }
 
+// queueState is serialised to disk to persist the playlist across restarts.
+type queueState struct {
+	GroupID string   `json:"group_id"`
+	Paths   []string `json:"paths"`
+	Index   int      `json:"index"`
+}
+
 // New creates a new listen manager. It registers the binary stream handler
 // and subscribes to group events for listen control messages.
-func New(h host.Host, grp *group.Manager, selfID string) *Manager {
+func New(h host.Host, grp *group.Manager, selfID, dataDir string) *Manager {
 	m := &Manager{
 		host:     h,
 		grp:      grp,
 		selfID:   selfID,
+		dataDir:  dataDir,
 		pipes:    make(map[string]*listenerPipe),
 		sseChans: make(map[chan *Group]struct{}),
 	}
@@ -88,6 +97,23 @@ func New(h host.Host, grp *group.Manager, selfID string) *Manager {
 				m.paused = true
 				m.stopCh = make(chan struct{})
 				log.Printf("LISTEN: Recovered group %s (%s) from previous session", g.ID, g.Name)
+
+				// Restore saved queue
+				if qs := m.loadQueueFromDiskForGroup(g.ID); qs != nil && len(qs.Paths) > 0 {
+					m.queue = qs.Paths
+					m.queueIdx = qs.Index
+					if m.queueIdx >= len(m.queue) {
+						m.queueIdx = 0
+					}
+					_, err := m.loadTrackAtLocked(m.queueIdx)
+					if err != nil {
+						log.Printf("LISTEN: Could not reload queue track: %v", err)
+						m.queue = nil
+						m.queueIdx = 0
+					} else {
+						log.Printf("LISTEN: Restored queue (%d tracks, current=%d)", len(m.queue), m.queueIdx)
+					}
+				}
 			}
 		}
 	}
@@ -155,7 +181,9 @@ func (m *Manager) LoadQueue(paths []string) (*Track, error) {
 	m.queue = paths
 	m.queueIdx = 0
 
-	return m.loadTrackAtLocked(0)
+	track, err := m.loadTrackAtLocked(0)
+	m.saveQueueToDisk()
+	return track, err
 }
 
 // AddToQueue appends one or more files to the playlist. If no queue exists yet
@@ -179,12 +207,14 @@ func (m *Manager) AddToQueue(paths []string) error {
 		m.queue = paths
 		m.queueIdx = 0
 		_, err := m.loadTrackAtLocked(0)
+		m.saveQueueToDisk()
 		return err
 	}
 
 	// Append without interrupting current playback
 	m.queue = append(m.queue, paths...)
 	m.updateQueueInfoLocked()
+	m.saveQueueToDisk()
 	m.notifySSE()
 	return nil
 }
@@ -254,6 +284,95 @@ func (m *Manager) updateQueueInfoLocked() {
 	m.group.QueueTotal = len(m.queue)
 }
 
+// Next skips to the next track. Safe to call from the HTTP handler.
+func (m *Manager) Next() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.group == nil || m.group.Role != "host" {
+		return fmt.Errorf("not hosting a group")
+	}
+	nextIdx := m.queueIdx + 1
+	if nextIdx >= len(m.queue) {
+		return fmt.Errorf("already at last track")
+	}
+
+	wasPlaying := !m.paused
+	m.stopPlaybackLocked()
+	m.queueIdx = nextIdx
+
+	if _, err := m.loadTrackAtLocked(nextIdx); err != nil {
+		return err
+	}
+
+	if wasPlaying {
+		m.paused = false
+		m.group.PlayState = &PlayState{Playing: true, Position: 0, UpdatedAt: time.Now().UnixMilli()}
+		m.sendControl(ControlMsg{Action: "play", Position: 0})
+		m.startStreaming(0)
+		stopCh := m.stopCh
+		go m.trackTimerGoroutine(stopCh)
+	}
+
+	m.saveQueueToDisk()
+	m.notifySSE()
+	return nil
+}
+
+// Prev goes to the previous track (or restarts current if past 3 seconds).
+func (m *Manager) Prev() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.group == nil || m.group.Role != "host" {
+		return fmt.Errorf("not hosting a group")
+	}
+
+	// If more than 3 seconds in, restart current track
+	pos := m.currentPosition()
+	if pos > 3.0 || m.queueIdx == 0 {
+		wasPlaying := !m.paused
+		m.stopPlaybackLocked()
+		if _, err := m.loadTrackAtLocked(m.queueIdx); err != nil {
+			return err
+		}
+		if wasPlaying {
+			m.paused = false
+			m.group.PlayState = &PlayState{Playing: true, Position: 0, UpdatedAt: time.Now().UnixMilli()}
+			m.sendControl(ControlMsg{Action: "play", Position: 0})
+			m.startStreaming(0)
+			stopCh := m.stopCh
+			go m.trackTimerGoroutine(stopCh)
+		}
+		m.saveQueueToDisk()
+		m.notifySSE()
+		return nil
+	}
+
+	// Go to previous track
+	prevIdx := m.queueIdx - 1
+	wasPlaying := !m.paused
+	m.stopPlaybackLocked()
+	m.queueIdx = prevIdx
+
+	if _, err := m.loadTrackAtLocked(prevIdx); err != nil {
+		return err
+	}
+
+	if wasPlaying {
+		m.paused = false
+		m.group.PlayState = &PlayState{Playing: true, Position: 0, UpdatedAt: time.Now().UnixMilli()}
+		m.sendControl(ControlMsg{Action: "play", Position: 0})
+		m.startStreaming(0)
+		stopCh := m.stopCh
+		go m.trackTimerGoroutine(stopCh)
+	}
+
+	m.saveQueueToDisk()
+	m.notifySSE()
+	return nil
+}
+
 // advanceQueue advances to the next track and starts playing.
 // Safe to call from a goroutine (takes its own lock).
 func (m *Manager) advanceQueue() {
@@ -293,6 +412,7 @@ func (m *Manager) advanceQueue() {
 			Position:  0,
 			UpdatedAt: time.Now().UnixMilli(),
 		}
+		m.saveQueueToDisk()
 		m.sendControl(ControlMsg{Action: "play", Position: 0})
 		m.startStreaming(0)
 		stopCh := m.stopCh
@@ -450,6 +570,9 @@ func (m *Manager) CloseGroup() error {
 	m.closeHTTPPipeLocked()
 	m.group = nil
 	m.filePath = ""
+	m.queue = nil
+	m.queueIdx = 0
+	m.saveQueueToDisk() // clear persisted queue
 
 	log.Printf("LISTEN: Group closed")
 	m.notifySSE()
@@ -526,14 +649,46 @@ func (m *Manager) AudioReader() (io.ReadCloser, error) {
 	m.httpPipeW = w
 	m.httpPipeMu.Unlock()
 
-	// If the host is already playing, kick off streaming to the new pipe.
+	// If the host is already playing, start streaming to the new pipe.
+	// We deliberately do NOT call startStreaming() here because that would
+	// replace m.stopCh, killing any timer goroutine launched by Next/Prev/Play.
 	go func() {
-		m.mu.Lock()
-		defer m.mu.Unlock()
-		if m.group != nil && !m.paused && m.filePath != "" {
-			pos := m.currentPosition()
-			m.startStreaming(pos)
+		m.mu.RLock()
+		playing := m.group != nil && !m.paused && m.filePath != "" && m.group.Track != nil
+		var filePath string
+		var bitrate int
+		var pos float64
+		var stopCh chan struct{}
+		if playing {
+			filePath = m.filePath
+			bitrate = m.group.Track.Bitrate
+			pos = m.currentPosition()
+			stopCh = m.stopCh
 		}
+		m.mu.RUnlock()
+
+		if !playing {
+			return
+		}
+
+		m.httpPipeMu.Lock()
+		httpW := m.httpPipeW
+		m.httpPipeMu.Unlock()
+		if httpW == nil {
+			return
+		}
+
+		ff, err := os.Open(filePath)
+		if err != nil {
+			return
+		}
+		defer ff.Close()
+		byteOffset := int64(pos * float64(bitrate) / 8.0)
+		if byteOffset > 0 {
+			ff.Seek(byteOffset, io.SeekStart)
+		}
+		rp := &ratePacer{file: ff, bitrate: bitrate, done: stopCh}
+		rp.stream(httpW)
 	}()
 
 	return r, nil
@@ -1074,6 +1229,59 @@ func (m *Manager) Close() {
 	m.sseMu.Unlock()
 
 	m.group = nil
+}
+
+// ── Queue persistence ─────────────────────────────────────────────────────────
+
+func (m *Manager) queueFilePath() string {
+	if m.dataDir == "" {
+		return ""
+	}
+	return filepath.Join(m.dataDir, "listen-queue.json")
+}
+
+func (m *Manager) queueFilePathForGroup(groupID string) string {
+	return m.queueFilePath()
+}
+
+func (m *Manager) saveQueueToDisk() {
+	p := m.queueFilePath()
+	if p == "" {
+		return
+	}
+	groupID := ""
+	if m.group != nil {
+		groupID = m.group.ID
+	}
+	qs := queueState{GroupID: groupID, Paths: m.queue, Index: m.queueIdx}
+	data, err := json.Marshal(qs)
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(p, data, 0644)
+}
+
+func (m *Manager) loadQueueFromDisk() *queueState {
+	if m.group == nil {
+		return nil
+	}
+	return m.loadQueueFromDiskForGroup(m.group.ID)
+}
+
+func (m *Manager) loadQueueFromDiskForGroup(groupID string) *queueState {
+	p := m.queueFilePathForGroup(groupID)
+	if p == "" {
+		return nil
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		return nil
+	}
+	var qs queueState
+	if err := json.Unmarshal(data, &qs); err != nil {
+		return nil
+	}
+	return &qs
 }
 
 func generateListenID() string {
