@@ -658,12 +658,10 @@ func (m *Manager) AudioReader() (io.ReadCloser, error) {
 		var filePath string
 		var bitrate int
 		var pos float64
-		var stopCh chan struct{}
 		if playing {
 			filePath = m.filePath
 			bitrate = m.group.Track.Bitrate
 			pos = m.currentPosition()
-			stopCh = m.stopCh
 		}
 		m.mu.RUnlock()
 
@@ -687,8 +685,11 @@ func (m *Manager) AudioReader() (io.ReadCloser, error) {
 		if byteOffset > 0 {
 			ff.Seek(byteOffset, io.SeekStart)
 		}
-		rp := &ratePacer{file: ff, bitrate: bitrate, done: stopCh}
-		rp.stream(httpW)
+		// Local HTTP — copy at full speed. The browser's audio element plays at
+		// natural speed so currentTime stays in sync with the server clock.
+		// stopCh / pipe close (on pause/next) will make Write return ErrClosedPipe.
+		buf := make([]byte, 32*1024)
+		io.CopyBuffer(httpW, ff, buf)
 	}()
 
 	return r, nil
