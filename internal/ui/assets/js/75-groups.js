@@ -128,6 +128,15 @@
 
     wrapperEl.innerHTML = html;
 
+    // Initialise progress bar to current position (covers paused state)
+    if (g && g.play_state && g.track && g.track.duration > 0) {
+      var fillEl = wrapperEl.querySelector(".glisten-progress-fill");
+      var curEl  = wrapperEl.querySelector(".glisten-time-current");
+      var pos = g.play_state.position;
+      if (fillEl) fillEl.style.width = Math.min(100, (pos / g.track.duration) * 100) + "%";
+      if (curEl)  curEl.textContent  = formatTime(pos);
+    }
+
     // Bind "Add Files" button (bridge mode) — appends to existing queue
     var addBtn = wrapperEl.querySelector(".glisten-add-btn");
     if (addBtn && bridgeURL) {
@@ -194,12 +203,14 @@
     var pauseBtn = wrapperEl.querySelector(".glisten-pause-btn");
     if (playBtn) {
       on(playBtn, "click", function() {
-        var audio = ensureAudioEl();
-        // Always reconnect — server closes the pipe on pause/stop
-        audio.src = "/api/listen/stream";
-        audio.volume = volEl ? volEl.value / 100 : 0.8;
-        audio.load();
+        // Call Play API first so m.paused=false before AudioReader() is called.
+        // AudioReader's goroutine checks !m.paused — if we set audio.src first
+        // it runs while still paused and returns without writing anything.
         window.Goop.listen.control("play").then(function() {
+          var audio = ensureAudioEl();
+          audio.src = "/api/listen/stream";
+          audio.volume = volEl ? volEl.value / 100 : 0.8;
+          audio.load();
           audio.play().catch(function(e) { console.warn("LISTEN host play:", e); });
         });
       });
