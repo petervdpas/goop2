@@ -201,3 +201,27 @@
 .svc-warn::before{
   content: "\25B2 ";
 }
+
+/* ── Splash picker ── */
+.splash-picker {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.splash-picker-option {
+  cursor: pointer;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.splash-picker-option img {
+  width: 100%;
+  display: block;
+  border-radius: 6px;
+}
+.splash-picker-option input[type="radio"] {
+  display: none;
+}
+.splash-picker-option.selected {
+  border-color: #f39c12;
+}

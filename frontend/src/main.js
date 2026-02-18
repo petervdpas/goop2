@@ -2,11 +2,13 @@
 import "./style.css";
 import splashUrl from "./assets/images/goop2-splash.png";
 import splash2Url from "./assets/images/goop2-splash2.png";
+import splash3Url from "./assets/images/goop2-splash3.png";
 import iconUrl from "./assets/images/goop2-icon.png";
 
 const splashMap = {
   "goop2-splash.png": splashUrl,
   "goop2-splash2.png": splash2Url,
+  "goop2-splash3.png": splash3Url,
 };
 import {
   clear, div, btn, input, h1, h2, p,

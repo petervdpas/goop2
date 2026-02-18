@@ -295,6 +295,16 @@
     });
   }
 
+  // ── Splash picker ──
+  document.querySelectorAll('.splash-picker input[type="radio"]').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+      document.querySelectorAll('.splash-picker-option').forEach(function(opt) {
+        opt.classList.remove('selected');
+      });
+      radio.closest('.splash-picker-option').classList.add('selected');
+    });
+  });
+
   // ── Templates directory browse ──
   var tplBrowse = document.getElementById('templates-dir-browse');
   var tplInput  = document.getElementById('templates-dir-input');
