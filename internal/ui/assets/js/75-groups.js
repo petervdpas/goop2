@@ -121,7 +121,7 @@
 
     wrapperEl.innerHTML = html;
 
-    // Bind "Add Files" button (bridge mode)
+    // Bind "Add Files" button (bridge mode) — appends to existing queue
     var addBtn = wrapperEl.querySelector(".glisten-add-btn");
     if (addBtn && bridgeURL) {
       on(addBtn, "click", function() {
@@ -129,8 +129,8 @@
           .then(function(r) { return r.json(); })
           .then(function(data) {
             if (!data.cancelled && data.paths && data.paths.length > 0) {
-              window.Goop.listen.loadQueue(data.paths).catch(function(e) {
-                toast("Load failed: " + e.message, true);
+              window.Goop.listen.addToQueue(data.paths).catch(function(e) {
+                toast("Add failed: " + e.message, true);
               });
             }
           })
@@ -138,15 +138,17 @@
       });
     }
 
-    // Bind text-input load button (non-bridge fallback)
+    // Bind text-input load button (non-bridge fallback) — appends to queue
     var loadBtn = wrapperEl.querySelector(".glisten-load-btn");
     var fileInput = wrapperEl.querySelector(".glisten-file");
     if (loadBtn && fileInput) {
       on(loadBtn, "click", function() {
         var path = fileInput.value.trim();
         if (!path) return;
-        window.Goop.listen.load(path).catch(function(e) {
-          toast("Load failed: " + e.message, true);
+        window.Goop.listen.addToQueue([path]).then(function() {
+          fileInput.value = "";
+        }).catch(function(e) {
+          toast("Add failed: " + e.message, true);
         });
       });
     }

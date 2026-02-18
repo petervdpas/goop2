@@ -73,12 +73,21 @@ func New(h host.Host, grp *group.Manager, selfID string) *Manager {
 		sseChans: make(map[chan *Group]struct{}),
 	}
 
-	// Clean up any stale listen- groups from previous sessions
+	// Recover any listen group left over from a previous session.
+	// The group protocol already reloaded it from the DB; we just need to
+	// re-attach the listen manager's state so the host can load tracks again.
 	if rows, err := grp.ListHostedGroups(); err == nil {
 		for _, g := range rows {
-			if strings.HasPrefix(g.ID, "listen-") {
-				_ = grp.CloseGroup(g.ID)
-				log.Printf("LISTEN: Cleaned up stale group %s on startup", g.ID)
+			if strings.HasPrefix(g.ID, "listen-") && m.group == nil {
+				_ = grp.JoinOwnGroup(g.ID) // no-op if already joined
+				m.group = &Group{
+					ID:   g.ID,
+					Name: g.Name,
+					Role: "host",
+				}
+				m.paused = true
+				m.stopCh = make(chan struct{})
+				log.Printf("LISTEN: Recovered group %s (%s) from previous session", g.ID, g.Name)
 			}
 		}
 	}
@@ -147,6 +156,37 @@ func (m *Manager) LoadQueue(paths []string) (*Track, error) {
 	m.queueIdx = 0
 
 	return m.loadTrackAtLocked(0)
+}
+
+// AddToQueue appends one or more files to the playlist. If no queue exists yet
+// the first file is loaded immediately (ready to play). Safe to call while
+// playback is running — does not interrupt the current track.
+func (m *Manager) AddToQueue(paths []string) error {
+	if len(paths) == 0 {
+		return fmt.Errorf("no paths provided")
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.group == nil || m.group.Role != "host" {
+		return fmt.Errorf("not hosting a group")
+	}
+
+	if len(m.queue) == 0 {
+		// No queue yet — start fresh from the first file
+		m.stopPlaybackLocked()
+		m.queue = paths
+		m.queueIdx = 0
+		_, err := m.loadTrackAtLocked(0)
+		return err
+	}
+
+	// Append without interrupting current playback
+	m.queue = append(m.queue, paths...)
+	m.updateQueueInfoLocked()
+	m.notifySSE()
+	return nil
 }
 
 // loadTrackAtLocked loads the track at queue index idx. Caller must hold m.mu.

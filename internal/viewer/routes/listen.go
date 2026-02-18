@@ -61,6 +61,24 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
 		writeJSON(w, track)
 	})
 
+	// POST /api/listen/queue/add — append files to the playlist
+	handlePost(mux, "/api/listen/queue/add", func(w http.ResponseWriter, r *http.Request, req struct {
+		FilePaths []string `json:"file_paths"`
+	}) {
+		if !requireLocal(w, r) {
+			return
+		}
+		if len(req.FilePaths) == 0 {
+			http.Error(w, "missing file_paths", http.StatusBadRequest)
+			return
+		}
+		if err := lm.AddToQueue(req.FilePaths); err != nil {
+			http.Error(w, fmt.Sprintf("failed: %v", err), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, map[string]string{"status": "ok"})
+	})
+
 	// POST /api/listen/control — host play/pause/seek
 	handlePost(mux, "/api/listen/control", func(w http.ResponseWriter, r *http.Request, req struct {
 		Action   string  `json:"action"`
