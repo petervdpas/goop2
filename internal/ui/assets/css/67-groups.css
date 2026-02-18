@@ -467,6 +467,85 @@
   font-weight: 600;
 }
 
+/* -----------------------------
+   Group management (members / max)
+------------------------------ */
+.groups-card-mgmt{
+  padding: 7px 14px 8px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  background: color-mix(in srgb, var(--field-bg) 60%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.groups-mgmt-label{
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.groups-mgmt-row{
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.groups-mgmt-row input[type="number"]{
+  width: 60px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--field-bg);
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+}
+
+.groups-member-list{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.groups-member-chip{
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px 3px 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  font-size: 12px;
+}
+
+.groups-member-chip img{
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.groups-kick-btn{
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 0 2px;
+  font-size: 11px;
+  line-height: 1;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.groups-kick-btn:hover{
+  color: var(--danger, #e55);
+}
+
 .glisten-queue-num{
   color: var(--muted);
   font-size: 11px;

@@ -92,6 +92,10 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
 			err = lm.Pause()
 		case "seek":
 			err = lm.Seek(req.Position)
+		case "next":
+			err = lm.Next()
+		case "prev":
+			err = lm.Prev()
 		default:
 			http.Error(w, "unknown action: "+req.Action, http.StatusBadRequest)
 			return

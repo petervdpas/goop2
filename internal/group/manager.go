@@ -295,6 +295,59 @@ func (m *Manager) ListHostedGroups() ([]storage.GroupRow, error) {
 	return m.db.ListGroups()
 }
 
+// KickMember disconnects a member from a hosted group.
+func (m *Manager) KickMember(groupID, peerID string) error {
+	m.mu.RLock()
+	hg, exists := m.groups[groupID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("group not found: %s", groupID)
+	}
+
+	hg.mu.Lock()
+	mc, ok := hg.members[peerID]
+	if ok {
+		kickMsg := Message{Type: TypeClose, Group: groupID}
+		mc.encoder.Encode(kickMsg)
+		mc.cancel()
+		mc.stream.Close()
+		delete(hg.members, peerID)
+	}
+	hg.mu.Unlock()
+
+	if !ok {
+		return fmt.Errorf("member not found: %s", peerID)
+	}
+
+	m.notifyListeners(&Event{Type: "leave", Group: groupID, From: peerID})
+	log.Printf("GROUP: Kicked %s from %s", peerID, groupID)
+	return nil
+}
+
+// SetMaxMembers updates the max_members limit for a hosted group.
+// A limit of 0 means unlimited.
+func (m *Manager) SetMaxMembers(groupID string, max int) error {
+	m.mu.RLock()
+	hg, exists := m.groups[groupID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("group not found: %s", groupID)
+	}
+
+	hg.mu.Lock()
+	hg.info.MaxMembers = max
+	hg.mu.Unlock()
+
+	if err := m.db.SetMaxMembers(groupID, max); err != nil {
+		return fmt.Errorf("update max members: %w", err)
+	}
+
+	log.Printf("GROUP: Set max members for %s to %d", groupID, max)
+	return nil
+}
+
 // HostedGroupMembers returns the current members of a hosted group.
 func (m *Manager) HostedGroupMembers(groupID string) []MemberInfo {
 	m.mu.RLock()

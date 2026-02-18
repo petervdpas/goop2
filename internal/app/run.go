@@ -342,7 +342,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	log.Printf("⚡ Realtime channels enabled")
 
 	// ── Listen room (wraps group protocol + binary audio stream)
-	listenMgr := listen.New(node.Host, grpMgr, node.ID())
+	listenMgr := listen.New(node.Host, grpMgr, node.ID(), o.PeerDir)
 	defer listenMgr.Close()
 	if luaEngine != nil {
 		luaEngine.SetListen(listenMgr)

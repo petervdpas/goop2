@@ -110,6 +110,20 @@ func registerAvatarRoutes(mux *http.ServeMux, d Deps) {
 			http.Error(w, "missing peer id", http.StatusBadRequest)
 			return
 		}
+		// Self: serve own avatar instead of looking up in remote peers table
+		if d.Node != nil && peerID == d.Node.ID() {
+			if d.AvatarStore != nil {
+				data, err := d.AvatarStore.Read()
+				if err == nil && data != nil {
+					w.Header().Set("Content-Type", "image/png")
+					w.Header().Set("Cache-Control", "no-cache")
+					w.Write(data)
+					return
+				}
+			}
+			serveFallbackSVG(w, safeCall(d.SelfLabel), safeCall(d.SelfEmail))
+			return
+		}
 		serveRemoteAvatar(w, r, d, peerID)
 	})
 }

@@ -91,11 +91,18 @@
         '</div>' +
         '<div class="listen-controls">';
 
+      var hasPrev = g.queue_total > 1;
+      var hasNext = g.queue_total > 1 && g.queue_index < g.queue_total - 1;
+
+      html += '<button class="listen-control-btn glisten-prev-btn" title="Previous"' + (hasPrev ? '' : ' disabled') + '>&#9664;&#9664;</button>';
+
       if (g.play_state && g.play_state.playing) {
         html += '<button class="listen-control-btn glisten-pause-btn" title="Pause">&#9646;&#9646;</button>';
       } else {
         html += '<button class="listen-control-btn glisten-play-btn" title="Play">&#9654;</button>';
       }
+
+      html += '<button class="listen-control-btn glisten-next-btn" title="Next"' + (hasNext ? '' : ' disabled') + '>&#9654;&#9654;</button>';
 
       html += '<div class="listen-volume">' +
         '<label class="muted small">Volume</label>' +
@@ -159,6 +166,26 @@
       on(volEl, "input", function() {
         var audio = ensureAudioEl();
         audio.volume = volEl.value / 100;
+      });
+    }
+
+    // Bind prev/next
+    var prevBtn = wrapperEl.querySelector(".glisten-prev-btn");
+    var nextBtn = wrapperEl.querySelector(".glisten-next-btn");
+    if (prevBtn) {
+      on(prevBtn, "click", function() {
+        var audio = ensureAudioEl();
+        audio.pause();
+        audio.src = ""; // disconnect pipe so blocked write unblocks immediately
+        window.Goop.listen.control("prev").catch(function(e) { toast("Prev failed: " + e.message, true); });
+      });
+    }
+    if (nextBtn) {
+      on(nextBtn, "click", function() {
+        var audio = ensureAudioEl();
+        audio.pause();
+        audio.src = ""; // disconnect pipe so blocked write unblocks immediately
+        window.Goop.listen.control("next").catch(function(e) { toast("Next failed: " + e.message, true); });
       });
     }
 
@@ -462,23 +489,44 @@
             ? '<button class="groups-action-btn groups-btn-danger groups-leaveown-btn" data-id="' + escapeHtml(g.id) + '">Leave</button>'
             : '<button class="groups-action-btn groups-btn-primary groups-joinown-btn" data-id="' + escapeHtml(g.id) + '">Join</button>';
           var closeAttr = isListen ? ' data-listen="1"' : '';
-          html += '<div class="' + (isListen ? 'groups-card-wrap' : '') + '">' +
+          html += '<div class="groups-card-wrap">' +
             '<div class="groups-card">' +
-            '<div class="groups-card-info">' +
-              '<div class="groups-card-name">' + escapeHtml(g.name) +
-                typeBadge(g.app_type) +
-                (g.host_in_group ? ' <span class="groups-status-connected">joined</span>' : '') +
+              '<div class="groups-card-info">' +
+                '<div class="groups-card-name">' + escapeHtml(g.name) +
+                  typeBadge(g.app_type) +
+                  (g.host_in_group ? ' <span class="groups-status-connected">joined</span>' : '') +
+                '</div>' +
+                '<div class="groups-card-meta"><code>' + escapeHtml(shortId(g.id)) + '</code>' +
+                  (g.max_members > 0 ? ' &middot; max ' + g.max_members : '') +
+                '</div>' +
               '</div>' +
-              '<div class="groups-card-meta"><code>' + escapeHtml(shortId(g.id)) + '</code>' +
-                (g.max_members > 0 ? ' &middot; max ' + g.max_members : '') +
+              '<div class="groups-card-members">' + memberLabel(g.member_count) + '</div>' +
+              '<div class="groups-card-actions">' +
+                joinBtn +
+                '<button class="groups-action-btn groups-invite-btn" data-id="' + escapeHtml(g.id) + '">Invite</button>' +
+                '<button class="groups-action-btn groups-btn-danger groups-close-btn" data-id="' + escapeHtml(g.id) + '"' + closeAttr + '>Close</button>' +
               '</div>' +
             '</div>' +
-            '<div class="groups-card-members">' + memberLabel(g.member_count) + '</div>' +
-            '<div class="groups-card-actions">' +
-              joinBtn +
-              '<button class="groups-action-btn groups-invite-btn" data-id="' + escapeHtml(g.id) + '">Invite</button>' +
-              '<button class="groups-action-btn groups-btn-danger groups-close-btn" data-id="' + escapeHtml(g.id) + '"' + closeAttr + '>Close</button>' +
-            '</div>' +
+            '<div class="groups-card-mgmt">' +
+              '<div class="groups-mgmt-row">' +
+                '<label class="groups-mgmt-label">Max <span class="muted small">(0=unlimited)</span></label>' +
+                '<input type="number" class="groups-maxmembers-input" data-id="' + escapeHtml(g.id) + '" value="' + (g.max_members || 0) + '" min="0">' +
+                '<button class="groups-action-btn groups-maxmembers-btn" data-id="' + escapeHtml(g.id) + '">Set</button>' +
+              '</div>' +
+              (g.members && g.members.length > 0
+                ? '<div class="groups-member-list">' +
+                    g.members.map(function(m) {
+                      var selfId = document.body.dataset.selfId || '';
+                      var isSelf = m.peer_id === selfId;
+                      var label = m.name || shortId(m.peer_id);
+                      return '<span class="groups-member-chip">' +
+                        '<img src="/api/avatar/peer/' + encodeURIComponent(m.peer_id) + '">' +
+                        '<span>' + escapeHtml(label) + '</span>' +
+                        (!isSelf ? '<button class="groups-kick-btn" data-group="' + escapeHtml(g.id) + '" data-peer="' + escapeHtml(m.peer_id) + '" title="Remove">&#10005;</button>' : '') +
+                      '</span>';
+                    }).join('') +
+                  '</div>'
+                : '') +
             '</div>' +
             (isListen ? '<div class="groups-listen-player" data-group-id="' + escapeHtml(g.id) + '"></div>' : '') +
           '</div>';
@@ -530,6 +578,32 @@
             } else if (confirm('Close group "' + id + '"?')) {
               closeGroup(id, isListenClose);
             }
+          });
+        });
+
+        // Bind kick buttons
+        hostedListEl.querySelectorAll(".groups-kick-btn").forEach(function(btn) {
+          on(btn, "click", function() {
+            var groupId = btn.getAttribute("data-group");
+            var peerId = btn.getAttribute("data-peer");
+            api("/api/groups/kick", { group_id: groupId, peer_id: peerId }).then(function() {
+              toast("Member removed");
+              loadHostedGroups();
+            }).catch(function(err) { toast("Kick failed: " + err.message, true); });
+          });
+        });
+
+        // Bind max-members set buttons
+        hostedListEl.querySelectorAll(".groups-maxmembers-btn").forEach(function(btn) {
+          on(btn, "click", function() {
+            var groupId = btn.getAttribute("data-id");
+            var input = hostedListEl.querySelector('.groups-maxmembers-input[data-id="' + groupId + '"]');
+            var max = input ? parseInt(input.value, 10) : 0;
+            if (isNaN(max) || max < 0) max = 0;
+            api("/api/groups/max-members", { group_id: groupId, max_members: max }).then(function() {
+              toast("Max members updated");
+              loadHostedGroups();
+            }).catch(function(err) { toast("Update failed: " + err.message, true); });
           });
         });
 
