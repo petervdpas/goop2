@@ -107,7 +107,7 @@
       sse = new EventSource("/api/groups/events");
 
       // Listen for all known event types
-      var types = ["welcome", "members", "msg", "state", "leave", "close", "error"];
+      var types = ["welcome", "members", "msg", "state", "leave", "close", "error", "invite"];
       types.forEach(function(t) {
         sse.addEventListener(t, function(e) {
           try {

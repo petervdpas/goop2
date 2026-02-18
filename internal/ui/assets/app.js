@@ -5,6 +5,7 @@
     "00-core.js",
     "01-select.js",
     "05-layout.js",
+    "06-notify.js",
     "10-peers.js",
     "20-theme.js",
     "30-banners.js",
