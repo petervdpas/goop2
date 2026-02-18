@@ -316,6 +316,10 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 				if !ok {
 					return
 				}
+				// Ping/pong are internal keepalive messages; never forward to browser.
+				if evt.Type == group.TypePing || evt.Type == group.TypePong {
+					continue
+				}
 				data, err := json.Marshal(evt)
 				if err != nil {
 					log.Printf("GROUP: Failed to marshal event: %v", err)

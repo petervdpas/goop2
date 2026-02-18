@@ -203,6 +203,15 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 				}
 			}
 
+			// If we're a client member (not the host), query peers from the last known member list
+			if len(members) == 0 {
+				for _, m := range d.GroupManager.ClientGroupMembers(groupID) {
+					if m.PeerID != selfID {
+						peerIDs = append(peerIDs, m.PeerID)
+					}
+				}
+			}
+
 			// Query each peer in parallel
 			if len(peerIDs) > 0 {
 				var mu sync.Mutex

@@ -12,6 +12,8 @@ const (
 	TypeLeave   = "leave"
 	TypeClose   = "close"
 	TypeError   = "error"
+	TypePing    = "ping"
+	TypePong    = "pong"
 )
 
 // Message is the JSON wire format for group protocol messages.

@@ -7,6 +7,7 @@ import (
 	"log"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/petervdpas/goop2/internal/proto"
@@ -57,7 +58,8 @@ type memberConn struct {
 	stream   network.Stream
 	encoder  *json.Encoder
 	cancel   context.CancelFunc
-	sendCh   chan Message // buffered outbound queue for non-blocking broadcast
+	sendCh   chan Message    // buffered outbound queue for non-blocking broadcast
+	lastPong atomic.Int64   // unix millis of last pong received from this member
 }
 
 type clientConn struct {
@@ -65,7 +67,10 @@ type clientConn struct {
 	groupID    string
 	stream     network.Stream
 	encoder    *json.Encoder
+	sendMu     sync.Mutex   // serialises writes to encoder (handler + pong goroutine)
 	cancel     context.CancelFunc
+	membersMu  sync.RWMutex
+	members    []MemberInfo // last known member list from host
 }
 
 // New creates a new group manager and registers the stream handler.
@@ -156,6 +161,8 @@ func (m *Manager) handleIncomingStream(s network.Stream) {
 	// Start per-member drain goroutine: writes from sendCh to the stream
 	// with a deadline so one slow peer cannot block the others.
 	go mc.drainLoop(ctx)
+	// Start ping goroutine: keeps the connection alive and detects stalled peers.
+	go m.pingLoop(ctx, mc, groupID)
 
 	log.Printf("GROUP: %s joined group %s", remotePeer, groupID)
 
@@ -224,6 +231,8 @@ func (m *Manager) readLoop(ctx context.Context, dec *json.Decoder, hg *hostedGro
 		switch msg.Type {
 		case TypeLeave:
 			return
+		case TypePong:
+			mc.lastPong.Store(nowMillis())
 		case TypeMsg, TypeState:
 			// Relay to all other members
 			hg.broadcast(msg, mc.peerID)
@@ -363,6 +372,22 @@ func (m *Manager) HostedGroupMembers(groupID string) []MemberInfo {
 	return hg.memberList(m.selfID)
 }
 
+// ClientGroupMembers returns the last known member list for a group we joined as a client.
+// Returns nil if not connected as a client to the given group.
+func (m *Manager) ClientGroupMembers(groupID string) []MemberInfo {
+	m.mu.RLock()
+	cc := m.activeConn
+	m.mu.RUnlock()
+
+	if cc == nil || cc.groupID != groupID {
+		return nil
+	}
+
+	cc.membersMu.RLock()
+	defer cc.membersMu.RUnlock()
+	return cc.members
+}
+
 // JoinOwnGroup adds the host as a member of their own hosted group.
 func (m *Manager) JoinOwnGroup(groupID string) error {
 	m.mu.RLock()
@@ -454,7 +479,9 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 	m.activeConn = nil
 	m.mu.Unlock()
 	if old != nil {
-		old.encoder.Encode(Message{Type: TypeLeave, Group: old.groupID})
+		old.sendMu.Lock()
+		old.encoder.Encode(Message{Type: TypeLeave, Group: old.groupID}) //nolint:errcheck
+		old.sendMu.Unlock()
 		old.cancel()
 		old.stream.Close()
 	}
@@ -508,9 +535,10 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 	m.activeConn = cc
 	m.mu.Unlock()
 
-	// Extract group name from welcome payload for subscription storage
+	// Extract group name, app type, and initial member list from welcome payload
 	groupName := ""
 	appType := ""
+	var initMembers []MemberInfo
 	if wp, ok := welcome.Payload.(map[string]any); ok {
 		if n, ok := wp["group_name"].(string); ok {
 			groupName = n
@@ -518,7 +546,16 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 		if a, ok := wp["app_type"].(string); ok {
 			appType = a
 		}
+		if rawMembers, ok := wp["members"]; ok {
+			if b, err := json.Marshal(rawMembers); err == nil {
+				var ml []MemberInfo
+				if json.Unmarshal(b, &ml) == nil {
+					initMembers = ml
+				}
+			}
+		}
 	}
+	cc.members = initMembers
 
 	// Store subscription
 	m.db.AddSubscription(hostPeerID, groupID, groupName, appType, "member")
@@ -543,6 +580,10 @@ func (m *Manager) clientReadLoop(ctx context.Context, dec *json.Decoder, cc *cli
 		cc.stream.Close()
 	}()
 
+	// Expect a ping from the host at least every pingInterval; disconnect if
+	// clientPingTimeout elapses with no data at all from the host.
+	_ = cc.stream.SetReadDeadline(time.Now().Add(clientPingTimeout))
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -552,10 +593,13 @@ func (m *Manager) clientReadLoop(ctx context.Context, dec *json.Decoder, cc *cli
 
 		var msg Message
 		if err := dec.Decode(&msg); err != nil {
-			log.Printf("GROUP: Client connection lost: %v", err)
+			log.Printf("GROUP: Client connection lost (group %s): %v", cc.groupID, err)
 			m.notifyListeners(&Event{Type: TypeClose, Group: cc.groupID})
 			return
 		}
+
+		// Reset deadline after each successful message from host.
+		_ = cc.stream.SetReadDeadline(time.Now().Add(clientPingTimeout))
 
 		switch msg.Type {
 		case TypeClose:
@@ -564,7 +608,27 @@ func (m *Manager) clientReadLoop(ctx context.Context, dec *json.Decoder, cc *cli
 			m.notifyListeners(&Event{Type: TypeClose, Group: cc.groupID})
 			cc.cancel()
 			return
-		case TypeMembers, TypeMsg, TypeState, TypeError:
+		case TypePing:
+			// Reply to host's keepalive ping.
+			cc.sendMu.Lock()
+			cc.encoder.Encode(Message{Type: TypePong, Group: cc.groupID}) //nolint:errcheck
+			cc.sendMu.Unlock()
+		case TypeMembers:
+			// Keep local member list up to date
+			if rawPayload, ok := msg.Payload.(map[string]any); ok {
+				if rawMembers, ok := rawPayload["members"]; ok {
+					if b, err := json.Marshal(rawMembers); err == nil {
+						var ml []MemberInfo
+						if json.Unmarshal(b, &ml) == nil {
+							cc.membersMu.Lock()
+							cc.members = ml
+							cc.membersMu.Unlock()
+						}
+					}
+				}
+			}
+			m.notifyListeners(&Event{Type: msg.Type, Group: msg.Group, From: msg.From, Payload: msg.Payload})
+		case TypeMsg, TypeState, TypeError:
 			m.notifyListeners(&Event{Type: msg.Type, Group: msg.Group, From: msg.From, Payload: msg.Payload})
 		}
 	}
@@ -599,7 +663,9 @@ func (m *Manager) LeaveGroup() error {
 	}
 
 	// Send leave message
-	cc.encoder.Encode(Message{Type: TypeLeave, Group: cc.groupID})
+	cc.sendMu.Lock()
+	cc.encoder.Encode(Message{Type: TypeLeave, Group: cc.groupID}) //nolint:errcheck
+	cc.sendMu.Unlock()
 	cc.cancel()
 	cc.stream.Close()
 
@@ -753,7 +819,39 @@ func (g *hostedGroup) broadcast(msg Message, excludePeerID string) {
 	}
 }
 
-const memberWriteTimeout = 5 * time.Second
+const (
+	memberWriteTimeout = 5 * time.Second
+	pingInterval       = 30 * time.Second
+	pingPongTimeout    = 75 * time.Second // disconnect member after 2+ missed pings
+	clientPingTimeout  = 75 * time.Second // client disconnects if host goes silent
+)
+
+// pingLoop sends periodic TypePing messages to a member and disconnects them
+// if no TypePong is received within pingPongTimeout.
+func (m *Manager) pingLoop(ctx context.Context, mc *memberConn, groupID string) {
+	ticker := time.NewTicker(pingInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			// Check pong freshness only after the first ping cycle
+			last := mc.lastPong.Load()
+			if last > 0 && time.Since(time.UnixMilli(last)) > pingPongTimeout {
+				log.Printf("GROUP: Member %s ping timeout, disconnecting", mc.peerID)
+				mc.cancel()
+				return
+			}
+			select {
+			case mc.sendCh <- Message{Type: TypePing, Group: groupID}:
+			default:
+				// Buffer full; drainLoop write deadline will catch truly dead connections.
+			}
+		}
+	}
+}
 
 // drainLoop writes queued messages from sendCh to the stream with a deadline.
 // If a write times out or fails, the member is disconnected.
@@ -848,7 +946,9 @@ func (m *Manager) handleInviteStream(s network.Stream) {
 	// JoinRemoteGroup will upsert it again with the app_type from the welcome.
 	_ = m.db.AddSubscription(inv.HostPeerID, inv.GroupID, inv.GroupName, inv.AppType, "member")
 
-	// Notify local listeners so the groups page refreshes immediately.
+	// Notify local listeners so the groups page can prompt the user.
+	// The user must explicitly rejoin from the subscriptions list — we do not
+	// auto-join, as that would silently displace any existing group connection.
 	m.notifyListeners(&Event{
 		Type:  "invite",
 		Group: inv.GroupID,
@@ -859,16 +959,6 @@ func (m *Manager) handleInviteStream(s network.Stream) {
 			"host":       inv.HostPeerID,
 		},
 	})
-
-	// Auto-join in a goroutine so we don't block the stream handler.
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		if err := m.JoinRemoteGroup(ctx, inv.HostPeerID, inv.GroupID); err != nil {
-			log.Printf("GROUP: Auto-join after invite failed: %v", err)
-		}
-	}()
 }
 
 // ─── Shutdown ────────────────────────────────────────────────────────────────
@@ -960,6 +1050,41 @@ func (m *Manager) IsGroupHost(groupID string) bool {
 	defer m.mu.RUnlock()
 	_, exists := m.groups[groupID]
 	return exists
+}
+
+// IsKnownGroupPeer returns true if remotePeer is a verified member of groupID.
+// Works from both perspectives: as the host (authoritative member list) or as
+// a client member (list received from the host via TypeWelcome/TypeMembers).
+// Returns false if this peer has no knowledge of the group at all.
+func (m *Manager) IsKnownGroupPeer(remotePeer, groupID string) bool {
+	// Host side: authoritative check
+	m.mu.RLock()
+	_, isHost := m.groups[groupID]
+	cc := m.activeConn
+	m.mu.RUnlock()
+
+	if isHost {
+		return m.IsPeerInGroup(remotePeer, groupID)
+	}
+
+	// Client side: check against our known member list for this group
+	if cc != nil && cc.groupID == groupID {
+		// The host itself is always allowed to access our docs
+		if remotePeer == cc.hostPeerID {
+			return true
+		}
+		cc.membersMu.RLock()
+		defer cc.membersMu.RUnlock()
+		for _, mi := range cc.members {
+			if mi.PeerID == remotePeer {
+				return true
+			}
+		}
+		return false
+	}
+
+	// We don't know about this group — serve nothing
+	return false
 }
 
 // HostedGroupInfo returns the info for a hosted group.

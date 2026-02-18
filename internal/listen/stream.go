@@ -182,8 +182,13 @@ func (rp *ratePacer) stream(w io.Writer) error {
 		case <-ticker.C:
 			n, err := rp.file.Read(buf)
 			if n > 0 {
-				if _, werr := w.Write(buf[:n]); werr != nil {
-					return werr
+				data := buf[:n]
+				for len(data) > 0 {
+					nw, werr := w.Write(data)
+					if werr != nil {
+						return werr
+					}
+					data = data[nw:]
 				}
 			}
 			if err == io.EOF {

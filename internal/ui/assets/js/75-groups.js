@@ -326,9 +326,10 @@
           if (curEl) curEl.textContent = formatTime(p);
         }, 250);
 
-        // Connect audio
+        // Connect audio — reconnect if not actively loading/playing
         var audio = ensureAudioEl();
-        if (audio.paused || !audio.src) {
+        if (!audio.src || audio.networkState !== 2 /* NETWORK_LOADING */) {
+          audio.src = "";
           audio.src = "/api/listen/stream";
           audio.volume = 0.8;
           audio.play().catch(function(e) { console.warn("LISTEN autoplay blocked:", e); });
@@ -629,6 +630,7 @@
               renderHostPlayer(el, g);
             });
           });
+          if (listenSubs["groups-host"]) listenSubs["groups-host"].close();
           listenSubs["groups-host"] = sub;
         }
       }).catch(function(err) {
@@ -740,6 +742,7 @@
               renderListenerPlayer(el, g);
             });
           });
+          if (listenSubs["groups-listener"]) listenSubs["groups-listener"].close();
           listenSubs["groups-listener"] = sub;
         }
       }).catch(function(err) {
@@ -939,6 +942,7 @@
               renderHostPlayer(el, g);
             });
           });
+          if (listenSubs["cg-host"]) listenSubs["cg-host"].close();
           listenSubs["cg-host"] = sub;
         }
       }).catch(function(err) {
