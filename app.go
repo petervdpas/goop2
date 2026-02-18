@@ -45,6 +45,7 @@ type App struct {
 type PeerInfo struct {
 	Name           string `json:"name"`
 	RendezvousOnly bool   `json:"rendezvous_only"`
+	Splash         string `json:"splash"`
 }
 
 type uiState struct {
@@ -666,6 +667,7 @@ func listPeerInfos(root string) ([]PeerInfo, error) {
 		// the config has validation issues (e.g. missing rendezvous_host).
 		if cfg, err := config.LoadPartial(cfgPath); err == nil {
 			info.RendezvousOnly = cfg.Presence.RendezvousOnly
+			info.Splash = cfg.Viewer.Splash
 		}
 
 		peers = append(peers, info)

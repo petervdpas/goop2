@@ -21,23 +21,29 @@
     "rendezvous_wan": "https://goop2.com",
     "rendezvous_only": false,
     "admin_password": "",
-    "templates_dir": "templates",
-    "templates_dirs": null,
     "peer_db_path": "",
     "external_url": "",
-    "registration_required": false,
-    "registration_webhook": "",
     "relay_port": 0,
     "relay_key_file": "data/relay.key",
-    "smtp_host": "",
-    "smtp_port": 0,
-    "smtp_username": "",
-    "smtp_password": "",
-    "smtp_from": ""
+    "relay_cleanup_delay_sec": 3,
+    "relay_poll_deadline_sec": 25,
+    "relay_connect_timeout_sec": 15,
+    "relay_refresh_interval_sec": 300,
+    "relay_recovery_grace_sec": 5,
+    "use_services": false,
+    "credits_url": "",
+    "registration_url": "",
+    "email_url": "",
+    "templates_url": "",
+    "templates_dir": "templates",
+    "credits_admin_token": "",
+    "registration_admin_token": "",
+    "templates_admin_token": ""
   },
   "profile": {
     "label": "Walrus",
-    "email": "wally@walrus.com"
+    "email": "wally@walrus.com",
+    "verification_token": ""
   },
   "viewer": {
     "http_addr": ":7777",
@@ -45,7 +51,11 @@
     "theme": "dark",
     "preferred_cam": "",
     "preferred_mic": "",
-    "video_disabled": false
+    "video_disabled": false,
+    "hide_unverified": false,
+    "active_template": "",
+    "open_sites_external": false,
+    "splash": "goop2-splash.png"
   },
   "lua": {
     "enabled": true,

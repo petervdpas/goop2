@@ -130,6 +130,7 @@ type Viewer struct {
 	HideUnverified     bool   `json:"hide_unverified"`     // Hide unverified peers from the peer list
 	ActiveTemplate     string `json:"active_template"`     // dir name of currently applied template
 	OpenSitesExternal  bool   `json:"open_sites_external"` // true = open peer sites in system browser, false = embedded tabs
+	Splash             string `json:"splash"`              // splash image filename for peers page
 }
 
 type Lua struct {
@@ -181,6 +182,7 @@ func Default() Config {
 			HTTPAddr: "",
 			Debug:    false,
 			Theme:    "dark",
+			Splash:   "goop2-splash2.png",
 		},
 		Lua: Lua{
 			Enabled:          false,
