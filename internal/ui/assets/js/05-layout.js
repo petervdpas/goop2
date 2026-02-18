@@ -3,9 +3,13 @@
 (() => {
   var core = window.Goop && window.Goop.core || {};
   var escapeHtml = core.escapeHtml;
+  // ── Expose bridge URL globally so any page script can call bridge endpoints ──
+  window.Goop = window.Goop || {};
+  window.Goop.bridgeURL = new URLSearchParams(location.search).get('bridge') || '';
+
   // ── openExternal (global) ──
   window.openExternal = function(url) {
-    var b = new URLSearchParams(location.search).get('bridge');
+    var b = window.Goop.bridgeURL;
     if (b) { fetch(b + '/open?url=' + encodeURIComponent(url), { method: 'POST' }); return false; }
     location.href = '/open?url=' + encodeURIComponent(url);
     return false;

@@ -92,8 +92,12 @@
 
   // Initialize a custom select element (bind events).
   // onChange(newValue) is called when the user picks an option.
+  // If the element was already initialized (e.g. by autoInit), the handler
+  // is still registered — this allows page scripts to attach a handler late.
   function init(el, onChange) {
-    if (!el || el._gselInit) return;
+    if (!el) return;
+    if (onChange) el._gselChange = onChange;
+    if (el._gselInit) return;
     el._gselInit = true;
 
     var trigger = el.querySelector(".gsel-trigger");
@@ -121,7 +125,7 @@
       });
 
       el.classList.remove("open");
-      if (onChange) onChange(newVal);
+      if (el._gselChange) el._gselChange(newVal);
     });
 
     document.addEventListener("click", function() {
