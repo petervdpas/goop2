@@ -37,20 +37,24 @@ type Manager struct {
 	file     *os.File // open file handle for streaming
 	paused   bool
 	stopCh   chan struct{} // closed to stop streaming goroutines
-	seekGen  int64         // incremented on seek to signal reconnect
+	seekGen  int64        // incremented on seek to signal reconnect
+
+	// Queue
+	queue    []string // file paths for the playlist
+	queueIdx int      // current index
 
 	// Per-listener audio pipes (listener peerID -> pipe)
 	pipesMu sync.RWMutex
 	pipes   map[string]*listenerPipe
 
-	// Local HTTP audio pipe (for the listener viewer)
+	// Local HTTP audio pipe (for the host/listener viewer)
 	httpPipeMu sync.Mutex
 	httpPipeR  *io.PipeReader
 	httpPipeW  *io.PipeWriter
 
 	// SSE listeners for state changes
-	sseMu     sync.RWMutex
-	sseChans  map[chan *Group]struct{}
+	sseMu    sync.RWMutex
+	sseChans map[chan *Group]struct{}
 }
 
 type listenerPipe struct {
@@ -119,8 +123,18 @@ func (m *Manager) CreateGroup(name string) (*Group, error) {
 	return m.group, nil
 }
 
-// LoadTrack loads an MP3 file for streaming.
+// LoadTrack loads a single MP3 file, replacing any existing queue.
 func (m *Manager) LoadTrack(filePath string) (*Track, error) {
+	return m.LoadQueue([]string{filePath})
+}
+
+// LoadQueue loads one or more MP3 files as a playlist. Playback of the first
+// track begins when Play is called; subsequent tracks auto-advance.
+func (m *Manager) LoadQueue(paths []string) (*Track, error) {
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("no paths provided")
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -128,8 +142,19 @@ func (m *Manager) LoadTrack(filePath string) (*Track, error) {
 		return nil, fmt.Errorf("not hosting a group")
 	}
 
-	// Stop any current playback
 	m.stopPlaybackLocked()
+	m.queue = paths
+	m.queueIdx = 0
+
+	return m.loadTrackAtLocked(0)
+}
+
+// loadTrackAtLocked loads the track at queue index idx. Caller must hold m.mu.
+func (m *Manager) loadTrackAtLocked(idx int) (*Track, error) {
+	if idx >= len(m.queue) {
+		return nil, fmt.Errorf("queue index out of range")
+	}
+	filePath := m.queue[idx]
 
 	info, err := probeMP3(filePath)
 	if err != nil {
@@ -151,13 +176,119 @@ func (m *Manager) LoadTrack(filePath string) (*Track, error) {
 		Position:  0,
 		UpdatedAt: time.Now().UnixMilli(),
 	}
+	m.updateQueueInfoLocked()
 
 	// Broadcast track load to listeners
-	m.sendControl(ControlMsg{Action: "load", Track: track})
+	m.sendControl(ControlMsg{
+		Action:     "load",
+		Track:      track,
+		Queue:      m.group.Queue,
+		QueueIndex: m.group.QueueIndex,
+		QueueTotal: m.group.QueueTotal,
+	})
 
-	log.Printf("LISTEN: Loaded track %s (%d kbps, %.1fs)", track.Name, track.Bitrate/1000, track.Duration)
+	log.Printf("LISTEN: Loaded track %s (%d kbps, %.1fs) [%d/%d]",
+		track.Name, track.Bitrate/1000, track.Duration, idx+1, len(m.queue))
 	m.notifySSE()
 	return track, nil
+}
+
+// updateQueueInfoLocked refreshes the queue display names on m.group.
+// Caller must hold m.mu.
+func (m *Manager) updateQueueInfoLocked() {
+	if m.group == nil {
+		return
+	}
+	if len(m.queue) == 0 {
+		m.group.Queue = nil
+		m.group.QueueIndex = 0
+		m.group.QueueTotal = 0
+		return
+	}
+	names := make([]string, len(m.queue))
+	for i, p := range m.queue {
+		names[i] = filepath.Base(p)
+	}
+	m.group.Queue = names
+	m.group.QueueIndex = m.queueIdx
+	m.group.QueueTotal = len(m.queue)
+}
+
+// advanceQueue advances to the next track and starts playing.
+// Safe to call from a goroutine (takes its own lock).
+func (m *Manager) advanceQueue() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.group == nil || m.group.Role != "host" {
+		return
+	}
+
+	for {
+		nextIdx := m.queueIdx + 1
+		if nextIdx >= len(m.queue) {
+			// Playlist exhausted
+			m.paused = true
+			if m.group.PlayState != nil {
+				m.group.PlayState.Playing = false
+			}
+			log.Printf("LISTEN: Playlist finished")
+			m.notifySSE()
+			return
+		}
+
+		m.stopPlaybackLocked()
+		m.queueIdx = nextIdx
+
+		_, err := m.loadTrackAtLocked(nextIdx)
+		if err != nil {
+			log.Printf("LISTEN: Skipping bad track %s: %v", m.queue[nextIdx], err)
+			continue
+		}
+
+		// Auto-play next track
+		m.paused = false
+		m.group.PlayState = &PlayState{
+			Playing:   true,
+			Position:  0,
+			UpdatedAt: time.Now().UnixMilli(),
+		}
+		m.sendControl(ControlMsg{Action: "play", Position: 0})
+		m.startStreaming(0)
+		stopCh := m.stopCh
+		go m.trackTimerGoroutine(stopCh)
+		m.notifySSE()
+		return
+	}
+}
+
+// trackTimerGoroutine polls playback position and auto-advances when a track ends.
+func (m *Manager) trackTimerGoroutine(stopCh chan struct{}) {
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-stopCh:
+			return
+		case <-ticker.C:
+			m.mu.RLock()
+			g := m.group
+			paused := m.paused
+			m.mu.RUnlock()
+
+			if g == nil || paused || g.PlayState == nil || !g.PlayState.Playing || g.Track == nil {
+				return
+			}
+
+			elapsed := float64(time.Now().UnixMilli()-g.PlayState.UpdatedAt) / 1000.0
+			pos := g.PlayState.Position + elapsed
+			if pos >= g.Track.Duration {
+				log.Printf("LISTEN: Track ended, advancing queue")
+				m.advanceQueue()
+				return
+			}
+		}
+	}
 }
 
 // Play starts or resumes playback.
@@ -188,6 +319,10 @@ func (m *Manager) Play() error {
 
 	// Start streaming to all connected listeners
 	m.startStreaming(pos)
+
+	// Start track-end timer for auto-advance
+	stopCh := m.stopCh
+	go m.trackTimerGoroutine(stopCh)
 
 	log.Printf("LISTEN: Play from %.1fs", pos)
 	m.notifySSE()
@@ -340,18 +475,27 @@ func (m *Manager) AudioReader() (io.ReadCloser, error) {
 		return m.connectAudioStream()
 	}
 
-	// Host can also listen to their own stream (local playback)
+	// Host can also listen to their own stream (local playback).
+	// Create a new pipe; if playback is already running, restart streaming to it.
 	m.httpPipeMu.Lock()
-	defer m.httpPipeMu.Unlock()
-
 	if m.httpPipeR != nil {
-		// Close old pipe
 		m.httpPipeR.Close()
 	}
-
 	r, w := io.Pipe()
 	m.httpPipeR = r
 	m.httpPipeW = w
+	m.httpPipeMu.Unlock()
+
+	// If the host is already playing, kick off streaming to the new pipe.
+	go func() {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		if m.group != nil && !m.paused && m.filePath != "" {
+			pos := m.currentPosition()
+			m.startStreaming(pos)
+		}
+	}()
+
 	return r, nil
 }
 
@@ -807,6 +951,11 @@ func (m *Manager) handleControlEvent(payload any) {
 			Playing:   false,
 			Position:  0,
 			UpdatedAt: time.Now().UnixMilli(),
+		}
+		if ctrl.QueueTotal > 0 {
+			m.group.Queue = ctrl.Queue
+			m.group.QueueIndex = ctrl.QueueIndex
+			m.group.QueueTotal = ctrl.QueueTotal
 		}
 		log.Printf("LISTEN: Host loaded track: %s", ctrl.Track.Name)
 
