@@ -959,28 +959,8 @@ func (m *Manager) startStreaming(position float64) {
 		f.Seek(byteOffset, io.SeekStart)
 	}
 
-	stopCh := m.stopCh
-
-	// Stream to local HTTP pipe if connected
-	m.httpPipeMu.Lock()
-	httpW := m.httpPipeW
-	m.httpPipeMu.Unlock()
-
-	if httpW != nil {
-		go func() {
-			ff, err := os.Open(m.filePath)
-			if err != nil {
-				return
-			}
-			defer ff.Close()
-			if byteOffset > 0 {
-				ff.Seek(byteOffset, io.SeekStart)
-			}
-			rp := &ratePacer{file: ff, bitrate: m.group.Track.Bitrate, done: stopCh}
-			rp.stream(httpW)
-		}()
-	}
 }
+// HTTP pipe streaming is handled exclusively by AudioReader, not here.
 
 func (m *Manager) stopPlaybackLocked() {
 	if m.stopCh != nil {
@@ -994,6 +974,18 @@ func (m *Manager) stopPlaybackLocked() {
 		m.file.Close()
 		m.file = nil
 	}
+	// Close the HTTP pipe so any goroutine blocked writing to it unblocks
+	// immediately with ErrClosedPipe. The stream handler exits on its next Read.
+	m.httpPipeMu.Lock()
+	if m.httpPipeW != nil {
+		m.httpPipeW.CloseWithError(io.ErrClosedPipe)
+		m.httpPipeW = nil
+	}
+	if m.httpPipeR != nil {
+		m.httpPipeR.Close()
+		m.httpPipeR = nil
+	}
+	m.httpPipeMu.Unlock()
 }
 
 func (m *Manager) closeHTTPPipeLocked() {

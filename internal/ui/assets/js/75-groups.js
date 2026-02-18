@@ -194,12 +194,10 @@
     var pauseBtn = wrapperEl.querySelector(".glisten-pause-btn");
     if (playBtn) {
       on(playBtn, "click", function() {
-        // Pre-connect audio so the server pipe exists before streaming starts
         var audio = ensureAudioEl();
-        if (!audio.src || audio.ended || audio.error) {
-          audio.src = "/api/listen/stream";
-          audio.volume = volEl ? volEl.value / 100 : 0.8;
-        }
+        // Always reconnect — server closes the pipe on pause/stop
+        audio.src = "/api/listen/stream";
+        audio.volume = volEl ? volEl.value / 100 : 0.8;
         audio.load();
         window.Goop.listen.control("play").then(function() {
           audio.play().catch(function(e) { console.warn("LISTEN host play:", e); });
@@ -208,9 +206,10 @@
     }
     if (pauseBtn) {
       on(pauseBtn, "click", function() {
-        window.Goop.listen.control("pause");
         var audio = ensureAudioEl();
         audio.pause();
+        audio.src = ""; // disconnect so blocked pipe write unblocks immediately
+        window.Goop.listen.control("pause");
       });
     }
 

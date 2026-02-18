@@ -141,6 +141,13 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
 		}
 		defer reader.Close()
 
+		// When the browser disconnects (audio.src="" or tab close), close the pipe
+		// reader immediately so any goroutine blocked writing to the pipe unblocks.
+		go func() {
+			<-r.Context().Done()
+			reader.Close()
+		}()
+
 		w.Header().Set("Content-Type", "audio/mpeg")
 		w.Header().Set("Cache-Control", "no-cache, no-store")
 		w.Header().Set("Transfer-Encoding", "chunked")
