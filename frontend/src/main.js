@@ -1,7 +1,13 @@
 // frontend/src/main.js
 import "./style.css";
 import splashUrl from "./assets/images/goop2-splash.png";
+import splash2Url from "./assets/images/goop2-splash2.png";
 import iconUrl from "./assets/images/goop2-icon.png";
+
+const splashMap = {
+  "goop2-splash.png": splashUrl,
+  "goop2-splash2.png": splash2Url,
+};
 import {
   clear, div, btn, input, h1, h2, p,
   normalizeTheme, applyTheme, normalizeBase
@@ -110,10 +116,10 @@ async function renderLauncher(host) {
 
   // Left: splash image
   const splash = div("launcher-splash");
-  const img = document.createElement("img");
-  img.src = splashUrl;
-  img.alt = "Goop²";
-  splash.appendChild(img);
+  const splashImg = document.createElement("img");
+  splashImg.src = splash2Url;
+  splashImg.alt = "Goop²";
+  splash.appendChild(splashImg);
   launcher.appendChild(splash);
 
   // Right: panel
@@ -214,9 +220,16 @@ async function renderLauncher(host) {
         start.textContent = "Start";
         status.textContent = `Selected: ${selected}`;
       }
+      // Swap splash image to match peer's setting
+      if (info && info.splash && splashMap[info.splash]) {
+        splashImg.src = splashMap[info.splash];
+      } else {
+        splashImg.src = splash2Url;
+      }
     } else {
       start.textContent = "Start";
       status.textContent = "";
+      splashImg.src = splash2Url;
     }
   }
 

@@ -54,7 +54,8 @@
     "video_disabled": true,
     "hide_unverified": false,
     "active_template": "tictactoe",
-    "open_sites_external": false
+    "open_sites_external": false,
+    "splash": "goop2-splash2.png"
   },
   "lua": {
     "enabled": true,

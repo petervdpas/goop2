@@ -24,10 +24,14 @@ func registerHomeRoutes(mux *http.ServeMux, d Deps) {
 	mux.HandleFunc("/peers", func(w http.ResponseWriter, r *http.Request) {
 		selfVideoDisabled := false
 		hideUnverified := false
+		splash := "goop2-splash2.png"
 		if d.CfgPath != "" {
 			if cfg, err := config.Load(d.CfgPath); err == nil {
 				selfVideoDisabled = cfg.Viewer.VideoDisabled
 				hideUnverified = cfg.Viewer.HideUnverified
+				if cfg.Viewer.Splash != "" {
+					splash = cfg.Viewer.Splash
+				}
 			}
 		}
 		vm := viewmodels.PeersVM{
@@ -35,6 +39,7 @@ func registerHomeRoutes(mux *http.ServeMux, d Deps) {
 			Peers:             viewmodels.BuildPeerRows(d.Peers.Snapshot()),
 			SelfVideoDisabled: selfVideoDisabled,
 			HideUnverified:    hideUnverified,
+			Splash:            splash,
 		}
 		render.Render(w, vm)
 	})

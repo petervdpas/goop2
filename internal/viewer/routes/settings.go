@@ -113,6 +113,10 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		cfg.Viewer.HideUnverified = formBool(r.PostForm, "viewer_hide_unverified")
 		cfg.Viewer.OpenSitesExternal = formBool(r.PostForm, "viewer_open_sites_external")
 
+		if sp := getTrimmedPostFormValue(r.PostForm, "viewer_splash"); sp != "" {
+			cfg.Viewer.Splash = sp
+		}
+
 		// P2P / presence fields are only in the form when not in rendezvous-only mode.
 		if v := getTrimmedPostFormValue(r.PostForm, "p2p_mdns_tag"); v != "" {
 			cfg.P2P.MdnsTag = v

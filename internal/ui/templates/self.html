@@ -71,6 +71,7 @@
       </div>
       <ul class="settings-nav">
         <li class="settings-nav-item active" data-section="viewer">Viewer</li>
+        <li class="settings-nav-item" data-section="splash">Splash</li>
         <li class="settings-nav-item" data-section="calls">Calls</li>
         <li class="settings-nav-item" data-section="network">Network</li>
         <li class="settings-nav-item" data-section="rendezvous">Rendezvous</li>
@@ -99,55 +100,82 @@
         <div class="settings-section active" data-section="viewer">
           <h3 class="settings-section-title">Viewer</h3>
 
-          <div class="field">
-            <label>Viewer HTTP addr</label>
-            <input name="viewer_http_addr"
-                   value="{{.Cfg.Viewer.HTTPAddr}}"
-                   placeholder=":7777">
-            <div class="hint">
-              Empty disables the viewer (UI will not start with -ui).
+          <div class="grid2">
+            <div class="field">
+              <label>Viewer HTTP addr</label>
+              <input name="viewer_http_addr"
+                     value="{{.Cfg.Viewer.HTTPAddr}}"
+                     placeholder=":7777">
+              <div class="hint">
+                Empty disables the viewer (UI will not start with -ui).
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Debug mode</label>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <label class="switch" title="Enable debug mode">
+                  <input type="checkbox"
+                         name="viewer_debug"
+                         {{if .Cfg.Viewer.Debug}}checked{{end}}>
+                  <span class="slider"></span>
+                </label>
+                <span class="muted small">Show console debug indicator (F12)</span>
+              </div>
             </div>
           </div>
 
-          <div class="field">
-            <label>Debug mode</label>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <label class="switch" title="Enable debug mode">
-                <input type="checkbox"
-                       name="viewer_debug"
-                       {{if .Cfg.Viewer.Debug}}checked{{end}}>
-                <span class="slider"></span>
-              </label>
-              <span class="muted small">Show console debug indicator (F12)</span>
+          <div class="grid2">
+            <div class="field">
+              <label>Hide unverified peers</label>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <label class="switch" title="Hide unverified peers from the peer list">
+                  <input type="checkbox"
+                         name="viewer_hide_unverified"
+                         {{if .Cfg.Viewer.HideUnverified}}checked{{end}}>
+                  <span class="slider"></span>
+                </label>
+                <span class="muted small">Only show verified peers</span>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Open sites in external browser</label>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <label class="switch" title="Open peer sites in external browser instead of embedded tabs">
+                  <input type="checkbox"
+                         name="viewer_open_sites_external"
+                         {{if .Cfg.Viewer.OpenSitesExternal}}checked{{end}}>
+                  <span class="slider"></span>
+                </label>
+                <span class="muted small">Use system browser for sites</span>
+              </div>
             </div>
           </div>
 
-          <div class="field">
-            <label>Hide unverified peers</label>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <label class="switch" title="Hide unverified peers from the peer list">
-                <input type="checkbox"
-                       name="viewer_hide_unverified"
-                       {{if .Cfg.Viewer.HideUnverified}}checked{{end}}>
-                <span class="slider"></span>
-              </label>
-              <span class="muted small">Only show peers with verified email addresses</span>
-            </div>
-          </div>
+        </div>
 
-          <div class="field">
-            <label>Open sites in external browser</label>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <label class="switch" title="Open peer sites in external browser instead of embedded tabs">
-                <input type="checkbox"
-                       name="viewer_open_sites_external"
-                       {{if .Cfg.Viewer.OpenSitesExternal}}checked{{end}}>
-                <span class="slider"></span>
-              </label>
-              <span class="muted small">When off, peer sites open in embedded tabs within the app</span>
-            </div>
-          </div>
+        <!-- Splash -->
+        <div class="settings-section" data-section="splash">
+          <h3 class="settings-section-title">Splash</h3>
+          <p class="muted small" style="margin-bottom:12px">Choose the splash image shown on the Peers page and in the launcher.</p>
 
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:400px;">
+            <label style="cursor:pointer;border:2px solid transparent;border-radius:8px;overflow:hidden;{{if eq .Cfg.Viewer.Splash "goop2-splash.png"}}border-color:var(--accent);{{end}}">
+              <input type="radio" name="viewer_splash" value="goop2-splash.png"
+                     {{if eq .Cfg.Viewer.Splash "goop2-splash.png"}}checked{{end}}
+                     style="display:none"
+                     onchange="this.closest('.settings-section').querySelectorAll('label[style]').forEach(l=>l.style.borderColor='transparent');this.closest('label').style.borderColor='var(--accent)'">
+              <img src="/assets/images/goop2-splash.png" alt="Splash 1" style="width:100%;display:block;border-radius:6px;">
+            </label>
+            <label style="cursor:pointer;border:2px solid transparent;border-radius:8px;overflow:hidden;{{if or (eq .Cfg.Viewer.Splash "goop2-splash2.png") (eq .Cfg.Viewer.Splash "")}}border-color:var(--accent);{{end}}">
+              <input type="radio" name="viewer_splash" value="goop2-splash2.png"
+                     {{if or (eq .Cfg.Viewer.Splash "goop2-splash2.png") (eq .Cfg.Viewer.Splash "")}}checked{{end}}
+                     style="display:none"
+                     onchange="this.closest('.settings-section').querySelectorAll('label[style]').forEach(l=>l.style.borderColor='transparent');this.closest('label').style.borderColor='var(--accent)'">
+              <img src="/assets/images/goop2-splash2.png" alt="Splash 2" style="width:100%;display:block;border-radius:6px;">
+            </label>
+          </div>
         </div>
 
         <!-- Calls -->

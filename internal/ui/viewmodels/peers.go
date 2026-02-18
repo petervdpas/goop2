@@ -25,6 +25,7 @@ type PeersVM struct {
 	Peers             []PeerRow
 	SelfVideoDisabled bool
 	HideUnverified    bool
+	Splash            string
 }
 
 func BuildPeerRows(m map[string]state.SeenPeer) []PeerRow {
