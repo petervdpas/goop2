@@ -55,7 +55,7 @@
     "hide_unverified": false,
     "active_template": "",
     "open_sites_external": false,
-    "splash": "goop2-splash2.png"
+    "splash": "goop2-splash.png"
   },
   "lua": {
     "enabled": false,

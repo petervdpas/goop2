@@ -160,20 +160,21 @@
           <h3 class="settings-section-title">Splash</h3>
           <p class="muted small" style="margin-bottom:12px">Choose the splash image shown on the Peers page and in the launcher.</p>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:400px;">
-            <label style="cursor:pointer;border:2px solid transparent;border-radius:8px;overflow:hidden;{{if eq .Cfg.Viewer.Splash "goop2-splash.png"}}border-color:var(--accent);{{end}}">
+          <div class="splash-picker">
+            <label class="splash-picker-option{{if eq .Cfg.Viewer.Splash "goop2-splash.png"}} selected{{end}}">
               <input type="radio" name="viewer_splash" value="goop2-splash.png"
-                     {{if eq .Cfg.Viewer.Splash "goop2-splash.png"}}checked{{end}}
-                     style="display:none"
-                     onchange="this.closest('.settings-section').querySelectorAll('label[style]').forEach(l=>l.style.borderColor='transparent');this.closest('label').style.borderColor='var(--accent)'">
-              <img src="/assets/images/goop2-splash.png" alt="Splash 1" style="width:100%;display:block;border-radius:6px;">
+                     {{if eq .Cfg.Viewer.Splash "goop2-splash.png"}}checked{{end}}>
+              <img src="/assets/images/goop2-splash.png" alt="Splash 1">
             </label>
-            <label style="cursor:pointer;border:2px solid transparent;border-radius:8px;overflow:hidden;{{if or (eq .Cfg.Viewer.Splash "goop2-splash2.png") (eq .Cfg.Viewer.Splash "")}}border-color:var(--accent);{{end}}">
+            <label class="splash-picker-option{{if or (eq .Cfg.Viewer.Splash "goop2-splash2.png") (eq .Cfg.Viewer.Splash "")}} selected{{end}}">
               <input type="radio" name="viewer_splash" value="goop2-splash2.png"
-                     {{if or (eq .Cfg.Viewer.Splash "goop2-splash2.png") (eq .Cfg.Viewer.Splash "")}}checked{{end}}
-                     style="display:none"
-                     onchange="this.closest('.settings-section').querySelectorAll('label[style]').forEach(l=>l.style.borderColor='transparent');this.closest('label').style.borderColor='var(--accent)'">
-              <img src="/assets/images/goop2-splash2.png" alt="Splash 2" style="width:100%;display:block;border-radius:6px;">
+                     {{if or (eq .Cfg.Viewer.Splash "goop2-splash2.png") (eq .Cfg.Viewer.Splash "")}}checked{{end}}>
+              <img src="/assets/images/goop2-splash2.png" alt="Splash 2">
+            </label>
+            <label class="splash-picker-option{{if eq .Cfg.Viewer.Splash "goop2-splash3.png"}} selected{{end}}">
+              <input type="radio" name="viewer_splash" value="goop2-splash3.png"
+                     {{if eq .Cfg.Viewer.Splash "goop2-splash3.png"}}checked{{end}}>
+              <img src="/assets/images/goop2-splash3.png" alt="Splash 3">
             </label>
           </div>
         </div>
