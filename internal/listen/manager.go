@@ -34,8 +34,7 @@ type Manager struct {
 	group *Group
 
 	// Host-side state
-	filePath string   // path to the loaded MP3
-	file     *os.File // open file handle for streaming
+	filePath string // path to the loaded MP3
 	paused   bool
 	stopCh   chan struct{} // closed to stop streaming goroutines
 	seekGen  int64        // incremented on seek to signal reconnect
@@ -583,15 +582,27 @@ func (m *Manager) CloseGroup() error {
 
 // JoinGroup joins a remote listening group.
 func (m *Manager) JoinGroup(hostPeerID, groupID string) error {
+	// Check precondition without holding the lock for the network call.
+	m.mu.Lock()
+	if m.group != nil {
+		m.mu.Unlock()
+		return fmt.Errorf("already in a group")
+	}
+	m.mu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := m.grp.JoinRemoteGroup(ctx, hostPeerID, groupID); err != nil {
+		return fmt.Errorf("join group: %w", err)
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// Recheck: another operation may have set a group while we were on the wire.
 	if m.group != nil {
+		_ = m.grp.LeaveGroup()
 		return fmt.Errorf("already in a group")
-	}
-
-	if err := m.grp.JoinRemoteGroup(context.TODO(), hostPeerID, groupID); err != nil {
-		return fmt.Errorf("join group: %w", err)
 	}
 
 	m.group = &Group{
@@ -888,7 +899,9 @@ func (m *Manager) connectAudioStream() (io.ReadCloser, error) {
 		return nil, fmt.Errorf("invalid host peer ID: %w", err)
 	}
 
-	s, err := m.host.NewStream(context.TODO(), pid, protocol.ID(proto.ListenProtoID))
+	sCtx, sCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer sCancel()
+	s, err := m.host.NewStream(sCtx, pid, protocol.ID(proto.ListenProtoID))
 	if err != nil {
 		return nil, fmt.Errorf("open stream: %w", err)
 	}
@@ -927,13 +940,16 @@ func (m *Manager) connectAudioStream() (io.ReadCloser, error) {
 	return s, nil
 }
 
-// startStreaming opens the file and starts rate-pacing audio to the HTTP pipe.
+// startStreaming signals that playback has started at the given position.
+// Audio delivery to listeners is handled per-stream in handleAudioStream;
+// audio delivery to the local browser is handled in AudioReader.
+// This method only resets the stop channel so goroutines watching it restart.
 func (m *Manager) startStreaming(position float64) {
 	if m.filePath == "" || m.group == nil || m.group.Track == nil {
 		return
 	}
 
-	// Close old stop channel, create new one
+	// Close old stop channel, create new one so trackTimerGoroutine restarts.
 	if m.stopCh != nil {
 		select {
 		case <-m.stopCh:
@@ -942,26 +958,7 @@ func (m *Manager) startStreaming(position float64) {
 		}
 	}
 	m.stopCh = make(chan struct{})
-
-	if m.file != nil {
-		m.file.Close()
-	}
-
-	f, err := os.Open(m.filePath)
-	if err != nil {
-		log.Printf("LISTEN: Failed to open file: %v", err)
-		return
-	}
-	m.file = f
-
-	// Seek to byte position
-	byteOffset := int64(position * float64(m.group.Track.Bitrate) / 8.0)
-	if byteOffset > 0 {
-		f.Seek(byteOffset, io.SeekStart)
-	}
-
 }
-// HTTP pipe streaming is handled exclusively by AudioReader, not here.
 
 func (m *Manager) stopPlaybackLocked() {
 	if m.stopCh != nil {
@@ -970,10 +967,6 @@ func (m *Manager) stopPlaybackLocked() {
 		default:
 			close(m.stopCh)
 		}
-	}
-	if m.file != nil {
-		m.file.Close()
-		m.file = nil
 	}
 	// Close the HTTP pipe so any goroutine blocked writing to it unblocks
 	// immediately with ErrClosedPipe. The stream handler exits on its next Read.
