@@ -594,6 +594,11 @@
           loadHostedGroups();
           loadSubscriptions();
         }
+        // When an invite arrives, refresh subscriptions so the new entry appears.
+        // The global notifier (06-notify.js) handles the toast on all pages.
+        if (evt.type === "invite") {
+          loadSubscriptions();
+        }
       });
     }
 

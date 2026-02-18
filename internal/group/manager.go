@@ -775,7 +775,8 @@ func (m *Manager) InvitePeer(ctx context.Context, peerID, groupID string) error 
 }
 
 // handleInviteStream processes incoming group invitations from a host.
-// It auto-joins the group by opening a group stream back to the host.
+// It stores the subscription immediately so the invited peer can always see
+// it, then attempts to auto-join in the background.
 func (m *Manager) handleInviteStream(s network.Stream) {
 	defer s.Close()
 
@@ -787,7 +788,24 @@ func (m *Manager) handleInviteStream(s network.Stream) {
 
 	log.Printf("GROUP: Received invite for group %s from host %s", inv.GroupID, inv.HostPeerID)
 
-	// Auto-join in a goroutine so we don't block the stream handler
+	// Store the subscription immediately so the invited peer can see the group
+	// in their list even if the auto-join fails due to transient connectivity.
+	// JoinRemoteGroup will upsert it again with the full app_type from the welcome.
+	_ = m.db.AddSubscription(inv.HostPeerID, inv.GroupID, inv.GroupName, "", "member")
+
+	// Notify local listeners so the groups page refreshes immediately.
+	m.notifyListeners(&Event{
+		Type:  "invite",
+		Group: inv.GroupID,
+		From:  inv.HostPeerID,
+		Payload: map[string]any{
+			"group_id":   inv.GroupID,
+			"group_name": inv.GroupName,
+			"host":       inv.HostPeerID,
+		},
+	})
+
+	// Auto-join in a goroutine so we don't block the stream handler.
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
