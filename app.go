@@ -488,7 +488,7 @@ func (a *App) startBridge() error {
 		})
 	}))
 
-	// Select file via native dialog
+	// Select a single file via native dialog
 	mux.HandleFunc("/select-file", withCORS(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -509,6 +509,30 @@ func (a *App) startBridge() error {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"cancelled": file == "",
 			"path":      file,
+		})
+	}))
+
+	// Select multiple files via native dialog
+	mux.HandleFunc("/select-files", withCORS(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		title := r.URL.Query().Get("title")
+		if title == "" {
+			title = "Choose files"
+		}
+		files, err := runtime.OpenMultipleFilesDialog(a.ctx, runtime.OpenDialogOptions{
+			Title: title,
+		})
+		if err != nil {
+			http.Error(w, "dialog error: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"cancelled": len(files) == 0,
+			"paths":     files,
 		})
 	}))
 

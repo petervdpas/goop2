@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="/assets/app.css" />
     <script src="/assets/app.js"></script>
   </head>
-  <body data-os="{{.WhichOS}}"{{if .SelfID}} data-self-id="{{.SelfID}}"{{end}} data-open-sites-external="{{.OpenSitesExternal}}">
+  <body data-os="{{.WhichOS}}"{{if .SelfID}} data-self-id="{{.SelfID}}"{{end}} data-open-sites-external="{{.OpenSitesExternal}}"{{if .BridgeURL}} data-bridge-url="{{.BridgeURL}}"{{end}}>
     <div class="app">
       <header class="topbar">
         <div class="brand">

@@ -29,6 +29,16 @@
         return r.json();
       });
     },
+    loadQueue: function (filePaths) {
+      return fetch("/api/listen/load", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file_paths: filePaths }),
+      }).then(function (r) {
+        if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
+        return r.json();
+      });
+    },
     control: function (action, position) {
       return fetch("/api/listen/control", {
         method: "POST",

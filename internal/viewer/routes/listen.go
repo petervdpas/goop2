@@ -36,18 +36,24 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
 		writeJSON(w, map[string]string{"status": "closed"})
 	})
 
-	// POST /api/listen/load — host loads an MP3 file
+	// POST /api/listen/load — host loads one or more MP3 files as a playlist.
+	// Accepts either {file_path: "..."} or {file_paths: ["...", ...]}.
 	handlePost(mux, "/api/listen/load", func(w http.ResponseWriter, r *http.Request, req struct {
-		FilePath string `json:"file_path"`
+		FilePath  string   `json:"file_path"`
+		FilePaths []string `json:"file_paths"`
 	}) {
 		if !requireLocal(w, r) {
 			return
 		}
-		if req.FilePath == "" {
-			http.Error(w, "missing file_path", http.StatusBadRequest)
+		paths := req.FilePaths
+		if len(paths) == 0 && req.FilePath != "" {
+			paths = []string{req.FilePath}
+		}
+		if len(paths) == 0 {
+			http.Error(w, "missing file_path or file_paths", http.StatusBadRequest)
 			return
 		}
-		track, err := lm.LoadTrack(req.FilePath)
+		track, err := lm.LoadQueue(paths)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed: %v", err), http.StatusBadRequest)
 			return

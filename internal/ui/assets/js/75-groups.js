@@ -47,16 +47,30 @@
   function renderHostPlayer(wrapperEl, groupState) {
     var g = groupState;
     var html = '';
-
-    // Track loader
     var bridgeURL = window.Goop && window.Goop.bridgeURL || '';
-    html += '<div class="groups-listen-loader">' +
-      '<input type="text" class="glisten-file" placeholder="/path/to/track.mp3" />';
+
+    // Track loader — browse button when bridge is available, text input fallback
+    html += '<div class="groups-listen-loader">';
     if (bridgeURL) {
-      html += '<button class="groups-action-btn glisten-browse-btn" title="Browse for file">&#128193;</button>';
+      html += '<button class="groups-action-btn groups-btn-primary glisten-add-btn">&#128193; Add Files</button>';
+    } else {
+      html += '<input type="text" class="glisten-file" placeholder="/path/to/track.mp3" />' +
+        '<button class="groups-action-btn groups-btn-primary glisten-load-btn">Load</button>';
     }
-    html += '<button class="groups-action-btn groups-btn-primary glisten-load-btn">Load</button>' +
-    '</div>';
+    html += '</div>';
+
+    // Queue list
+    if (g && g.queue_total > 0 && g.queue && g.queue.length > 0) {
+      html += '<div class="glisten-queue">';
+      g.queue.forEach(function(name, i) {
+        var isCurrent = i === g.queue_index;
+        html += '<div class="glisten-queue-item' + (isCurrent ? ' current' : '') + '">' +
+          '<span class="glisten-queue-num">' + (i + 1) + '</span>' +
+          '<span class="glisten-queue-name">' + escapeHtml(name) + '</span>' +
+          '</div>';
+      });
+      html += '</div>';
+    }
 
     if (g && g.track) {
       html += '<div class="listen-player" style="margin-bottom:0">' +
@@ -82,6 +96,12 @@
       } else {
         html += '<button class="listen-control-btn glisten-play-btn" title="Play">&#9654;</button>';
       }
+
+      html += '<div class="listen-volume">' +
+        '<label class="muted small">Volume</label>' +
+        '<input type="range" class="glisten-volume" min="0" max="100" value="80" />' +
+        '</div>';
+
       html += '</div>';
 
       // Listeners
@@ -101,42 +121,79 @@
 
     wrapperEl.innerHTML = html;
 
-    // Bind load button
-    var loadBtn = wrapperEl.querySelector(".glisten-load-btn");
-    var fileInput = wrapperEl.querySelector(".glisten-file");
-    if (loadBtn && fileInput) {
-      var browseBtn = wrapperEl.querySelector(".glisten-browse-btn");
-      if (browseBtn && bridgeURL) {
-        on(browseBtn, "click", function() {
-          fetch(bridgeURL + '/select-file?title=' + encodeURIComponent('Choose audio file'), { method: 'POST' })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-              if (!data.cancelled && data.path) {
-                fileInput.value = data.path;
-              }
-            })
-            .catch(function() {});
-        });
-      }
-
-      on(loadBtn, "click", function() {
-        var path = fileInput.value.trim();
-        if (!path) return;
-        try {
-          window.Goop.listen.load(path).catch(function(e) {
-            toast("Load failed: " + e.message, true);
-          });
-        } catch(e) {
-          toast("Load failed: " + e.message, true);
-        }
+    // Bind "Add Files" button (bridge mode)
+    var addBtn = wrapperEl.querySelector(".glisten-add-btn");
+    if (addBtn && bridgeURL) {
+      on(addBtn, "click", function() {
+        fetch(bridgeURL + '/select-files?title=' + encodeURIComponent('Choose audio files'), { method: 'POST' })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (!data.cancelled && data.paths && data.paths.length > 0) {
+              window.Goop.listen.loadQueue(data.paths).catch(function(e) {
+                toast("Load failed: " + e.message, true);
+              });
+            }
+          })
+          .catch(function(e) { toast("Browse failed: " + e.message, true); });
       });
     }
 
-    // Bind play/pause
+    // Bind text-input load button (non-bridge fallback)
+    var loadBtn = wrapperEl.querySelector(".glisten-load-btn");
+    var fileInput = wrapperEl.querySelector(".glisten-file");
+    if (loadBtn && fileInput) {
+      on(loadBtn, "click", function() {
+        var path = fileInput.value.trim();
+        if (!path) return;
+        window.Goop.listen.load(path).catch(function(e) {
+          toast("Load failed: " + e.message, true);
+        });
+      });
+    }
+
+    // Volume
+    var volEl = wrapperEl.querySelector(".glisten-volume");
+    if (volEl) {
+      on(volEl, "input", function() {
+        var audio = ensureAudioEl();
+        audio.volume = volEl.value / 100;
+      });
+    }
+
+    // Bind play/pause — also manage host self-playback audio
     var playBtn = wrapperEl.querySelector(".glisten-play-btn");
     var pauseBtn = wrapperEl.querySelector(".glisten-pause-btn");
-    if (playBtn) on(playBtn, "click", function() { window.Goop.listen.control("play"); });
-    if (pauseBtn) on(pauseBtn, "click", function() { window.Goop.listen.control("pause"); });
+    if (playBtn) {
+      on(playBtn, "click", function() {
+        // Pre-connect audio so the server pipe exists before streaming starts
+        var audio = ensureAudioEl();
+        if (!audio.src || audio.ended || audio.error) {
+          audio.src = "/api/listen/stream";
+          audio.volume = volEl ? volEl.value / 100 : 0.8;
+        }
+        audio.load();
+        window.Goop.listen.control("play").then(function() {
+          audio.play().catch(function(e) { console.warn("LISTEN host play:", e); });
+        });
+      });
+    }
+    if (pauseBtn) {
+      on(pauseBtn, "click", function() {
+        window.Goop.listen.control("pause");
+        var audio = ensureAudioEl();
+        audio.pause();
+      });
+    }
+
+    // If track is playing and audio isn't connected yet, connect it
+    if (g && g.play_state && g.play_state.playing) {
+      var audio = ensureAudioEl();
+      if (audio.paused || !audio.src) {
+        audio.src = "/api/listen/stream";
+        audio.volume = volEl ? volEl.value / 100 : 0.8;
+        audio.play().catch(function(e) { console.warn("LISTEN host autoplay:", e); });
+      }
+    }
 
     // Bind progress bar seeking
     var progressBar = wrapperEl.querySelector(".glisten-progress-bar");
