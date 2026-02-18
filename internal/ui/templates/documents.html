@@ -19,15 +19,16 @@
   <!-- Upload area -->
   <div id="docs-upload-area" class="docs-upload-area panel hidden">
     <div class="docs-upload-head">
-      <span class="docs-upload-title">Upload File</span>
-      <span class="muted small">(max 50 MB)</span>
+      <span class="docs-upload-title">Upload Files</span>
+      <span class="muted small">(max 50 MB each)</span>
     </div>
     <div class="docs-upload-form">
-      <input type="file" id="docs-file-input" class="docs-file-input" />
+      <input type="file" id="docs-file-input" class="docs-file-input" multiple />
       <button id="docs-upload-btn" class="docs-action-btn docs-btn-primary" disabled>Upload</button>
     </div>
+    <p class="docs-drop-hint">or drag &amp; drop files anywhere in this area</p>
     <div id="docs-upload-progress" class="docs-upload-progress hidden">
-      <div class="docs-progress-text">Uploading...</div>
+      <div id="docs-progress-text" class="docs-progress-text">Uploading...</div>
     </div>
   </div>
 

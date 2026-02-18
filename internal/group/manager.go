@@ -735,6 +735,7 @@ type inviteMsg struct {
 	GroupID    string `json:"group_id"`
 	GroupName  string `json:"group_name"`
 	HostPeerID string `json:"host_peer_id"`
+	AppType    string `json:"app_type"`
 }
 
 // InvitePeer sends a group invitation to a remote peer.
@@ -765,6 +766,7 @@ func (m *Manager) InvitePeer(ctx context.Context, peerID, groupID string) error 
 		GroupID:    groupID,
 		GroupName:  hg.info.Name,
 		HostPeerID: m.selfID,
+		AppType:    hg.info.AppType,
 	}
 	if err := json.NewEncoder(s).Encode(inv); err != nil {
 		return fmt.Errorf("failed to send invite: %w", err)
@@ -790,8 +792,8 @@ func (m *Manager) handleInviteStream(s network.Stream) {
 
 	// Store the subscription immediately so the invited peer can see the group
 	// in their list even if the auto-join fails due to transient connectivity.
-	// JoinRemoteGroup will upsert it again with the full app_type from the welcome.
-	_ = m.db.AddSubscription(inv.HostPeerID, inv.GroupID, inv.GroupName, "", "member")
+	// JoinRemoteGroup will upsert it again with the app_type from the welcome.
+	_ = m.db.AddSubscription(inv.HostPeerID, inv.GroupID, inv.GroupName, inv.AppType, "member")
 
 	// Notify local listeners so the groups page refreshes immediately.
 	m.notifyListeners(&Event{

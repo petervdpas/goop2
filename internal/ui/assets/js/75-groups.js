@@ -49,9 +49,13 @@
     var html = '';
 
     // Track loader
+    var bridgeURL = window.Goop && window.Goop.bridgeURL || '';
     html += '<div class="groups-listen-loader">' +
-      '<input type="text" class="glisten-file" placeholder="/path/to/track.mp3" />' +
-      '<button class="groups-action-btn groups-btn-primary glisten-load-btn">Load</button>' +
+      '<input type="text" class="glisten-file" placeholder="/path/to/track.mp3" />';
+    if (bridgeURL) {
+      html += '<button class="groups-action-btn glisten-browse-btn" title="Browse for file">&#128193;</button>';
+    }
+    html += '<button class="groups-action-btn groups-btn-primary glisten-load-btn">Load</button>' +
     '</div>';
 
     if (g && g.track) {
@@ -101,12 +105,30 @@
     var loadBtn = wrapperEl.querySelector(".glisten-load-btn");
     var fileInput = wrapperEl.querySelector(".glisten-file");
     if (loadBtn && fileInput) {
+      var browseBtn = wrapperEl.querySelector(".glisten-browse-btn");
+      if (browseBtn && bridgeURL) {
+        on(browseBtn, "click", function() {
+          fetch(bridgeURL + '/select-file?title=' + encodeURIComponent('Choose audio file'), { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              if (!data.cancelled && data.path) {
+                fileInput.value = data.path;
+              }
+            })
+            .catch(function() {});
+        });
+      }
+
       on(loadBtn, "click", function() {
         var path = fileInput.value.trim();
         if (!path) return;
-        window.Goop.listen.load(path).catch(function(e) {
+        try {
+          window.Goop.listen.load(path).catch(function(e) {
+            toast("Load failed: " + e.message, true);
+          });
+        } catch(e) {
           toast("Load failed: " + e.message, true);
-        });
+        }
       });
     }
 

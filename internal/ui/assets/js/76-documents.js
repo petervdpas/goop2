@@ -20,6 +20,7 @@
   var fileInput = qs("#docs-file-input");
   var uploadBtn = qs("#docs-upload-btn");
   var uploadProgress = qs("#docs-upload-progress");
+  var progressText = qs("#docs-progress-text");
   var mySection = qs("#docs-my-section");
   var myList = qs("#docs-my-list");
   var peersSection = qs("#docs-peers-section");
@@ -53,40 +54,87 @@
     uploadBtn.disabled = !fileInput.files || fileInput.files.length === 0;
   });
 
-  on(uploadBtn, "click", function() {
-    if (!fileInput.files || fileInput.files.length === 0) return;
+  function doUpload(files) {
+    if (!files || files.length === 0) return;
     if (!currentGroupID) return;
 
-    var file = fileInput.files[0];
-    if (file.size > 50 * 1024 * 1024) {
-      toast("File exceeds 50 MB limit", true);
-      return;
+    for (var i = 0; i < files.length; i++) {
+      if (files[i].size > 50 * 1024 * 1024) {
+        toast('"' + files[i].name + '" exceeds 50 MB limit', true);
+        return;
+      }
     }
 
     uploadBtn.disabled = true;
     setHidden(uploadProgress, false);
 
-    var formData = new FormData();
-    formData.append("group_id", currentGroupID);
-    formData.append("file", file);
+    var total = files.length;
 
-    fetch("/api/docs/upload", {
-      method: "POST",
-      body: formData
-    }).then(function(r) {
-      if (!r.ok) return r.text().then(function(t) { throw new Error(t); });
-      return r.json();
-    }).then(function(data) {
-      toast("Uploaded: " + data.filename);
-      fileInput.value = "";
-      uploadBtn.disabled = true;
-      setHidden(uploadProgress, true);
-      loadBrowse();
-    }).catch(function(err) {
-      toast("Upload failed: " + err.message, true);
-      uploadBtn.disabled = false;
-      setHidden(uploadProgress, true);
-    });
+    function uploadNext(idx) {
+      if (idx >= total) {
+        fileInput.value = "";
+        uploadBtn.disabled = true;
+        setHidden(uploadProgress, true);
+        loadBrowse();
+        return;
+      }
+
+      if (progressText) {
+        progressText.textContent = total > 1
+          ? "Uploading " + (idx + 1) + " of " + total + "..."
+          : "Uploading...";
+      }
+
+      var formData = new FormData();
+      formData.append("group_id", currentGroupID);
+      formData.append("file", files[idx]);
+
+      fetch("/api/docs/upload", {
+        method: "POST",
+        body: formData
+      }).then(function(r) {
+        if (!r.ok) return r.text().then(function(t) { throw new Error(t); });
+        return r.json();
+      }).then(function(data) {
+        toast("Uploaded: " + data.filename);
+        uploadNext(idx + 1);
+      }).catch(function(err) {
+        toast("Upload failed: " + err.message, true);
+        uploadBtn.disabled = false;
+        setHidden(uploadProgress, true);
+      });
+    }
+
+    uploadNext(0);
+  }
+
+  on(uploadBtn, "click", function() {
+    doUpload(Array.from(fileInput.files));
+  });
+
+  // Drag and drop
+  on(uploadArea, "dragenter", function(e) {
+    e.preventDefault();
+    if (currentGroupID) uploadArea.classList.add("drag-over");
+  });
+
+  on(uploadArea, "dragover", function(e) {
+    e.preventDefault();
+    if (currentGroupID) uploadArea.classList.add("drag-over");
+  });
+
+  on(uploadArea, "dragleave", function(e) {
+    if (!uploadArea.contains(e.relatedTarget)) {
+      uploadArea.classList.remove("drag-over");
+    }
+  });
+
+  on(uploadArea, "drop", function(e) {
+    e.preventDefault();
+    uploadArea.classList.remove("drag-over");
+    if (!currentGroupID) return;
+    var files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) doUpload(files);
   });
 
   // Listen for group events to auto-refresh on doc changes
@@ -229,7 +277,7 @@
         '&file=' + encodeURIComponent(f.name);
 
       html += '<tr>' +
-        '<td class="docs-file-name">' + escapeHtml(f.name) + '</td>' +
+        '<td class="docs-file-name"><a href="' + downloadUrl + '" download>' + escapeHtml(f.name) + '</a></td>' +
         '<td class="docs-file-size">' + formatSize(f.size) + '</td>' +
         '<td class="docs-file-actions">' +
           '<a href="' + downloadUrl + '" class="docs-action-btn docs-btn-small" download>Download</a>';
