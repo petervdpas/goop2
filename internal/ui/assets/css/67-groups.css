@@ -186,29 +186,6 @@
   background: color-mix(in srgb, #4f8 12%, transparent);
 }
 
-/* -----------------------------
-   Active connection banner
------------------------------- */
-.groups-active-conn{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap: 12px;
-  padding: 10px 14px;
-  margin-bottom: 10px;
-  border-radius: var(--radius);
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-
-.groups-active-label{
-  font-size: 13px;
-}
-
-.groups-active-label code{
-  font-size: 12px;
-  font-weight: 600;
-}
 
 /* -----------------------------
    Create groups two-column layout
