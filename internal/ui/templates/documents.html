@@ -3,53 +3,65 @@
 <p class="muted small">Share files with group members. Each peer owns their files; content is fetched on demand.</p>
 
 <div id="docs-page" class="docs-page">
-  <!-- Group selector -->
-  <div class="docs-group-bar panel">
-    <label class="docs-group-label">Group:</label>
-    <div id="docs-group-select" class="gsel" data-value="" data-placeholder="Select a group...">
-      <button type="button" class="gsel-trigger">
-        <span class="gsel-text">Select a group...</span>
-        <span class="gsel-arrow">&#9662;</span>
-      </button>
-      <div class="gsel-dropdown"></div>
+  <!-- Left: file browser column -->
+  <div class="docs-browser">
+    <!-- Group selector -->
+    <div class="docs-group-bar panel">
+      <label class="docs-group-label">Group:</label>
+      <div id="docs-group-select" class="gsel" data-value="" data-placeholder="Select a group...">
+        <button type="button" class="gsel-trigger">
+          <span class="gsel-text">Select a group...</span>
+          <span class="gsel-arrow">&#9662;</span>
+        </button>
+        <div class="gsel-dropdown"></div>
+      </div>
+      <button id="docs-refresh-btn" class="docs-action-btn">Refresh</button>
     </div>
-    <button id="docs-refresh-btn" class="docs-action-btn">Refresh</button>
+
+    <!-- Upload area -->
+    <div id="docs-upload-area" class="docs-upload-area panel hidden">
+      <div class="docs-upload-head">
+        <span class="docs-upload-title">Upload Files</span>
+        <span class="muted small">(max 50 MB each)</span>
+      </div>
+      <div class="docs-upload-form">
+        <input type="file" id="docs-file-input" class="docs-file-input" multiple />
+        <button id="docs-upload-btn" class="docs-action-btn docs-btn-primary" disabled>Upload</button>
+      </div>
+      <p class="docs-drop-hint">or drag &amp; drop files anywhere in this area</p>
+      <div id="docs-upload-progress" class="docs-upload-progress hidden">
+        <div id="docs-progress-text" class="docs-progress-text">Uploading...</div>
+      </div>
+    </div>
+
+    <!-- My files -->
+    <div id="docs-my-section" class="docs-section panel hidden">
+      <div class="docs-section-head">
+        <span class="docs-section-title">My Shared Files</span>
+      </div>
+      <div id="docs-my-list" class="docs-file-list">
+        <p class="docs-empty">No files shared.</p>
+      </div>
+    </div>
+
+    <!-- Peer files (merged view) -->
+    <div id="docs-peers-section" class="docs-section panel hidden">
+      <div class="docs-section-head">
+        <span class="docs-section-title">Group Files</span>
+      </div>
+      <div id="docs-peers-list" class="docs-file-list">
+        <p class="docs-empty">No files from other peers.</p>
+      </div>
+    </div>
   </div>
 
-  <!-- Upload area -->
-  <div id="docs-upload-area" class="docs-upload-area panel hidden">
-    <div class="docs-upload-head">
-      <span class="docs-upload-title">Upload Files</span>
-      <span class="muted small">(max 50 MB each)</span>
+  <!-- Right: preview panel -->
+  <div id="docs-preview" class="docs-preview panel">
+    <div id="docs-preview-empty" class="docs-preview-empty">
+      <div class="docs-preview-icon">&#128196;</div>
+      <p>Select a file to preview</p>
     </div>
-    <div class="docs-upload-form">
-      <input type="file" id="docs-file-input" class="docs-file-input" multiple />
-      <button id="docs-upload-btn" class="docs-action-btn docs-btn-primary" disabled>Upload</button>
-    </div>
-    <p class="docs-drop-hint">or drag &amp; drop files anywhere in this area</p>
-    <div id="docs-upload-progress" class="docs-upload-progress hidden">
-      <div id="docs-progress-text" class="docs-progress-text">Uploading...</div>
-    </div>
-  </div>
-
-  <!-- My files -->
-  <div id="docs-my-section" class="docs-section panel hidden">
-    <div class="docs-section-head">
-      <span class="docs-section-title">My Shared Files</span>
-    </div>
-    <div id="docs-my-list" class="docs-file-list">
-      <p class="docs-empty">No files shared.</p>
-    </div>
-  </div>
-
-  <!-- Peer files (merged view) -->
-  <div id="docs-peers-section" class="docs-section panel hidden">
-    <div class="docs-section-head">
-      <span class="docs-section-title">Group Files</span>
-    </div>
-    <div id="docs-peers-list" class="docs-file-list">
-      <p class="docs-empty">No files from other peers.</p>
-    </div>
+    <div id="docs-preview-content" class="docs-preview-content hidden"></div>
   </div>
 </div>
 {{end}}

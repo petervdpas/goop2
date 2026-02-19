@@ -266,7 +266,8 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 		})
 	})
 
-	// Download a file (from own store or proxy from remote peer)
+	// Download a file (from own store or proxy from remote peer).
+	// Pass ?inline=1 to serve with Content-Disposition: inline (for browser preview).
 	handleGet(mux, "/api/docs/download", func(w http.ResponseWriter, r *http.Request) {
 		peerID := r.URL.Query().Get("peer_id")
 		groupID := r.URL.Query().Get("group_id")
@@ -275,6 +276,11 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 		if groupID == "" || filename == "" {
 			http.Error(w, "Missing group_id or file", http.StatusBadRequest)
 			return
+		}
+
+		disposition := "attachment"
+		if r.URL.Query().Get("inline") == "1" {
+			disposition = "inline"
 		}
 
 		selfID := ""
@@ -291,7 +297,7 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 			}
 			ct := http.DetectContentType(data)
 			w.Header().Set("Content-Type", ct)
-			w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+			w.Header().Set("Content-Disposition", fmt.Sprintf(`%s; filename="%s"`, disposition, filename))
 			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(data)))
 			w.Write(data)
 			return
@@ -316,7 +322,7 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 			mimeType = http.DetectContentType(data)
 		}
 		w.Header().Set("Content-Type", mimeType)
-		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`%s; filename="%s"`, disposition, filename))
 		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(data)))
 		w.Write(data)
 	})
