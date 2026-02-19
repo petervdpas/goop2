@@ -420,12 +420,14 @@
       }
     }
 
-    // Volume control
+    // Volume control — restore actual audio volume to the slider so
+    // periodic re-renders (e.g. sync pulse) don't reset it to 80%.
     var volEl = wrapperEl.querySelector(".glisten-volume");
     if (volEl) {
+      var audio = ensureAudioEl();
+      volEl.value = Math.round(audio.volume * 100);
       on(volEl, "input", function() {
-        var audio = ensureAudioEl();
-        audio.volume = volEl.value / 100;
+        ensureAudioEl().volume = volEl.value / 100;
       });
     }
   }
