@@ -105,18 +105,37 @@ func Start(addr string, v Viewer) error {
 
 	// Register group endpoints if group manager is available
 	if v.Groups != nil {
-		routes.RegisterGroups(mux, v.Groups, v.Node.ID(), func(id string) string {
-			if id == v.Node.ID() {
-				return v.SelfLabel()
-			}
-			if v.Peers == nil {
+		routes.RegisterGroups(mux, v.Groups, v.Node.ID(),
+			func(id string) string {
+				if id == v.Node.ID() {
+					return v.SelfLabel()
+				}
+				if v.Peers != nil {
+					if sp, ok := v.Peers.Snapshot()[id]; ok && sp.Content != "" {
+						return sp.Content
+					}
+				}
+				if v.DB != nil {
+					if cached := v.DB.GetPeerName(id); cached != "" {
+						return cached
+					}
+				}
 				return ""
-			}
-			if sp, ok := v.Peers.Snapshot()[id]; ok {
-				return sp.Content
-			}
-			return ""
-		})
+			},
+			func(id string) bool {
+				if v.Peers != nil {
+					if sp, ok := v.Peers.Snapshot()[id]; ok {
+						return sp.OfflineSince.IsZero()
+					}
+				}
+				if v.DB != nil {
+					if cp, ok := v.DB.GetCachedPeer(id); ok {
+						return len(cp.Addrs) > 0
+					}
+				}
+				return false
+			},
+		)
 	}
 
 	// Register realtime channel endpoints if realtime manager is available
@@ -126,7 +145,17 @@ func Start(addr string, v Viewer) error {
 
 	// Register listen room endpoints if listen manager is available
 	if v.Listen != nil {
-		routes.RegisterListen(mux, v.Listen)
+		routes.RegisterListen(mux, v.Listen, func(id string) string {
+			if v.Peers != nil {
+				if sp, ok := v.Peers.Snapshot()[id]; ok && sp.Content != "" {
+					return sp.Content
+				}
+			}
+			if v.DB != nil {
+				return v.DB.GetPeerName(id)
+			}
+			return ""
+		})
 	}
 
 	// Register data proxy for remote peer data operations

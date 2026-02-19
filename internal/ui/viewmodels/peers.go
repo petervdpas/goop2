@@ -17,6 +17,7 @@ type PeerRow struct {
 	ActiveTemplate string    `json:"ActiveTemplate"`
 	Verified       bool      `json:"Verified"`
 	Reachable      bool      `json:"Reachable"`
+	Offline        bool      `json:"Offline"`
 	LastSeen       time.Time `json:"LastSeen"`
 }
 
@@ -40,6 +41,7 @@ func BuildPeerRows(m map[string]state.SeenPeer) []PeerRow {
 			ActiveTemplate: sp.ActiveTemplate,
 			Verified:       sp.Verified,
 			Reachable:      sp.Reachable,
+			Offline:        !sp.OfflineSince.IsZero(),
 			LastSeen:       sp.LastSeen,
 		})
 	}

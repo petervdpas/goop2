@@ -949,7 +949,7 @@ func (n *Node) RunPresenceLoop(ctx context.Context, onEvent func(msg proto.Prese
 				n.peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, true)
 				n.AddPeerAddrs(pm.PeerID, pm.Addrs)
 			case proto.TypeOffline:
-				n.peers.Remove(pm.PeerID)
+				n.peers.MarkOffline(pm.PeerID)
 			}
 
 			if onEvent != nil {

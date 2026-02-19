@@ -15,7 +15,7 @@ import (
 )
 
 // RegisterGroups adds group-related HTTP API endpoints.
-func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, peerName func(id string) string) {
+func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, peerName func(id string) string, peerReachable func(id string) bool) {
 	// Create a hosted group / list hosted groups
 	mux.HandleFunc("/api/groups", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -141,12 +141,16 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 
 		type subWithCount struct {
 			storage.SubscriptionRow
-			MemberCount int `json:"member_count"`
+			HostName      string `json:"host_name"`
+			HostReachable bool   `json:"host_reachable"`
+			MemberCount   int    `json:"member_count"`
 		}
 		enriched := make([]subWithCount, len(subs))
 		for i, s := range subs {
 			enriched[i] = subWithCount{
 				SubscriptionRow: s,
+				HostName:        peerName(s.HostPeerID),
+				HostReachable:   peerReachable(s.HostPeerID),
 				MemberCount:     len(grpMgr.StoredGroupMembers(s.GroupID)),
 			}
 		}
@@ -157,6 +161,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 			"active": map[string]any{
 				"connected":    connected,
 				"host_peer_id": hostPeer,
+				"host_name":    peerName(hostPeer),
 				"group_id":     groupID,
 			},
 		})
@@ -278,6 +283,27 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 			return
 		}
 		if err := grpMgr.SetMaxMembers(req.GroupID, req.MaxMembers); err != nil {
+			http.Error(w, fmt.Sprintf("failed: %v", err), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, map[string]string{"status": "ok"})
+	})
+
+	// POST /api/groups/meta — update name and/or max_members for a hosted group
+	handlePost(mux, "/api/groups/meta", func(w http.ResponseWriter, r *http.Request, req struct {
+		GroupID    string `json:"group_id"`
+		Name       string `json:"name"`
+		MaxMembers int    `json:"max_members"`
+	}) {
+		if req.GroupID == "" {
+			http.Error(w, "missing group_id", http.StatusBadRequest)
+			return
+		}
+		if req.Name == "" {
+			http.Error(w, "missing name", http.StatusBadRequest)
+			return
+		}
+		if err := grpMgr.UpdateGroupMeta(req.GroupID, req.Name, req.MaxMembers); err != nil {
 			http.Error(w, fmt.Sprintf("failed: %v", err), http.StatusInternalServerError)
 			return
 		}

@@ -15,14 +15,14 @@ type SeenPeer struct {
 	Verified       bool
 	Reachable      bool
 	LastSeen       time.Time
+	OfflineSince   time.Time
 }
 
-// PeerEvent represents a change to the peer table
 type PeerEvent struct {
-	Type    string   `json:"type"` // "update", "remove", "snapshot"
-	PeerID  string   `json:"peer_id,omitempty"`
-	Peer    *SeenPeer `json:"peer,omitempty"`
-	Peers   map[string]SeenPeer `json:"peers,omitempty"` // for snapshot
+	Type   string              `json:"type"`
+	PeerID string              `json:"peer_id,omitempty"`
+	Peer   *SeenPeer           `json:"peer,omitempty"`
+	Peers  map[string]SeenPeer `json:"peers,omitempty"`
 }
 
 type PeerTable struct {
@@ -41,13 +41,45 @@ func NewPeerTable() *PeerTable {
 func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled bool, activeTemplate string, verified bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	reachable := true // optimistic: peer just announced itself
+	reachable := true
 	if existing, ok := t.peers[id]; ok {
-		reachable = existing.Reachable
+		if existing.OfflineSince.IsZero() {
+			reachable = existing.Reachable
+		}
 	}
-	peer := SeenPeer{Content: content, Email: email, AvatarHash: avatarHash, VideoDisabled: videoDisabled, ActiveTemplate: activeTemplate, Verified: verified, Reachable: reachable, LastSeen: time.Now()}
+	peer := SeenPeer{
+		Content:        content,
+		Email:          email,
+		AvatarHash:     avatarHash,
+		VideoDisabled:  videoDisabled,
+		ActiveTemplate: activeTemplate,
+		Verified:       verified,
+		Reachable:      reachable,
+		LastSeen:       time.Now(),
+	}
 	t.peers[id] = peer
 	t.notifyListeners(PeerEvent{Type: "update", PeerID: id, Peer: &peer})
+}
+
+func (t *PeerTable) Seed(id, content, email, avatarHash string, videoDisabled bool, activeTemplate string, verified bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if _, ok := t.peers[id]; ok {
+		return
+	}
+	sp := SeenPeer{
+		Content:        content,
+		Email:          email,
+		AvatarHash:     avatarHash,
+		VideoDisabled:  videoDisabled,
+		ActiveTemplate: activeTemplate,
+		Verified:       verified,
+		Reachable:      false,
+		LastSeen:       time.Now(),
+		OfflineSince:   time.Now(),
+	}
+	t.peers[id] = sp
+	t.notifyListeners(PeerEvent{Type: "update", PeerID: id, Peer: &sp})
 }
 
 func (t *PeerTable) Touch(id string) {
@@ -68,6 +100,24 @@ func (t *PeerTable) Remove(id string) {
 	t.notifyListeners(PeerEvent{Type: "remove", PeerID: id})
 }
 
+func (t *PeerTable) MarkOffline(id string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	sp, ok := t.peers[id]
+	if !ok {
+		return
+	}
+	wasOnline := sp.OfflineSince.IsZero()
+	sp.Reachable = false
+	if wasOnline {
+		sp.OfflineSince = time.Now()
+	}
+	t.peers[id] = sp
+	if wasOnline {
+		t.notifyListeners(PeerEvent{Type: "update", PeerID: id, Peer: &sp})
+	}
+}
+
 func (t *PeerTable) Get(id string) (SeenPeer, bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -75,7 +125,6 @@ func (t *PeerTable) Get(id string) (SeenPeer, bool) {
 	return sp, ok
 }
 
-// IDs returns the peer IDs currently in the table.
 func (t *PeerTable) IDs() []string {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -86,7 +135,6 @@ func (t *PeerTable) IDs() []string {
 	return ids
 }
 
-// SetReachable updates the Reachable flag for a peer, firing a PeerEvent only on change.
 func (t *PeerTable) SetReachable(id string, reachable bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -112,23 +160,28 @@ func (t *PeerTable) Snapshot() map[string]SeenPeer {
 	return cp
 }
 
-func (t *PeerTable) PruneOlderThan(cutoff time.Time) (dropped []string) {
+// PruneStale moves online peers with expired TTL to offline state, then removes
+// offline peers that have exceeded the grace period.
+func (t *PeerTable) PruneStale(ttlCutoff, graceCutoff time.Time) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	for id, sp := range t.peers {
-		if sp.LastSeen.Before(cutoff) {
-			delete(t.peers, id)
-			dropped = append(dropped, id)
+		if sp.OfflineSince.IsZero() {
+			if sp.LastSeen.Before(ttlCutoff) {
+				sp.Reachable = false
+				sp.OfflineSince = time.Now()
+				t.peers[id] = sp
+				t.notifyListeners(PeerEvent{Type: "update", PeerID: id, Peer: &sp})
+			}
+		} else {
+			if sp.OfflineSince.Before(graceCutoff) {
+				delete(t.peers, id)
+				t.notifyListeners(PeerEvent{Type: "remove", PeerID: id})
+			}
 		}
 	}
-	// Notify listeners about removals
-	for _, id := range dropped {
-		t.notifyListeners(PeerEvent{Type: "remove", PeerID: id})
-	}
-	return dropped
 }
 
-// Subscribe returns a channel that receives peer events
 func (t *PeerTable) Subscribe() chan PeerEvent {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -137,7 +190,6 @@ func (t *PeerTable) Subscribe() chan PeerEvent {
 	return ch
 }
 
-// Unsubscribe removes a listener channel
 func (t *PeerTable) Unsubscribe(ch chan PeerEvent) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -150,13 +202,11 @@ func (t *PeerTable) Unsubscribe(ch chan PeerEvent) {
 	}
 }
 
-// notifyListeners sends an event to all listeners (must be called with lock held)
 func (t *PeerTable) notifyListeners(evt PeerEvent) {
 	for _, ch := range t.listeners {
 		select {
 		case ch <- evt:
 		default:
-			// Listener buffer full, skip
 		}
 	}
 }

@@ -270,6 +270,18 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	node.EnableData(db)
 	log.Printf("peer id: %s", node.ID())
 
+	if cachedPeers, err := db.ListCachedPeers(); err == nil {
+		for _, cp := range cachedPeers {
+			peers.Seed(cp.PeerID, cp.Content, cp.Email, cp.AvatarHash, cp.VideoDisabled, cp.ActiveTemplate, cp.Verified)
+			if len(cp.Addrs) > 0 {
+				node.AddPeerAddrs(cp.PeerID, cp.Addrs)
+			}
+		}
+		if len(cachedPeers) > 0 {
+			log.Printf("peer cache: loaded %d known peers", len(cachedPeers))
+		}
+	}
+
 	step++
 	progress(step, total, "Setting up services")
 
@@ -344,6 +356,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	// ── Listen room (wraps group protocol + binary audio stream)
 	listenMgr := listen.New(node.Host, grpMgr, node.ID(), o.PeerDir)
 	defer listenMgr.Close()
+	grpMgr.RegisterHandler("listen", listenMgr)
 	if luaEngine != nil {
 		luaEngine.SetListen(listenMgr)
 	}
@@ -373,12 +386,22 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			case proto.TypeOnline, proto.TypeUpdate:
 				_, known := peers.Get(pm.PeerID)
 				peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.Verified)
+				go db.UpsertCachedPeer(storage.CachedPeer{
+					PeerID:         pm.PeerID,
+					Content:        pm.Content,
+					Email:          pm.Email,
+					AvatarHash:     pm.AvatarHash,
+					VideoDisabled:  pm.VideoDisabled,
+					ActiveTemplate: pm.ActiveTemplate,
+					Verified:       pm.Verified,
+					Addrs:          pm.Addrs,
+				})
 				node.AddPeerAddrs(pm.PeerID, pm.Addrs)
 				if !known {
 					go node.ProbePeer(ctx, pm.PeerID)
 				}
 			case proto.TypeOffline:
-				peers.Remove(pm.PeerID)
+				peers.MarkOffline(pm.PeerID)
 			}
 		})
 	}
@@ -450,8 +473,16 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		case proto.TypeOnline:
 			seenContent[m.PeerID] = m.Content
 			log.Printf("[%s] %s -> %q", m.Type, m.PeerID, m.Content)
-			// Probe new peer's reachability immediately so unreachable
-			// peers are grayed out within seconds of appearing.
+			go db.UpsertCachedPeer(storage.CachedPeer{
+				PeerID:         m.PeerID,
+				Content:        m.Content,
+				Email:          m.Email,
+				AvatarHash:     m.AvatarHash,
+				VideoDisabled:  m.VideoDisabled,
+				ActiveTemplate: m.ActiveTemplate,
+				Verified:       m.Verified,
+				Addrs:          m.Addrs,
+			})
 			go node.ProbePeer(ctx, m.PeerID)
 		case proto.TypeUpdate:
 			prev, known := seenContent[m.PeerID]
@@ -459,6 +490,16 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 				seenContent[m.PeerID] = m.Content
 				log.Printf("[%s] %s -> %q", m.Type, m.PeerID, m.Content)
 			}
+			go db.UpsertCachedPeer(storage.CachedPeer{
+				PeerID:         m.PeerID,
+				Content:        m.Content,
+				Email:          m.Email,
+				AvatarHash:     m.AvatarHash,
+				VideoDisabled:  m.VideoDisabled,
+				ActiveTemplate: m.ActiveTemplate,
+				Verified:       m.Verified,
+				Addrs:          m.Addrs,
+			})
 		case proto.TypeOffline:
 			delete(seenContent, m.PeerID)
 			log.Printf("[%s] %s", m.Type, m.PeerID)
@@ -520,6 +561,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		}
 	}()
 
+	const peerOfflineGrace = 2 * time.Hour
 	go func() {
 		t := time.NewTicker(1 * time.Second)
 		defer t.Stop()
@@ -528,8 +570,9 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				peers.PruneOlderThan(
-					time.Now().Add(-time.Duration(cfg.Presence.TTLSec) * time.Second))
+				ttlCutoff := time.Now().Add(-time.Duration(cfg.Presence.TTLSec) * time.Second)
+				graceCutoff := time.Now().Add(-peerOfflineGrace)
+				peers.PruneStale(ttlCutoff, graceCutoff)
 			}
 		}
 	}()

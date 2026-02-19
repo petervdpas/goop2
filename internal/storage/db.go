@@ -133,6 +133,28 @@ func Open(configDir string) (*DB, error) {
 		return nil, fmt.Errorf("create group members table: %w", err)
 	}
 
+	// Migration: drop the transient _peer_names table superseded by _peer_cache.
+	db.Exec(`DROP TABLE IF EXISTS _peer_names`)
+
+	// Persistent peer state cache — full presence data survives restarts.
+	// Updated only when the originating peer sends a new presence pulse.
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS _peer_cache (
+			peer_id          TEXT PRIMARY KEY,
+			content          TEXT    NOT NULL DEFAULT '',
+			email            TEXT    NOT NULL DEFAULT '',
+			avatar_hash      TEXT    NOT NULL DEFAULT '',
+			video_disabled   INTEGER NOT NULL DEFAULT 0,
+			active_template  TEXT    NOT NULL DEFAULT '',
+			verified         INTEGER NOT NULL DEFAULT 0,
+			addrs            TEXT    NOT NULL DEFAULT '[]',
+			last_seen        DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+	`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("create peer cache table: %w", err)
+	}
+
 	return &DB{db: db, path: dbPath}, nil
 }
 
