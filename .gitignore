@@ -56,6 +56,10 @@ nul
 # -----------------------------
 /peers/*/site/**/.DS_Store
 
+# SQLite WAL/SHM files (auto-generated, never commit)
+*.db-shm
+*.db-wal
+
 # If peers are runtime-created and not source:
 # Uncomment the next line to ignore ALL peers
 # /peers/
