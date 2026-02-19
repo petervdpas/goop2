@@ -27,6 +27,12 @@ type Event struct {
 	Payload any `json:"payload,omitempty"`
 }
 
+// Handler is implemented by subsystems that process events for a specific group app_type.
+// HandleGroupEvent is called asynchronously for every event whose group has the matching app_type.
+type Handler interface {
+	HandleGroupEvent(evt *Event)
+}
+
 // Manager handles the group protocol, both host-side (relay) and client-side (connection).
 type Manager struct {
 	host   host.Host
@@ -42,6 +48,9 @@ type Manager struct {
 
 	// Local SSE listeners
 	listeners []chan *Event
+
+	// Type-specific event handlers keyed by app_type.
+	handlers map[string]Handler
 }
 
 type hostedGroup struct {
@@ -65,6 +74,7 @@ type memberConn struct {
 type clientConn struct {
 	hostPeerID string
 	groupID    string
+	appType    string
 	volatile   bool
 	stream     network.Stream
 	encoder    *json.Encoder
@@ -82,6 +92,7 @@ func New(h host.Host, db *storage.DB) *Manager {
 		selfID:    h.ID().String(),
 		groups:    make(map[string]*hostedGroup),
 		listeners: make([]chan *Event, 0),
+		handlers:  make(map[string]Handler),
 	}
 
 	// Load existing groups from DB into memory (restore host-joined state)
@@ -422,6 +433,38 @@ func (m *Manager) SetMaxMembers(groupID string, max int) error {
 	return nil
 }
 
+// UpdateGroupMeta updates the name and max_members of a hosted group and broadcasts
+// the change to all connected members via a TypeMeta message.
+func (m *Manager) UpdateGroupMeta(groupID, name string, maxMembers int) error {
+	m.mu.RLock()
+	hg, exists := m.groups[groupID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("group not found: %s", groupID)
+	}
+	if name == "" {
+		return fmt.Errorf("name cannot be empty")
+	}
+
+	hg.mu.Lock()
+	hg.info.Name = name
+	hg.info.MaxMembers = maxMembers
+	appType := hg.info.AppType
+	hg.mu.Unlock()
+
+	if err := m.db.UpdateGroup(groupID, name, maxMembers); err != nil {
+		return fmt.Errorf("update group: %w", err)
+	}
+
+	meta := MetaPayload{GroupName: name, AppType: appType, MaxMembers: maxMembers}
+	hg.broadcast(Message{Type: TypeMeta, Group: groupID, Payload: meta}, "")
+	m.notifyListeners(&Event{Type: TypeMeta, Group: groupID, Payload: meta})
+
+	log.Printf("GROUP: Updated meta for %s — name=%q maxMembers=%d", groupID, name, maxMembers)
+	return nil
+}
+
 // HostedGroupMembers returns the current members of a hosted group.
 func (m *Manager) HostedGroupMembers(groupID string) []MemberInfo {
 	m.mu.RLock()
@@ -627,6 +670,7 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 	cc := &clientConn{
 		hostPeerID: hostPeerID,
 		groupID:    groupID,
+		appType:    appType,
 		volatile:   volatile,
 		stream:     stream,
 		encoder:    enc,
@@ -833,6 +877,25 @@ func (m *Manager) Unsubscribe(ch <-chan *Event) {
 	}
 }
 
+// RegisterHandler registers h to receive group events whose group app_type matches appType.
+// The handler is called in a dedicated goroutine per event.
+func (m *Manager) RegisterHandler(appType string, h Handler) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.handlers[appType] = h
+}
+
+// appTypeForGroupLocked returns the app_type for a group. Caller must hold m.mu (any mode).
+func (m *Manager) appTypeForGroupLocked(groupID string) string {
+	if hg, ok := m.groups[groupID]; ok {
+		return hg.info.AppType
+	}
+	if m.activeConn != nil && m.activeConn.groupID == groupID {
+		return m.activeConn.appType
+	}
+	return ""
+}
+
 func (m *Manager) notifyListeners(evt *Event) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -842,6 +905,11 @@ func (m *Manager) notifyListeners(evt *Event) {
 		default:
 			// Listener buffer full, skip
 		}
+	}
+	// Dispatch to the registered type-specific handler (async to avoid blocking the caller).
+	appType := m.appTypeForGroupLocked(evt.Group)
+	if h, ok := m.handlers[appType]; ok {
+		go h.HandleGroupEvent(evt)
 	}
 }
 

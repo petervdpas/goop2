@@ -118,7 +118,6 @@ func New(h host.Host, grp *group.Manager, selfID, dataDir string) *Manager {
 	}
 
 	h.SetStreamHandler(protocol.ID(proto.ListenProtoID), m.handleAudioStream)
-	go m.forwardGroupEvents()
 
 	return m
 }
@@ -1064,131 +1063,126 @@ func (m *Manager) sendControl(msg ControlMsg) {
 	}
 }
 
-// forwardGroupEvents listens to group events and handles listen control messages.
-func (m *Manager) forwardGroupEvents() {
-	evtCh := m.grp.Subscribe()
+// HandleGroupEvent implements group.Handler for app_type "listen".
+// It is called by the group manager for every event whose group has app_type "listen".
+func (m *Manager) HandleGroupEvent(evt *group.Event) {
+	m.mu.RLock()
+	lg := m.group
+	m.mu.RUnlock()
 
-	for evt := range evtCh {
-		m.mu.RLock()
-		lg := m.group
-		m.mu.RUnlock()
-
-		if lg == nil {
-			// Check for welcome events with app_type "listen"
-			if evt.Type == "welcome" {
-				if wp, ok := evt.Payload.(map[string]any); ok {
-					if appType, _ := wp["app_type"].(string); appType == "listen" {
-						m.mu.Lock()
-						if m.group != nil && m.group.ID == evt.Group {
-							if name, ok := wp["group_name"].(string); ok {
-								m.group.Name = name
-							}
-						}
-						m.mu.Unlock()
-						m.notifySSELocked()
+	if lg == nil {
+		// No active listen session; still handle welcome to keep group name fresh.
+		if evt.Type == "welcome" {
+			if wp, ok := evt.Payload.(map[string]any); ok {
+				m.mu.Lock()
+				if m.group != nil && m.group.ID == evt.Group {
+					if name, ok := wp["group_name"].(string); ok {
+						m.group.Name = name
 					}
 				}
+				m.mu.Unlock()
+				m.notifySSELocked()
 			}
-			continue
 		}
+		return
+	}
 
-		if evt.Group != lg.ID {
-			continue
+	if evt.Group != lg.ID {
+		return
+	}
+
+	// Skip own messages
+	if evt.From == m.selfID {
+		return
+	}
+
+	switch evt.Type {
+	case "msg":
+		m.handleControlEvent(evt.Payload)
+	case "close":
+		m.mu.Lock()
+		m.closeHTTPPipeLocked()
+		m.group = nil
+		m.mu.Unlock()
+		m.notifySSELocked()
+		log.Printf("LISTEN: Group closed by host")
+	case "leave":
+		if lg.Role == "host" {
+			// A listener left
+			log.Printf("LISTEN: Listener %s left", evt.From)
 		}
+	case "members":
+		// Update listener list; sync state to any newly joined listener.
+		if lg.Role == "host" {
+			if mp, ok := evt.Payload.(map[string]any); ok {
+				if members, ok := mp["members"].([]any); ok {
+					m.mu.Lock()
 
-		// Skip own messages
-		if evt.From == m.selfID {
-			continue
-		}
+					// Remember who was already connected so we can spot new joiners.
+					oldSet := make(map[string]bool, len(m.group.Listeners))
+					for _, pid := range m.group.Listeners {
+						oldSet[pid] = true
+					}
 
-		switch evt.Type {
-		case "msg":
-			m.handleControlEvent(evt.Payload)
-		case "close":
-			m.mu.Lock()
-			m.closeHTTPPipeLocked()
-			m.group = nil
-			m.mu.Unlock()
-			m.notifySSELocked()
-			log.Printf("LISTEN: Group closed by host")
-		case "leave":
-			if lg.Role == "host" {
-				// A listener left
-				log.Printf("LISTEN: Listener %s left", evt.From)
-			}
-		case "members":
-			// Update listener list; sync state to any newly joined listener.
-			if lg.Role == "host" {
-				if mp, ok := evt.Payload.(map[string]any); ok {
-					if members, ok := mp["members"].([]any); ok {
-						m.mu.Lock()
-
-						// Remember who was already connected so we can spot new joiners.
-						oldSet := make(map[string]bool, len(m.group.Listeners))
-						for _, pid := range m.group.Listeners {
-							oldSet[pid] = true
-						}
-
-						m.group.Listeners = make([]string, 0, len(members))
-						for _, member := range members {
-							if mi, ok := member.(map[string]any); ok {
-								if pid, ok := mi["peer_id"].(string); ok && pid != m.selfID {
-									m.group.Listeners = append(m.group.Listeners, pid)
-								}
+					m.group.Listeners = make([]string, 0, len(members))
+					for _, member := range members {
+						if mi, ok := member.(map[string]any); ok {
+							if pid, ok := mi["peer_id"].(string); ok && pid != m.selfID {
+								m.group.Listeners = append(m.group.Listeners, pid)
 							}
 						}
+					}
 
-						// Detect new listeners.
-						hasNewListeners := false
-						for _, pid := range m.group.Listeners {
-							if !oldSet[pid] {
-								hasNewListeners = true
-								break
-							}
+					// Detect new listeners.
+					hasNewListeners := false
+					for _, pid := range m.group.Listeners {
+						if !oldSet[pid] {
+							hasNewListeners = true
+							break
 						}
+					}
 
-						// Capture state to sync (outside the lock below).
-						var syncTrack *Track
-						var syncQueue []string
-						var syncQueueIdx, syncQueueTotal int
-						var syncPos float64
-						var syncPlaying bool
-						if hasNewListeners && m.group.Track != nil {
-							syncTrack = m.group.Track
-							syncQueue = append([]string(nil), m.group.Queue...)
-							syncQueueIdx = m.group.QueueIndex
-							syncQueueTotal = m.group.QueueTotal
-							if ps := m.group.PlayState; ps != nil {
-								syncPlaying = ps.Playing
-								if ps.Playing {
-									elapsed := float64(time.Now().UnixMilli()-ps.UpdatedAt) / 1000.0
-									syncPos = ps.Position + elapsed
-								} else {
-									syncPos = ps.Position
-								}
-								if syncPos < 0 {
-									syncPos = 0
-								}
-							}
-						}
-
-						m.mu.Unlock()
-						m.notifySSELocked()
-
-						// Bring newly joined listeners up to speed.
-						if syncTrack != nil {
-							m.sendControl(ControlMsg{
-								Action:     "load",
-								Track:      syncTrack,
-								Queue:      syncQueue,
-								QueueIndex: syncQueueIdx,
-								QueueTotal: syncQueueTotal,
-							})
-							if syncPlaying {
-								m.sendControl(ControlMsg{Action: "play", Position: syncPos})
+					// Capture state to sync (outside the lock below).
+					var syncTrack *Track
+					var syncQueue []string
+					var syncQueueIdx, syncQueueTotal int
+					var syncPos float64
+					var syncPlaying bool
+					if hasNewListeners && m.group.Track != nil {
+						syncTrack = m.group.Track
+						syncQueue = append([]string(nil), m.group.Queue...)
+						syncQueueIdx = m.group.QueueIndex
+						syncQueueTotal = m.group.QueueTotal
+						if ps := m.group.PlayState; ps != nil {
+							syncPlaying = ps.Playing
+							if ps.Playing {
+								elapsed := float64(time.Now().UnixMilli()-ps.UpdatedAt) / 1000.0
+								syncPos = ps.Position + elapsed
 							} else {
-								m.sendControl(ControlMsg{Action: "pause", Position: syncPos})
+								syncPos = ps.Position
 							}
+							if syncPos < 0 {
+								syncPos = 0
+							}
+						}
+					}
+
+					m.mu.Unlock()
+					m.notifySSELocked()
+
+					// Bring newly joined listeners up to speed.
+					if syncTrack != nil {
+						m.sendControl(ControlMsg{
+							Action:     "load",
+							Track:      syncTrack,
+							Queue:      syncQueue,
+							QueueIndex: syncQueueIdx,
+							QueueTotal: syncQueueTotal,
+						})
+						if syncPlaying {
+							m.sendControl(ControlMsg{Action: "play", Position: syncPos})
+						} else {
+							m.sendControl(ControlMsg{Action: "pause", Position: syncPos})
 						}
 					}
 				}

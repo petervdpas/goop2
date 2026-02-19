@@ -10,7 +10,7 @@ import (
 )
 
 // RegisterListen adds listening group HTTP API endpoints.
-func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
+func RegisterListen(mux *http.ServeMux, lm *listen.Manager, peerName func(string) string) {
 
 	// POST /api/listen/create — host creates a group
 	handlePost(mux, "/api/listen/create", func(w http.ResponseWriter, r *http.Request, req struct {
@@ -179,7 +179,13 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager) {
 			writeJSON(w, map[string]any{"group": nil})
 			return
 		}
-		writeJSON(w, map[string]any{"group": group})
+		names := make(map[string]string, len(group.Listeners))
+		for _, pid := range group.Listeners {
+			if n := peerName(pid); n != "" {
+				names[pid] = n
+			}
+		}
+		writeJSON(w, map[string]any{"group": group, "listener_names": names})
 	})
 
 	// GET /api/listen/events — SSE for state updates

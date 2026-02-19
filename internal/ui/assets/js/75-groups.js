@@ -192,9 +192,10 @@
         html += '<div class="listen-listeners"><span class="listen-section-subtitle">Listeners</span>' +
           '<div class="listen-listener-list">';
         g.listeners.forEach(function(pid) {
+          var label = (g.listener_names && g.listener_names[pid]) || shortId(pid);
           html += '<span class="listen-listener-chip">' +
             '<img src="/api/avatar/peer/' + encodeURIComponent(pid) + '">' +
-            '<span>' + escapeHtml(pid.substring(0, 12)) + '...</span></span>';
+            '<span>' + escapeHtml(label) + '</span></span>';
         });
         html += '</div></div>';
       }
@@ -695,8 +696,10 @@
         // Initialize listen players
         if (hasListen && window.Goop && window.Goop.listen) {
           window.Goop.listen.state().then(function(data) {
+            var grp = data.group;
+            if (grp) grp.listener_names = data.listener_names || {};
             hostedListEl.querySelectorAll(".groups-listen-player").forEach(function(el) {
-              renderHostPlayer(el, data.group);
+              renderHostPlayer(el, grp);
             });
           });
           var sub = window.Goop.listen.subscribe(function(g) {
@@ -748,7 +751,7 @@
                 typeBadge(s.app_type) +
                 (isActive ? ' <span class="groups-status-connected">connected</span>' : '') +
               '</div>' +
-              '<div class="groups-card-meta">Host: <code>' + escapeHtml(shortId(s.host_peer_id)) + '</code>' +
+              '<div class="groups-card-meta">Host: <code>' + escapeHtml(s.host_name || shortId(s.host_peer_id)) + '</code>' +
                 (s.role ? ' &middot; ' + escapeHtml(s.role) : '') +
               '</div>' +
             '</div>' +
@@ -757,7 +760,7 @@
               (isFiles ? '<a class="groups-action-btn groups-btn-primary" href="/documents?group_id=' + encodeURIComponent(s.group_id) + '">Browse Files</a>' : '') +
               (isActive
                 ? '<button class="groups-action-btn groups-btn-danger groups-leave-sub-btn">Leave</button>'
-                : '<button class="groups-action-btn groups-btn-primary groups-rejoin-btn" data-host="' + escapeHtml(s.host_peer_id) + '" data-group="' + escapeHtml(s.group_id) + '">Rejoin</button>') +
+                : '<button class="groups-action-btn groups-btn-primary groups-rejoin-btn" data-host="' + escapeHtml(s.host_peer_id) + '" data-group="' + escapeHtml(s.group_id) + '"' + (s.host_reachable ? '' : ' disabled title="Host is offline"') + '>Rejoin</button>') +
               '<button class="groups-action-btn groups-btn-danger groups-remove-sub-btn" data-host="' + escapeHtml(s.host_peer_id) + '" data-group="' + escapeHtml(s.group_id) + '">Remove</button>' +
             '</div>' +
             '</div>' +
@@ -819,8 +822,10 @@
         // Initialize listener player for listen-type subscriptions
         if (hasListenSub && window.Goop && window.Goop.listen) {
           window.Goop.listen.state().then(function(data) {
+            var grp = data.group;
+            if (grp) grp.listener_names = data.listener_names || {};
             subListEl.querySelectorAll(".groups-listen-listener").forEach(function(el) {
-              renderListenerPlayer(el, data.group);
+              renderListenerPlayer(el, grp);
             });
           });
           var sub = window.Goop.listen.subscribe(function(g) {
@@ -1019,8 +1024,10 @@
         // Initialize listen players
         if (hasListen && window.Goop && window.Goop.listen) {
           window.Goop.listen.state().then(function(data) {
+            var grp = data.group;
+            if (grp) grp.listener_names = data.listener_names || {};
             hostedListEl.querySelectorAll(".groups-listen-player").forEach(function(el) {
-              renderHostPlayer(el, data.group);
+              renderHostPlayer(el, grp);
             });
           });
           var sub = window.Goop.listen.subscribe(function(g) {

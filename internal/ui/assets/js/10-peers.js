@@ -55,9 +55,9 @@
 
     var peerName = peer.Content || shortId;
 
-    var unreachableClass = peer.Reachable === false ? ' peer-unreachable' : '';
+    var rowClass = peer.Offline ? ' peer-offline' : (peer.Reachable === false ? ' peer-unreachable' : '');
 
-    return '<li class="peerrow' + unreachableClass + '" data-peer-id="' + escapeHtml(peer.ID) + '">' +
+    return '<li class="peerrow' + rowClass + '" data-peer-id="' + escapeHtml(peer.ID) + '">' +
       '<img class="avatar avatar-md" src="' + avatarSrc + '" alt="">' +
       '<div class="peerleft">' +
         '<div class="peer-name-row">' +

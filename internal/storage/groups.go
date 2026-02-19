@@ -106,6 +106,15 @@ func (d *DB) SetMaxMembers(groupID string, max int) error {
 	return err
 }
 
+// UpdateGroup updates the name and max_members of a hosted group.
+func (d *DB) UpdateGroup(groupID, name string, maxMembers int) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	_, err := d.db.Exec(`UPDATE _groups SET name = ?, max_members = ? WHERE id = ?`, name, maxMembers, groupID)
+	return err
+}
+
 // SetHostJoined updates the host_joined flag for a group.
 func (d *DB) SetHostJoined(groupID string, joined bool) error {
 	d.mu.Lock()
