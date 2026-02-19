@@ -1071,20 +1071,39 @@ func (m *Manager) HandleGroupEvent(evt *group.Event) {
 	m.mu.RUnlock()
 
 	if lg == nil {
-		// No active listen session; still handle welcome to keep group name fresh.
-		if evt.Type == "welcome" {
-			if wp, ok := evt.Payload.(map[string]any); ok {
-				m.mu.Lock()
-				if m.group != nil && m.group.ID == evt.Group {
-					if name, ok := wp["group_name"].(string); ok {
-						m.group.Name = name
+		// No active listen session — but the group manager may have reconnected
+		// to this listen group via reconnectSubscriptions() without going through
+		// listen.Manager.JoinGroup() (which is the only path that sets m.group).
+		// If the group manager has an active client connection for this group,
+		// auto-restore m.group so we can process control messages immediately.
+		hostPeerID, groupID, connected := m.grp.ActiveGroup()
+		if connected && groupID == evt.Group {
+			groupName := groupID
+			if evt.Type == "welcome" {
+				if wp, ok := evt.Payload.(map[string]any); ok {
+					if n, ok := wp["group_name"].(string); ok && n != "" {
+						groupName = n
 					}
 				}
-				m.mu.Unlock()
-				m.notifySSELocked()
 			}
+			m.mu.Lock()
+			if m.group == nil {
+				m.group = &Group{
+					ID:   groupID,
+					Name: groupName,
+					Role: "listener",
+				}
+				lg = m.group
+				log.Printf("LISTEN: Auto-restored listener state for group %s on host %s", groupID, hostPeerID)
+			} else {
+				lg = m.group
+			}
+			m.mu.Unlock()
+			m.notifySSELocked()
 		}
-		return
+		if lg == nil {
+			return
+		}
 	}
 
 	if evt.Group != lg.ID {
