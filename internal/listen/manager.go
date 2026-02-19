@@ -421,15 +421,21 @@ func (m *Manager) advanceQueue() {
 	}
 }
 
-// trackTimerGoroutine polls playback position and auto-advances when a track ends.
+// syncPulseEvery controls how often the host broadcasts a sync pulse to listeners.
+const syncPulseTicks = 10 // × 500 ms = 5 seconds
+
+// trackTimerGoroutine polls playback position, auto-advances when a track ends,
+// and emits a periodic sync pulse so late-joining listeners catch up.
 func (m *Manager) trackTimerGoroutine(stopCh chan struct{}) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
+	var ticks int
 	for {
 		select {
 		case <-stopCh:
 			return
 		case <-ticker.C:
+			ticks++
 			m.mu.RLock()
 			g := m.group
 			paused := m.paused
@@ -445,6 +451,26 @@ func (m *Manager) trackTimerGoroutine(stopCh chan struct{}) {
 				log.Printf("LISTEN: Track ended, advancing queue")
 				m.advanceQueue()
 				return
+			}
+
+			// Periodic sync pulse: broadcast current track + position to all
+			// listeners so anyone who joined late or missed the initial load/play
+			// messages catches up within syncPulseTicks × 500ms.
+			if ticks%syncPulseTicks == 0 {
+				m.mu.RLock()
+				track := g.Track
+				queue := append([]string(nil), g.Queue...)
+				queueIdx := g.QueueIndex
+				queueTotal := g.QueueTotal
+				m.mu.RUnlock()
+				m.sendControl(ControlMsg{
+					Action:     "sync",
+					Track:      track,
+					Position:   pos,
+					Queue:      queue,
+					QueueIndex: queueIdx,
+					QueueTotal: queueTotal,
+				})
 			}
 		}
 	}
@@ -600,34 +626,31 @@ func (m *Manager) JoinGroup(hostPeerID, groupID string) error {
 			return fmt.Errorf("already hosting a listen group")
 		}
 	}
+
+	// Set m.group BEFORE calling JoinRemoteGroup so that forwardGroupEvents
+	// can process control messages (load, play) that the host sends in
+	// response to the join — those messages arrive via the group protocol
+	// stream during or immediately after the handshake, before this
+	// goroutine resumes to set m.group. Without this, the event loop sees
+	// lg == nil and silently drops the messages, leaving the listener stuck
+	// on "Waiting for host to play a track..." forever.
+	m.group = &Group{
+		ID:   groupID,
+		Name: groupID,
+		Role: "listener",
+	}
 	m.mu.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	if err := m.grp.JoinRemoteGroup(ctx, hostPeerID, groupID); err != nil {
-		return fmt.Errorf("join group: %w", err)
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	// Recheck: another operation may have raced and set a group while we were
-	// on the wire. If so, prefer the new join — leave what arrived in the race.
-	if m.group != nil {
-		if m.group.Role == "listener" {
-			_ = m.grp.LeaveGroup()
-			m.closeHTTPPipeLocked()
+		// Roll back the optimistic group assignment.
+		m.mu.Lock()
+		if m.group != nil && m.group.ID == groupID && m.group.Role == "listener" {
 			m.group = nil
-		} else {
-			_ = m.grp.LeaveGroup()
-			return fmt.Errorf("already hosting a listen group")
 		}
-	}
-
-	m.group = &Group{
-		ID:   groupID,
-		Name: groupID,
-		Role: "listener",
+		m.mu.Unlock()
+		return fmt.Errorf("join group: %w", err)
 	}
 
 	log.Printf("LISTEN: Joined group %s on host %s", groupID, hostPeerID)
@@ -963,7 +986,7 @@ func (m *Manager) connectAudioStream() (io.ReadCloser, error) {
 // Audio delivery to listeners is handled per-stream in handleAudioStream;
 // audio delivery to the local browser is handled in AudioReader.
 // This method only resets the stop channel so goroutines watching it restart.
-func (m *Manager) startStreaming(position float64) {
+func (m *Manager) startStreaming(_ float64) {
 	if m.filePath == "" || m.group == nil || m.group.Track == nil {
 		return
 	}
@@ -1245,6 +1268,14 @@ func (m *Manager) handleControlEvent(payload any) {
 		log.Printf("LISTEN: Host seeked to %.1fs", ctrl.Position)
 
 	case "sync":
+		if ctrl.Track != nil {
+			m.group.Track = ctrl.Track
+			if ctrl.QueueTotal > 0 {
+				m.group.Queue = ctrl.Queue
+				m.group.QueueIndex = ctrl.QueueIndex
+				m.group.QueueTotal = ctrl.QueueTotal
+			}
+		}
 		m.group.PlayState = &PlayState{
 			Playing:   true,
 			Position:  ctrl.Position,
@@ -1303,7 +1334,7 @@ func (m *Manager) queueFilePath() string {
 	return filepath.Join(m.dataDir, "listen-queue.json")
 }
 
-func (m *Manager) queueFilePathForGroup(groupID string) string {
+func (m *Manager) queueFilePathForGroup(_ string) string {
 	return m.queueFilePath()
 }
 
@@ -1322,13 +1353,6 @@ func (m *Manager) saveQueueToDisk() {
 		return
 	}
 	_ = os.WriteFile(p, data, 0644)
-}
-
-func (m *Manager) loadQueueFromDisk() *queueState {
-	if m.group == nil {
-		return nil
-	}
-	return m.loadQueueFromDiskForGroup(m.group.ID)
 }
 
 func (m *Manager) loadQueueFromDiskForGroup(groupID string) *queueState {
