@@ -320,9 +320,7 @@
    Invite popup
 ------------------------------ */
 .groups-invite-popup{
-  position: absolute;
-  right: 0;
-  top: calc(100% + 6px);
+  position: fixed;
   min-width: 220px;
   max-height: 280px;
   overflow-y: auto;
@@ -331,7 +329,7 @@
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-md);
   padding: 6px 0;
-  z-index: 20;
+  z-index: 200;
 }
 
 .groups-invite-title{

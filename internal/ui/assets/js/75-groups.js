@@ -402,9 +402,11 @@
     popup.className = "groups-invite-popup";
     popup.innerHTML = '<div class="groups-invite-loading">Loading peers...</div>';
 
-    // Position relative to button
-    btnEl.parentNode.style.position = "relative";
-    btnEl.parentNode.appendChild(popup);
+    // Append to body with fixed positioning to escape overflow:hidden card containers
+    var rect = btnEl.getBoundingClientRect();
+    popup.style.top = (rect.bottom + 6) + "px";
+    popup.style.right = (window.innerWidth - rect.right) + "px";
+    document.body.appendChild(popup);
 
     // Fetch peer list
     api("/api/peers").then(function(peers) {
@@ -674,6 +676,7 @@
           var displayName = s.group_name || s.group_id;
           var isActive = activeGroupId && s.group_id === activeGroupId;
           var isListen = s.app_type === "listen";
+          var isFiles = s.app_type === "files";
           if (isListen && isActive) hasListenSub = true;
           html += '<div class="' + (isListen && isActive ? 'groups-card-wrap' : '') + '">' +
             '<div class="groups-card">' +
@@ -686,7 +689,9 @@
                 (s.role ? ' &middot; ' + escapeHtml(s.role) : '') +
               '</div>' +
             '</div>' +
+            '<div class="groups-card-members">' + (s.member_count > 0 ? memberLabel(s.member_count) : '') + '</div>' +
             '<div class="groups-card-actions">' +
+              (isFiles ? '<a class="groups-action-btn groups-btn-primary" href="/documents?group_id=' + encodeURIComponent(s.group_id) + '">Browse Files</a>' : '') +
               (!isActive ? '<button class="groups-action-btn groups-btn-primary groups-rejoin-btn" data-host="' + escapeHtml(s.host_peer_id) + '" data-group="' + escapeHtml(s.group_id) + '">Rejoin</button>' : '') +
               '<button class="groups-action-btn groups-btn-danger groups-remove-sub-btn" data-host="' + escapeHtml(s.host_peer_id) + '" data-group="' + escapeHtml(s.group_id) + '">Remove</button>' +
             '</div>' +

@@ -193,23 +193,24 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 
 		// Query group members for their files
 		if d.Node != nil && d.GroupManager != nil {
-			members := d.GroupManager.HostedGroupMembers(groupID)
-
-			// Collect member peer IDs (excluding self)
+			// Collect all known member peer IDs from every source, deduplicating.
+			// StoredGroupMembers is the key fallback: it works even when the host is offline.
+			seen := map[string]bool{selfID: true}
 			var peerIDs []string
-			for _, m := range members {
-				if m.PeerID != selfID {
-					peerIDs = append(peerIDs, m.PeerID)
+			addPeer := func(pid string) {
+				if !seen[pid] {
+					seen[pid] = true
+					peerIDs = append(peerIDs, pid)
 				}
 			}
-
-			// If we're a client member (not the host), query peers from the last known member list
-			if len(members) == 0 {
-				for _, m := range d.GroupManager.ClientGroupMembers(groupID) {
-					if m.PeerID != selfID {
-						peerIDs = append(peerIDs, m.PeerID)
-					}
-				}
+			for _, m := range d.GroupManager.HostedGroupMembers(groupID) {
+				addPeer(m.PeerID)
+			}
+			for _, m := range d.GroupManager.ClientGroupMembers(groupID) {
+				addPeer(m.PeerID)
+			}
+			for _, pid := range d.GroupManager.StoredGroupMembers(groupID) {
+				addPeer(pid)
 			}
 
 			// Query each peer in parallel

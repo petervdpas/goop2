@@ -26,7 +26,8 @@
   var peersSection = qs("#docs-peers-section");
   var peersList = qs("#docs-peers-list");
 
-  var currentGroupID = "";
+  var urlParams = new URLSearchParams(window.location.search);
+  var currentGroupID = urlParams.get("group_id") || "";
 
   // Init custom select with change handler
   gsel.init(groupSelect, function(newVal) {
@@ -190,6 +191,13 @@
         }, "");
       } else {
         gsel.setOpts(groupSelect, { groups: groups }, currentGroupID || "");
+        // setOpts does not fire the change callback — trigger manually if pre-selected
+        if (currentGroupID) {
+          setHidden(uploadArea, false);
+          setHidden(mySection, false);
+          setHidden(peersSection, false);
+          loadBrowse();
+        }
       }
     });
   }

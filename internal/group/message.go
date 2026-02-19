@@ -14,6 +14,7 @@ const (
 	TypeError   = "error"
 	TypePing    = "ping"
 	TypePong    = "pong"
+	TypeMeta    = "meta"
 )
 
 // Message is the JSON wire format for group protocol messages.
@@ -27,15 +28,24 @@ type Message struct {
 
 // WelcomePayload is sent to a new member after joining.
 type WelcomePayload struct {
-	GroupName string                 `json:"group_name,omitempty"`
-	AppType   string                 `json:"app_type,omitempty"`
-	Members   []MemberInfo           `json:"members"`
-	State     map[string]any `json:"state,omitempty"`
+	GroupName  string         `json:"group_name,omitempty"`
+	AppType    string         `json:"app_type,omitempty"`
+	MaxMembers int            `json:"max_members"`
+	Volatile   bool           `json:"volatile"`
+	Members    []MemberInfo   `json:"members"`
+	State      map[string]any `json:"state,omitempty"`
 }
 
 // MembersPayload is broadcast when membership changes.
 type MembersPayload struct {
 	Members []MemberInfo `json:"members"`
+}
+
+// MetaPayload is broadcast when group metadata changes.
+type MetaPayload struct {
+	GroupName  string `json:"group_name"`
+	AppType    string `json:"app_type"`
+	MaxMembers int    `json:"max_members"`
 }
 
 // MemberInfo describes a group member.

@@ -24,6 +24,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 				Name       string `json:"name"`
 				AppType    string `json:"app_type"`
 				MaxMembers int    `json:"max_members"`
+				Volatile   bool   `json:"volatile"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 				http.Error(w, "Invalid request", http.StatusBadRequest)
@@ -34,7 +35,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 				return
 			}
 			id := generateGroupID()
-			if err := grpMgr.CreateGroup(id, req.Name, req.AppType, req.MaxMembers); err != nil {
+			if err := grpMgr.CreateGroup(id, req.Name, req.AppType, req.MaxMembers, req.Volatile); err != nil {
 				http.Error(w, fmt.Sprintf("Failed to create group: %v", err), http.StatusInternalServerError)
 				return
 			}
@@ -138,9 +139,21 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 			return
 		}
 
+		type subWithCount struct {
+			storage.SubscriptionRow
+			MemberCount int `json:"member_count"`
+		}
+		enriched := make([]subWithCount, len(subs))
+		for i, s := range subs {
+			enriched[i] = subWithCount{
+				SubscriptionRow: s,
+				MemberCount:     len(grpMgr.StoredGroupMembers(s.GroupID)),
+			}
+		}
+
 		hostPeer, groupID, connected := grpMgr.ActiveGroup()
 		writeJSON(w, map[string]any{
-			"subscriptions": subs,
+			"subscriptions": enriched,
 			"active": map[string]any{
 				"connected":    connected,
 				"host_peer_id": hostPeer,
@@ -316,8 +329,8 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 				if !ok {
 					return
 				}
-				// Ping/pong are internal keepalive messages; never forward to browser.
-				if evt.Type == group.TypePing || evt.Type == group.TypePong {
+				// Internal protocol messages; never forward to browser.
+				if evt.Type == group.TypePing || evt.Type == group.TypePong || evt.Type == group.TypeMeta {
 					continue
 				}
 				data, err := json.Marshal(evt)

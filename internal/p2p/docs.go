@@ -26,7 +26,8 @@ import (
 
 // GroupChecker is the interface used to verify group membership.
 type GroupChecker interface {
-	IsKnownGroupPeer(remotePeer, groupID string) bool
+	IsGroupHost(groupID string) bool
+	IsPeerInGroup(peerID, groupID string) bool
 }
 
 // EnableDocs registers the docs stream handler.
@@ -72,12 +73,10 @@ func (n *Node) handleDocsStream(s network.Stream) {
 		return
 	}
 
-	// Access control: verify the requesting peer is a known group member.
-	// Works for both host peers (authoritative list) and client members
-	// (member list received from host). If we have no knowledge of this
-	// group, access is denied.
-	if n.groupChecker != nil {
-		if !n.groupChecker.IsKnownGroupPeer(remotePeer, req.GroupID) {
+	// Access control: only the host has an authoritative member list.
+	// Non-host peers cannot verify membership so they serve openly.
+	if n.groupChecker != nil && n.groupChecker.IsGroupHost(req.GroupID) {
+		if !n.groupChecker.IsPeerInGroup(remotePeer, req.GroupID) {
 			log.Printf("DOCS: Access denied for %s on group %s", remotePeer, req.GroupID)
 			writeDocsError(s, "access denied: not a group member")
 			return
