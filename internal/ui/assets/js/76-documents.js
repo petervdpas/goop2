@@ -26,8 +26,19 @@
   var peersSection = qs("#docs-peers-section");
   var peersList = qs("#docs-peers-list");
 
+  var previewEmpty = qs("#docs-preview-empty");
+  var previewContent = qs("#docs-preview-content");
+
   var urlParams = new URLSearchParams(window.location.search);
   var currentGroupID = urlParams.get("group_id") || "";
+
+  // File type detection
+  var IMAGE_RE  = /\.(png|jpe?g|gif|webp|svg|bmp|ico|tiff?)$/i;
+  var TEXT_RE   = /\.(txt|md|json|js|ts|go|py|html?|css|xml|ya?ml|toml|sh|bash|log|csv|sql|rs|c|cpp|h|java|rb|php|kt|swift|dart|lua|ini|conf|env)$/i;
+  var AUDIO_RE  = /\.(mp3|ogg|wav|m4a|flac|aac|opus)$/i;
+  var VIDEO_RE  = /\.(mp4|webm|ogv|mov|avi|mkv)$/i;
+  var PDF_RE    = /\.pdf$/i;
+  var TEXT_SIZE_LIMIT = 512 * 1024; // 512 KB
 
   // Init custom select with change handler
   gsel.init(groupSelect, function(newVal) {
@@ -205,6 +216,7 @@
   function loadBrowse() {
     if (!currentGroupID) return;
 
+    clearPreview();
     myList.innerHTML = '<p class="docs-empty">Loading...</p>';
     peersList.innerHTML = '<p class="docs-empty">Loading...</p>';
 
@@ -227,13 +239,13 @@
         if (selfPeer && selfPeer.files && selfPeer.files.length > 0) {
           myList.innerHTML = renderFileTable(selfPeer.files, selfPeer.peer_id, true);
           bindDeleteButtons(myList);
+          bindRowClicks(myList);
         } else {
           myList.innerHTML = '<p class="docs-empty">No files shared yet. Use the upload form above.</p>';
         }
 
         // Render peer files
         if (otherPeers.length > 0) {
-          var hasFiles = false;
           var html = "";
           otherPeers.forEach(function(p) {
             if (p.error) {
@@ -244,7 +256,6 @@
               return;
             }
             if (p.files && p.files.length > 0) {
-              hasFiles = true;
               html += '<div class="docs-peer-block">' +
                 '<div class="docs-peer-label">' + escapeHtml(shortLabel(p.label, p.peer_id)) +
                 ' <span class="docs-status-online">online</span>' +
@@ -264,6 +275,7 @@
           } else {
             peersList.innerHTML = '<p class="docs-empty">No other members in this group.</p>';
           }
+          bindRowClicks(peersList);
         } else {
           peersList.innerHTML = '<p class="docs-empty">No other members in this group.</p>';
         }
@@ -284,11 +296,15 @@
         '&group_id=' + encodeURIComponent(currentGroupID) +
         '&file=' + encodeURIComponent(f.name);
 
-      html += '<tr>' +
-        '<td class="docs-file-name"><a href="' + downloadUrl + '" download>' + escapeHtml(f.name) + '</a></td>' +
+      html += '<tr class="docs-data-row"' +
+        ' data-filename="' + escapeHtml(f.name) + '"' +
+        ' data-url="' + escapeHtml(downloadUrl) + '"' +
+        ' data-size="' + f.size + '"' +
+        ' data-self="' + isSelf + '">' +
+        '<td class="docs-file-name">' + escapeHtml(f.name) + '</td>' +
         '<td class="docs-file-size">' + formatSize(f.size) + '</td>' +
         '<td class="docs-file-actions">' +
-          '<a href="' + downloadUrl + '" class="docs-action-btn docs-btn-small" download>Download</a>';
+        '<a href="' + downloadUrl + '" class="docs-action-btn docs-btn-small" download>Download</a>';
 
       if (isSelf) {
         html += '<button class="docs-action-btn docs-btn-small docs-btn-danger docs-delete-btn" ' +
@@ -301,6 +317,148 @@
     html += '</tbody></table>';
     return html;
   }
+
+  // ---- Row click → preview ----
+
+  function bindRowClicks(container) {
+    container.querySelectorAll(".docs-data-row").forEach(function(row) {
+      on(row, "click", function(e) {
+        // Don't intercept clicks on buttons/links (let them work normally)
+        if (e.target && e.target.closest("a, button")) return;
+
+        // Deselect all rows across both lists
+        docsPage.querySelectorAll(".docs-data-row.docs-row-selected").forEach(function(r) {
+          r.classList.remove("docs-row-selected");
+        });
+
+        row.classList.add("docs-row-selected");
+
+        showPreview({
+          name:        row.getAttribute("data-filename"),
+          downloadUrl: row.getAttribute("data-url"),
+          size:        parseInt(row.getAttribute("data-size"), 10) || 0,
+          isSelf:      row.getAttribute("data-self") === "true"
+        });
+      });
+    });
+  }
+
+  // ---- Preview rendering ----
+
+  function clearPreview() {
+    docsPage.querySelectorAll(".docs-data-row.docs-row-selected").forEach(function(r) {
+      r.classList.remove("docs-row-selected");
+    });
+    previewContent.innerHTML = "";
+    setHidden(previewContent, true);
+    setHidden(previewEmpty, false);
+  }
+
+  function showPreview(info) {
+    var name = info.name;
+    var downloadUrl = info.downloadUrl;
+    var size = info.size;
+    var isSelf = info.isSelf;
+
+    var headerHtml =
+      '<div class="docs-preview-header">' +
+        '<div class="docs-preview-filename">' + escapeHtml(name) + '</div>' +
+        '<div class="docs-preview-meta">' + formatSize(size) + (isSelf ? ' &middot; mine' : ' &middot; peer') + '</div>' +
+      '</div>';
+
+    var bodyHtml = buildPreviewBody(name, size, downloadUrl);
+
+    var footerHtml =
+      '<div class="docs-preview-footer">' +
+        '<a href="' + escapeHtml(downloadUrl) + '" class="docs-action-btn docs-btn-primary docs-btn-small" download>Download</a>' +
+      '</div>';
+
+    previewContent.innerHTML = headerHtml +
+      '<div class="docs-preview-body">' + bodyHtml + '</div>' +
+      footerHtml;
+
+    setHidden(previewEmpty, true);
+    setHidden(previewContent, false);
+
+    // For text files: fetch content asynchronously
+    if (TEXT_RE.test(name) && size > 0 && size <= TEXT_SIZE_LIMIT) {
+      var loadingEl = previewContent.querySelector(".docs-preview-loading");
+      if (loadingEl) {
+        fetch(downloadUrl)
+          .then(function(r) {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.text();
+          })
+          .then(function(text) {
+            if (!loadingEl.parentNode) return; // panel was replaced
+            var wrap = document.createElement("div");
+            wrap.className = "docs-preview-text-wrap";
+            var pre = document.createElement("pre");
+            pre.className = "docs-preview-text";
+            pre.textContent = text;
+            wrap.appendChild(pre);
+            loadingEl.parentNode.replaceChild(wrap, loadingEl);
+          })
+          .catch(function() {
+            if (!loadingEl.parentNode) return;
+            loadingEl.className = "docs-preview-error";
+            loadingEl.textContent = "Could not load preview.";
+          });
+      }
+    }
+
+    // For images: handle load error gracefully
+    if (IMAGE_RE.test(name)) {
+      var img = previewContent.querySelector(".docs-preview-image");
+      if (img) {
+        img.onerror = function() {
+          var wrap = img.parentNode;
+          if (wrap) {
+            var err = document.createElement("div");
+            err.className = "docs-preview-error";
+            err.textContent = "Could not load image — peer may be offline.";
+            wrap.parentNode.replaceChild(err, wrap);
+          }
+        };
+      }
+    }
+  }
+
+  function buildPreviewBody(name, size, downloadUrl) {
+    if (IMAGE_RE.test(name)) {
+      return '<div class="docs-preview-image-wrap">' +
+        '<img class="docs-preview-image" src="' + escapeHtml(downloadUrl) + '" alt="' + escapeHtml(name) + '" />' +
+        '</div>';
+    }
+
+    if (TEXT_RE.test(name)) {
+      if (size > TEXT_SIZE_LIMIT) {
+        return '<div class="docs-preview-unavailable">File too large to preview (' + formatSize(size) + ')</div>';
+      }
+      if (size === 0) {
+        return '<div class="docs-preview-unavailable">Empty file</div>';
+      }
+      return '<div class="docs-preview-loading">Loading preview\u2026</div>';
+    }
+
+    if (AUDIO_RE.test(name)) {
+      return '<audio class="docs-preview-audio" src="' + escapeHtml(downloadUrl) + '" controls></audio>';
+    }
+
+    if (VIDEO_RE.test(name)) {
+      return '<video class="docs-preview-video" src="' + escapeHtml(downloadUrl) + '" controls></video>';
+    }
+
+    if (PDF_RE.test(name)) {
+      var inlineUrl = escapeHtml(downloadUrl + "&inline=1");
+      return '<iframe class="docs-preview-pdf" src="' + inlineUrl + '" title="' + escapeHtml(name) + '"></iframe>';
+    }
+
+    return '<div class="docs-preview-unavailable">No preview available<br>' +
+      '<span style="font-size:11px">Use the Download button to save this file.</span></div>';
+  }
+
+  // ---- Delete ----
 
   function bindDeleteButtons(container) {
     container.querySelectorAll(".docs-delete-btn").forEach(function(btn) {
@@ -327,6 +485,8 @@
         toast("Failed to delete: " + err.message, true);
       });
   }
+
+  // ---- Helpers ----
 
   function shortLabel(label, id) {
     if (label && label !== id) return label;
