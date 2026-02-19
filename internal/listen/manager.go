@@ -136,7 +136,7 @@ func (m *Manager) CreateGroup(name string) (*Group, error) {
 
 	id := generateListenID()
 
-	if err := m.grp.CreateGroup(id, name, "listen", 0); err != nil {
+	if err := m.grp.CreateGroup(id, name, "listen", 0, false); err != nil {
 		return nil, fmt.Errorf("create group: %w", err)
 	}
 	if err := m.grp.JoinOwnGroup(id); err != nil {

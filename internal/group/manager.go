@@ -65,6 +65,7 @@ type memberConn struct {
 type clientConn struct {
 	hostPeerID string
 	groupID    string
+	volatile   bool
 	stream     network.Stream
 	encoder    *json.Encoder
 	sendMu     sync.Mutex   // serialises writes to encoder (handler + pong goroutine)
@@ -171,9 +172,11 @@ func (m *Manager) handleIncomingStream(s network.Stream) {
 		Type:  TypeWelcome,
 		Group: groupID,
 		Payload: WelcomePayload{
-			GroupName: hg.info.Name,
-			AppType:   hg.info.AppType,
-			Members:   memberList,
+			GroupName:  hg.info.Name,
+			AppType:    hg.info.AppType,
+			MaxMembers: hg.info.MaxMembers,
+			Volatile:   hg.info.Volatile,
+			Members:    memberList,
 		},
 	})
 
@@ -186,6 +189,16 @@ func (m *Manager) handleIncomingStream(s network.Stream) {
 
 	// Notify local listeners
 	m.notifyListeners(&Event{Type: TypeMembers, Group: groupID, Payload: MembersPayload{Members: memberList}})
+
+	// Persist member list for stable groups so peers can browse each other offline.
+	// Volatile game groups are ephemeral — no point persisting their member lists.
+	if !hg.info.Volatile && len(memberList) > 0 {
+		peerIDs := make([]string, len(memberList))
+		for i, mi := range memberList {
+			peerIDs[i] = mi.PeerID
+		}
+		_ = m.db.UpsertGroupMembers(groupID, peerIDs)
+	}
 
 	// Read loop: relay messages from this member to others
 	m.readLoop(ctx, dec, hg, mc, groupID)
@@ -209,6 +222,15 @@ func (m *Manager) handleIncomingStream(s network.Stream) {
 	}, "")
 
 	m.notifyListeners(&Event{Type: TypeMembers, Group: groupID, From: remotePeer, Payload: MembersPayload{Members: updatedMembers}})
+
+	// Persist updated member list for stable groups only
+	if !hg.info.Volatile {
+		updatedIDs := make([]string, len(updatedMembers))
+		for i, mi := range updatedMembers {
+			updatedIDs[i] = mi.PeerID
+		}
+		_ = m.db.UpsertGroupMembers(groupID, updatedIDs)
+	}
 }
 
 func (m *Manager) readLoop(ctx context.Context, dec *json.Decoder, hg *hostedGroup, mc *memberConn, groupID string) {
@@ -245,8 +267,43 @@ func (m *Manager) readLoop(ctx context.Context, dec *json.Decoder, hg *hostedGro
 // ─── Host-side: group management ─────────────────────────────────────────────
 
 // CreateGroup creates a new hosted group.
-func (m *Manager) CreateGroup(id, name, appType string, maxMembers int) error {
-	if err := m.db.CreateGroup(id, name, appType, maxMembers); err != nil {
+func (m *Manager) CreateGroup(id, name, appType string, maxMembers int, volatile bool) error {
+	// Volatile game groups: close any existing hosted group of the same type
+	// before creating a new one (new game = fresh group).
+	if volatile {
+		m.mu.RLock()
+		var toClose []string
+		for gid, hg := range m.groups {
+			hg.mu.RLock()
+			if hg.info.Volatile && hg.info.AppType == appType {
+				toClose = append(toClose, gid)
+			}
+			hg.mu.RUnlock()
+		}
+		m.mu.RUnlock()
+		for _, gid := range toClose {
+			_ = m.CloseGroup(gid)
+		}
+	}
+
+	// Enforce hosted group limit — volatile groups are excluded from the cap
+	if !volatile {
+		m.mu.RLock()
+		stableCount := 0
+		for _, hg := range m.groups {
+			hg.mu.RLock()
+			if !hg.info.Volatile {
+				stableCount++
+			}
+			hg.mu.RUnlock()
+		}
+		m.mu.RUnlock()
+		if stableCount >= maxHostedGroups {
+			return fmt.Errorf("maximum of %d hosted groups reached", maxHostedGroups)
+		}
+	}
+
+	if err := m.db.CreateGroup(id, name, appType, maxMembers, volatile); err != nil {
 		return err
 	}
 
@@ -292,6 +349,7 @@ func (m *Manager) CloseGroup(groupID string) error {
 	if err := m.db.DeleteGroup(groupID); err != nil {
 		log.Printf("GROUP: Failed to delete group %s from DB: %v", groupID, err)
 	}
+	_ = m.db.DeleteGroupMembers(groupID)
 
 	m.notifyListeners(&Event{Type: TypeClose, Group: groupID})
 
@@ -353,6 +411,13 @@ func (m *Manager) SetMaxMembers(groupID string, max int) error {
 		return fmt.Errorf("update max members: %w", err)
 	}
 
+	hg.mu.RLock()
+	meta := MetaPayload{GroupName: hg.info.Name, AppType: hg.info.AppType, MaxMembers: max}
+	hg.mu.RUnlock()
+
+	hg.broadcast(Message{Type: TypeMeta, Group: groupID, Payload: meta}, "")
+	m.notifyListeners(&Event{Type: TypeMeta, Group: groupID, Payload: meta})
+
 	log.Printf("GROUP: Set max members for %s to %d", groupID, max)
 	return nil
 }
@@ -370,6 +435,13 @@ func (m *Manager) HostedGroupMembers(groupID string) []MemberInfo {
 	hg.mu.RLock()
 	defer hg.mu.RUnlock()
 	return hg.memberList(m.selfID)
+}
+
+// StoredGroupMembers returns the persisted member peer IDs for a group.
+// Works regardless of current connection state — reads from DB.
+func (m *Manager) StoredGroupMembers(groupID string) []string {
+	peers, _ := m.db.ListGroupMembers(groupID)
+	return peers
 }
 
 // ClientGroupMembers returns the last known member list for a group we joined as a client.
@@ -522,22 +594,11 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 		return fmt.Errorf("unexpected response type: %s", welcome.Type)
 	}
 
-	connCtx, cancel := context.WithCancel(context.Background())
-	cc := &clientConn{
-		hostPeerID: hostPeerID,
-		groupID:    groupID,
-		stream:     stream,
-		encoder:    enc,
-		cancel:     cancel,
-	}
-
-	m.mu.Lock()
-	m.activeConn = cc
-	m.mu.Unlock()
-
-	// Extract group name, app type, and initial member list from welcome payload
+	// Extract group name, app type, max members, volatile flag, and initial member list from welcome payload
 	groupName := ""
 	appType := ""
+	maxMembers := 0
+	volatile := false
 	var initMembers []MemberInfo
 	if wp, ok := welcome.Payload.(map[string]any); ok {
 		if n, ok := wp["group_name"].(string); ok {
@@ -545,6 +606,12 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 		}
 		if a, ok := wp["app_type"].(string); ok {
 			appType = a
+		}
+		if mm, ok := wp["max_members"].(float64); ok {
+			maxMembers = int(mm)
+		}
+		if v, ok := wp["volatile"].(bool); ok {
+			volatile = v
 		}
 		if rawMembers, ok := wp["members"]; ok {
 			if b, err := json.Marshal(rawMembers); err == nil {
@@ -555,10 +622,46 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 			}
 		}
 	}
-	cc.members = initMembers
 
-	// Store subscription
-	m.db.AddSubscription(hostPeerID, groupID, groupName, appType, "member")
+	connCtx, cancel := context.WithCancel(context.Background())
+	cc := &clientConn{
+		hostPeerID: hostPeerID,
+		groupID:    groupID,
+		volatile:   volatile,
+		stream:     stream,
+		encoder:    enc,
+		cancel:     cancel,
+		members:    initMembers,
+	}
+
+	m.mu.Lock()
+	m.activeConn = cc
+	m.mu.Unlock()
+
+	// Persist member list for stable groups so browse works when host is offline.
+	// Volatile game groups are ephemeral — skip persistence.
+	if !volatile && len(initMembers) > 0 {
+		peerIDs := make([]string, len(initMembers))
+		for i, mi := range initMembers {
+			peerIDs[i] = mi.PeerID
+		}
+		_ = m.db.UpsertGroupMembers(groupID, peerIDs)
+	}
+
+	// Volatile game groups: wipe stale subscriptions of the same type before storing the new one.
+	if volatile {
+		if subs, err := m.db.ListSubscriptions(); err == nil {
+			for _, s := range subs {
+				if s.AppType == appType && s.GroupID != groupID {
+					_ = m.db.RemoveSubscription(s.HostPeerID, s.GroupID)
+					_ = m.db.DeleteGroupMembers(s.GroupID)
+				}
+			}
+		}
+	}
+
+	// Store subscription with full metadata
+	m.db.AddSubscription(hostPeerID, groupID, groupName, appType, maxMembers, volatile, "member")
 
 	m.notifyListeners(&Event{Type: TypeWelcome, Group: groupID, Payload: welcome.Payload})
 
@@ -614,7 +717,7 @@ func (m *Manager) clientReadLoop(ctx context.Context, dec *json.Decoder, cc *cli
 			cc.encoder.Encode(Message{Type: TypePong, Group: cc.groupID}) //nolint:errcheck
 			cc.sendMu.Unlock()
 		case TypeMembers:
-			// Keep local member list up to date
+			// Keep local member list up to date and persist to DB
 			if rawPayload, ok := msg.Payload.(map[string]any); ok {
 				if rawMembers, ok := rawPayload["members"]; ok {
 					if b, err := json.Marshal(rawMembers); err == nil {
@@ -623,11 +726,30 @@ func (m *Manager) clientReadLoop(ctx context.Context, dec *json.Decoder, cc *cli
 							cc.membersMu.Lock()
 							cc.members = ml
 							cc.membersMu.Unlock()
+							// Persist for stable groups only
+							if !cc.volatile {
+								peerIDs := make([]string, len(ml))
+								for i, mi := range ml {
+									peerIDs[i] = mi.PeerID
+								}
+								_ = m.db.UpsertGroupMembers(cc.groupID, peerIDs)
+							}
 						}
 					}
 				}
 			}
 			m.notifyListeners(&Event{Type: msg.Type, Group: msg.Group, From: msg.From, Payload: msg.Payload})
+		case TypeMeta:
+			// Host updated group metadata — refresh stored subscription
+			if rawPayload, ok := msg.Payload.(map[string]any); ok {
+				if b, err := json.Marshal(rawPayload); err == nil {
+					var mp MetaPayload
+					if json.Unmarshal(b, &mp) == nil && mp.GroupName != "" {
+						_ = m.db.AddSubscription(cc.hostPeerID, cc.groupID, mp.GroupName, mp.AppType, mp.MaxMembers, cc.volatile, "member")
+					}
+				}
+			}
+			m.notifyListeners(&Event{Type: msg.Type, Group: msg.Group, Payload: msg.Payload})
 		case TypeMsg, TypeState, TypeError:
 			m.notifyListeners(&Event{Type: msg.Type, Group: msg.Group, From: msg.From, Payload: msg.Payload})
 		}
@@ -670,6 +792,7 @@ func (m *Manager) LeaveGroup() error {
 	cc.stream.Close()
 
 	m.db.RemoveSubscription(cc.hostPeerID, cc.groupID)
+	_ = m.db.DeleteGroupMembers(cc.groupID)
 	m.notifyListeners(&Event{Type: TypeLeave, Group: cc.groupID})
 
 	log.Printf("GROUP: Left group %s", cc.groupID)
@@ -824,7 +947,9 @@ const (
 	pingInterval       = 30 * time.Second
 	pingPongTimeout    = 75 * time.Second // disconnect member after 2+ missed pings
 	clientPingTimeout  = 75 * time.Second // client disconnects if host goes silent
+	maxHostedGroups    = 50               // hard cap on hosted groups per peer
 )
+
 
 // pingLoop sends periodic TypePing messages to a member and disconnects them
 // if no TypePong is received within pingPongTimeout.
@@ -887,6 +1012,7 @@ type inviteMsg struct {
 	GroupName  string `json:"group_name"`
 	HostPeerID string `json:"host_peer_id"`
 	AppType    string `json:"app_type"`
+	Volatile   bool   `json:"volatile"`
 }
 
 // InvitePeer sends a group invitation to a remote peer.
@@ -918,6 +1044,7 @@ func (m *Manager) InvitePeer(ctx context.Context, peerID, groupID string) error 
 		GroupName:  hg.info.Name,
 		HostPeerID: m.selfID,
 		AppType:    hg.info.AppType,
+		Volatile:   hg.info.Volatile,
 	}
 	if err := json.NewEncoder(s).Encode(inv); err != nil {
 		return fmt.Errorf("failed to send invite: %w", err)
@@ -941,10 +1068,23 @@ func (m *Manager) handleInviteStream(s network.Stream) {
 
 	log.Printf("GROUP: Received invite for group %s from host %s", inv.GroupID, inv.HostPeerID)
 
+	// Volatile game groups: wipe stale subscriptions of the same type before
+	// storing this new invite — it's a new game session.
+	if inv.Volatile {
+		if subs, err := m.db.ListSubscriptions(); err == nil {
+			for _, s := range subs {
+				if s.AppType == inv.AppType && s.GroupID != inv.GroupID {
+					_ = m.db.RemoveSubscription(s.HostPeerID, s.GroupID)
+					_ = m.db.DeleteGroupMembers(s.GroupID)
+				}
+			}
+		}
+	}
+
 	// Store the subscription immediately so the invited peer can see the group
 	// in their list even if the auto-join fails due to transient connectivity.
-	// JoinRemoteGroup will upsert it again with the app_type from the welcome.
-	_ = m.db.AddSubscription(inv.HostPeerID, inv.GroupID, inv.GroupName, inv.AppType, "member")
+	// JoinRemoteGroup will upsert it again with full metadata from the welcome.
+	_ = m.db.AddSubscription(inv.HostPeerID, inv.GroupID, inv.GroupName, inv.AppType, 0, inv.Volatile, "member")
 
 	// Notify local listeners so the groups page can prompt the user.
 	// The user must explicitly rejoin from the subscriptions list — we do not

@@ -96,6 +96,8 @@ func Open(configDir string) (*DB, error) {
 
 	// Migration: add host_joined column if missing (existing databases)
 	db.Exec(`ALTER TABLE _groups ADD COLUMN host_joined INTEGER DEFAULT 0`)
+	// Migration: add volatile column if missing (existing databases)
+	db.Exec(`ALTER TABLE _groups ADD COLUMN volatile INTEGER DEFAULT 0`)
 
 	// Create group subscriptions table
 	if _, err := db.Exec(`
@@ -111,6 +113,24 @@ func Open(configDir string) (*DB, error) {
 	`); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("create group subscriptions table: %w", err)
+	}
+
+	// Migration: add max_members to subscriptions if missing (existing databases)
+	db.Exec(`ALTER TABLE _group_subscriptions ADD COLUMN max_members INTEGER DEFAULT 0`)
+	// Migration: add volatile to subscriptions if missing (existing databases)
+	db.Exec(`ALTER TABLE _group_subscriptions ADD COLUMN volatile INTEGER DEFAULT 0`)
+
+	// Create group members table — persists the last known member list per group
+	// so peers can browse each other's files even when the host is offline.
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS _group_members (
+			group_id TEXT NOT NULL,
+			peer_id  TEXT NOT NULL,
+			PRIMARY KEY (group_id, peer_id)
+		);
+	`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("create group members table: %w", err)
 	}
 
 	return &DB{db: db, path: dbPath}, nil

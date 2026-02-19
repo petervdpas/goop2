@@ -76,7 +76,7 @@ func (m *Manager) CreateChannel(ctx context.Context, remotePeerID string) (*Chan
 	id := generateChannelID()
 
 	// Create a private group with max 2 members
-	if err := m.grp.CreateGroup(id, "rt:"+id, "realtime", 2); err != nil {
+	if err := m.grp.CreateGroup(id, "rt:"+id, "realtime", 2, false); err != nil {
 		return nil, fmt.Errorf("create group: %w", err)
 	}
 
