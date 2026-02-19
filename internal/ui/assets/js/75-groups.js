@@ -22,7 +22,83 @@
   var listenTimers = {};
   var listenAudioEl = null; // single shared <audio> element for listener mode
 
+  // Web Audio API state — created once, reused across re-renders
+  var listenAudioCtx    = null;
+  var listenAnalyser    = null;
+  var listenAudioSource = null; // MediaElementSource (can only be created once per element)
+  var listenAnimFrame   = null;
+
+  function stopVisualizer() {
+    if (listenAnimFrame) {
+      cancelAnimationFrame(listenAnimFrame);
+      listenAnimFrame = null;
+    }
+  }
+
+  function startVisualizer(canvasEl) {
+    stopVisualizer();
+    if (!canvasEl) return;
+
+    var audio = ensureAudioEl();
+
+    // Create AudioContext once
+    if (!listenAudioCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return; // not supported
+      listenAudioCtx = new AC();
+    }
+    listenAudioCtx.resume().catch(function() {});
+
+    // Connect audio element → analyser → destination (once only)
+    if (!listenAnalyser) {
+      try {
+        listenAudioSource = listenAudioCtx.createMediaElementSource(audio);
+        listenAnalyser    = listenAudioCtx.createAnalyser();
+        listenAnalyser.fftSize               = 256; // 128 frequency bins
+        listenAnalyser.smoothingTimeConstant = 0.75;
+        listenAudioSource.connect(listenAnalyser);
+        listenAnalyser.connect(listenAudioCtx.destination);
+      } catch(e) {
+        console.warn("LISTEN: visualizer setup failed:", e);
+        return;
+      }
+    }
+
+    var bufLen = listenAnalyser.frequencyBinCount; // 128
+    var data   = new Uint8Array(bufLen);
+
+    function draw() {
+      listenAnimFrame = requestAnimationFrame(draw);
+
+      // Keep canvas pixel dimensions in sync with CSS layout size
+      var w = canvasEl.offsetWidth;
+      var h = canvasEl.offsetHeight;
+      if (!w || !h) return;
+      if (canvasEl.width  !== w) canvasEl.width  = w;
+      if (canvasEl.height !== h) canvasEl.height = h;
+
+      listenAnalyser.getByteFrequencyData(data);
+
+      var ctx2d = canvasEl.getContext("2d");
+      ctx2d.clearRect(0, 0, w, h);
+
+      var bins = 64;
+      var slotW = w / bins;
+      var barW  = Math.max(1, slotW - 1);
+
+      for (var i = 0; i < bins; i++) {
+        var v  = data[Math.floor(i * bufLen / bins)] / 255;
+        var bh = Math.max(2, v * h);
+        ctx2d.fillStyle = "rgba(92,158,237," + (0.3 + v * 0.7) + ")";
+        ctx2d.fillRect(i * slotW, h - bh, barW, bh);
+      }
+    }
+
+    draw();
+  }
+
   function cleanupListenSubs() {
+    stopVisualizer();
     Object.keys(listenSubs).forEach(function(k) {
       listenSubs[k].close();
       delete listenSubs[k];
@@ -273,6 +349,7 @@
     if (!g || !g.track) {
       html = '<div class="groups-listen-waiting">Waiting for host to play a track...</div>';
       wrapperEl.innerHTML = html;
+      stopVisualizer();
       return;
     }
 
@@ -283,6 +360,7 @@
           Math.round(g.track.bitrate / 1000) + ' kbps &middot; ' + formatTime(g.track.duration) +
         '</span>' +
       '</div>' +
+      '<canvas class="glisten-wave"></canvas>' +
       '<div class="listen-progress">' +
         '<div class="listen-progress-bar">' +
           '<div class="listen-progress-fill glisten-progress-fill"></div>' +
@@ -334,6 +412,11 @@
           audio.volume = 0.8;
           audio.play().catch(function(e) { console.warn("LISTEN autoplay blocked:", e); });
         }
+
+        // Start frequency visualizer
+        startVisualizer(wrapperEl.querySelector(".glisten-wave"));
+      } else {
+        stopVisualizer();
       }
     }
 
@@ -456,10 +539,6 @@
   function initGroupsPage() {
     var hostedListEl = qs("#groups-hosted-list");
     var subListEl = qs("#groups-sub-list");
-    var activeConnEl = qs("#groups-active-conn");
-    var activeGroupEl = qs("#groups-active-group");
-    var activeHostEl = qs("#groups-active-host");
-    var leaveBtn = qs("#groups-leave-btn");
     var refreshBtn = qs("#groups-refresh");
     var eventsEl = qs("#groups-events");
     var clearEventsBtn = qs("#groups-clear-events");
@@ -471,15 +550,6 @@
     on(refreshBtn, "click", function() {
       loadHostedGroups();
       loadSubscriptions();
-    });
-
-    on(leaveBtn, "click", function() {
-      api("/api/groups/leave", {}).then(function() {
-        toast("Left group");
-        loadSubscriptions();
-      }).catch(function(err) {
-        toast("Failed to leave: " + err.message, true);
-      });
     });
 
     on(clearEventsBtn, "click", function() {
@@ -654,15 +724,6 @@
 
     function loadSubscriptions() {
       api("/api/groups/subscriptions").then(function(data) {
-        // Active connection
-        if (data.active && data.active.connected) {
-          activeConnEl.style.display = "flex";
-          activeGroupEl.textContent = data.active.group_id;
-          activeHostEl.textContent = shortId(data.active.host_peer_id);
-        } else {
-          activeConnEl.style.display = "none";
-        }
-
         // Subscription list
         var subs = data.subscriptions;
         if (!subs || subs.length === 0) {
@@ -692,7 +753,9 @@
             '<div class="groups-card-members">' + (s.member_count > 0 ? memberLabel(s.member_count) : '') + '</div>' +
             '<div class="groups-card-actions">' +
               (isFiles ? '<a class="groups-action-btn groups-btn-primary" href="/documents?group_id=' + encodeURIComponent(s.group_id) + '">Browse Files</a>' : '') +
-              (!isActive ? '<button class="groups-action-btn groups-btn-primary groups-rejoin-btn" data-host="' + escapeHtml(s.host_peer_id) + '" data-group="' + escapeHtml(s.group_id) + '">Rejoin</button>' : '') +
+              (isActive
+                ? '<button class="groups-action-btn groups-btn-danger groups-leave-sub-btn">Leave</button>'
+                : '<button class="groups-action-btn groups-btn-primary groups-rejoin-btn" data-host="' + escapeHtml(s.host_peer_id) + '" data-group="' + escapeHtml(s.group_id) + '">Rejoin</button>') +
               '<button class="groups-action-btn groups-btn-danger groups-remove-sub-btn" data-host="' + escapeHtml(s.host_peer_id) + '" data-group="' + escapeHtml(s.group_id) + '">Remove</button>' +
             '</div>' +
             '</div>' +
@@ -700,6 +763,22 @@
           '</div>';
         });
         subListEl.innerHTML = html;
+
+        // Bind leave buttons (active group)
+        subListEl.querySelectorAll(".groups-leave-sub-btn").forEach(function(btn) {
+          on(btn, "click", function() {
+            btn.textContent = "Leaving...";
+            btn.disabled = true;
+            api("/api/groups/leave", {}).then(function() {
+              toast("Left group");
+              loadSubscriptions();
+            }).catch(function(err) {
+              toast("Failed to leave: " + err.message, true);
+              btn.textContent = "Leave";
+              btn.disabled = false;
+            });
+          });
+        });
 
         // Bind rejoin buttons
         subListEl.querySelectorAll(".groups-rejoin-btn").forEach(function(btn) {

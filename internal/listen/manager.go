@@ -1075,11 +1075,18 @@ func (m *Manager) forwardGroupEvents() {
 				log.Printf("LISTEN: Listener %s left", evt.From)
 			}
 		case "members":
-			// Update listener list
+			// Update listener list; sync state to any newly joined listener.
 			if lg.Role == "host" {
 				if mp, ok := evt.Payload.(map[string]any); ok {
 					if members, ok := mp["members"].([]any); ok {
 						m.mu.Lock()
+
+						// Remember who was already connected so we can spot new joiners.
+						oldSet := make(map[string]bool, len(m.group.Listeners))
+						for _, pid := range m.group.Listeners {
+							oldSet[pid] = true
+						}
+
 						m.group.Listeners = make([]string, 0, len(members))
 						for _, member := range members {
 							if mi, ok := member.(map[string]any); ok {
@@ -1088,8 +1095,59 @@ func (m *Manager) forwardGroupEvents() {
 								}
 							}
 						}
+
+						// Detect new listeners.
+						hasNewListeners := false
+						for _, pid := range m.group.Listeners {
+							if !oldSet[pid] {
+								hasNewListeners = true
+								break
+							}
+						}
+
+						// Capture state to sync (outside the lock below).
+						var syncTrack *Track
+						var syncQueue []string
+						var syncQueueIdx, syncQueueTotal int
+						var syncPos float64
+						var syncPlaying bool
+						if hasNewListeners && m.group.Track != nil {
+							syncTrack = m.group.Track
+							syncQueue = append([]string(nil), m.group.Queue...)
+							syncQueueIdx = m.group.QueueIndex
+							syncQueueTotal = m.group.QueueTotal
+							if ps := m.group.PlayState; ps != nil {
+								syncPlaying = ps.Playing
+								if ps.Playing {
+									elapsed := float64(time.Now().UnixMilli()-ps.UpdatedAt) / 1000.0
+									syncPos = ps.Position + elapsed
+								} else {
+									syncPos = ps.Position
+								}
+								if syncPos < 0 {
+									syncPos = 0
+								}
+							}
+						}
+
 						m.mu.Unlock()
 						m.notifySSELocked()
+
+						// Bring newly joined listeners up to speed.
+						if syncTrack != nil {
+							m.sendControl(ControlMsg{
+								Action:     "load",
+								Track:      syncTrack,
+								Queue:      syncQueue,
+								QueueIndex: syncQueueIdx,
+								QueueTotal: syncQueueTotal,
+							})
+							if syncPlaying {
+								m.sendControl(ControlMsg{Action: "play", Position: syncPos})
+							} else {
+								m.sendControl(ControlMsg{Action: "pause", Position: syncPos})
+							}
+						}
 					}
 				}
 			}
