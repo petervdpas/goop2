@@ -582,11 +582,23 @@ func (m *Manager) CloseGroup() error {
 
 // JoinGroup joins a remote listening group.
 func (m *Manager) JoinGroup(hostPeerID, groupID string) error {
-	// Check precondition without holding the lock for the network call.
+	// A listener can only be in one listen group at a time — like being at
+	// someone's house, you have to leave before going to another.
+	// Auto-leave any current listener group before joining the new one.
+	// Hosting your own group is a different role; that blocks joining.
 	m.mu.Lock()
 	if m.group != nil {
-		m.mu.Unlock()
-		return fmt.Errorf("already in a group")
+		if m.group.Role == "listener" {
+			log.Printf("LISTEN: Auto-leaving %s to join %s", m.group.ID, groupID)
+			_ = m.grp.LeaveGroup()
+			m.closeHTTPPipeLocked()
+			m.group = nil
+			m.notifySSE()
+		} else {
+			// Role == "host": can't abandon your own party.
+			m.mu.Unlock()
+			return fmt.Errorf("already hosting a listen group")
+		}
 	}
 	m.mu.Unlock()
 
@@ -599,10 +611,17 @@ func (m *Manager) JoinGroup(hostPeerID, groupID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Recheck: another operation may have set a group while we were on the wire.
+	// Recheck: another operation may have raced and set a group while we were
+	// on the wire. If so, prefer the new join — leave what arrived in the race.
 	if m.group != nil {
-		_ = m.grp.LeaveGroup()
-		return fmt.Errorf("already in a group")
+		if m.group.Role == "listener" {
+			_ = m.grp.LeaveGroup()
+			m.closeHTTPPipeLocked()
+			m.group = nil
+		} else {
+			_ = m.grp.LeaveGroup()
+			return fmt.Errorf("already hosting a listen group")
+		}
 	}
 
 	m.group = &Group{
