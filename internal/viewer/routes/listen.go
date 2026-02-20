@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/petervdpas/goop2/internal/listen"
 )
@@ -79,10 +80,11 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager, peerName func(string
 		writeJSON(w, map[string]string{"status": "ok"})
 	})
 
-	// POST /api/listen/control — host play/pause/seek
+	// POST /api/listen/control — host play/pause/seek/next/prev
 	handlePost(mux, "/api/listen/control", func(w http.ResponseWriter, r *http.Request, req struct {
 		Action   string  `json:"action"`
 		Position float64 `json:"position"`
+		Index    int     `json:"index"`
 	}) {
 		var err error
 		switch req.Action {
@@ -96,6 +98,10 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager, peerName func(string
 			err = lm.Next()
 		case "prev":
 			err = lm.Prev()
+		case "skip":
+			err = lm.SkipToTrack(req.Index)
+		case "remove":
+			err = lm.RemoveFromQueue(req.Index)
 		default:
 			http.Error(w, "unknown action: "+req.Action, http.StatusBadRequest)
 			return
@@ -156,18 +162,33 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager, peerName func(string
 		flusher, _ := w.(http.Flusher)
 
 		buf := make([]byte, 4096)
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+		lastDataTime := time.Now()
+
 		for {
-			n, err := reader.Read(buf)
-			if n > 0 {
-				if _, werr := w.Write(buf[:n]); werr != nil {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-ticker.C:
+				// If no data received for 3 seconds, host is likely gone
+				if time.Since(lastDataTime) > 3*time.Second {
 					return
 				}
-				if flusher != nil {
-					flusher.Flush()
+			default:
+				n, err := reader.Read(buf)
+				if n > 0 {
+					lastDataTime = time.Now()
+					if _, werr := w.Write(buf[:n]); werr != nil {
+						return
+					}
+					if flusher != nil {
+						flusher.Flush()
+					}
 				}
-			}
-			if err != nil {
-				return
+				if err != nil {
+					return
+				}
 			}
 		}
 	})

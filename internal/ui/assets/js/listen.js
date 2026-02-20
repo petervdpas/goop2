@@ -49,11 +49,11 @@
         return r.json();
       });
     },
-    control: function (action, position) {
+    control: function (action, position, index) {
       return fetch("/api/listen/control", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: action, position: position || 0 }),
+        body: JSON.stringify({ action: action, position: position || 0, index: index || 0 }),
       }).then(function (r) {
         if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
         return r.json();
