@@ -33,6 +33,13 @@ type Handler interface {
 	HandleGroupEvent(evt *Event)
 }
 
+// ActiveGroupInfo holds info about one active client-side group connection.
+type ActiveGroupInfo struct {
+	HostPeerID string `json:"host_peer_id"`
+	GroupID    string `json:"group_id"`
+	AppType    string `json:"app_type"`
+}
+
 // Manager handles the group protocol, both host-side (relay) and client-side (connection).
 type Manager struct {
 	host   host.Host
@@ -43,8 +50,8 @@ type Manager struct {
 	// Host-side: groupID -> *hostedGroup
 	groups map[string]*hostedGroup
 
-	// Client-side: current outbound connection (nil if not connected)
-	activeConn *clientConn
+	// Client-side: outbound connections keyed by groupID (one per group).
+	activeConns map[string]*clientConn
 
 	// Local SSE listeners
 	listeners []chan *Event
@@ -87,12 +94,13 @@ type clientConn struct {
 // New creates a new group manager and registers the stream handler.
 func New(h host.Host, db *storage.DB) *Manager {
 	m := &Manager{
-		host:      h,
-		db:        db,
-		selfID:    h.ID().String(),
-		groups:    make(map[string]*hostedGroup),
-		listeners: make([]chan *Event, 0),
-		handlers:  make(map[string]Handler),
+		host:        h,
+		db:          db,
+		selfID:      h.ID().String(),
+		groups:      make(map[string]*hostedGroup),
+		activeConns: make(map[string]*clientConn),
+		listeners:   make([]chan *Event, 0),
+		handlers:    make(map[string]Handler),
 	}
 
 	// Load existing groups from DB into memory (restore host-joined state)
@@ -491,10 +499,10 @@ func (m *Manager) StoredGroupMembers(groupID string) []string {
 // Returns nil if not connected as a client to the given group.
 func (m *Manager) ClientGroupMembers(groupID string) []MemberInfo {
 	m.mu.RLock()
-	cc := m.activeConn
+	cc := m.activeConns[groupID]
 	m.mu.RUnlock()
 
-	if cc == nil || cc.groupID != groupID {
+	if cc == nil {
 		return nil
 	}
 
@@ -588,10 +596,13 @@ func (m *Manager) HostInGroup(groupID string) bool {
 
 // JoinRemoteGroup opens a stream to a remote host and joins a group.
 func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID string) error {
-	// Auto-leave any previous connection
+	// Auto-leave any existing connection to this same group (re-join scenario).
+	// Other group connections are unaffected — each group has its own slot.
 	m.mu.Lock()
-	old := m.activeConn
-	m.activeConn = nil
+	old := m.activeConns[groupID]
+	if old != nil {
+		delete(m.activeConns, groupID)
+	}
 	m.mu.Unlock()
 	if old != nil {
 		old.sendMu.Lock()
@@ -679,7 +690,7 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 	}
 
 	m.mu.Lock()
-	m.activeConn = cc
+	m.activeConns[groupID] = cc
 	m.mu.Unlock()
 
 	// Persist member list for stable groups so browse works when host is offline.
@@ -720,8 +731,8 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 func (m *Manager) clientReadLoop(ctx context.Context, dec *json.Decoder, cc *clientConn) {
 	defer func() {
 		m.mu.Lock()
-		if m.activeConn == cc {
-			m.activeConn = nil
+		if m.activeConns[cc.groupID] == cc {
+			delete(m.activeConns, cc.groupID)
 		}
 		m.mu.Unlock()
 		cc.stream.Close()
@@ -800,14 +811,14 @@ func (m *Manager) clientReadLoop(ctx context.Context, dec *json.Decoder, cc *cli
 	}
 }
 
-// SendToGroup sends a message through the active client connection.
-func (m *Manager) SendToGroup(payload any) error {
+// SendToGroup sends a message through the client connection for the given group.
+func (m *Manager) SendToGroup(groupID string, payload any) error {
 	m.mu.RLock()
-	cc := m.activeConn
+	cc := m.activeConns[groupID]
 	m.mu.RUnlock()
 
 	if cc == nil {
-		return fmt.Errorf("not connected to any group")
+		return fmt.Errorf("not connected to group %s", groupID)
 	}
 
 	return cc.encoder.Encode(Message{
@@ -817,15 +828,17 @@ func (m *Manager) SendToGroup(payload any) error {
 	})
 }
 
-// LeaveGroup disconnects from the current remote group.
-func (m *Manager) LeaveGroup() error {
+// LeaveGroup disconnects from the specified remote group.
+func (m *Manager) LeaveGroup(groupID string) error {
 	m.mu.Lock()
-	cc := m.activeConn
-	m.activeConn = nil
+	cc := m.activeConns[groupID]
+	if cc != nil {
+		delete(m.activeConns, groupID)
+	}
 	m.mu.Unlock()
 
 	if cc == nil {
-		return fmt.Errorf("not connected to any group")
+		return fmt.Errorf("not connected to group %s", groupID)
 	}
 
 	// Send leave message
@@ -843,14 +856,37 @@ func (m *Manager) LeaveGroup() error {
 	return nil
 }
 
-// ActiveGroup returns info about the current client connection, if any.
-func (m *Manager) ActiveGroup() (hostPeerID, groupID string, connected bool) {
+// ActiveGroup returns the host peer ID for an active client connection to the given group.
+func (m *Manager) ActiveGroup(groupID string) (hostPeerID string, connected bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	if m.activeConn != nil {
-		return m.activeConn.hostPeerID, m.activeConn.groupID, true
+	if cc, ok := m.activeConns[groupID]; ok {
+		return cc.hostPeerID, true
 	}
-	return "", "", false
+	return "", false
+}
+
+// ActiveGroups returns info about all active client-side group connections.
+func (m *Manager) ActiveGroups() []ActiveGroupInfo {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	result := make([]ActiveGroupInfo, 0, len(m.activeConns))
+	for _, cc := range m.activeConns {
+		result = append(result, ActiveGroupInfo{
+			HostPeerID: cc.hostPeerID,
+			GroupID:    cc.groupID,
+			AppType:    cc.appType,
+		})
+	}
+	return result
+}
+
+// IsGroupConnected returns true if we have an active client connection to the given group.
+func (m *Manager) IsGroupConnected(groupID string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	_, ok := m.activeConns[groupID]
+	return ok
 }
 
 // ─── SSE event subscription ─────────────────────────────────────────────────
@@ -890,8 +926,8 @@ func (m *Manager) appTypeForGroupLocked(groupID string) string {
 	if hg, ok := m.groups[groupID]; ok {
 		return hg.info.AppType
 	}
-	if m.activeConn != nil && m.activeConn.groupID == groupID {
-		return m.activeConn.appType
+	if cc, ok := m.activeConns[groupID]; ok {
+		return cc.appType
 	}
 	return ""
 }
@@ -949,12 +985,12 @@ func (m *Manager) reconnectSubscriptions() {
 	}
 
 	for _, sub := range subs {
-		// Only one active connection at a time
+		// Skip groups we're already connected to
 		m.mu.RLock()
-		hasActive := m.activeConn != nil
+		_, alreadyConnected := m.activeConns[sub.GroupID]
 		m.mu.RUnlock()
-		if hasActive {
-			break
+		if alreadyConnected {
+			continue
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
@@ -970,7 +1006,6 @@ func (m *Manager) reconnectSubscriptions() {
 			log.Printf("GROUP: Auto-reconnect to %s failed: %s", sub.GroupID, msg)
 		} else {
 			log.Printf("GROUP: Auto-reconnected to group %s on host %s", sub.GroupID, sub.HostPeerID)
-			break
 		}
 	}
 }
@@ -1209,12 +1244,12 @@ func (m *Manager) Close() error {
 		hg.mu.Unlock()
 	}
 
-	// Close client connection
-	if m.activeConn != nil {
-		m.activeConn.cancel()
-		m.activeConn.stream.Close()
-		m.activeConn = nil
+	// Close all client connections
+	for _, cc := range m.activeConns {
+		cc.cancel()
+		cc.stream.Close()
 	}
+	m.activeConns = nil
 
 	// Close all listener channels
 	for _, listener := range m.listeners {
@@ -1268,7 +1303,7 @@ func (m *Manager) IsKnownGroupPeer(remotePeer, groupID string) bool {
 	// Host side: authoritative check
 	m.mu.RLock()
 	_, isHost := m.groups[groupID]
-	cc := m.activeConn
+	cc := m.activeConns[groupID]
 	m.mu.RUnlock()
 
 	if isHost {
@@ -1276,7 +1311,7 @@ func (m *Manager) IsKnownGroupPeer(remotePeer, groupID string) bool {
 	}
 
 	// Client side: check against our known member list for this group
-	if cc != nil && cc.groupID == groupID {
+	if cc != nil {
 		// The host itself is always allowed to access our docs
 		if remotePeer == cc.hostPeerID {
 			return true

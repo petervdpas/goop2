@@ -155,15 +155,9 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 			}
 		}
 
-		hostPeer, groupID, connected := grpMgr.ActiveGroup()
 		writeJSON(w, map[string]any{
-			"subscriptions": enriched,
-			"active": map[string]any{
-				"connected":    connected,
-				"host_peer_id": hostPeer,
-				"host_name":    peerName(hostPeer),
-				"group_id":     groupID,
-			},
+			"subscriptions":  enriched,
+			"active_groups":  grpMgr.ActiveGroups(),
 		})
 	})
 
@@ -248,9 +242,15 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 		writeJSON(w, map[string]string{"status": "removed"})
 	})
 
-	// Leave current group
-	handlePostAction(mux, "/api/groups/leave", func(w http.ResponseWriter, r *http.Request) {
-		if err := grpMgr.LeaveGroup(); err != nil {
+	// Leave a specific group
+	handlePost(mux, "/api/groups/leave", func(w http.ResponseWriter, r *http.Request, req struct {
+		GroupID string `json:"group_id"`
+	}) {
+		if req.GroupID == "" {
+			http.Error(w, "Missing group_id", http.StatusBadRequest)
+			return
+		}
+		if err := grpMgr.LeaveGroup(req.GroupID); err != nil {
 			http.Error(w, fmt.Sprintf("Failed to leave group: %v", err), http.StatusInternalServerError)
 			return
 		}
@@ -315,13 +315,17 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 		Payload any    `json:"payload"`
 		GroupID string `json:"group_id"`
 	}) {
-		if req.GroupID != "" && grpMgr.IsGroupHost(req.GroupID) {
+		if req.GroupID == "" {
+			http.Error(w, "Missing group_id", http.StatusBadRequest)
+			return
+		}
+		if grpMgr.IsGroupHost(req.GroupID) {
 			if err := grpMgr.SendToGroupAsHost(req.GroupID, req.Payload); err != nil {
 				http.Error(w, fmt.Sprintf("Failed to send: %v", err), http.StatusInternalServerError)
 				return
 			}
 		} else {
-			if err := grpMgr.SendToGroup(req.Payload); err != nil {
+			if err := grpMgr.SendToGroup(req.GroupID, req.Payload); err != nil {
 				http.Error(w, fmt.Sprintf("Failed to send: %v", err), http.StatusInternalServerError)
 				return
 			}

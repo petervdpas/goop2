@@ -588,7 +588,7 @@ func (m *Manager) CloseGroup() error {
 		m.sendControl(ControlMsg{Action: "close"})
 		_ = m.grp.CloseGroup(m.group.ID)
 	} else {
-		_ = m.grp.LeaveGroup()
+		_ = m.grp.LeaveGroup(m.group.ID)
 	}
 
 	m.closeHTTPPipeLocked()
@@ -615,7 +615,7 @@ func (m *Manager) JoinGroup(hostPeerID, groupID string) error {
 	if m.group != nil {
 		if m.group.Role == "listener" {
 			log.Printf("LISTEN: Auto-leaving %s to join %s", m.group.ID, groupID)
-			_ = m.grp.LeaveGroup()
+			_ = m.grp.LeaveGroup(m.group.ID)
 			m.closeHTTPPipeLocked()
 			m.group = nil
 			m.notifySSE()
@@ -666,7 +666,7 @@ func (m *Manager) LeaveGroup() error {
 		return fmt.Errorf("not in a listening group")
 	}
 
-	_ = m.grp.LeaveGroup()
+	_ = m.grp.LeaveGroup(m.group.ID)
 	m.closeHTTPPipeLocked()
 	m.group = nil
 
@@ -930,7 +930,7 @@ func (m *Manager) connectAudioStream() (io.ReadCloser, error) {
 		return nil, fmt.Errorf("not a listener")
 	}
 
-	hostPeerID, _, connected := m.grp.ActiveGroup()
+	hostPeerID, connected := m.grp.ActiveGroup(lg.ID)
 	if !connected {
 		return nil, fmt.Errorf("not connected to host")
 	}
@@ -1059,7 +1059,7 @@ func (m *Manager) sendControl(msg ControlMsg) {
 	if m.group.Role == "host" {
 		_ = m.grp.SendToGroupAsHost(m.group.ID, payload)
 	} else {
-		_ = m.grp.SendToGroup(payload)
+		_ = m.grp.SendToGroup(m.group.ID, payload)
 	}
 }
 
@@ -1076,9 +1076,9 @@ func (m *Manager) HandleGroupEvent(evt *group.Event) {
 		// listen.Manager.JoinGroup() (which is the only path that sets m.group).
 		// If the group manager has an active client connection for this group,
 		// auto-restore m.group so we can process control messages immediately.
-		hostPeerID, groupID, connected := m.grp.ActiveGroup()
-		if connected && groupID == evt.Group {
-			groupName := groupID
+		hostPeerID, connected := m.grp.ActiveGroup(evt.Group)
+		if connected {
+			groupName := evt.Group
 			if evt.Type == "welcome" {
 				if wp, ok := evt.Payload.(map[string]any); ok {
 					if n, ok := wp["group_name"].(string); ok && n != "" {
@@ -1089,12 +1089,12 @@ func (m *Manager) HandleGroupEvent(evt *group.Event) {
 			m.mu.Lock()
 			if m.group == nil {
 				m.group = &Group{
-					ID:   groupID,
+					ID:   evt.Group,
 					Name: groupName,
 					Role: "listener",
 				}
 				lg = m.group
-				log.Printf("LISTEN: Auto-restored listener state for group %s on host %s", groupID, hostPeerID)
+				log.Printf("LISTEN: Auto-restored listener state for group %s on host %s", evt.Group, hostPeerID)
 			} else {
 				lg = m.group
 			}

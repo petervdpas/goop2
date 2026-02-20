@@ -142,7 +142,7 @@ func (m *Manager) Send(channelID string, payload any) error {
 	if ch.Role == "host" {
 		return m.grp.SendToGroupAsHost(channelID, payload)
 	}
-	return m.grp.SendToGroup(payload)
+	return m.grp.SendToGroup(channelID, payload)
 }
 
 // CloseChannel closes a realtime channel. Idempotent — returns nil if
@@ -162,7 +162,7 @@ func (m *Manager) CloseChannel(channelID string) error {
 	if ch.Role == "host" {
 		return m.grp.CloseGroup(channelID)
 	}
-	return m.grp.LeaveGroup()
+	return m.grp.LeaveGroup(channelID)
 }
 
 // ListChannels returns all active channels.

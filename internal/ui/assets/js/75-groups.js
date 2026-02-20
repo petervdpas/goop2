@@ -122,6 +122,10 @@
   // Render host player section inside a group card wrapper
   function renderHostPlayer(wrapperEl, groupState) {
     var g = groupState;
+    // Always cancel any running timer before re-rendering
+    var gid = g && g.id;
+    if (gid && listenTimers[gid]) { clearInterval(listenTimers[gid]); delete listenTimers[gid]; }
+
     var html = '';
     var bridgeURL = window.Goop && window.Goop.bridgeURL || '';
 
@@ -327,13 +331,16 @@
       var fillEl = wrapperEl.querySelector(".glisten-progress-fill");
       var curEl = wrapperEl.querySelector(".glisten-time-current");
       if (fillEl && curEl) {
-        var gid = g.id;
-        if (listenTimers[gid]) clearInterval(listenTimers[gid]);
         listenTimers[gid] = setInterval(function() {
           if (!g.play_state || !g.play_state.playing) return;
           var elapsed = (Date.now() - g.play_state.updated_at) / 1000;
           var pos = g.play_state.position + elapsed;
           var dur = g.track.duration;
+          if (pos >= dur) {
+            pos = dur;
+            clearInterval(listenTimers[gid]);
+            delete listenTimers[gid];
+          }
           var pct = Math.min(100, (pos / dur) * 100);
           fillEl.style.width = pct + "%";
           curEl.textContent = formatTime(pos);
@@ -345,6 +352,10 @@
   // Render listener player section inside a subscription card wrapper
   function renderListenerPlayer(wrapperEl, groupState) {
     var g = groupState;
+    // Always cancel any running timer before re-rendering, regardless of play state
+    var gid = (g && g.id) || "listener";
+    if (listenTimers[gid]) { clearInterval(listenTimers[gid]); delete listenTimers[gid]; }
+
     var html = '';
 
     if (!g || !g.track) {
@@ -372,6 +383,7 @@
         '</div>' +
       '</div>' +
       '<div class="listen-controls">' +
+        '<button class="glisten-play-fallback groups-action-btn groups-btn-primary" style="display:none">&#9654; Click to play</button>' +
         '<div class="listen-volume">' +
           '<label class="muted small">Volume</label>' +
           '<input type="range" class="glisten-volume" min="0" max="100" value="80" />' +
@@ -394,24 +406,37 @@
 
       // Start timer if playing
       if (g.play_state.playing && g.track) {
-        var gid = g.id || "listener";
-        if (listenTimers[gid]) clearInterval(listenTimers[gid]);
         listenTimers[gid] = setInterval(function() {
           if (!g.play_state || !g.play_state.playing) return;
           var elapsed = (Date.now() - g.play_state.updated_at) / 1000;
           var p = g.play_state.position + elapsed;
           var d = g.track.duration;
+          if (p >= d) {
+            p = d;
+            clearInterval(listenTimers[gid]);
+            delete listenTimers[gid];
+          }
           if (fillEl) fillEl.style.width = Math.min(100, (p / d) * 100) + "%";
           if (curEl) curEl.textContent = formatTime(p);
         }, 250);
 
         // Connect audio — reconnect if not actively loading/playing
         var audio = ensureAudioEl();
+        var playFallback = wrapperEl.querySelector(".glisten-play-fallback");
         if (!audio.src || audio.networkState !== 2 /* NETWORK_LOADING */) {
           audio.src = "";
           audio.src = "/api/listen/stream";
           audio.volume = 0.8;
-          audio.play().catch(function(e) { console.warn("LISTEN autoplay blocked:", e); });
+          audio.play().catch(function(e) {
+            console.warn("LISTEN autoplay blocked:", e);
+            if (playFallback) playFallback.style.display = "";
+          });
+        }
+        if (playFallback) {
+          on(playFallback, "click", function() {
+            playFallback.style.display = "none";
+            audio.play().catch(function(e) { console.warn("LISTEN manual play failed:", e); });
+          });
         }
 
         // Start frequency visualizer
@@ -735,12 +760,13 @@
           subListEl.innerHTML = '<p class="groups-empty">No subscriptions. Use Goop.group.join() from a peer\'s site to join a group.</p>';
           return;
         }
-        var activeGroupId = (data.active && data.active.connected) ? data.active.group_id : null;
+        var activeGroupIds = {};
+        (data.active_groups || []).forEach(function(ag) { activeGroupIds[ag.group_id] = true; });
         var html = "";
         var hasListenSub = false;
         subs.forEach(function(s) {
           var displayName = s.group_name || s.group_id;
-          var isActive = activeGroupId && s.group_id === activeGroupId;
+          var isActive = !!activeGroupIds[s.group_id];
           var isListen = s.app_type === "listen";
           var isFiles = s.app_type === "files";
           if (isListen && isActive) hasListenSub = true;
@@ -759,7 +785,7 @@
             '<div class="groups-card-actions">' +
               (isFiles ? '<a class="groups-action-btn groups-btn-primary" href="/documents?group_id=' + encodeURIComponent(s.group_id) + '">Browse Files</a>' : '') +
               (isActive
-                ? '<button class="groups-action-btn groups-btn-danger groups-leave-sub-btn">Leave</button>'
+                ? '<button class="groups-action-btn groups-btn-danger groups-leave-sub-btn" data-group="' + escapeHtml(s.group_id) + '">Leave</button>'
                 : '<button class="groups-action-btn groups-btn-primary groups-rejoin-btn" data-host="' + escapeHtml(s.host_peer_id) + '" data-group="' + escapeHtml(s.group_id) + '"' + (s.host_reachable ? '' : ' disabled title="Host is offline"') + '>Rejoin</button>') +
               '<button class="groups-action-btn groups-btn-danger groups-remove-sub-btn" data-host="' + escapeHtml(s.host_peer_id) + '" data-group="' + escapeHtml(s.group_id) + '">Remove</button>' +
             '</div>' +
@@ -772,9 +798,10 @@
         // Bind leave buttons (active group)
         subListEl.querySelectorAll(".groups-leave-sub-btn").forEach(function(btn) {
           on(btn, "click", function() {
+            var groupId = btn.getAttribute("data-group");
             btn.textContent = "Leaving...";
             btn.disabled = true;
-            api("/api/groups/leave", {}).then(function() {
+            api("/api/groups/leave", { group_id: groupId }).then(function() {
               toast("Left group");
               loadSubscriptions();
             }).catch(function(err) {
