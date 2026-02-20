@@ -101,11 +101,14 @@ button:focus-visible{
   transition: background 0.15s, border-color 0.15s;
 }
 
-.call-btn.busy,
-.call-btn:disabled {
+.call-btn.busy {
   opacity: 0.3;
   cursor: default;
   pointer-events: none;
+}
+.call-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 .call-btn:hover {

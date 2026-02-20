@@ -86,7 +86,16 @@ func registerHomeRoutes(mux *http.ServeMux, d Deps) {
 				if !ok {
 					return
 				}
-				data, _ := json.Marshal(evt)
+				var data []byte
+				if evt.Type == "update" && evt.PeerID != "" && evt.Peer != nil {
+					data, _ = json.Marshal(map[string]any{
+						"type":    "update",
+						"peer_id": evt.PeerID,
+						"peer":    viewmodels.BuildPeerRow(evt.PeerID, *evt.Peer),
+					})
+				} else {
+					data, _ = json.Marshal(evt)
+				}
 				fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evt.Type, data)
 				flusher.Flush()
 			}
