@@ -3,9 +3,8 @@
 // Signaling flows over the realtime channel (offer/answer/ICE candidates).
 //
 // Usage:
-//   <script src="/assets/js/goop-log.js"></script>
-//   <script src="/assets/js/goop-realtime.js"></script>
-//   <script src="/assets/js/goop-call.js"></script>
+//   <script src="/sdk/goop-realtime.js"></script>
+//   <script src="/sdk/goop-call.js"></script>
 //
 //   // Start a call
 //   const call = await Goop.call.start(peerId, { video: true, audio: true });

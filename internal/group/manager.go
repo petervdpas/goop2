@@ -1190,8 +1190,6 @@ func (m *Manager) handleInviteStream(s network.Stream) {
 	_ = m.db.AddSubscription(inv.HostPeerID, inv.GroupID, inv.GroupName, inv.AppType, 0, inv.Volatile, "member")
 
 	// Notify local listeners so the groups page can prompt the user.
-	// The user must explicitly rejoin from the subscriptions list — we do not
-	// auto-join, as that would silently displace any existing group connection.
 	m.notifyListeners(&Event{
 		Type:  "invite",
 		Group: inv.GroupID,
@@ -1200,8 +1198,19 @@ func (m *Manager) handleInviteStream(s network.Stream) {
 			"group_id":   inv.GroupID,
 			"group_name": inv.GroupName,
 			"host":       inv.HostPeerID,
+			"app_type":   inv.AppType,
 		},
 	})
+
+	// Realtime channels (e.g. video calls) require an immediate auto-join so
+	// that signaling messages can flow before the user interacts with the UI.
+	if inv.AppType == "realtime" {
+		go func() {
+			if err := m.JoinRemoteGroup(context.Background(), inv.HostPeerID, inv.GroupID); err != nil {
+				log.Printf("GROUP: Auto-join realtime group %s failed: %v", inv.GroupID, err)
+			}
+		}()
+	}
 }
 
 // ─── Shutdown ────────────────────────────────────────────────────────────────

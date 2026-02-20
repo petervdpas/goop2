@@ -118,7 +118,7 @@ To add a store template, create a directory in the templates service's `template
 
 1. Add a `manifest.json` with metadata and schema.
 2. Write your `index.html`, `style.css`, and `app.js`.
-3. Include `<script src="/assets/js/goop-data.js"></script>` for database access.
+3. Include `<script src="/sdk/goop-data.js"></script>` for database access.
 4. Optionally add `schema.sql` for database tables.
 5. Optionally add Lua functions in `lua/functions/` for server-side logic.
 

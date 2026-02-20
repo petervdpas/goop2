@@ -77,7 +77,7 @@ Check that your `site/` directory contains an `index.html` file. The site root i
 
 ### Remote data operations aren't working
 
-- Verify your template includes `<script src="/assets/js/goop-data.js"></script>`.
+- Verify your template includes `<script src="/sdk/goop-data.js"></script>`.
 - Check the browser console for errors.
 - Make sure the remote peer is still online.
 - Review the peer's logs for Lua errors if data functions are involved.

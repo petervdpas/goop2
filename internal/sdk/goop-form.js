@@ -4,10 +4,10 @@
 //
 // Usage:
 //
-//   <script src="/assets/js/goop-data.js"></script>
-//   <script src="/assets/js/goop-identity.js"></script>
-//   <script src="/assets/js/goop-ui.js"></script>
-//   <script src="/assets/js/goop-form.js"></script>
+//   <script src="/sdk/goop-data.js"></script>
+//   <script src="/sdk/goop-identity.js"></script>
+//   <script src="/sdk/goop-ui.js"></script>
+//   <script src="/sdk/goop-form.js"></script>
 //
 //   await Goop.form.render(document.getElementById("my-form"), {
 //     table: "responses",
