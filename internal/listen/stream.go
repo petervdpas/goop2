@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
 )
 
 // mp3Info holds bitrate and duration extracted from an MP3 file header.
@@ -152,51 +151,47 @@ func probeMP3(path string) (*mp3Info, error) {
 	return nil, fmt.Errorf("no valid MPEG frame found")
 }
 
-// ratePacer writes MP3 data to w at real-time speed based on bitrate.
-// It reads from the file starting at byteOffset and stops when done,
-// the context is cancelled (via the done channel), or an error occurs.
+// ratePacer writes MP3 data to w without rate limiting.
+// The browser's audio buffer provides natural rate control via TCP flow control.
+// It reads from the file and stops when done, the context is cancelled (via the done channel), or an error occurs.
 type ratePacer struct {
 	file    *os.File
-	bitrate int // bits per second
+	bitrate int // bits per second (used for display only, not for pacing)
 	done    <-chan struct{}
 }
 
-const paceTick = 100 * time.Millisecond
-
-// stream writes audio bytes at real-time rate to w.
+// stream writes audio bytes to w as fast as the network allows.
 // Returns nil on EOF (track finished), or an error.
 func (rp *ratePacer) stream(w io.Writer) error {
-	bytesPerTick := (rp.bitrate / 8) * int(paceTick) / int(time.Second)
-	if bytesPerTick <= 0 {
-		bytesPerTick = 1024
-	}
-
-	buf := make([]byte, bytesPerTick)
-	ticker := time.NewTicker(paceTick)
-	defer ticker.Stop()
+	// Use a larger buffer (64KB) so data flows smoothly to the listener.
+	// TCP/browser buffering naturally rate-limits this.
+	buf := make([]byte, 64*1024)
 
 	for {
+		// Non-blocking check if playback should stop
 		select {
 		case <-rp.done:
 			return nil
-		case <-ticker.C:
-			n, err := rp.file.Read(buf)
-			if n > 0 {
-				data := buf[:n]
-				for len(data) > 0 {
-					nw, werr := w.Write(data)
-					if werr != nil {
-						return werr
-					}
-					data = data[nw:]
+		default:
+		}
+
+		// Read and stream audio data
+		n, err := rp.file.Read(buf)
+		if n > 0 {
+			data := buf[:n]
+			for len(data) > 0 {
+				nw, werr := w.Write(data)
+				if werr != nil {
+					return werr
 				}
+				data = data[nw:]
 			}
-			if err == io.EOF {
-				return nil
-			}
-			if err != nil {
-				return err
-			}
+		}
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
 		}
 	}
 }

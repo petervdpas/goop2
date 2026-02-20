@@ -317,6 +317,114 @@ func (m *Manager) Next() error {
 	return nil
 }
 
+// RemoveFromQueue removes a track at the specified index.
+// If the currently playing track is removed, it stops playback.
+func (m *Manager) RemoveFromQueue(idx int) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.group == nil || m.group.Role != "host" {
+		return fmt.Errorf("not hosting a group")
+	}
+	if idx < 0 || idx >= len(m.queue) {
+		return fmt.Errorf("invalid queue index")
+	}
+
+	// Remove the track from the queue
+	newQueue := make([]string, 0, len(m.queue)-1)
+	newQueue = append(newQueue, m.queue[:idx]...)
+	newQueue = append(newQueue, m.queue[idx+1:]...)
+	m.queue = newQueue
+
+	// If removing the currently playing track
+	if idx == m.queueIdx {
+		wasPlaying := !m.paused
+		m.stopPlaybackLocked()
+
+		// Queue is now empty - clear state but stay in group
+		if len(m.queue) == 0 {
+			m.queueIdx = 0
+			m.filePath = ""
+			m.group.Track = nil
+			m.group.Queue = nil
+			m.group.QueueIndex = 0
+			m.group.QueueTotal = 0
+			m.group.PlayState = &PlayState{Playing: false, Position: 0, UpdatedAt: time.Now().UnixMilli()}
+			// Send pause to listeners so they stop playing
+			m.sendControl(ControlMsg{Action: "pause", Position: 0})
+		} else {
+			// Adjust queue index if needed
+			if m.queueIdx >= len(m.queue) {
+				m.queueIdx = len(m.queue) - 1
+			}
+
+			// Load the new current track
+			_, err := m.loadTrackAtLocked(m.queueIdx)
+			if err != nil {
+				m.queueIdx = 0
+				m.loadTrackAtLocked(0)
+			}
+
+			// Resume playback if it was playing
+			if wasPlaying {
+				m.paused = false
+				m.group.PlayState = &PlayState{Playing: true, Position: 0, UpdatedAt: time.Now().UnixMilli()}
+				m.sendControl(ControlMsg{Action: "play", Position: 0})
+				m.startStreaming(0)
+				stopCh := m.stopCh
+				go m.trackTimerGoroutine(stopCh)
+			}
+		}
+	} else {
+		// Adjust index if needed for non-current tracks
+		if idx < m.queueIdx {
+			m.queueIdx--
+		}
+		m.updateQueueInfoLocked()
+	}
+
+	m.saveQueueToDisk()
+	m.notifySSE()
+	log.Printf("LISTEN: Removed track at index %d", idx)
+	return nil
+}
+
+// SkipToTrack jumps to a specific track in the queue by index.
+func (m *Manager) SkipToTrack(idx int) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.group == nil || m.group.Role != "host" {
+		return fmt.Errorf("not hosting a group")
+	}
+	if idx < 0 || idx >= len(m.queue) {
+		return fmt.Errorf("invalid queue index")
+	}
+
+	wasPlaying := !m.paused
+	m.stopPlaybackLocked()
+	m.queueIdx = idx
+
+	_, err := m.loadTrackAtLocked(idx)
+	if err != nil {
+		return err
+	}
+
+	if wasPlaying {
+		m.paused = false
+		m.group.PlayState = &PlayState{Playing: true, Position: 0, UpdatedAt: time.Now().UnixMilli()}
+		m.sendControl(ControlMsg{Action: "play", Position: 0})
+		m.startStreaming(0)
+		stopCh := m.stopCh
+		go m.trackTimerGoroutine(stopCh)
+	}
+
+	m.saveQueueToDisk()
+	m.notifySSE()
+	log.Printf("LISTEN: Skipped to track %d", idx)
+	return nil
+}
+
 // Prev goes to the previous track (or restarts current if past 3 seconds).
 func (m *Manager) Prev() error {
 	m.mu.Lock()
@@ -864,7 +972,6 @@ func (m *Manager) handleAudioStream(s network.Stream) {
 	}
 	filePath := m.filePath
 	paused := m.paused
-	gen := m.seekGen
 	m.mu.RUnlock()
 
 	if paused {
@@ -887,35 +994,43 @@ func (m *Manager) handleAudioStream(s network.Stream) {
 		f.Seek(byteOffset, io.SeekStart)
 	}
 
-	// Create a done channel that closes when group state changes
-	done := make(chan struct{})
-	go func() {
-		ticker := time.NewTicker(500 * time.Millisecond)
-		defer ticker.Stop()
-		for range ticker.C {
+	// Stream audio data. Stop if playback is paused or group is closed.
+	audioBuffer := make([]byte, 64*1024)
+	checkCounter := 0
+	for {
+		// Every 10 reads, check if playback should stop (roughly every 640KB, or ~0.5 seconds at 320kbps)
+		checkCounter++
+		if checkCounter >= 10 {
+			checkCounter = 0
 			m.mu.RLock()
-			currentGen := m.seekGen
-			currentPaused := m.paused
-			currentGroup := m.group
+			shouldStop := m.paused || m.group == nil || m.group.ID != groupID
 			m.mu.RUnlock()
-
-			if currentGroup == nil || currentGroup.ID != groupID || currentPaused || currentGen != gen {
-				close(done)
+			if shouldStop {
+				log.Printf("LISTEN: Stream to %s stopped (playback ended)", remotePeer)
 				return
 			}
 		}
-	}()
 
-	rp := &ratePacer{
-		file:    f,
-		bitrate: lg.Track.Bitrate,
-		done:    done,
-	}
-
-	if err := rp.stream(s); err != nil {
-		log.Printf("LISTEN: Stream to %s ended: %v", remotePeer, err)
-	} else {
-		log.Printf("LISTEN: Stream to %s finished", remotePeer)
+		n, err := f.Read(audioBuffer)
+		if n > 0 {
+			data := audioBuffer[:n]
+			for len(data) > 0 {
+				nw, werr := s.Write(data)
+				if werr != nil {
+					log.Printf("LISTEN: Stream to %s ended (write error): %v", remotePeer, werr)
+					return
+				}
+				data = data[nw:]
+			}
+		}
+		if err == io.EOF {
+			log.Printf("LISTEN: Stream to %s finished", remotePeer)
+			return
+		}
+		if err != nil {
+			log.Printf("LISTEN: Stream to %s ended (read error): %v", remotePeer, err)
+			return
+		}
 	}
 }
 

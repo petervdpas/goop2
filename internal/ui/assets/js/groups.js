@@ -61,6 +61,10 @@
   }
 
   // -------- Audio element --------
+  var listenStallCheckInterval = null;
+  var listenLastProgressTime = null;
+  var listenLastProgressPos = -1;
+
   function ensureAudioEl() {
     if (!listenAudioEl) {
       listenAudioEl = document.createElement('audio');
@@ -69,6 +73,48 @@
       document.body.appendChild(listenAudioEl);
     }
     return listenAudioEl;
+  }
+
+  // Monitor audio stream for stalls: if playback doesn't advance for 3 seconds, close stream
+  function startStallMonitor() {
+    stopStallMonitor();
+    var audio = listenAudioEl;
+    if (!audio || audio.paused || !audio.src) return;
+
+    listenStallCheckInterval = setInterval(function() {
+      if (!audio || audio.paused || !audio.src) {
+        stopStallMonitor();
+        return;
+      }
+
+      var currentTime = audio.currentTime || 0;
+      var now = Date.now();
+
+      // Check if we've made progress
+      if (currentTime !== listenLastProgressPos) {
+        listenLastProgressPos = currentTime;
+        listenLastProgressTime = now;
+        return; // Progress detected, reset timeout
+      }
+
+      // No progress; check if stalled for 3+ seconds
+      if (listenLastProgressTime && (now - listenLastProgressTime) > 3000) {
+        // Stream stalled - host is likely gone
+        console.warn('[LISTEN] Stream stalled for 3s, closing connection');
+        audio.pause();
+        audio.src = '';
+        stopStallMonitor();
+      }
+    }, 500);
+  }
+
+  function stopStallMonitor() {
+    if (listenStallCheckInterval) {
+      clearInterval(listenStallCheckInterval);
+      listenStallCheckInterval = null;
+    }
+    listenLastProgressTime = null;
+    listenLastProgressPos = -1;
   }
 
   // -------- Visualizer --------
@@ -161,9 +207,10 @@
       html += '<div class="glisten-queue">';
       g.queue.forEach(function(name, i) {
         var isCurrent = i === g.queue_index;
-        html += '<div class="glisten-queue-item' + (isCurrent ? ' current' : '') + '">' +
+        html += '<div class="glisten-queue-item' + (isCurrent ? ' current' : '') + '" data-queue-idx="' + i + '">' +
           '<span class="glisten-queue-num">' + (i + 1) + '</span>' +
           '<span class="glisten-queue-name">' + escapeHtml(name) + '</span>' +
+          '<button class="glisten-queue-remove" title="Remove from queue">×</button>' +
           '</div>';
       });
       html += '</div>';
@@ -266,6 +313,7 @@
     var nextBtn = wrapperEl.querySelector('.glisten-next-btn');
     if (prevBtn) {
       on(prevBtn, 'click', function() {
+        stopStallMonitor();
         var audio = ensureAudioEl();
         audio.pause();
         audio.src = '';
@@ -274,6 +322,7 @@
     }
     if (nextBtn) {
       on(nextBtn, 'click', function() {
+        stopStallMonitor();
         var audio = ensureAudioEl();
         audio.pause();
         audio.src = '';
@@ -291,11 +340,13 @@
           audio.volume = volEl ? volEl.value / 100 : 0.8;
           audio.load();
           audio.play().catch(function(e) { console.warn('LISTEN host play:', e); });
+          startStallMonitor();
         });
       });
     }
     if (pauseBtn) {
       on(pauseBtn, 'click', function() {
+        stopStallMonitor();
         var audio = ensureAudioEl();
         audio.pause();
         audio.src = '';
@@ -303,12 +354,42 @@
       });
     }
 
+    // Queue item click handlers (skip to track)
+    wrapperEl.querySelectorAll('.glisten-queue-item').forEach(function(item) {
+      var idx = parseInt(item.getAttribute('data-queue-idx'), 10);
+      on(item, 'click', function(e) {
+        // Don't skip if clicking the remove button
+        if (e.target && e.target.classList.contains('glisten-queue-remove')) return;
+        if (idx !== g.queue_index) {
+          stopStallMonitor();
+          var audio = ensureAudioEl();
+          audio.pause();
+          audio.src = '';
+          window.Goop.listen.control('skip', 0, idx).catch(function(e) { toast('Skip failed: ' + e.message, true); });
+        }
+      });
+    });
+
+    // Queue item remove button handlers
+    wrapperEl.querySelectorAll('.glisten-queue-remove').forEach(function(btn) {
+      var item = btn.closest('.glisten-queue-item');
+      var idx = parseInt(item.getAttribute('data-queue-idx'), 10);
+      on(btn, 'click', function(e) {
+        e.stopPropagation(); // Don't trigger the skip handler
+        window.Goop.listen.control('remove', 0, idx).catch(function(e) { toast('Remove failed: ' + e.message, true); });
+      });
+    });
+
     if (g && g.play_state && g.play_state.playing) {
       var audio = ensureAudioEl();
       if (audio.paused || !audio.src) {
         audio.src = '/api/listen/stream';
         audio.volume = volEl ? volEl.value / 100 : 0.8;
         audio.play().catch(function(e) { console.warn('LISTEN host autoplay:', e); });
+        startStallMonitor();
+      } else if (audio.src === '/api/listen/stream') {
+        // Already playing the stream, ensure monitor is active
+        startStallMonitor();
       }
     }
 
@@ -416,7 +497,12 @@
         }
         startVisualizer(wrapperEl.querySelector('.glisten-wave'));
       } else {
+        // Host paused — close the audio stream
         stopVisualizer();
+        stopStallMonitor();
+        var audioElement = ensureAudioEl();
+        audioElement.pause();
+        audioElement.src = '';
       }
     }
 
