@@ -381,5 +381,12 @@
   }
 
   triggerProbe();
-  setInterval(triggerProbe, 5000);
+  var probeInterval = setInterval(triggerProbe, 5000);
+
+  // Clean up polling when navigating away
+  window.addEventListener('beforeunload', function() {
+    if (probeInterval) clearInterval(probeInterval);
+    if (peersSSE) peersSSE.close();
+    if (chatSSE) chatSSE.close();
+  });
 })();
