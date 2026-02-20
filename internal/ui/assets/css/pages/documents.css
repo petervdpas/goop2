@@ -402,3 +402,130 @@
   border-top: 1px solid var(--line);
   margin-top: 10px;
 }
+
+/* ---- Markdown Preview (GitHub-style) ---- */
+
+.docs-preview-markdown-wrap {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+}
+
+.docs-preview-markdown {
+  padding: 16px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--fg);
+}
+
+.docs-preview-markdown h1 {
+  font-size: 2em;
+  font-weight: 600;
+  margin: 24px 0 16px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.docs-preview-markdown h2 {
+  font-size: 1.5em;
+  font-weight: 600;
+  margin: 24px 0 16px 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.docs-preview-markdown h3 {
+  font-size: 1.25em;
+  font-weight: 600;
+  margin: 16px 0 12px 0;
+}
+
+.docs-preview-markdown h4 {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 16px 0 8px 0;
+}
+
+.docs-preview-markdown h5,
+.docs-preview-markdown h6 {
+  font-size: 1em;
+  font-weight: 600;
+  margin: 12px 0 6px 0;
+}
+
+.docs-preview-markdown p {
+  margin: 0 0 12px 0;
+}
+
+.docs-preview-markdown strong {
+  font-weight: 600;
+}
+
+.docs-preview-markdown em {
+  font-style: italic;
+}
+
+.docs-preview-markdown code {
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 0.85em;
+  color: var(--accent);
+}
+
+.docs-preview-markdown pre {
+  background: color-mix(in srgb, var(--chip) 60%, transparent);
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 16px 0;
+  border: 1px solid var(--line);
+}
+
+.docs-preview-markdown pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: 12px;
+  color: var(--fg);
+}
+
+.docs-preview-markdown blockquote {
+  margin: 16px 0;
+  padding-left: 16px;
+  border-left: 4px solid var(--accent);
+  color: var(--muted);
+  font-style: italic;
+}
+
+.docs-preview-markdown ul,
+.docs-preview-markdown ol {
+  margin: 12px 0;
+  padding-left: 32px;
+}
+
+.docs-preview-markdown li {
+  margin: 4px 0;
+}
+
+.docs-preview-markdown hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 24px 0;
+}
+
+.docs-preview-markdown a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.15s;
+}
+
+.docs-preview-markdown a:hover {
+  border-bottom-color: var(--accent);
+}

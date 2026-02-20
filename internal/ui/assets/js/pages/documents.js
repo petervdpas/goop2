@@ -391,17 +391,42 @@
           .then(function(text) {
             if (!loadingEl.parentNode) return; // panel was replaced
             var wrap = document.createElement("div");
-            wrap.className = "docs-preview-text-wrap";
-            var pre = document.createElement("pre");
-            pre.className = "docs-preview-text";
-            pre.textContent = text;
-            wrap.appendChild(pre);
+
+            // Check if this is a markdown file
+            if (/\.md$/i.test(name)) {
+              try {
+                wrap.className = "docs-preview-markdown-wrap";
+                var mdDiv = document.createElement("div");
+                mdDiv.className = "docs-preview-markdown";
+
+                // marked.js can be accessed as window.marked or window.marked.marked
+                var markedFn = window.marked;
+                if (typeof markedFn !== 'function') {
+                  if (window.marked && typeof window.marked.parse === 'function') {
+                    markedFn = window.marked.parse;
+                  } else {
+                    throw new Error("marked.js not available (window.marked=" + typeof window.marked + ")");
+                  }
+                }
+                mdDiv.innerHTML = markedFn(text);
+                wrap.appendChild(mdDiv);
+              } catch (e) {
+                throw new Error("Markdown render error: " + e.message);
+              }
+            } else {
+              wrap.className = "docs-preview-text-wrap";
+              var pre = document.createElement("pre");
+              pre.className = "docs-preview-text";
+              pre.textContent = text;
+              wrap.appendChild(pre);
+            }
+
             loadingEl.parentNode.replaceChild(wrap, loadingEl);
           })
-          .catch(function() {
+          .catch(function(err) {
             if (!loadingEl.parentNode) return;
             loadingEl.className = "docs-preview-error";
-            loadingEl.textContent = "Could not load preview.";
+            loadingEl.textContent = "Could not load preview: " + (err.message || err);
           });
       }
     }

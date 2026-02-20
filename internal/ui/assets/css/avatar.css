@@ -190,3 +190,16 @@
 .peer-detail-info code {
   font-size: 0.85em;
 }
+
+.peer-detail-info code[onclick]:hover {
+  color: var(--accent, #6c8cff);
+  cursor: pointer;
+}
+
+.peer-detail-info code.copied {
+  color: #22c55e;
+}
+
+.peer-detail-info code.copied::after {
+  content: " ✓";
+}
