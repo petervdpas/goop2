@@ -47,7 +47,7 @@
   },
   "viewer": {
     "http_addr": ":7777",
-    "debug": false,
+    "debug": true,
     "theme": "dark",
     "preferred_cam": "",
     "preferred_mic": "",

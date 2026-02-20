@@ -88,6 +88,16 @@
     });
   }
 
+  function dlgConfirm(message, title) {
+    return dlgBase({
+      title: title || "Confirm",
+      message,
+      hasInput: false,
+      okText: "OK",
+      cancelText: "Cancel",
+    });
+  }
+
   window.Goop = window.Goop || {};
-  window.Goop.dialogs = { dlgAsk, dlgAlert };
+  window.Goop.dialogs = { dlgAsk, dlgAlert, confirm: dlgConfirm };
 })();

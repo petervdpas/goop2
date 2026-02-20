@@ -42,13 +42,9 @@
       var label = isFunc ? 'function' : 'script';
       var msg = 'Delete ' + label + ' "' + name + '.lua"? This cannot be undone.';
 
-      if (window.Goop && window.Goop.ui && window.Goop.ui.confirm) {
-        Goop.ui.confirm(msg, 'Delete').then(function(ok) {
-          if (ok) doDelete(name, isFunc);
-        });
-      } else if (confirm(msg)) {
-        doDelete(name, isFunc);
-      }
+      Goop.dialogs.confirm(msg, 'Delete').then(function(ok) {
+        if (ok) doDelete(name, isFunc);
+      });
     });
   }
 
@@ -85,12 +81,12 @@
   function applyPrefab(dir, script, label) {
     api('/api/lua/prefabs/apply', { prefab: dir, script: script || undefined, csrf: csrf })
     .then(function() {
-      Goop.ui.toast({ title: 'Installed', message: '"' + label + '" added.', duration: 2000 });
+      Goop.toast({ title: 'Installed', message: '"' + label + '" added.', duration: 2000 });
       setTimeout(function() { window.location.href = '/lua'; }, 500);
     })
     .catch(function(err) {
       var errMsg = err.message || 'Unknown error';
-      Goop.ui.toast({ title: 'Error', message: errMsg, duration: 6000 });
+      Goop.toast({ title: 'Error', message: errMsg, duration: 6000 });
     });
   }
 })();

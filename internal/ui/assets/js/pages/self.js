@@ -219,7 +219,7 @@
               })
               .then(function(data) {
                 if (data.cancelled) return;
-                Goop.ui.toast({ title: 'Exported', message: 'Saved to ' + data.path, duration: 3000 });
+                Goop.toast({ title: 'Exported', message: 'Saved to ' + data.path, duration: 3000 });
               });
           }
           // Fallback: browser download
@@ -231,11 +231,11 @@
           a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
-          Goop.ui.toast({ title: 'Exported', message: 'Site archive downloaded.', duration: 3000 });
+          Goop.toast({ title: 'Exported', message: 'Site archive downloaded.', duration: 3000 });
         })
         .catch(function(err) {
           var errMsg = err.message || 'Unknown error';
-          Goop.ui.toast({ title: 'Export Error', message: errMsg, duration: 6000 });
+          Goop.toast({ title: 'Export Error', message: errMsg, duration: 6000 });
         })
         .finally(function() {
           exportBtn.disabled = false;
@@ -270,28 +270,22 @@
             return res.json();
           })
           .then(function() {
-            Goop.ui.toast({ title: 'Site Imported', message: 'Archive applied. Redirecting to editor...', duration: 3000 });
+            Goop.toast({ title: 'Site Imported', message: 'Archive applied. Redirecting to editor...', duration: 3000 });
             setTimeout(function() { window.location.href = '/edit'; }, 1500);
           })
           .catch(function(err) {
             var errMsg = err.message || 'Unknown error';
-            Goop.ui.toast({ title: 'Import Error', message: errMsg, duration: 6000 });
+            Goop.toast({ title: 'Import Error', message: errMsg, duration: 6000 });
           })
           .finally(function() {
             importFile.value = '';
           });
       }
 
-      if (window.Goop && window.Goop.ui && window.Goop.ui.confirm) {
-        Goop.ui.confirm(msg, 'Import Site').then(function(ok) {
-          if (ok) doImport();
-          else importFile.value = '';
-        });
-      } else if (confirm(msg)) {
-        doImport();
-      } else {
-        importFile.value = '';
-      }
+      Goop.dialogs.confirm(msg, 'Import Site').then(function(ok) {
+        if (ok) doImport();
+        else importFile.value = '';
+      });
     });
   }
 

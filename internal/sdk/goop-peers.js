@@ -6,13 +6,25 @@
 //
 //   // list online peers
 //   const peers = await Goop.peers.list();
-//   // => [{ID, Content, LastSeen}, ...]
+//   // Each peer object:
+//   // {
+//   //   ID:             string   — peer ID
+//   //   Content:        string   — display name / profile text
+//   //   Email:          string   — contact email (may be empty)
+//   //   AvatarHash:     string   — use /api/avatar/peer/<ID> to fetch the image
+//   //   VideoDisabled:  bool     — peer has disabled incoming video calls
+//   //   ActiveTemplate: string   — name of the peer's active site template
+//   //   Verified:       bool     — peer identity is verified
+//   //   Reachable:      bool     — peer is currently reachable over the network
+//   //   Offline:        bool     — peer has gone offline
+//   //   LastSeen:       string   — RFC3339 timestamp of last activity
+//   // }
 //
 //   // subscribe to live updates
 //   Goop.peers.subscribe({
-//     onSnapshot(peers)   { /* full list */ },
+//     onSnapshot(peers)   { /* full list, same shape as list() */ },
 //     onUpdate(peer)      { /* peer came online or updated */ },
-//     onRemove(peer)      { /* peer went offline */ },
+//     onRemove(peer)      { /* peer went offline — only {ID} is present */ },
 //   });
 //
 //   // unsubscribe
@@ -24,7 +36,7 @@
   let sse = null;
 
   window.Goop.peers = {
-    /** Fetch current peer list. Returns [{ID, Content, LastSeen}] */
+    /** Fetch current peer list. Returns array of peer objects (see file header for fields). */
     list() {
       return fetch("/api/peers").then((r) => {
         if (!r.ok) throw new Error(r.statusText);

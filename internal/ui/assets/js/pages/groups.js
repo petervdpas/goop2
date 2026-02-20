@@ -26,20 +26,22 @@
     eventsEl.innerHTML = '<p class="groups-empty">Waiting for events...</p>';
   });
 
-  // Subscribe to group protocol events
+  // Subscribe to group protocol events via direct SSE
   function startEventStream() {
-    if (!window.Goop || !window.Goop.group) {
-      setTimeout(startEventStream, 200);
-      return;
-    }
-    window.Goop.group.subscribe(function(evt) {
-      addEventToLog(evt);
-      if (evt.type === 'members' || evt.type === 'close' || evt.type === 'welcome' || evt.type === 'leave') {
-        refresh();
-      }
-      if (evt.type === 'invite') {
-        g.renderSubscriptions(subListEl);
-      }
+    var es = new EventSource('/api/groups/events');
+    ['members', 'close', 'welcome', 'leave', 'msg', 'invite'].forEach(function(type) {
+      es.addEventListener(type, function(e) {
+        try {
+          var evt = JSON.parse(e.data);
+          addEventToLog(evt);
+          if (type === 'members' || type === 'close' || type === 'welcome' || type === 'leave') {
+            refresh();
+          }
+          if (type === 'invite') {
+            g.renderSubscriptions(subListEl);
+          }
+        } catch(_) {}
+      });
     });
   }
   startEventStream();

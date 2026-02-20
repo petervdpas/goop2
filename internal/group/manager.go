@@ -718,7 +718,7 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 	// Store subscription with full metadata
 	m.db.AddSubscription(hostPeerID, groupID, groupName, appType, maxMembers, volatile, "member")
 
-	m.notifyListeners(&Event{Type: TypeWelcome, Group: groupID, Payload: welcome.Payload})
+	m.notifyListeners(&Event{Type: TypeWelcome, Group: groupID, From: hostPeerID, Payload: welcome.Payload})
 
 	log.Printf("GROUP: Joined group %s on host %s", groupID, hostPeerID)
 
