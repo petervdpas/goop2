@@ -208,8 +208,8 @@
         if (cfg.video_disabled) {
           var camField = document.getElementById('settings-camera-field');
           var micField = document.getElementById('settings-mic-field');
-          if (camField) camField.classList.add('dimmed', 'inert');
-          if (micField) micField.classList.add('dimmed', 'inert');
+          if (camField) { camField.classList.add('dimmed'); camField.inert = true; }
+          if (micField) { micField.classList.add('dimmed'); micField.inert = true; }
           return;
         }
 

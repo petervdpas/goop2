@@ -152,11 +152,14 @@
   border-color: var(--accent);
   color: #fff;
 }
-.peer-call-btn.busy,
-.peer-call-btn:disabled {
+.peer-call-btn.busy {
   opacity: 0.3;
   cursor: default;
   pointer-events: none;
+}
+.peer-call-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 /* Peer detail page: compact header card */

@@ -55,9 +55,10 @@
 
     var peerName = peer.Content || shortId;
 
-    var rowClass = (peer.Offline || peer.Reachable === false) ? ' dimmed inert' : '';
+    var rowDisabled = peer.Offline || peer.Reachable === false;
+    var rowClass = rowDisabled ? ' dimmed' : '';
 
-    return '<li class="peerrow' + rowClass + '" data-peer-id="' + escapeHtml(peer.ID) + '">' +
+    return '<li class="peerrow' + rowClass + '" data-peer-id="' + escapeHtml(peer.ID) + '"' + (rowDisabled ? ' inert' : '') + '>' +
       '<img class="avatar avatar-md" src="' + avatarSrc + '" alt="">' +
       '<div class="peerleft">' +
         '<div class="peer-name-row">' +
@@ -71,25 +72,7 @@
         '<span class="peercontent muted small"><code>' + escapeHtml(shortId) + '</code> &middot; seen ' + escapeHtml(lastSeen) + '</span>' +
       '</div>' +
       '<div class="peerright">' +
-        ((peer.VideoDisabled || selfVideoDisabled) ?
-        '<span class="peer-video-disabled" title="Video/audio calls disabled">' +
-          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#f39c12;">' +
-            '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>' +
-          '</svg>' +
-        '</span>'
-        :
-        '<button class="peer-call-btn" data-call-audio="' + escapeHtml(peer.ID) + '" title="Voice call">' +
-          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-            '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.8.3 1.58.52 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.76.22 1.54.4 2.34.52A2 2 0 0 1 22 16.92z"/>' +
-          '</svg>' +
-        '</button>' +
-        '<button class="peer-call-btn" data-call-video="' + escapeHtml(peer.ID) + '" title="Video call">' +
-          '<svg width="16" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-            '<polygon points="23 7 16 12 23 17 23 7"/>' +
-            '<rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>' +
-          '</svg>' +
-        '</button>'
-        ) +
+        core.callButtonsHTML(peer.ID, core.callDisabledReason(peer.VideoDisabled, selfVideoDisabled)) +
         '<a class="btn" href="' + escapeHtml(baseURL) + '/p/' + peer.ID + '/" onclick="return openSite(\'' + escapeAttr(peer.ID) + '\', \'' + escapeAttr(peerName) + '\')" rel="noopener">' +
           'Open Site' +
         '</a>' +
@@ -164,12 +147,29 @@
     }
   });
 
-  peersSSE.addEventListener('update', function() {
-    fetch('/api/peers').then(function(r) { return r.json(); }).then(renderPeersList).catch(console.error);
+  peersSSE.addEventListener('update', function(e) {
+    try {
+      var data = JSON.parse(e.data);
+      if (data.peer_id && data.peer) {
+        var idx = currentPeers.findIndex(function(p) { return p.ID === data.peer_id; });
+        if (idx >= 0) {
+          currentPeers[idx] = data.peer;
+        } else {
+          currentPeers.push(data.peer);
+        }
+        renderPeersList(null);
+      }
+    } catch (err) { console.error('Failed to parse peer update:', err); }
   });
 
-  peersSSE.addEventListener('remove', function() {
-    fetch('/api/peers').then(function(r) { return r.json(); }).then(renderPeersList).catch(console.error);
+  peersSSE.addEventListener('remove', function(e) {
+    try {
+      var data = JSON.parse(e.data);
+      if (data.peer_id) {
+        currentPeers = currentPeers.filter(function(p) { return p.ID !== data.peer_id; });
+        renderPeersList(null);
+      }
+    } catch (err) { console.error('Failed to parse peer remove:', err); }
   });
 
   peersSSE.onerror = function() {

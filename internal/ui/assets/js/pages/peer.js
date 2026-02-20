@@ -123,6 +123,13 @@
   }
 
   // ── Call buttons ──
+  var callActionsEl = document.querySelector('.chat-call-actions');
+  if (callActionsEl) {
+    var peerVid = callActionsEl.dataset.peerVideoDisabled === 'true';
+    var selfVid = callActionsEl.dataset.selfVideoDisabled === 'true';
+    var reason  = core.callDisabledReason(peerVid, selfVid);
+    callActionsEl.innerHTML = core.callButtonsHTML(peerID, reason, { cls: 'call-btn', audioId: 'btn-audio-call', videoId: 'btn-video-call', large: true });
+  }
   var audioBtn = document.getElementById('btn-audio-call');
   var videoBtn = document.getElementById('btn-video-call');
   var inCall = false;

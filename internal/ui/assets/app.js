@@ -14,6 +14,7 @@
     "/assets/js/settings-popup.js",
     "/assets/js/dialogs.js",
     "/assets/js/toast.js",
+    "/assets/js/groups.js",
   ];
 
   const sdkFiles = [
@@ -39,6 +40,7 @@
     "/assets/js/pages/view.js",
     "/assets/js/pages/peer.js",
     "/assets/js/pages/groups.js",
+    "/assets/js/pages/create_groups.js",
     "/assets/js/pages/documents.js",
     "/assets/js/pages/templates.js",
     "/assets/js/pages/self.js",

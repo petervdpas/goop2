@@ -51,7 +51,7 @@
     "theme": "dark",
     "preferred_cam": "",
     "preferred_mic": "",
-    "video_disabled": true,
+    "video_disabled": false,
     "hide_unverified": false,
     "active_template": "tictactoe",
     "open_sites_external": false,
