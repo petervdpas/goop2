@@ -113,7 +113,7 @@
     if (!listenAudioEl) {
       listenAudioEl = document.createElement("audio");
       listenAudioEl.preload = "none";
-      listenAudioEl.style.display = "none";
+      listenAudioEl.classList.add('hidden');
       document.body.appendChild(listenAudioEl);
     }
     return listenAudioEl;
@@ -429,12 +429,12 @@
           audio.volume = 0.8;
           audio.play().catch(function(e) {
             console.warn("LISTEN autoplay blocked:", e);
-            if (playFallback) playFallback.style.display = "";
+            if (playFallback) playFallback.classList.remove('hidden');
           });
         }
         if (playFallback) {
           on(playFallback, "click", function() {
-            playFallback.style.display = "none";
+            playFallback.classList.add('hidden');
             audio.play().catch(function(e) { console.warn("LISTEN manual play failed:", e); });
           });
         }
@@ -770,8 +770,9 @@
           var isListen = s.app_type === "listen";
           var isFiles = s.app_type === "files";
           if (isListen && isActive) hasListenSub = true;
+          var cardDisabled = !isActive && !s.host_reachable;
           html += '<div class="' + (isListen && isActive ? 'groups-card-wrap' : '') + '">' +
-            '<div class="groups-card">' +
+            '<div class="groups-card' + (cardDisabled ? ' dimmed' : '') + '">' +
             '<div class="groups-card-info">' +
               '<div class="groups-card-name">' + escapeHtml(displayName) +
                 typeBadge(s.app_type) +

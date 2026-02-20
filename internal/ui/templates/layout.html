@@ -37,7 +37,7 @@
             <a class="navitem {{if isActive .Active "database"}}active{{end}}" href="{{.BaseURL}}/database">Database</a>
             <a class="navitem {{if isActive .Active "documents"}}active{{end}}" href="{{.BaseURL}}/documents">Files</a>
             <a class="navitem {{if isActive .Active "logs"}}active{{end}}" href="{{.BaseURL}}/logs">Logs</a>
-            <a class="navitem {{if isActive .Active "view"}}active{{end}}" href="{{.BaseURL}}/view" id="nav-view" style="display:none">View</a>
+            <a class="navitem {{if isActive .Active "view"}}active{{end}} hidden" href="{{.BaseURL}}/view" id="nav-view">View</a>
           </nav>
         {{else if .RendezvousOnly}}
           <nav class="topnav">
@@ -59,7 +59,7 @@
             {{if .SelfName}}
             <div class="me">
               <span class="me-label">{{.SelfName}}</span>
-              <span class="me-credits" id="meCredits" style="display:none"></span>
+              <span class="me-credits hidden" id="meCredits"></span>
             </div>
             {{end}}
           </div>

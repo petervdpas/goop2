@@ -32,24 +32,19 @@
     var theme = document.documentElement.getAttribute('data-theme') || 'dark';
 
     backdrop = el('div', 'ed-dlg-backdrop');
-    var dlg = el('div', 'ed-dlg');
-    dlg.style.width = 'min(440px, 94vw)';
-    dlg.style.overflow = 'visible';
+    var dlg = el('div', 'ed-dlg settings-dlg');
 
     // Head
     var head = el('div', 'ed-dlg-head');
     head.innerHTML = '<span class="ed-dlg-title">Settings</span>';
-    var closeBtn = el('button', 'ed-dlg-btn');
+    var closeBtn = el('button', 'ed-dlg-btn btn-sm');
     closeBtn.textContent = 'Close';
-    closeBtn.style.padding = '4px 10px';
-    closeBtn.style.fontSize = '12px';
     closeBtn.onclick = closePopup;
     head.appendChild(closeBtn);
     dlg.appendChild(head);
 
     // Body
     var body = el('div', 'ed-dlg-body');
-    body.style.gap = '14px';
 
     // ── Profile section ──
     body.appendChild(sectionLabel('Profile'));
@@ -75,7 +70,7 @@
     devicesLabel.id = 'settings-devices-label';
     var osType = document.body.getAttribute('data-os') || '';
     if (osType === 'linux') {
-      devicesLabel.innerHTML += ' <span style="font-weight:400;font-size:10px;text-transform:none;letter-spacing:0;opacity:0.7">(may not work on Linux)</span>';
+      devicesLabel.innerHTML += ' <span class="devices-caveat">(may not work on Linux)</span>';
     }
     body.appendChild(devicesLabel);
 
@@ -138,12 +133,7 @@
   }
 
   function sectionLabel(text) {
-    var lbl = el('div', '', '');
-    lbl.style.fontWeight = '650';
-    lbl.style.fontSize = '13px';
-    lbl.style.color = 'var(--muted)';
-    lbl.style.textTransform = 'uppercase';
-    lbl.style.letterSpacing = '0.6px';
+    var lbl = el('div', 'popup-section-label');
     lbl.textContent = text;
     return lbl;
   }
@@ -160,41 +150,35 @@
   }
 
   function passwordField(placeholder, value, id) {
-    var wrap = el('div', '', '');
-    wrap.style.position = 'relative';
+    var wrap = el('div', 'password-wrap');
     var inp = el('input', 'ed-dlg-input');
     inp.type = 'password';
     inp.id = id;
     inp.placeholder = placeholder;
     inp.value = value;
-    inp.style.paddingRight = '36px';
     wrap.appendChild(inp);
 
-    var toggle = el('button', '');
+    var toggle = el('button', 'password-toggle');
     toggle.type = 'button';
     toggle.title = 'Show/hide token';
-    toggle.style.cssText = 'position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:4px;color:var(--muted);font-size:16px;line-height:1';
     toggle.innerHTML = '&#x1F441;';
     toggle.onclick = function() {
       if (inp.type === 'password') {
         inp.type = 'text';
-        toggle.style.opacity = '1';
+        toggle.classList.add('visible');
       } else {
         inp.type = 'password';
-        toggle.style.opacity = '0.5';
+        toggle.classList.remove('visible');
       }
     };
-    toggle.style.opacity = '0.5';
     wrap.appendChild(toggle);
     return wrap;
   }
 
   function selectField(labelText, selectOpts) {
     var wrap = el('div', '', '');
-    var lbl = el('label', 'small muted');
+    var lbl = el('label', 'small muted field-label');
     lbl.textContent = labelText;
-    lbl.style.display = 'block';
-    lbl.style.marginBottom = '4px';
     wrap.appendChild(lbl);
     if (gsel()) wrap.innerHTML += Goop.select.html(selectOpts);
     return wrap;
@@ -224,21 +208,8 @@
         if (cfg.video_disabled) {
           var camField = document.getElementById('settings-camera-field');
           var micField = document.getElementById('settings-mic-field');
-          if (camField) camField.style.opacity = '0.5';
-          if (micField) micField.style.opacity = '0.5';
-          // Disable the gsel dropdowns
-          var camDis = document.getElementById('settings-camera');
-          var micDis = document.getElementById('settings-mic');
-          if (camDis) {
-            camDis.disabled = true;
-            var camWrap = camDis.closest('.gsel');
-            if (camWrap) camWrap.style.pointerEvents = 'none';
-          }
-          if (micDis) {
-            micDis.disabled = true;
-            var micWrap = micDis.closest('.gsel');
-            if (micWrap) micWrap.style.pointerEvents = 'none';
-          }
+          if (camField) camField.classList.add('dimmed', 'inert');
+          if (micField) micField.classList.add('dimmed', 'inert');
           return;
         }
 

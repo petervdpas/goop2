@@ -38,3 +38,10 @@ h1{
 
 /* GLOBAL hidden helper (used for rv-open) */
 .hidden{ display:none !important; }
+
+/* Interaction barrier: disables pointer events on element AND all descendants */
+.inert,
+.inert * { pointer-events: none; }
+
+/* Visual disabled state */
+.dimmed { opacity: 0.5; }

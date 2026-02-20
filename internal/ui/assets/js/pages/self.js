@@ -93,7 +93,7 @@
     if (!urlEl || !btn) return;
 
     function updateVisibility() {
-      btn.style.display = urlEl.value.trim() ? '' : 'none';
+      btn.classList.toggle('hidden', !urlEl.value.trim());
     }
     btn.addEventListener('click', function() { checkService(name); });
     urlEl.addEventListener('input', updateVisibility);
@@ -115,7 +115,7 @@
         s.classList.toggle('active', s.getAttribute('data-section') === target);
       });
       if (saveBar) {
-        saveBar.style.display = (target === 'data') ? 'none' : '';
+        saveBar.classList.toggle('hidden', target === 'data');
       }
     });
   });
@@ -321,7 +321,7 @@
           .catch(function(err) { console.error('Browse failed:', err); });
       });
     } else {
-      tplBrowse.style.display = 'none';
+      tplBrowse.classList.add('hidden');
     }
   }
 })();

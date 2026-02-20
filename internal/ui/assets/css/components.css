@@ -49,15 +49,6 @@
 
 .peerrow:last-child{ border-bottom:0; }
 
-.peerrow.peer-unreachable{
-  opacity: 0.4;
-  pointer-events: none;
-}
-
-.peerrow.peer-offline{
-  opacity: 0.5;
-}
-
 .peer-unreachable-banner{
   display: flex;
   align-items: center;

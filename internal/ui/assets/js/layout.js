@@ -33,7 +33,7 @@
   // Show "View" nav only when embedded mode is on (open_sites_external=false)
   var navView = document.getElementById('nav-view');
   if (navView) {
-    navView.style.display = window._openSitesExternal ? 'none' : '';
+    navView.classList.toggle('hidden', window._openSitesExternal);
   }
 
   // ── Chat notifications (only when logged in) ──
@@ -118,7 +118,7 @@
     fetch('/api/my-balance').then(function(r){ return r.json(); }).then(function(d){
       if (!d.credits_active) return;
       el.textContent = '\uD83E\uDE99 ' + d.balance + ' credits';
-      el.style.display = '';
+      el.classList.remove('hidden');
     }).catch(function(){});
   }
 })();
