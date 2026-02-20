@@ -16,6 +16,7 @@ type SeenPeer struct {
 	Reachable      bool
 	LastSeen       time.Time
 	OfflineSince   time.Time
+	Favorite       bool
 }
 
 type PeerEvent struct {
@@ -42,10 +43,13 @@ func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled 
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	reachable := true
+	favorite := false
 	if existing, ok := t.peers[id]; ok {
 		if existing.OfflineSince.IsZero() {
 			reachable = existing.Reachable
 		}
+		// Preserve local favorite status across presence updates
+		favorite = existing.Favorite
 	}
 	peer := SeenPeer{
 		Content:        content,
@@ -56,12 +60,13 @@ func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled 
 		Verified:       verified,
 		Reachable:      reachable,
 		LastSeen:       time.Now(),
+		Favorite:       favorite,
 	}
 	t.peers[id] = peer
 	t.notifyListeners(PeerEvent{Type: "update", PeerID: id, Peer: &peer})
 }
 
-func (t *PeerTable) Seed(id, content, email, avatarHash string, videoDisabled bool, activeTemplate string, verified bool) {
+func (t *PeerTable) Seed(id, content, email, avatarHash string, videoDisabled bool, activeTemplate string, verified bool, favorite bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if _, ok := t.peers[id]; ok {
@@ -77,6 +82,7 @@ func (t *PeerTable) Seed(id, content, email, avatarHash string, videoDisabled bo
 		Reachable:      false,
 		LastSeen:       time.Now(),
 		OfflineSince:   time.Now(),
+		Favorite:       favorite,
 	}
 	t.peers[id] = sp
 	t.notifyListeners(PeerEvent{Type: "update", PeerID: id, Peer: &sp})
@@ -146,6 +152,18 @@ func (t *PeerTable) SetReachable(id string, reachable bool) {
 		return
 	}
 	sp.Reachable = reachable
+	t.peers[id] = sp
+	t.notifyListeners(PeerEvent{Type: "update", PeerID: id, Peer: &sp})
+}
+
+func (t *PeerTable) SetFavorite(id string, favorite bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	sp, ok := t.peers[id]
+	if !ok {
+		return
+	}
+	sp.Favorite = favorite
 	t.peers[id] = sp
 	t.notifyListeners(PeerEvent{Type: "update", PeerID: id, Peer: &sp})
 }

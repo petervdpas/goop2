@@ -13,7 +13,7 @@
       <span class="loading-text">Loading...</span>
     </div>
     <div class="muted small">
-      {{if .PeerEmail}}{{.PeerEmail}} &middot; {{end}}<code>{{.PeerID}}</code>
+      {{if .PeerEmail}}{{.PeerEmail}} &middot; {{end}}<code class="copy-hint-inline" onclick="Goop.core.copyToClipboard('{{.PeerID}}', event.target.closest('code'))" title="Click to copy Peer ID" style="cursor:pointer">{{.PeerID}}</code>
     </div>
   </div>
   <a class="btn identity-site-btn"

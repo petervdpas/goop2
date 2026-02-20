@@ -109,6 +109,22 @@ func registerHomeRoutes(mux *http.ServeMux, d Deps) {
 		writeJSON(w, viewmodels.BuildPeerRows(d.Peers.Snapshot()))
 	})
 
+	// Toggle favorite status for a peer
+	handlePost(mux, "/api/peers/favorite", func(w http.ResponseWriter, r *http.Request, body map[string]any) {
+		peerID, _ := body["peer_id"].(string)
+		fav, _ := body["favorite"].(bool)
+		if peerID == "" {
+			http.Error(w, "peer_id required", http.StatusBadRequest)
+			return
+		}
+		if err := d.DB.SetFavorite(peerID, fav); err != nil {
+			http.Error(w, "failed to update", http.StatusInternalServerError)
+			return
+		}
+		d.Peers.SetFavorite(peerID, fav)
+		w.WriteHeader(http.StatusOK)
+	})
+
 	// JSON endpoint for peers list
 	handleGet(mux, "/api/peers", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, viewmodels.BuildPeerRows(d.Peers.Snapshot()))
