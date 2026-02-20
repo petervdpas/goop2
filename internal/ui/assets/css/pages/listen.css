@@ -17,19 +17,6 @@
   min-height:0;
 }
 
-.listen-section-head{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 10px;
-}
-
-.listen-section-title{
-  font-weight: 750;
-}
 
 .listen-section-subtitle{
   font-weight: 650;
@@ -44,31 +31,6 @@
 /* -----------------------------
    Action buttons
 ------------------------------ */
-.listen-action-btn{
-  padding: 6px 10px;
-  border-radius: 999px;
-  white-space: nowrap;
-  font-size: 13px;
-}
-
-.listen-btn-primary{
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-}
-
-.listen-btn-primary:hover{
-  background: color-mix(in srgb, var(--accent) 32%, transparent);
-}
-
-.listen-btn-danger{
-  color: #e55;
-  border-color: color-mix(in srgb, #e55 38%, transparent);
-  background: color-mix(in srgb, #e55 10%, transparent);
-}
-
-.listen-btn-danger:hover{
-  background: color-mix(in srgb, #e55 18%, transparent);
-}
 
 /* -----------------------------
    Forms
@@ -78,43 +40,6 @@
   max-width: 400px;
 }
 
-.listen-form-group{
-  margin-bottom: 12px;
-}
-
-.listen-form-group > label{
-  display:block;
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 6px;
-  letter-spacing: 0.2px;
-}
-
-.listen-input{
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--field-bg);
-  color: var(--text);
-  outline:none;
-  font-size: 13px;
-  transition: border-color var(--ease), box-shadow var(--ease), background var(--ease);
-  box-sizing: border-box;
-}
-
-.listen-input:focus{
-  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
-  box-shadow: var(--ring);
-  background: var(--field-bg-2);
-}
-
-.listen-form-actions{
-  display:flex;
-  gap: 8px;
-  justify-content:flex-end;
-  margin-top: 14px;
-}
 
 /* -----------------------------
    Track loader

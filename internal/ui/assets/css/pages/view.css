@@ -1,0 +1,150 @@
+/* View page — embedded peer site viewer with tabs */
+
+/* Remove content padding when viewing embedded sites */
+.content:has(.view-page) {
+  padding: 0;
+}
+
+.view-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.view-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px 0;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  flex: 0 0 auto;
+}
+
+.view-tabs:empty {
+  display: none;
+}
+
+.view-tabs-hint {
+  margin-left: auto;
+  align-self: center;
+  padding: 0 8px;
+  white-space: nowrap;
+  opacity: 0.5;
+  font-size: 11px;
+}
+
+.view-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  white-space: nowrap;
+  transition: background var(--ease), color var(--ease);
+  max-width: 220px;
+}
+
+.view-tab:hover {
+  background: var(--glass);
+  color: var(--text);
+}
+
+.view-tab.active {
+  background: var(--bg);
+  color: var(--text);
+  border-color: var(--line);
+}
+
+.view-tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.view-tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.view-tab-close:hover {
+  background: var(--danger, #e74c3c);
+  color: #fff;
+}
+
+.view-frame-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  position: relative;
+}
+
+.view-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  flex: 1;
+}
+
+.view-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+/* Tab context menu */
+.view-ctx {
+  position: fixed;
+  z-index: 9999;
+  min-width: 160px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: var(--shadow-md);
+}
+
+.view-ctx.hidden { display: none; }
+
+.view-ctx button {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.view-ctx button:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.view-ctx hr {
+  border: 0;
+  height: 1px;
+  background: var(--line);
+  margin: 4px 0;
+}

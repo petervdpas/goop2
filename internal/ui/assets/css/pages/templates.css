@@ -1,0 +1,215 @@
+
+/* ── Create tabs (Editor / Templates) ── */
+.create-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1.25rem;
+  border-bottom: 2px solid var(--border);
+}
+
+.create-tab {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.create-tab:hover {
+  color: var(--fg);
+}
+
+.create-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ── Templates page ── */
+.page-templates .tpl-heading {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.25rem;
+}
+
+.page-templates .tpl-sub {
+  margin: 0 0 1.25rem 0;
+}
+
+/* ── Template card grid ── */
+.tpl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.tpl-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.tpl-card-active {
+  border-color: #f1c40f;
+}
+
+.tpl-active-star {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  font-size: 1.2rem;
+  color: #f1c40f;
+  line-height: 1;
+}
+
+.tpl-owned-star {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  font-size: 1.2rem;
+  color: var(--muted);
+  opacity: 0.5;
+  line-height: 1;
+}
+
+.tpl-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* ── Card head (icon left, price right) ── */
+.tpl-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.tpl-card-head .tpl-card-icon {
+  margin-bottom: 0;
+}
+
+.tpl-card-icon {
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.tpl-card-body {
+  flex: 1;
+}
+
+.tpl-card-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+}
+
+.tpl-card-cat {
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.75rem;
+}
+
+.tpl-card-desc {
+  color: var(--muted);
+  line-height: 1.4;
+  margin-bottom: 1rem;
+}
+
+.tpl-card-apply {
+  align-self: flex-start;
+  padding: 0.4rem 1.1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tpl-card-apply:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* ── Card footer (price + apply) ── */
+.tpl-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+/* ── Price badges ── */
+.tpl-price {
+  display: inline-block;
+  padding: 0.3rem 0.7rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.tpl-price-free {
+  text-transform: uppercase;
+}
+
+.tpl-price-free {
+  background: rgba(46, 204, 113, 0.12);
+  color: #2ecc71;
+}
+
+.tpl-price-credits {
+  background: rgba(240, 136, 62, 0.12);
+  color: #f0883e;
+}
+
+/* ── Section headings ── */
+.tpl-section-heading {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 1.5rem 0 0.75rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tpl-section-heading:first-of-type {
+  margin-top: 0;
+}
+
+/* ── Registration notice ── */
+.tpl-reg-notice {
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+  border-left: 3px solid var(--accent);
+  background: var(--panel);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+/* ── Store badge ── */
+.tpl-badge-store {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--bg);
+  vertical-align: middle;
+  line-height: 1;
+}

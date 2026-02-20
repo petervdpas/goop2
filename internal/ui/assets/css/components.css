@@ -141,91 +141,6 @@
 }
 
 /* -----------------------------
-   Buttons
------------------------------- */
-.btn,
-button{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--text);
-  cursor:pointer;
-  transition: background var(--ease), transform var(--ease), border-color var(--ease), box-shadow var(--ease);
-}
-
-.btn:hover,
-button:hover{
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
-  text-decoration:none;
-  transform: translateY(-0.5px);
-}
-
-.btn:active,
-button:active{
-  transform: translateY(0px);
-}
-
-.btn:focus-visible,
-button:focus-visible{
-  outline: none;
-  box-shadow: var(--ring);
-}
-
-/* -----------------------------
-   Switch
------------------------------- */
-.switch{
-  position: relative;
-  display:inline-block;
-  width: 46px;
-  height: 24px;
-}
-
-.switch input{
-  opacity:0;
-  width:0;
-  height:0;
-}
-
-.slider{
-  position:absolute;
-  inset:0;
-  cursor:pointer;
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 36%, transparent);
-  border-radius: 999px;
-  transition: background var(--ease), border-color var(--ease), box-shadow var(--ease);
-}
-
-.slider:before{
-  content:"";
-  position:absolute;
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  top: 2px;
-  background: var(--text);
-  border-radius: 999px;
-  transition: transform var(--ease), background var(--ease);
-}
-
-.switch input:checked + .slider{
-  background: color-mix(in srgb, var(--accent) 30%, transparent);
-}
-
-.switch input:checked + .slider:before{
-  transform: translateX(22px);
-}
-
-.switch input:focus-visible + .slider{
-  box-shadow: var(--ring);
-}
-
-/* -----------------------------
    Chat
 ------------------------------ */
 /* peer detail page — flex fill so chat takes remaining space */
@@ -252,30 +167,6 @@ button:focus-visible{
 .chat-call-actions {
   display: flex;
   gap: 6px;
-}
-.call-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  background: var(--panel2);
-  color: var(--text);
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-.call-btn.busy,
-.call-btn:disabled {
-  opacity: 0.3;
-  cursor: default;
-  pointer-events: none;
-}
-.call-btn:hover {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
 }
 
 .chat-container {
@@ -454,24 +345,18 @@ button:focus-visible{
   text-align: left;
 }
 
-/* emoji picker */
-.emoji-btn {
-  padding: 6px 10px;
-  font-size: 18px;
-  line-height: 1;
-  background: transparent;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: background var(--ease), border-color var(--ease);
-  flex-shrink: 0;
-}
-.emoji-btn:hover,
-.emoji-btn.active {
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+/* big emoji: emoji-only messages without bubble */
+.msg-content.msg-emoji-only {
+  font-size: 64px;
+  line-height: 1.1;
+  background: none !important;
+  border: none !important;
+  padding: 0 4px;
 }
 
+/* -----------------------------
+   Emoji picker panel
+------------------------------ */
 .emoji-picker {
   position: absolute;
   bottom: 100%;
@@ -492,28 +377,6 @@ button:focus-visible{
   border-bottom: 1px solid var(--line);
   background: var(--panel);
   padding: 4px 4px 0;
-}
-
-.emoji-tab {
-  flex: 1;
-  padding: 6px 4px;
-  font-size: 16px;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  cursor: pointer;
-  transition: background var(--ease), border-color var(--ease);
-  opacity: 0.6;
-}
-.emoji-tab:hover {
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  opacity: 0.9;
-  transform: none;
-}
-.emoji-tab.active {
-  border-bottom-color: var(--accent);
-  opacity: 1;
 }
 
 .emoji-grid {
@@ -541,15 +404,6 @@ button:focus-visible{
 .emoji-item:hover {
   background: color-mix(in srgb, var(--accent) 20%, transparent);
   transform: scale(1.15);
-}
-
-/* big emoji: emoji-only messages without bubble */
-.msg-content.msg-emoji-only {
-  font-size: 64px;
-  line-height: 1.1;
-  background: none !important;
-  border: none !important;
-  padding: 0 4px;
 }
 
 /* -----------------------------
@@ -679,4 +533,120 @@ html[data-theme="light"] .peers-splash img {
 @keyframes pulse {
   0%, 100% { opacity: 0.4; }
   50% { opacity: 1; }
+}
+
+/* ==============================
+   Shared page utilities
+   (section heads, forms, list items shared across pages)
+============================== */
+
+/* Section head — flex bar with border below */
+.db-sidebar-head,
+.db-content-head,
+.groups-section-head,
+.listen-section-head,
+.docs-section-head,
+.settings-sidebar-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 10px;
+}
+
+/* All section heads except settings sidebar get space-between */
+.db-sidebar-head,
+.db-content-head,
+.groups-section-head,
+.listen-section-head,
+.docs-section-head {
+  justify-content: space-between;
+}
+
+/* Section title bold weight */
+.db-sidebar-title,
+.db-table-title,
+.groups-section-title,
+.listen-section-title,
+.docs-section-title,
+.settings-sidebar-title,
+.settings-section-title {
+  font-weight: 750;
+}
+
+/* Form group spacing */
+.db-form-group,
+.groups-form-group,
+.listen-form-group {
+  margin-bottom: 12px;
+}
+
+/* Form group labels */
+.db-form-group > label,
+.groups-form-group > label,
+.listen-form-group > label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+  letter-spacing: 0.2px;
+}
+
+/* Page pill-style input */
+.db-input,
+.groups-input,
+.listen-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--field-bg);
+  color: var(--text);
+  outline: none;
+  font-size: 13px;
+  transition: border-color var(--ease), box-shadow var(--ease), background var(--ease);
+  box-sizing: border-box;
+}
+
+.db-input:focus,
+.groups-input:focus,
+.listen-input:focus {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: var(--ring);
+  background: var(--field-bg-2);
+}
+
+/* Form actions row (right-aligned) */
+.db-form-actions,
+.groups-form-actions,
+.listen-form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+/* Sidebar list item — pill with hover/active */
+.db-table-item,
+.settings-nav-item {
+  display: flex;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--ease), border-color var(--ease);
+  border: 1px solid transparent;
+}
+
+.db-table-item:hover,
+.settings-nav-item:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.db-table-item.active,
+.settings-nav-item.active {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
 }
