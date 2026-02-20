@@ -15,15 +15,25 @@
   var peersList = document.getElementById('peers-list');
   var peerCount = document.getElementById('peer-count');
   var peerSearch = document.getElementById('peer-search');
+  var peerSearchModeSelector = document.getElementById('peer-search-mode-selector');
+  var peerSearchModeTrigger = document.getElementById('peer-search-mode-trigger');
   var messagesDiv = document.getElementById('broadcast-messages');
   var form = document.getElementById('broadcast-form');
   var input = document.getElementById('broadcast-input');
+  var addressbookToggle = document.getElementById('addressbook-toggle');
+  var peerCtxMenu = document.getElementById('peer-ctx-menu');
 
   // Track unread direct messages per peer
   var unreadPeers = new Set();
 
   // Current peers data for search filtering
   var currentPeers = [];
+
+  // Address book mode
+  var addrBookMode = false;
+
+  // Search mode
+  var searchMode = 'name';
 
   // Map of peer ID -> friendly label (populated by SSE snapshot)
   var peerLabels = {};
@@ -58,13 +68,14 @@
     var rowDisabled = peer.Offline || peer.Reachable === false;
     var rowClass = rowDisabled ? ' dimmed' : '';
 
-    return '<li class="peerrow' + rowClass + '" data-peer-id="' + escapeHtml(peer.ID) + '"' + (rowDisabled ? ' inert' : '') + '>' +
+    return '<li class="peerrow' + rowClass + '" data-peer-id="' + escapeHtml(peer.ID) + '" data-favorite="' + (peer.Favorite ? 'true' : 'false') + '"' + (rowDisabled ? ' inert' : '') + '>' +
       '<img class="avatar avatar-md" src="' + avatarSrc + '" alt="">' +
       '<div class="peerleft">' +
         '<div class="peer-name-row">' +
           '<a class="peerid" href="/peer/' + escapeHtml(peer.ID) + '">' +
             '<span class="peer-badge' + (hasUnread ? '' : ' hidden') + '" data-unread-badge="' + escapeHtml(peer.ID) + '">\u25CF</span>' +
             escapeHtml(peerName) +
+            (peer.Favorite ? '<span class="peer-fav-star">★</span>' : '') +
           '</a>' +
           (peer.Verified ? '' : '<span class="badge-unverified">unverified</span>') +
           (peer.Email ? '<span class="peeremail muted small">' + escapeHtml(peer.Email) + '</span>' : '') +
@@ -94,14 +105,21 @@
     // Apply search filter
     var query = (peerSearch.value || '').trim().toLowerCase();
     var filtered = currentPeers;
+    if (addrBookMode) {
+      filtered = filtered.filter(function(peer) { return peer.Favorite === true; });
+    }
     if (hideUnverified) {
       filtered = filtered.filter(function(peer) { return peer.Verified; });
     }
     if (query) {
       filtered = filtered.filter(function(peer) {
-        var name = (peer.Content || '').toLowerCase();
-        var id = peer.ID.toLowerCase();
-        return name.includes(query) || id.includes(query);
+        if (searchMode === 'id') {
+          var id = peer.ID.toLowerCase();
+          return id.includes(query);
+        } else {
+          var name = (peer.Content || '').toLowerCase();
+          return name.includes(query);
+        }
       });
     }
 
@@ -134,6 +152,22 @@
   peerSearch.addEventListener('input', function() {
     renderPeersList(null);
   });
+
+  // Wire up search mode dropdown (using Goop.select API)
+  if (peerSearchModeSelector && window.Goop && window.Goop.select) {
+    Goop.select.init(peerSearchModeSelector, function(newMode) {
+      searchMode = newMode;
+      renderPeersList(null);
+    });
+  }
+
+  // Wire up address book toggle
+  if (addressbookToggle) {
+    addressbookToggle.addEventListener('change', function() {
+      addrBookMode = this.checked;
+      renderPeersList(null);
+    });
+  }
 
   // Connect to peers SSE
   var peersSSE = new EventSource('/api/peers/events');
@@ -175,6 +209,82 @@
   peersSSE.onerror = function() {
     console.error('Peers SSE connection lost');
   };
+
+  // =====================
+  // Context Menu
+  // =====================
+
+  var ctxMenuTarget = null;
+
+  if (peerCtxMenu) {
+    // Show context menu on right-click of peer row
+    document.addEventListener('contextmenu', function(e) {
+      var peerRow = e.target.closest('.peerrow');
+      if (!peerRow) return;
+
+      e.preventDefault();
+      ctxMenuTarget = peerRow.getAttribute('data-peer-id');
+      if (!ctxMenuTarget) return;
+
+      var peer = currentPeers.find(function(p) { return p.ID === ctxMenuTarget; });
+      if (!peer) return;
+
+      // Show/hide buttons based on favorite state
+      var favBtn = peerCtxMenu.querySelector('[data-action="favorite"]');
+      var unfavBtn = peerCtxMenu.querySelector('[data-action="unfavorite"]');
+      if (peer.Favorite) {
+        if (favBtn) favBtn.style.display = 'none';
+        if (unfavBtn) unfavBtn.style.display = 'block';
+      } else {
+        if (favBtn) favBtn.style.display = 'block';
+        if (unfavBtn) unfavBtn.style.display = 'none';
+      }
+
+      // Position menu
+      peerCtxMenu.classList.remove('hidden');
+      peerCtxMenu.style.position = 'fixed';
+      peerCtxMenu.style.left = Math.min(e.clientX, window.innerWidth - 200) + 'px';
+      peerCtxMenu.style.top = Math.min(e.clientY, window.innerHeight - 100) + 'px';
+    });
+
+    // Hide menu on click or escape
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('#peer-ctx-menu')) {
+        peerCtxMenu.classList.add('hidden');
+      }
+    });
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        peerCtxMenu.classList.add('hidden');
+      }
+    });
+
+    // Handle menu actions
+    peerCtxMenu.querySelectorAll('button').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        var action = this.getAttribute('data-action');
+        if (!ctxMenuTarget) return;
+
+        var isFav = action === 'favorite';
+        api('/api/peers/favorite', { peer_id: ctxMenuTarget, favorite: isFav })
+          .then(function() {
+            // Update local peer state immediately
+            var idx = currentPeers.findIndex(function(p) { return p.ID === ctxMenuTarget; });
+            if (idx >= 0) {
+              currentPeers[idx].Favorite = isFav;
+              renderPeersList(null);
+            }
+          })
+          .catch(function(err) {
+            console.error('Failed to toggle favorite:', err);
+          });
+
+        peerCtxMenu.classList.add('hidden');
+      });
+    });
+  }
 
   // =====================
   // Call Buttons

@@ -155,6 +155,25 @@ func Open(configDir string) (*DB, error) {
 		return nil, fmt.Errorf("create peer cache table: %w", err)
 	}
 
+	// Separate table for favorites — stores favorite peers with their metadata.
+	// Favorites are never pruned by TTL, so metadata is always available even if peer goes offline.
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS _favorites (
+			peer_id          TEXT PRIMARY KEY,
+			content          TEXT    NOT NULL DEFAULT '',
+			email            TEXT    NOT NULL DEFAULT '',
+			avatar_hash      TEXT    NOT NULL DEFAULT '',
+			video_disabled   INTEGER NOT NULL DEFAULT 0,
+			active_template  TEXT    NOT NULL DEFAULT '',
+			verified         INTEGER NOT NULL DEFAULT 0,
+			addrs            TEXT    NOT NULL DEFAULT '[]',
+			last_seen        DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+	`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("create favorites table: %w", err)
+	}
+
 	return &DB{db: db, path: dbPath}, nil
 }
 

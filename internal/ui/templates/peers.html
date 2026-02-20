@@ -2,9 +2,30 @@
 <div class="peers-page" data-self-id="{{.SelfID}}" data-self-name="{{.SelfName}}" data-self-video-disabled="{{.SelfVideoDisabled}}" data-hide-unverified="{{.HideUnverified}}" data-base-url="{{.BaseURL}}">
   <div class="peers-panel">
     <div class="peers-section">
-      <h1>Peers <span class="peer-count muted" id="peer-count">({{len .Peers}})</span></h1>
+      <h1 class="peers-header">
+        <span>Peers <span class="peer-count muted" id="peer-count">({{len .Peers}})</span></span>
+        <div class="addressbook-control">
+          <label class="switch" id="addressbook-switch" title="Show favorites only">
+            <input type="checkbox" id="addressbook-toggle">
+            <span class="slider"></span>
+          </label>
+          <span class="control-label">Show favorites</span>
+        </div>
+      </h1>
 
-      <input type="text" id="peer-search" class="peer-search" placeholder="Search peers..." autocomplete="off">
+      <div class="search-row">
+        <div class="gsel" id="peer-search-mode-selector" data-value="name" data-placeholder="Search mode">
+          <button class="gsel-trigger" type="button">
+            <span class="gsel-text">Search by Name</span>
+            <span class="gsel-arrow">▼</span>
+          </button>
+          <div class="gsel-dropdown">
+            <button class="gsel-option selected" type="button" data-value="name">Search by Name</button>
+            <button class="gsel-option" type="button" data-value="id">Search by ID</button>
+          </div>
+        </div>
+        <input type="text" id="peer-search" class="peer-search" placeholder="Search peers..." autocomplete="off">
+      </div>
 
       <div id="peers-list" class="peers-list-scroll">
       {{if not .Peers}}
@@ -77,6 +98,11 @@
 
   <div class="peers-splash">
     <img src="/assets/images/{{.Splash}}" alt="Goop²">
+  </div>
+
+  <div id="peer-ctx-menu" class="view-ctx hidden">
+    <button data-action="favorite">★ Add to Address Book</button>
+    <button data-action="unfavorite">✕ Remove from Address Book</button>
   </div>
 </div>
 {{end}}

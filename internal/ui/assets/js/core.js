@@ -64,6 +64,17 @@
     return null;
   }
 
+  function copyToClipboard(text, element) {
+    navigator.clipboard.writeText(text).then(function() {
+      if (element) {
+        element.classList.add('copied');
+        setTimeout(function() {
+          element.classList.remove('copied');
+        }, 1200);
+      }
+    });
+  }
+
   function toast(msg, isError) {
     if (window.Goop && window.Goop.toast) {
       window.Goop.toast({
@@ -124,6 +135,7 @@
     escapeHtml,
     api,
     toast,
+    copyToClipboard,
     callDisabledReason,
     callButtonsHTML,
   };

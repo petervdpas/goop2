@@ -19,6 +19,7 @@ type PeerRow struct {
 	Reachable      bool      `json:"Reachable"`
 	Offline        bool      `json:"Offline"`
 	LastSeen       time.Time `json:"LastSeen"`
+	Favorite       bool      `json:"Favorite"`
 }
 
 type PeersVM struct {
@@ -41,6 +42,7 @@ func BuildPeerRow(id string, sp state.SeenPeer) PeerRow {
 		Reachable:      sp.Reachable,
 		Offline:        !sp.OfflineSince.IsZero(),
 		LastSeen:       sp.LastSeen,
+		Favorite:       sp.Favorite,
 	}
 }
 

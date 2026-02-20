@@ -20,7 +20,7 @@
       <div class="identity-name">{{.SelfName}}</div>
       <div class="identity-meta muted small">
         {{if .Cfg.Profile.Email}}{{.Cfg.Profile.Email}}{{else}}no email set{{end}}{{if .SelfID}}
-        &middot; <code class="copy-hint-inline" onclick="navigator.clipboard.writeText('{{.SelfID}}').then(function(){var el=event.target.closest('code');el.classList.add('copied');setTimeout(function(){el.classList.remove('copied')},1200)})" title="Click to copy Peer ID" style="cursor:pointer">{{.SelfID}}</code>{{end}}
+        &middot; <code class="copy-hint-inline" onclick="Goop.core.copyToClipboard('{{.SelfID}}', event.target.closest('code'))" title="Click to copy Peer ID" style="cursor:pointer">{{.SelfID}}</code>{{end}}
       </div>
       <div class="identity-actions">
         <button type="button" class="btn secondary" id="avatar-choose-btn">Change avatar</button>

@@ -272,7 +272,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 
 	if cachedPeers, err := db.ListCachedPeers(); err == nil {
 		for _, cp := range cachedPeers {
-			peers.Seed(cp.PeerID, cp.Content, cp.Email, cp.AvatarHash, cp.VideoDisabled, cp.ActiveTemplate, cp.Verified)
+			peers.Seed(cp.PeerID, cp.Content, cp.Email, cp.AvatarHash, cp.VideoDisabled, cp.ActiveTemplate, cp.Verified, cp.Favorite)
 			if len(cp.Addrs) > 0 {
 				node.AddPeerAddrs(cp.PeerID, cp.Addrs)
 			}
