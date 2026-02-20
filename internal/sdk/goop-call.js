@@ -397,13 +397,22 @@
       if (session && session._pendingCallReq && session.remotePeer) {
         for (var k = 0; k < payload.members.length; k++) {
           if (payload.members[k].peer_id === session.remotePeer) {
-            session._pendingCallReq = false;
+            // Always clear the join-timeout — callee has arrived.
             if (session._callReqTimeout) {
               clearTimeout(session._callReqTimeout);
               session._callReqTimeout = null;
             }
-            log('info', 'Callee joined channel, sending call request...');
-            session.channel.send({ type: SIG_CALL_REQ, constraints: session._constraints });
+            if (session.pc) {
+              // PC is ready — send call-request immediately.
+              session._pendingCallReq = false;
+              log('info', 'Callee joined channel, sending call request...');
+              session.channel.send({ type: SIG_CALL_REQ, constraints: session._constraints });
+            } else {
+              // PC not ready yet (getUserMedia/setup still in progress).
+              // Mark so start() sends the call-request once setup finishes.
+              log('info', 'Callee joined before PC ready, deferring call request...');
+              session._calleePreJoined = true;
+            }
             break;
           }
         }
@@ -658,15 +667,13 @@
       var session = new CallSession(channel, true);
       activeCalls[channel.id] = session;
 
-      // Set up WebRTC
-      await setupPeerConnection(session, c);
-
-      // Defer SIG_CALL_REQ until the callee has joined the channel.
-      // The callee auto-joins in a background goroutine when they receive the group invite;
-      // handleSignaling fires the request when it sees the callee in a 'members' update.
-      log('info', 'WebRTC ready — waiting for callee to join channel before sending call request...');
+      // Set up the pending-call-request flag BEFORE setupPeerConnection so that
+      // if the callee auto-joins during getUserMedia (e.g. while the browser shows
+      // a permission prompt), the members handler can record it and we send the
+      // call-request immediately after setup finishes.
       session._pendingCallReq = true;
       session._constraints = c;
+      session._calleePreJoined = false;
       session._callReqTimeout = setTimeout(function() {
         if (session._pendingCallReq && !session._ended) {
           log('error', 'Callee did not join channel within 30s, hanging up');
@@ -674,6 +681,18 @@
           session.hangup();
         }
       }, 30000);
+
+      // Set up WebRTC (may take time if browser shows a camera/mic permission prompt).
+      log('info', 'Waiting for callee to join channel (setting up WebRTC in parallel)...');
+      await setupPeerConnection(session, c);
+
+      // If the callee joined while getUserMedia was pending, the members handler
+      // couldn't send the call-request (PC wasn't ready). Do it now.
+      if (!session._ended && session._calleePreJoined) {
+        session._pendingCallReq = false;
+        log('info', 'Callee pre-joined during PC setup, sending deferred call request...');
+        session.channel.send({ type: SIG_CALL_REQ, constraints: session._constraints });
+      }
 
       return session;
     },

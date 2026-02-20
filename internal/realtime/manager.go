@@ -60,7 +60,17 @@ func New(grp *group.Manager, selfID string) *Manager {
 		for _, g := range rows {
 			if strings.HasPrefix(g.ID, "rt-") {
 				_ = grp.CloseGroup(g.ID)
-				log.Printf("REALTIME: Cleaned up stale channel %s on startup", g.ID)
+				log.Printf("REALTIME: Cleaned up stale hosted group %s on startup", g.ID)
+			}
+		}
+	}
+
+	// Purge stale rt- subscriptions from previous sessions
+	if subs, err := grp.ListSubscriptions(); err == nil {
+		for _, s := range subs {
+			if strings.HasPrefix(s.GroupID, "rt-") {
+				_ = grp.RemoveSubscription(s.HostPeerID, s.GroupID)
+				log.Printf("REALTIME: Cleaned up stale subscription %s on startup", s.GroupID)
 			}
 		}
 	}
@@ -216,19 +226,24 @@ func (m *Manager) forwardGroupEvents() {
 		m.mu.RUnlock()
 
 		if !isRT {
-			// Check if this is a welcome for a realtime group (auto-detect app_type)
-			if evt.Type == "welcome" {
+			// Check if this is an invite/welcome for a realtime group (auto-detect app_type)
+			if evt.Type == "invite" || evt.Type == "welcome" {
 				if wp, ok := evt.Payload.(map[string]any); ok {
 					if appType, _ := wp["app_type"].(string); appType == "realtime" {
-						// Auto-register as guest channel
+						// Auto-register as guest channel immediately
 						m.mu.Lock()
 						if _, exists := m.channels[evt.Group]; !exists {
+							hostID := evt.From
+							if hp, ok := wp["host"].(string); ok {
+								hostID = hp
+							}
 							m.channels[evt.Group] = &Channel{
 								ID:         evt.Group,
-								RemotePeer: evt.From,
+								RemotePeer: hostID,
 								Role:       "guest",
 								CreatedAt:  time.Now().UnixMilli(),
 							}
+							log.Printf("REALTIME: Auto-registered guest channel %s from %s", evt.Group, hostID)
 						}
 						m.mu.Unlock()
 						isRT = true
@@ -246,6 +261,7 @@ func (m *Manager) forwardGroupEvents() {
 			m.mu.Lock()
 			delete(m.channels, evt.Group)
 			m.mu.Unlock()
+			log.Printf("REALTIME: Unregistered channel %s", evt.Group)
 		}
 
 		// Skip own messages — the host receives its own sends via
@@ -267,6 +283,7 @@ func (m *Manager) forwardGroupEvents() {
 			select {
 			case ch <- env:
 			default:
+				log.Printf("REALTIME: Listener channel full, dropping event for %s", evt.Group)
 			}
 		}
 		m.listenerMu.RUnlock()
