@@ -607,13 +607,9 @@
               renderHostedGroups(containerEl, opts);
             }).catch(function(err) { toast('Failed to close: ' + err.message, true); });
           }
-          if (window.Goop && window.Goop.ui && window.Goop.ui.confirm) {
-            window.Goop.ui.confirm('Close group "' + id + '"? All members will be disconnected.', 'Close Group').then(function(ok) {
-              if (ok) doClose();
-            });
-          } else if (confirm('Close group "' + id + '"?')) {
-            doClose();
-          }
+          Goop.dialogs.confirm('Close group "' + id + '"? All members will be disconnected.', 'Close Group').then(function(ok) {
+            if (ok) doClose();
+          });
         });
       });
 

@@ -15,10 +15,40 @@
 //
 //   // list hosted groups
 //   const groups = await Goop.group.list();
+//   // Each group object:
+//   // {
+//   //   id:           string   — group ID
+//   //   name:         string   — display name
+//   //   app_type:     string   — e.g. "files", "listen", "realtime", or ""
+//   //   max_members:  number   — 0 means unlimited
+//   //   volatile:     bool     — group is destroyed when all members leave
+//   //   host_joined:  bool     — host has joined their own group
+//   //   host_in_group: bool    — host is currently an active member
+//   //   created_at:   string   — creation timestamp
+//   //   member_count: number   — current number of members
+//   //   members: [             — current member list
+//   //     { peer_id: string, joined_at: number, name: string }
+//   //   ]
+//   // }
+//
+//   // list subscriptions (groups you have joined as a member)
+//   const data = await Goop.group.subscriptions();
+//   // data.subscriptions: [{group_id, group_name, host_peer_id, host_name,
+//   //                        app_type, role, member_count, host_reachable}]
+//   // data.active_groups: [{group_id}]  — currently connected
 //
 //   // subscribe to group events (SSE)
 //   Goop.group.subscribe(function(evt) {
-//     // evt: {type, group, from, payload}
+//     // evt: { type, group, from, payload }
+//     // type values: "welcome", "members", "msg", "state", "leave", "close", "error", "invite"
+//     //
+//     // "welcome"  — you joined; payload: {group_name, members, app_type, ...}
+//     // "members"  — membership changed; payload: {members: [{peer_id, name}]}
+//     // "msg"      — message from a member; payload: any (app-defined)
+//     // "state"    — shared state update; payload: any
+//     // "leave"    — a member left; from: peer_id
+//     // "close"    — group was closed by host
+//     // "invite"   — you received an invite to a new group
 //   });
 //
 //   Goop.group.unsubscribe();
@@ -81,7 +111,7 @@
       return post("/api/groups/close", { group_id: groupId });
     },
 
-    /** List hosted groups */
+    /** List hosted groups. Returns array of group objects (see file header for fields). */
     list() {
       return fetch("/api/groups").then((r) => {
         if (!r.ok) throw new Error(r.statusText);
@@ -89,7 +119,7 @@
       });
     },
 
-    /** List subscriptions and active connection */
+    /** List subscriptions and active connections (see file header for fields). */
     subscriptions() {
       return fetch("/api/groups/subscriptions").then((r) => {
         if (!r.ok) throw new Error(r.statusText);

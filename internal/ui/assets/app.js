@@ -1,4 +1,5 @@
 (() => {
+  // Viewer UI utilities — no SDK dependency.
   const sharedFiles = [
     "/assets/js/core.js",
     "/assets/js/select.js",
@@ -9,7 +10,6 @@
     "/assets/js/codemirror.js",
     "/assets/js/emoji.js",
     "/assets/js/log.js",
-    "/assets/js/call-ui.js",
     "/assets/js/listen.js",
     "/assets/js/settings-popup.js",
     "/assets/js/dialogs.js",
@@ -17,17 +17,10 @@
     "/assets/js/groups.js",
   ];
 
-  const sdkFiles = [
-    "/sdk/goop-data.js",
-    "/sdk/goop-peers.js",
-    "/sdk/goop-chat.js",
-    "/sdk/goop-identity.js",
-    "/sdk/goop-ui.js",
-    "/sdk/goop-forms.js",
-    "/sdk/goop-site.js",
-    "/sdk/goop-group.js",
-    "/sdk/goop-realtime.js",
-    "/sdk/goop-call.js",
+  // Viewer-only call layer.
+  const callFiles = [
+    "/assets/js/video-call.js",
+    "/assets/js/call-ui.js",
   ];
 
   const pageFiles = [
@@ -46,7 +39,7 @@
     "/assets/js/pages/self.js",
   ];
 
-  const files = [...sharedFiles, ...sdkFiles, ...pageFiles];
+  const files = [...sharedFiles, ...callFiles, ...pageFiles];
 
   function loadSequentially(list, i = 0) {
     if (i >= list.length) return;

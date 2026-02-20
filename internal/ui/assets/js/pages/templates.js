@@ -13,13 +13,9 @@
 
       var msg = 'Apply "' + name + '"?\n\nThis will DELETE all your current site files and database tables and replace them with the template. This cannot be undone.';
 
-      if (window.Goop && window.Goop.ui && window.Goop.ui.confirm) {
-        Goop.ui.confirm(msg, 'Apply Template').then(function(ok) {
-          if (ok) applyTemplate(dir, name, source);
-        });
-      } else if (confirm(msg)) {
-        applyTemplate(dir, name, source);
-      }
+      Goop.dialogs.confirm(msg, 'Apply Template').then(function(ok) {
+        if (ok) applyTemplate(dir, name, source);
+      });
     });
   });
 
@@ -34,7 +30,7 @@
     .then(function(res) {
       if (res.status === 402) {
         return res.text().then(function(t) {
-          Goop.ui.toast({ title: 'Warning', message: t || 'Template could not be applied, insufficient funding', duration: 6000 });
+          Goop.toast({ title: 'Warning', message: t || 'Template could not be applied, insufficient funding', duration: 6000 });
           return null;
         });
       }
@@ -69,11 +65,11 @@
         var el = document.getElementById('meCredits');
         if (el) el.textContent = '\uD83E\uDE99 ' + data.balance + ' credits';
       }
-      Goop.ui.toast({ title: 'Template Applied', message: msg, duration: 5000 });
+      Goop.toast({ title: 'Template Applied', message: msg, duration: 5000 });
     })
     .catch(function(err) {
       var errMsg = err.message || 'Unknown error';
-      Goop.ui.toast({ title: 'Error', message: errMsg, duration: 6000 });
+      Goop.toast({ title: 'Error', message: errMsg, duration: 6000 });
     });
   }
 })();

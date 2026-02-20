@@ -41,7 +41,9 @@
     document.head.appendChild(s);
   }
 
-  const esc = Goop.core.escapeHtml;
+  function esc(s) {
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
 
   // columns to skip in forms
   const SKIP = new Set(["_id", "_owner", "_owner_email", "_created_at", "_updated_at"]);

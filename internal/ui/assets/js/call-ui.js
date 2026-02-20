@@ -1,15 +1,6 @@
 //
-// Call UI overlay — incoming call modal, active call controls.
-// Requires goop-call.js to be loaded first.
-//
-// Usage:
-//   <script src="/sdk/goop-realtime.js"></script>
-//   <script src="/sdk/goop-call.js"></script>
-//   <script src="/assets/js/call-ui.js"></script>
-//
-//   // The UI auto-registers for incoming calls and renders overlays.
-//   // To manually trigger from a button:
-//   Goop.callUI.startCall(peerId);
+// call-ui.js — incoming call modal and active call overlay for the goop2 viewer.
+// This is a viewer-only file. Requires video-call.js to be loaded first.
 //
 (() => {
   window.Goop = window.Goop || {};

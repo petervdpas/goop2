@@ -149,20 +149,19 @@
     if (files.length > 0) doUpload(files);
   });
 
-  // Listen for group events to auto-refresh on doc changes
+  // Listen for group events to auto-refresh on doc changes (direct SSE)
   function startEventListener() {
-    if (!window.Goop || !window.Goop.group) {
-      setTimeout(startEventListener, 200);
-      return;
-    }
-    window.Goop.group.subscribe(function(evt) {
-      if (!currentGroupID) return;
-      if (evt.type !== "msg") return;
-      var p = evt.payload;
-      if (!p) return;
-      if (p.action === "doc-added" || p.action === "doc-removed") {
-        loadBrowse();
-      }
+    var es = new EventSource('/api/groups/events');
+    es.addEventListener('msg', function(e) {
+      try {
+        var evt = JSON.parse(e.data);
+        if (!currentGroupID) return;
+        var p = evt.payload;
+        if (!p) return;
+        if (p.action === "doc-added" || p.action === "doc-removed") {
+          loadBrowse();
+        }
+      } catch(_) {}
     });
   }
   startEventListener();
@@ -464,13 +463,9 @@
     container.querySelectorAll(".docs-delete-btn").forEach(function(btn) {
       on(btn, "click", function() {
         var filename = btn.getAttribute("data-file");
-        if (window.Goop && window.Goop.ui && window.Goop.ui.confirm) {
-          window.Goop.ui.confirm('Delete "' + filename + '"? Other peers will no longer be able to download it.', 'Delete File').then(function(ok) {
-            if (ok) deleteFile(filename);
-          });
-        } else if (confirm('Delete "' + filename + '"?')) {
-          deleteFile(filename);
-        }
+        Goop.dialogs.confirm('Delete "' + filename + '"? Other peers will no longer be able to download it.', 'Delete File').then(function(ok) {
+          if (ok) deleteFile(filename);
+        });
       });
     });
   }
