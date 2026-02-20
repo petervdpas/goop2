@@ -79,7 +79,7 @@
       frameContainer.innerHTML = '';
       if (emptyMsg) {
         frameContainer.appendChild(emptyMsg);
-        emptyMsg.style.display = '';
+        emptyMsg.classList.remove('hidden');
       }
       updateNavView(false);
       return;
@@ -102,7 +102,7 @@
     '<span class="view-tabs-hint muted small">right-click tab for options</span>';
 
     // Render iframe for active tab
-    if (emptyMsg) emptyMsg.style.display = 'none';
+    if (emptyMsg) emptyMsg.classList.add('hidden');
 
     var existingFrame = frameContainer.querySelector('.view-frame');
     var currentSrc = existingFrame ? existingFrame.getAttribute('data-peer-id') : '';
@@ -167,7 +167,7 @@
 
     // Show/hide "Close Other Tabs" depending on tab count
     var others = ctxMenu.querySelector('[data-action="close-others"]');
-    if (others) others.style.display = loadTabs().length > 1 ? 'block' : 'none';
+    if (others) others.classList.toggle('hidden', loadTabs().length <= 1);
 
     ctxMenu.style.left = x + 'px';
     ctxMenu.style.top = y + 'px';
@@ -233,7 +233,7 @@
     var navView = document.getElementById('nav-view');
     if (navView) {
       // In embedded mode, always keep the View nav visible
-      navView.style.display = (show || !window._openSitesExternal) ? '' : 'none';
+      navView.classList.toggle('hidden', !show && window._openSitesExternal);
     }
   }
 

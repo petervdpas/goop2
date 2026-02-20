@@ -137,3 +137,49 @@
 .ed-dlg-btn.danger:hover{
   background: color-mix(in srgb, #ff5a5a 20%, transparent);
 }
+
+/* -----------------------------
+   Settings popup
+------------------------------ */
+.settings-dlg {
+  width: min(440px, 94vw);
+  overflow: visible;
+}
+.settings-dlg .ed-dlg-body { gap: 14px; }
+.settings-dlg .ed-dlg-btn.btn-sm { padding: 4px 10px; font-size: 12px; }
+
+.popup-section-label {
+  font-weight: 650;
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.password-wrap { position: relative; }
+.password-wrap .ed-dlg-input { padding-right: 36px; }
+.password-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0.5;
+}
+.password-toggle.visible { opacity: 1; }
+
+.field-label { display: block; margin-bottom: 4px; }
+
+.devices-caveat {
+  font-weight: 400;
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.7;
+}

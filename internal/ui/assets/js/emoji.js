@@ -78,7 +78,7 @@
     // Create picker panel
     var picker = document.createElement('div');
     picker.className = 'emoji-picker';
-    picker.style.display = 'none';
+    picker.classList.add('hidden');
 
     // Build category tabs
     var tabs = document.createElement('div');
@@ -132,15 +132,15 @@
     // Toggle picker
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
-      var visible = picker.style.display !== 'none';
-      picker.style.display = visible ? 'none' : '';
+      var visible = !picker.classList.contains('hidden');
+      picker.classList.toggle('hidden', visible);
       btn.classList.toggle('active', !visible);
     });
 
     // Close picker on outside click
     document.addEventListener('click', function(e) {
       if (!picker.contains(e.target) && e.target !== btn) {
-        picker.style.display = 'none';
+        picker.classList.add('hidden');
         btn.classList.remove('active');
       }
     });

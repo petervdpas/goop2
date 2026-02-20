@@ -55,14 +55,14 @@
 
     var peerName = peer.Content || shortId;
 
-    var rowClass = peer.Offline ? ' peer-offline' : (peer.Reachable === false ? ' peer-unreachable' : '');
+    var rowClass = (peer.Offline || peer.Reachable === false) ? ' dimmed inert' : '';
 
     return '<li class="peerrow' + rowClass + '" data-peer-id="' + escapeHtml(peer.ID) + '">' +
       '<img class="avatar avatar-md" src="' + avatarSrc + '" alt="">' +
       '<div class="peerleft">' +
         '<div class="peer-name-row">' +
           '<a class="peerid" href="/peer/' + escapeHtml(peer.ID) + '">' +
-            '<span class="peer-badge" data-unread-badge="' + escapeHtml(peer.ID) + '" style="display:' + (hasUnread ? 'inline' : 'none') + ';">\u25CF</span>' +
+            '<span class="peer-badge' + (hasUnread ? '' : ' hidden') + '" data-unread-badge="' + escapeHtml(peer.ID) + '">\u25CF</span>' +
             escapeHtml(peerName) +
           '</a>' +
           (peer.Verified ? '' : '<span class="badge-unverified">unverified</span>') +
@@ -139,7 +139,7 @@
       row.addEventListener('click', function() {
         unreadPeers.delete(pid);
         var badge = document.querySelector('[data-unread-badge="' + pid + '"]');
-        if (badge) badge.style.display = 'none';
+        if (badge) badge.classList.add('hidden');
       });
     });
 
@@ -341,7 +341,7 @@
       } else if (msgType === 'direct' && msg.from && msg.from !== selfID) {
         unreadPeers.add(msg.from);
         var badge = document.querySelector('[data-unread-badge="' + msg.from + '"]');
-        if (badge) badge.style.display = 'inline';
+        if (badge) badge.classList.remove('hidden');
       }
     } catch (err) {
       console.error('Failed to parse message:', err);
