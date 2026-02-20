@@ -3,7 +3,7 @@
 // Wraps the /api/realtime/* endpoints + SSE for receiving.
 //
 // Usage:
-//   <script src="/assets/js/goop-realtime.js"></script>
+//   <script src="/sdk/goop-realtime.js"></script>
 //
 //   // Connect to a peer
 //   const channel = await Goop.realtime.connect(peerId);

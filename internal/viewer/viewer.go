@@ -14,6 +14,7 @@ import (
 	"github.com/petervdpas/goop2/internal/rendezvous"
 	"github.com/petervdpas/goop2/internal/state"
 	"github.com/petervdpas/goop2/internal/storage"
+	"github.com/petervdpas/goop2/internal/sdk"
 	viewerassets "github.com/petervdpas/goop2/internal/ui/assets"
 	"github.com/petervdpas/goop2/internal/ui/render"
 	"github.com/petervdpas/goop2/internal/viewer/routes"
@@ -62,6 +63,9 @@ func Start(addr string, v Viewer) error {
 
 	mux.Handle("/assets/", http.StripPrefix("/assets/",
 		noCache(viewerassets.Handler()),
+	))
+	mux.Handle("/sdk/", http.StripPrefix("/sdk/",
+		noCache(sdk.Handler()),
 	))
 	mux.HandleFunc("/p/", proxyPeerSite(v))
 
@@ -190,6 +194,9 @@ func StartMinimal(addr string, v MinimalViewer) error {
 
 	mux.Handle("/assets/", http.StripPrefix("/assets/",
 		noCache(viewerassets.Handler()),
+	))
+	mux.Handle("/sdk/", http.StripPrefix("/sdk/",
+		noCache(sdk.Handler()),
 	))
 
 	baseURL := v.BaseURL

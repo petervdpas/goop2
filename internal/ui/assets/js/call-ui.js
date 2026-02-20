@@ -3,9 +3,9 @@
 // Requires goop-call.js to be loaded first.
 //
 // Usage:
-//   <script src="/assets/js/goop-realtime.js"></script>
-//   <script src="/assets/js/goop-call.js"></script>
-//   <script src="/assets/js/goop-call-ui.js"></script>
+//   <script src="/sdk/goop-realtime.js"></script>
+//   <script src="/sdk/goop-call.js"></script>
+//   <script src="/assets/js/call-ui.js"></script>
 //
 //   // The UI auto-registers for incoming calls and renders overlays.
 //   // To manually trigger from a button:
