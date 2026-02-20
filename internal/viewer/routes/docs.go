@@ -105,7 +105,7 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 			}
 			// Try sending as host first, then as client
 			if err := d.GroupManager.SendToGroupAsHost(groupID, payload); err != nil {
-				_ = d.GroupManager.SendToGroup(payload)
+				_ = d.GroupManager.SendToGroup(groupID, payload)
 			}
 		}
 
@@ -142,7 +142,7 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 				"file":   req.Filename,
 			}
 			if err := d.GroupManager.SendToGroupAsHost(req.GroupID, payload); err != nil {
-				_ = d.GroupManager.SendToGroup(payload)
+				_ = d.GroupManager.SendToGroup(req.GroupID, payload)
 			}
 		}
 
