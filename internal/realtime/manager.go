@@ -230,13 +230,15 @@ func (m *Manager) forwardGroupEvents() {
 			if evt.Type == "invite" || evt.Type == "welcome" {
 				if wp, ok := evt.Payload.(map[string]any); ok {
 					if appType, _ := wp["app_type"].(string); appType == "realtime" {
+						// Determine host peer ID for both channel registration and popup
+						hostID := evt.From
+						if hp, ok := wp["host"].(string); ok {
+							hostID = hp
+						}
+
 						// Auto-register as guest channel immediately
 						m.mu.Lock()
 						if _, exists := m.channels[evt.Group]; !exists {
-							hostID := evt.From
-							if hp, ok := wp["host"].(string); ok {
-								hostID = hp
-							}
 							m.channels[evt.Group] = &Channel{
 								ID:         evt.Group,
 								RemotePeer: hostID,
@@ -247,6 +249,27 @@ func (m *Manager) forwardGroupEvents() {
 						}
 						m.mu.Unlock()
 						isRT = true
+
+						// For invite events, fire synthetic "call-request" event to show popup immediately
+						if evt.Type == "invite" {
+							env := &Envelope{
+								Channel: evt.Group,
+								From:    hostID,
+								Payload: map[string]any{
+									"type":        "call-request",
+									"constraints": map[string]bool{"video": true, "audio": true},
+								},
+							}
+							m.listenerMu.RLock()
+							for ch := range m.listeners {
+								select {
+								case ch <- env:
+								default:
+								}
+							}
+							m.listenerMu.RUnlock()
+							continue
+						}
 					}
 				}
 			}
