@@ -1,0 +1,217 @@
+
+/* -----------------------------
+   Base button / .btn
+------------------------------ */
+.btn,
+button{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--text);
+  cursor:pointer;
+  transition: background var(--ease), transform var(--ease), border-color var(--ease), box-shadow var(--ease);
+}
+
+.btn:hover,
+button:hover{
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  text-decoration:none;
+  transform: translateY(-0.5px);
+}
+
+.btn:active,
+button:active{
+  transform: translateY(0px);
+}
+
+.btn:focus-visible,
+button:focus-visible{
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+/* -----------------------------
+   Toggle switch
+------------------------------ */
+.switch{
+  position: relative;
+  display:inline-block;
+  width: 46px;
+  height: 24px;
+}
+
+.switch input{
+  opacity:0;
+  width:0;
+  height:0;
+}
+
+.slider{
+  position:absolute;
+  inset:0;
+  cursor:pointer;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 36%, transparent);
+  border-radius: 999px;
+  transition: background var(--ease), border-color var(--ease), box-shadow var(--ease);
+}
+
+.slider:before{
+  content:"";
+  position:absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  top: 2px;
+  background: var(--text);
+  border-radius: 999px;
+  transition: transform var(--ease), background var(--ease);
+}
+
+.switch input:checked + .slider{
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.switch input:checked + .slider:before{
+  transform: translateX(22px);
+}
+
+.switch input:focus-visible + .slider{
+  box-shadow: var(--ring);
+}
+
+/* -----------------------------
+   Call button (circular icon button)
+------------------------------ */
+.call-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--panel2);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.call-btn.busy,
+.call-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+  pointer-events: none;
+}
+
+.call-btn:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* -----------------------------
+   Emoji picker toggle
+------------------------------ */
+.emoji-btn {
+  padding: 6px 10px;
+  font-size: 18px;
+  line-height: 1;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--ease), border-color var(--ease);
+  flex-shrink: 0;
+}
+
+.emoji-btn:hover,
+.emoji-btn.active {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* Emoji category tabs */
+.emoji-tab {
+  flex: 1;
+  padding: 6px 4px;
+  font-size: 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background var(--ease), border-color var(--ease);
+  opacity: 0.6;
+}
+
+.emoji-tab:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  opacity: 0.9;
+  transform: none;
+}
+
+.emoji-tab.active {
+  border-bottom-color: var(--accent);
+  opacity: 1;
+}
+
+/* -----------------------------
+   Small action button (pill)
+   Shared by database, groups, listen, documents pages
+------------------------------ */
+.db-sidebar-btn,
+.db-action-btn,
+.groups-action-btn,
+.listen-action-btn {
+  padding: 6px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+/* -----------------------------
+   Button variants: primary / danger / warning
+------------------------------ */
+.groups-btn-primary,
+.listen-btn-primary,
+.docs-btn-primary {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.groups-btn-primary:hover,
+.listen-btn-primary:hover,
+.docs-btn-primary:hover {
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+.db-btn-danger,
+.groups-btn-danger,
+.listen-btn-danger,
+.docs-btn-danger {
+  color: #e55;
+  border-color: color-mix(in srgb, #e55 38%, transparent);
+  background: color-mix(in srgb, #e55 10%, transparent);
+}
+
+.db-btn-danger:hover,
+.groups-btn-danger:hover,
+.listen-btn-danger:hover,
+.docs-btn-danger:hover {
+  background: color-mix(in srgb, #e55 18%, transparent);
+}
+
+.db-btn-warning{
+  color: #e90;
+  border-color: color-mix(in srgb, #e90 38%, transparent);
+  background: color-mix(in srgb, #e90 10%, transparent);
+}
+
+.db-btn-warning:hover{
+  background: color-mix(in srgb, #e90 18%, transparent);
+}

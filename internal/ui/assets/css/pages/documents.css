@@ -124,19 +124,6 @@
   min-height: 0;
 }
 
-.docs-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 10px;
-}
-
-.docs-section-title {
-  font-weight: 750;
-}
 
 /* -----------------------------
    File table
@@ -239,24 +226,6 @@
   background: color-mix(in srgb, var(--fg) 8%, transparent);
 }
 
-.docs-btn-primary {
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-}
-
-.docs-btn-primary:hover {
-  background: color-mix(in srgb, var(--accent) 32%, transparent);
-}
-
-.docs-btn-danger {
-  color: #e55;
-  border-color: color-mix(in srgb, #e55 38%, transparent);
-  background: color-mix(in srgb, #e55 10%, transparent);
-}
-
-.docs-btn-danger:hover {
-  background: color-mix(in srgb, #e55 18%, transparent);
-}
 
 .docs-btn-small {
   padding: 3px 8px;
