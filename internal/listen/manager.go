@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -67,6 +69,24 @@ type queueState struct {
 	GroupID string   `json:"group_id"`
 	Paths   []string `json:"paths"`
 	Index   int      `json:"index"`
+}
+
+// isStreamURL detects HTTP/HTTPS stream URLs.
+func isStreamURL(s string) bool {
+	return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://")
+}
+
+// streamDisplayName extracts a display name from a stream URL.
+func streamDisplayName(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" {
+		return rawURL
+	}
+	name := u.Host + u.Path
+	if len(name) > 60 {
+		name = name[:57] + "..."
+	}
+	return name
 }
 
 // New creates a new listen manager. It registers the binary stream handler
@@ -224,6 +244,41 @@ func (m *Manager) loadTrackAtLocked(idx int) (*Track, error) {
 	}
 	filePath := m.queue[idx]
 
+	// Branch for stream URLs
+	if isStreamURL(filePath) {
+		m.filePath = filePath
+		m.paused = true
+
+		track := &Track{
+			Name:     streamDisplayName(filePath),
+			Duration: 0,
+			Bitrate:  0,
+			Format:   "stream",
+			IsStream: true,
+		}
+		m.group.Track = track
+		m.group.PlayState = &PlayState{
+			Playing:   false,
+			Position:  0,
+			UpdatedAt: time.Now().UnixMilli(),
+		}
+		m.updateQueueInfoLocked()
+
+		// Broadcast track load to listeners
+		m.sendControl(ControlMsg{
+			Action:     "load",
+			Track:      track,
+			Queue:      m.group.Queue,
+			QueueTypes: m.group.QueueTypes,
+			QueueIndex: m.group.QueueIndex,
+			QueueTotal: m.group.QueueTotal,
+		})
+
+		log.Printf("LISTEN: Loaded stream %s [%d/%d]", track.Name, idx+1, len(m.queue))
+		m.notifySSE()
+		return track, nil
+	}
+
 	info, err := probeMP3(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("probe mp3: %w", err)
@@ -237,6 +292,7 @@ func (m *Manager) loadTrackAtLocked(idx int) (*Track, error) {
 		Duration: info.Duration,
 		Bitrate:  info.Bitrate,
 		Format:   "mp3",
+		IsStream: false,
 	}
 	m.group.Track = track
 	m.group.PlayState = &PlayState{
@@ -251,6 +307,7 @@ func (m *Manager) loadTrackAtLocked(idx int) (*Track, error) {
 		Action:     "load",
 		Track:      track,
 		Queue:      m.group.Queue,
+		QueueTypes: m.group.QueueTypes,
 		QueueIndex: m.group.QueueIndex,
 		QueueTotal: m.group.QueueTotal,
 	})
@@ -269,15 +326,24 @@ func (m *Manager) updateQueueInfoLocked() {
 	}
 	if len(m.queue) == 0 {
 		m.group.Queue = nil
+		m.group.QueueTypes = nil
 		m.group.QueueIndex = 0
 		m.group.QueueTotal = 0
 		return
 	}
+	types := make([]string, len(m.queue))
 	names := make([]string, len(m.queue))
 	for i, p := range m.queue {
-		names[i] = filepath.Base(p)
+		if isStreamURL(p) {
+			types[i] = "stream"
+			names[i] = streamDisplayName(p)
+		} else {
+			types[i] = "file"
+			names[i] = filepath.Base(p)
+		}
 	}
 	m.group.Queue = names
+	m.group.QueueTypes = types
 	m.group.QueueIndex = m.queueIdx
 	m.group.QueueTotal = len(m.queue)
 }
@@ -548,13 +614,18 @@ func (m *Manager) trackTimerGoroutine(stopCh chan struct{}) {
 			paused := m.paused
 			m.mu.RUnlock()
 
+			// Exit immediately if paused, no sync pulses while paused
 			if g == nil || paused || g.PlayState == nil || !g.PlayState.Playing || g.Track == nil {
+				if paused {
+					log.Printf("LISTEN: Timer exiting because paused=true")
+				}
 				return
 			}
 
 			elapsed := float64(time.Now().UnixMilli()-g.PlayState.UpdatedAt) / 1000.0
 			pos := g.PlayState.Position + elapsed
-			if pos >= g.Track.Duration {
+			// Don't auto-advance streams (Duration: 0), only advance finite-duration tracks
+			if g.Track.Duration > 0 && pos >= g.Track.Duration {
 				log.Printf("LISTEN: Track ended, advancing queue")
 				m.advanceQueue()
 				return
@@ -564,9 +635,16 @@ func (m *Manager) trackTimerGoroutine(stopCh chan struct{}) {
 			// listeners so anyone who joined late or missed the initial load/play
 			// messages catches up within syncPulseTicks × 500ms.
 			if ticks%syncPulseTicks == 0 {
+				// Double-check paused before sending sync
 				m.mu.RLock()
+				if m.paused {
+					m.mu.RUnlock()
+					log.Printf("LISTEN: Paused during sync, exiting timer")
+					return
+				}
 				track := g.Track
 				queue := append([]string(nil), g.Queue...)
+				queueTypes := append([]string(nil), g.QueueTypes...)
 				queueIdx := g.QueueIndex
 				queueTotal := g.QueueTotal
 				m.mu.RUnlock()
@@ -575,6 +653,7 @@ func (m *Manager) trackTimerGoroutine(stopCh chan struct{}) {
 					Track:      track,
 					Position:   pos,
 					Queue:      queue,
+					QueueTypes: queueTypes,
 					QueueIndex: queueIdx,
 					QueueTotal: queueTotal,
 				})
@@ -630,8 +709,12 @@ func (m *Manager) Pause() error {
 		return fmt.Errorf("not hosting a group")
 	}
 
-	m.stopPlaybackLocked()
+	// Set paused FIRST before stopping, so timer checks see it immediately
 	m.paused = true
+	log.Printf("LISTEN: Set paused=true")
+
+	m.stopPlaybackLocked()
+	log.Printf("LISTEN: Stopped playback")
 
 	pos := m.currentPosition()
 	m.group.PlayState = &PlayState{
@@ -639,11 +722,13 @@ func (m *Manager) Pause() error {
 		Position:  pos,
 		UpdatedAt: time.Now().UnixMilli(),
 	}
+	log.Printf("LISTEN: Updated PlayState to Playing=false")
 
 	m.sendControl(ControlMsg{Action: "pause", Position: pos})
+	log.Printf("LISTEN: Sent pause control")
 
-	log.Printf("LISTEN: Paused at %.1fs", pos)
 	m.notifySSE()
+	log.Printf("LISTEN: Paused at %.1fs", pos)
 	return nil
 }
 
@@ -818,10 +903,12 @@ func (m *Manager) AudioReader() (io.ReadCloser, error) {
 		var filePath string
 		var bitrate int
 		var pos float64
+		var stopCh chan struct{}
 		if playing {
 			filePath = m.filePath
 			bitrate = m.group.Track.Bitrate
 			pos = m.currentPosition()
+			stopCh = m.stopCh
 		}
 		m.mu.RUnlock()
 
@@ -833,6 +920,33 @@ func (m *Manager) AudioReader() (io.ReadCloser, error) {
 		httpW := m.httpPipeW
 		m.httpPipeMu.Unlock()
 		if httpW == nil {
+			return
+		}
+
+		// Branch for stream URLs - use cancellable context to stop on pause
+		if isStreamURL(filePath) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			// Cancel context when stop signal arrives
+			go func() {
+				<-stopCh
+				cancel()
+			}()
+
+			req, err := http.NewRequestWithContext(ctx, "GET", filePath, nil)
+			if err != nil {
+				httpW.CloseWithError(err)
+				return
+			}
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				// Context cancelled or other error - just exit
+				return
+			}
+			defer resp.Body.Close()
+			buf := make([]byte, 32*1024)
+			io.CopyBuffer(httpW, resp.Body, buf)
 			return
 		}
 
@@ -979,6 +1093,65 @@ func (m *Manager) handleAudioStream(s network.Stream) {
 		// knows to retry once a "play" control message arrives.
 		fmt.Fprintf(s, "")
 		return
+	}
+
+	// Branch for stream URLs - use context to support immediate stop
+	if isStreamURL(filePath) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// Monitor pause flag and cancel context if needed
+		go func() {
+			ticker := time.NewTicker(500 * time.Millisecond)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					m.mu.RLock()
+					shouldStop := m.paused || m.group == nil || m.group.ID != groupID
+					m.mu.RUnlock()
+					if shouldStop {
+						cancel()
+						return
+					}
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+
+		req, err := http.NewRequestWithContext(ctx, "GET", filePath, nil)
+		if err != nil {
+			log.Printf("LISTEN: Failed to create request for stream for %s: %v", remotePeer, err)
+			return
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			log.Printf("LISTEN: Failed to fetch stream for %s: %v", remotePeer, err)
+			return
+		}
+		defer resp.Body.Close()
+
+		audioBuffer := make([]byte, 64*1024)
+		for {
+			n, err := resp.Body.Read(audioBuffer)
+			if n > 0 {
+				data := audioBuffer[:n]
+				for len(data) > 0 {
+					nw, werr := s.Write(data)
+					if werr != nil {
+						log.Printf("LISTEN: Stream to %s ended (write error): %v", remotePeer, werr)
+						return
+					}
+					data = data[nw:]
+				}
+			}
+			if err != nil {
+				// For streams, EOF is normal or context cancelled
+				log.Printf("LISTEN: Stream to %s finished", remotePeer)
+				return
+			}
+		}
 	}
 
 	f, err := os.Open(filePath)
@@ -1279,12 +1452,14 @@ func (m *Manager) HandleGroupEvent(evt *group.Event) {
 					// Capture state to sync (outside the lock below).
 					var syncTrack *Track
 					var syncQueue []string
+					var syncQueueTypes []string
 					var syncQueueIdx, syncQueueTotal int
 					var syncPos float64
 					var syncPlaying bool
 					if hasNewListeners && m.group.Track != nil {
 						syncTrack = m.group.Track
 						syncQueue = append([]string(nil), m.group.Queue...)
+						syncQueueTypes = append([]string(nil), m.group.QueueTypes...)
 						syncQueueIdx = m.group.QueueIndex
 						syncQueueTotal = m.group.QueueTotal
 						if ps := m.group.PlayState; ps != nil {
@@ -1310,6 +1485,7 @@ func (m *Manager) HandleGroupEvent(evt *group.Event) {
 							Action:     "load",
 							Track:      syncTrack,
 							Queue:      syncQueue,
+							QueueTypes: syncQueueTypes,
 							QueueIndex: syncQueueIdx,
 							QueueTotal: syncQueueTotal,
 						})
@@ -1363,6 +1539,7 @@ func (m *Manager) handleControlEvent(payload any) {
 		}
 		if ctrl.QueueTotal > 0 {
 			m.group.Queue = ctrl.Queue
+			m.group.QueueTypes = ctrl.QueueTypes
 			m.group.QueueIndex = ctrl.QueueIndex
 			m.group.QueueTotal = ctrl.QueueTotal
 		}
@@ -1400,6 +1577,7 @@ func (m *Manager) handleControlEvent(payload any) {
 			m.group.Track = ctrl.Track
 			if ctrl.QueueTotal > 0 {
 				m.group.Queue = ctrl.Queue
+				m.group.QueueTypes = ctrl.QueueTypes
 				m.group.QueueIndex = ctrl.QueueIndex
 				m.group.QueueTotal = ctrl.QueueTotal
 			}
