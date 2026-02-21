@@ -98,11 +98,13 @@ async function goViewer(viewerURL, path) {
 
 // Find a peer info object by name in the peers array.
 function findPeer(peers, name) {
+  if (!peers || !Array.isArray(peers)) return undefined;
   return peers.find(p => p.name === name);
 }
 
 // Check if a peer name exists in the peers array.
 function peerExists(peers, name) {
+  if (!peers || !Array.isArray(peers)) return false;
   return peers.some(p => p.name === name);
 }
 

@@ -41,13 +41,13 @@
     "templates_admin_token": ""
   },
   "profile": {
-    "label": "Eggman",
+    "label": "EggMan",
     "email": "humpty@dumpty.com",
     "verification_token": ""
   },
   "viewer": {
     "http_addr": ":7777",
-    "debug": true,
+    "debug": false,
     "theme": "dark",
     "preferred_cam": "",
     "preferred_mic": "",
@@ -55,7 +55,7 @@
     "hide_unverified": false,
     "active_template": "tictactoe",
     "open_sites_external": false,
-    "splash": "goop2-splash2.png"
+    "splash": "goop2-splash3.png"
   },
   "lua": {
     "enabled": true,
