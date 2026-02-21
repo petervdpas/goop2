@@ -201,15 +201,18 @@
       html += '<input type="text" class="glisten-file" placeholder="/path/to/track.mp3" />' +
         '<button class="groups-action-btn groups-btn-primary glisten-load-btn">Load</button>';
     }
+    html += '<input type="text" class="glisten-stream-url" placeholder="https://..." />' +
+      '<button class="groups-action-btn groups-btn-secondary glisten-add-stream-btn">&#128225; Add Stream</button>';
     html += '</div>';
 
     if (g && g.queue_total > 0 && g.queue && g.queue.length > 0) {
       html += '<div class="glisten-queue">';
       g.queue.forEach(function(name, i) {
         var isCurrent = i === g.queue_index;
+        var typeIcon = (g.queue_types && g.queue_types[i] === 'stream') ? '📡 ' : '';
         html += '<div class="glisten-queue-item' + (isCurrent ? ' current' : '') + '" data-queue-idx="' + i + '">' +
           '<span class="glisten-queue-num">' + (i + 1) + '</span>' +
-          '<span class="glisten-queue-name">' + escapeHtml(name) + '</span>' +
+          '<span class="glisten-queue-name">' + typeIcon + escapeHtml(name) + '</span>' +
           '<button class="glisten-queue-remove" title="Remove from queue">×</button>' +
           '</div>';
       });
@@ -217,14 +220,18 @@
     }
 
     if (g && g.track) {
+      var trackMeta = g.track.is_stream
+        ? '<span class="glisten-live-badge">● LIVE</span>'
+        : Math.round(g.track.bitrate / 1000) + ' kbps &middot; ' + formatTime(g.track.duration);
       html += '<div class="listen-player" style="margin-bottom:0">' +
         '<div class="listen-track-info">' +
           '<span class="listen-track-name">' + escapeHtml(g.track.name) + '</span>' +
           '<span class="listen-track-meta muted small">' +
-            Math.round(g.track.bitrate / 1000) + ' kbps &middot; ' + formatTime(g.track.duration) +
+            trackMeta +
           '</span>' +
-        '</div>' +
-        '<div class="listen-progress">' +
+        '</div>';
+      if (!g.track.is_stream) {
+        html += '<div class="listen-progress">' +
           '<div class="listen-progress-bar glisten-progress-bar">' +
             '<div class="listen-progress-fill glisten-progress-fill"></div>' +
           '</div>' +
@@ -232,8 +239,9 @@
             '<span class="glisten-time-current">0:00</span>' +
             '<span class="glisten-time-total">' + formatTime(g.track.duration) + '</span>' +
           '</div>' +
-        '</div>' +
-        '<div class="listen-controls">';
+        '</div>';
+      }
+      html += '<div class="listen-controls">';
 
       var hasPrev = g.queue_total > 1;
       var hasNext = g.queue_total > 1 && g.queue_index < g.queue_total - 1;
@@ -266,7 +274,7 @@
 
     wrapperEl.innerHTML = html;
 
-    if (g && g.play_state && g.track && g.track.duration > 0) {
+    if (g && g.play_state && g.track && g.track.duration > 0 && !g.track.is_stream) {
       var fillEl = wrapperEl.querySelector('.glisten-progress-fill');
       var curEl = wrapperEl.querySelector('.glisten-time-current');
       var pos = g.play_state.position;
@@ -302,6 +310,18 @@
       });
     }
 
+    var streamInput = wrapperEl.querySelector('.glisten-stream-url');
+    var addStreamBtn = wrapperEl.querySelector('.glisten-add-stream-btn');
+    if (addStreamBtn && streamInput) {
+      on(addStreamBtn, 'click', function() {
+        var url = streamInput.value.trim();
+        if (!url) return;
+        window.Goop.listen.addToQueue([url]).then(function() {
+          streamInput.value = '';
+        }).catch(function(e) { toast('Add stream failed: ' + e.message, true); });
+      });
+    }
+
     var volEl = wrapperEl.querySelector('.glisten-volume');
     if (volEl) {
       on(volEl, 'input', function() {
@@ -334,13 +354,15 @@
     var pauseBtn = wrapperEl.querySelector('.glisten-pause-btn');
     if (playBtn) {
       on(playBtn, 'click', function() {
-        window.Goop.listen.control('play').then(function() {
-          var audio = ensureAudioEl();
-          audio.src = '/api/listen/stream';
-          audio.volume = volEl ? volEl.value / 100 : 0.8;
-          audio.load();
-          audio.play().catch(function(e) { console.warn('LISTEN host play:', e); });
-          startStallMonitor();
+        var audio = ensureAudioEl();
+        audio.src = '/api/listen/stream';
+        audio.volume = volEl ? volEl.value / 100 : 0.8;
+        audio.load();
+        audio.play().catch(function(e) { console.warn('LISTEN host play:', e); });
+        startStallMonitor();
+        // Tell server to play (UI will update via SSE)
+        window.Goop.listen.control('play').catch(function(e) {
+          toast('Play failed: ' + e.message, true);
         });
       });
     }
@@ -350,7 +372,9 @@
         var audio = ensureAudioEl();
         audio.pause();
         audio.src = '';
-        window.Goop.listen.control('pause');
+        audio.load(); // Force reload to clear any buffered data
+        // Tell server to pause (UI will update via SSE)
+        window.Goop.listen.control('pause').catch(function(e) { toast('Pause failed: ' + e.message, true); });
       });
     }
 
@@ -394,7 +418,7 @@
     }
 
     var progressBar = wrapperEl.querySelector('.glisten-progress-bar');
-    if (progressBar && g && g.track) {
+    if (progressBar && g && g.track && !g.track.is_stream) {
       on(progressBar, 'click', function(e) {
         var rect = progressBar.getBoundingClientRect();
         var pct = (e.clientX - rect.left) / rect.width;
@@ -402,7 +426,7 @@
       });
     }
 
-    if (g && g.play_state && g.play_state.playing && g.track) {
+    if (g && g.play_state && g.play_state.playing && g.track && !g.track.is_stream) {
       var fillEl = wrapperEl.querySelector('.glisten-progress-fill');
       var curEl = wrapperEl.querySelector('.glisten-time-current');
       if (fillEl && curEl) {
@@ -431,15 +455,19 @@
       return;
     }
 
+    var trackMeta = g.track.is_stream
+      ? '<span class="glisten-live-badge">● LIVE</span>'
+      : Math.round(g.track.bitrate / 1000) + ' kbps &middot; ' + formatTime(g.track.duration);
     var html = '<div class="listen-player" style="margin-bottom:0">' +
       '<div class="listen-track-info">' +
         '<span class="listen-track-name">' + escapeHtml(g.track.name) + '</span>' +
         '<span class="listen-track-meta muted small">' +
-          Math.round(g.track.bitrate / 1000) + ' kbps &middot; ' + formatTime(g.track.duration) +
+          trackMeta +
         '</span>' +
       '</div>' +
-      '<canvas class="glisten-wave"></canvas>' +
-      '<div class="listen-progress">' +
+      '<canvas class="glisten-wave"></canvas>';
+    if (!g.track.is_stream) {
+      html += '<div class="listen-progress">' +
         '<div class="listen-progress-bar">' +
           '<div class="listen-progress-fill glisten-progress-fill"></div>' +
         '</div>' +
@@ -447,14 +475,15 @@
           '<span class="glisten-time-current">0:00</span>' +
           '<span class="glisten-time-total">' + formatTime(g.track.duration) + '</span>' +
         '</div>' +
+      '</div>';
+    }
+    html += '<div class="listen-controls">' +
+      '<button class="glisten-play-fallback groups-action-btn groups-btn-primary" style="display:none">&#9654; Click to play</button>' +
+      '<div class="listen-volume">' +
+        '<label class="muted small">Volume</label>' +
+        '<input type="range" class="glisten-volume" min="0" max="100" value="80" />' +
       '</div>' +
-      '<div class="listen-controls">' +
-        '<button class="glisten-play-fallback groups-action-btn groups-btn-primary" style="display:none">&#9654; Click to play</button>' +
-        '<div class="listen-volume">' +
-          '<label class="muted small">Volume</label>' +
-          '<input type="range" class="glisten-volume" min="0" max="100" value="80" />' +
-        '</div>' +
-      '</div>' +
+    '</div>' +
     '</div>';
 
     wrapperEl.innerHTML = html;
@@ -462,21 +491,23 @@
     if (g.play_state) {
       var fillEl = wrapperEl.querySelector('.glisten-progress-fill');
       var curEl = wrapperEl.querySelector('.glisten-time-current');
-      if (fillEl && curEl && g.track.duration > 0) {
+      if (fillEl && curEl && g.track.duration > 0 && !g.track.is_stream) {
         fillEl.style.width = Math.min(100, (g.play_state.position / g.track.duration) * 100) + '%';
         curEl.textContent = formatTime(g.play_state.position);
       }
 
       if (g.play_state.playing && g.track) {
-        listenTimers[gid] = setInterval(function() {
-          if (!g.play_state || !g.play_state.playing) return;
-          var elapsed = (Date.now() - g.play_state.updated_at) / 1000;
-          var p = g.play_state.position + elapsed;
-          var d = g.track.duration;
-          if (p >= d) { p = d; clearInterval(listenTimers[gid]); delete listenTimers[gid]; }
-          if (fillEl) fillEl.style.width = Math.min(100, (p / d) * 100) + '%';
-          if (curEl) curEl.textContent = formatTime(p);
-        }, 250);
+        if (!g.track.is_stream) {
+          listenTimers[gid] = setInterval(function() {
+            if (!g.play_state || !g.play_state.playing) return;
+            var elapsed = (Date.now() - g.play_state.updated_at) / 1000;
+            var p = g.play_state.position + elapsed;
+            var d = g.track.duration;
+            if (p >= d) { p = d; clearInterval(listenTimers[gid]); delete listenTimers[gid]; }
+            if (fillEl) fillEl.style.width = Math.min(100, (p / d) * 100) + '%';
+            if (curEl) curEl.textContent = formatTime(p);
+          }, 250);
+        }
 
         var audio = ensureAudioEl();
         var playFallback = wrapperEl.querySelector('.glisten-play-fallback');

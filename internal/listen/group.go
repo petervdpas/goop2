@@ -14,9 +14,10 @@ type Group struct {
 	Listeners []string   `json:"listeners,omitempty"` // peer IDs
 
 	// Queue info — track names visible to all participants.
-	Queue      []string `json:"queue,omitempty"` // display names of all queued tracks
-	QueueIndex int      `json:"queue_index"`     // 0-based index of current track
-	QueueTotal int      `json:"queue_total"`     // total tracks in queue (0 = no queue)
+	Queue      []string `json:"queue,omitempty"`       // display names of all queued tracks
+	QueueTypes []string `json:"queue_types,omitempty"` // "file" or "stream" for each track
+	QueueIndex int      `json:"queue_index"`           // 0-based index of current track
+	QueueTotal int      `json:"queue_total"`           // total tracks in queue (0 = no queue)
 }
 
 // Track describes the currently loaded audio track.
@@ -24,7 +25,8 @@ type Track struct {
 	Name     string  `json:"name"`
 	Duration float64 `json:"duration"` // seconds
 	Bitrate  int     `json:"bitrate"`  // bits per second
-	Format   string  `json:"format"`   // "mp3"
+	Format   string  `json:"format"`   // "mp3" or "stream"
+	IsStream bool    `json:"is_stream"` // true for HTTP/HTTPS streams
 }
 
 // PlayState describes the current playback position.
@@ -40,6 +42,7 @@ type ControlMsg struct {
 	Track      *Track   `json:"track,omitempty"`     // set on "load"
 	Position   float64  `json:"position,omitempty"`  // set on "seek", "sync", "play"
 	Queue      []string `json:"queue,omitempty"`     // track names; set on "load"
+	QueueTypes []string `json:"queue_types,omitempty"` // "file" or "stream"; set on "load"
 	QueueIndex int      `json:"queue_index"`         // current track index; set on "load"
 	QueueTotal int      `json:"queue_total"`         // total tracks; set on "load"
 }
