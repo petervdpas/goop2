@@ -1,432 +1,424 @@
-// Tic-Tac-Toe app.js — PvP and PvE with server-side validation via Lua
+// Blog app.js
 (async function () {
   var db = Goop.data;
-  var root = document.getElementById("ttt-root");
-  var subtitle = document.getElementById("subtitle");
+  var site = Goop.site;
+  var postsEl = document.getElementById("posts");
+  var btnNew = document.getElementById("btn-new");
+  var btnCustomize = document.getElementById("btn-customize");
+  var designerPanel = document.getElementById("designer-panel");
+  var overlay = document.getElementById("editor-overlay");
+
   var isOwner = false;
-  var myId = await Goop.identity.id();
-  var myLabel = await Goop.identity.label();
-  var pollTimer = null;
-  var currentGameId = null;
+  var isCoAuthor = false;
+  var myId = null;
+  var currentLayout = "list";
+  var configMap = {}; // key -> { id: number, value: string }
+  var editingId = null;
+  var editingImage = null; // filename of current post's image when editing
 
-  // Detect owner vs visitor
-  var match = window.location.pathname.match(/\/p\/([^/]+)/);
-  if (!match || match[1] === myId) {
-    isOwner = true;
+  function esc(s) {
+    var d = document.createElement("div");
+    d.textContent = s == null ? "" : String(s);
+    return d.innerHTML;
   }
 
-  subtitle.textContent = isOwner
-    ? "Challenge visitors or play against the computer."
-    : "Challenge the host or play against the computer.";
+  // ── Owner / co-author detection ──
+  try {
+    myId = await Goop.identity.id();
+    var match = window.location.pathname.match(/\/p\/([^/]+)/);
+    var ownerPeerId = match ? match[1] : null;
+    if (ownerPeerId && ownerPeerId === myId) {
+      isOwner = true;
+    } else if (ownerPeerId && Goop.group) {
+      var subs = await Goop.group.subscriptions();
+      var list = (subs && subs.subscriptions) || [];
+      isCoAuthor = list.some(function (s) {
+        return s.host_peer_id === ownerPeerId && s.app_type === "template";
+      });
+    }
+  } catch (_) {}
 
-  showLobby();
-
-  // ── Polling ──
-
-  function startPolling(gameId) {
-    stopPolling();
-    pollTimer = setInterval(async function () {
-      try {
-        var state = await db.call("ttt", { action: "state", game_id: gameId });
-        renderBoard(state);
-        if (state.status !== "playing" && state.status !== "waiting") {
-          stopPolling();
-        }
-      } catch (e) {
-        // ignore transient errors
-      }
-    }, 2000);
+  if (isOwner || isCoAuthor) {
+    btnNew.classList.remove("hidden");
+  }
+  if (isOwner) {
+    document.getElementById("editor-image-section").classList.remove("hidden");
   }
 
-  function stopPolling() {
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      pollTimer = null;
+  // ── Config helpers ──
+
+  // Map hex → accent class index (avoids inline style / CSP issues)
+  var accentToIdx = {
+    "#b44d2d": "1", "#2d6a9f": "2", "#4a8f46": "3",
+    "#7c4a9f": "4", "#c0882c": "5", "#2d7a6a": "6",
+  };
+
+  function applyConfigKey(key, value) {
+    var html = document.documentElement;
+    switch (key) {
+      case "layout":
+        currentLayout = value || "list";
+        document.querySelector(".blog").className = "blog layout-" + currentLayout;
+        document.querySelectorAll(".layout-btn").forEach(function (btn) {
+          btn.classList.toggle("active", btn.dataset.layout === currentLayout);
+        });
+        break;
+      case "blog_title":
+        document.querySelector(".blog-title").textContent = value || "My Blog";
+        break;
+      case "blog_subtitle":
+        document.getElementById("blog-subtitle").textContent =
+          value || "Thoughts, stories & notes";
+        break;
+      case "accent":
+        if (value) {
+          // Toggle accent-N class — no inline style needed, fully CSS-driven
+          html.className = html.className.replace(/\baccent-\d+\b/g, "").trim();
+          var idx = accentToIdx[value] || "1";
+          html.classList.add("accent-" + idx);
+          document.querySelectorAll(".swatch").forEach(function (sw) {
+            sw.classList.toggle("active", sw.dataset.color === value);
+          });
+        }
+        break;
+      case "font":
+        html.className = html.className.replace(/\bfont-\w+\b/g, "").trim();
+        html.classList.add("font-" + (value || "serif"));
+        document.querySelectorAll(".font-btn").forEach(function (btn) {
+          btn.classList.toggle("active", btn.dataset.font === (value || "serif"));
+        });
+        break;
+      case "theme":
+        html.className = html.className.replace(/\btheme-\w+\b/g, "").trim();
+        html.classList.add("theme-" + (value || "light"));
+        document.querySelectorAll(".theme-btn").forEach(function (btn) {
+          btn.classList.toggle("active", btn.dataset.theme === (value || "light"));
+        });
+        break;
     }
   }
 
-  // ── Lobby ──
-
-  async function showLobby() {
-    stopPolling();
-    currentGameId = null;
-
-    var lobby;
-    try {
-      // Single call returns both games list and stats
-      lobby = await db.call("ttt", { action: "lobby" });
-    } catch (e) {
-      console.error("lobby error:", e);
-      root.innerHTML = '<p class="ttt-empty">Could not load lobby.</p>'
-        + '<p class="ttt-empty" style="font-size:11px;color:#999;">' + esc(e.message || String(e)) + '</p>';
-      return;
-    }
-
-    var games = lobby.games || [];
-    var stats = lobby.stats || {};
-
-    // Check if I have an active game — render directly from lobby data
-    for (var i = 0; i < games.length; i++) {
-      var g = games[i];
-      // Skip waiting PvP games for the owner — they see these as pending challenges
-      if (isOwner && g.status === "waiting" && g.mode === "pvp") continue;
-      if ((g.status === "playing" || g.status === "waiting") &&
-          (g._owner === myId || g.challenger === myId)) {
-        showGame(g._id);
-        return;
-      }
-    }
-
-    var html = '<div class="ttt-lobby">';
-
-    // Action buttons
-    html += '<div class="ttt-actions">';
-    if (!isOwner) {
-      html += '<button class="btn btn-primary" id="btn-challenge">Challenge Host</button>';
-    }
-    html += '<button class="btn ' + (isOwner ? 'btn-primary' : 'btn-secondary') + '" id="btn-pve">Play vs Computer</button>';
-    html += '</div>';
-
-    // Stats
-    html += '<div class="ttt-stats">';
-    html += '<span><span class="stat-val">' + (stats.wins || 0) + '</span> wins</span>';
-    html += '<span><span class="stat-val">' + (stats.losses || 0) + '</span> losses</span>';
-    html += '<span><span class="stat-val">' + (stats.draws || 0) + '</span> draws</span>';
-    html += '</div>';
-
-    // Pending challenges (owner only)
-    if (isOwner) {
-      var pending = [];
-      for (var j = 0; j < games.length; j++) {
-        if (games[j].status === "waiting" && games[j].mode === "pvp") {
-          pending.push(games[j]);
-        }
-      }
-      if (pending.length > 0) {
-        html += '<div class="ttt-panel">';
-        html += '<h2>Pending Challenges</h2>';
-        html += '<ul class="ttt-challenges">';
-        for (var k = 0; k < pending.length; k++) {
-          var pg = pending[k];
-          var label = esc(pg.challenger_label || pg.challenger.substring(0, 12) + '...');
-          html += '<li class="ttt-challenge-item">';
-          html += '<span><span class="name">' + label + '</span>';
-          html += '<span class="time">' + timeAgo(pg._created_at) + '</span></span>';
-          html += '<button class="btn-sm" data-accept="' + pg._id + '">Play</button>';
-          html += '</li>';
-        }
-        html += '</ul></div>';
-      }
-    }
-
-    // Recent games
-    var finished = [];
-    for (var m = 0; m < games.length; m++) {
-      var fg = games[m];
-      if (fg.status !== "waiting" && fg.status !== "playing") {
-        finished.push(fg);
-      }
-    }
-
-    if (finished.length > 0) {
-      html += '<div class="ttt-panel">';
-      html += '<h2>Recent Games</h2>';
-      html += '<table class="ttt-history"><thead><tr>';
-      html += '<th>Opponent</th><th>Result</th><th>Mode</th><th></th>';
-      html += '</tr></thead><tbody>';
-      for (var n = 0; n < finished.length && n < 10; n++) {
-        var hg = finished[n];
-        var opponent = hg.mode === "pve" ? "Computer"
-          : esc(hg.challenger_label || hg.challenger.substring(0, 12) + '...');
-        var resultCls = "", resultTxt = "";
-        if (hg.status === "draw" || hg.status === "cancelled") {
-          resultCls = "result-draw";
-          resultTxt = hg.status === "cancelled" ? "cancelled" : "draw";
-        } else if (hg.winner === myId) {
-          resultCls = "result-win";
-          resultTxt = "won";
-        } else {
-          resultCls = "result-loss";
-          resultTxt = "lost";
-        }
-        html += '<tr>';
-        html += '<td>' + opponent + '</td>';
-        html += '<td class="' + resultCls + '">' + resultTxt + '</td>';
-        html += '<td>' + (hg.mode === "pve" ? "vs AI" : "PvP") + '</td>';
-        html += '<td>' + timeAgo(hg._created_at) + '</td>';
-        html += '</tr>';
-      }
-      html += '</tbody></table></div>';
+  async function saveConfig(key, value) {
+    if (configMap[key] && configMap[key].id) {
+      await db.update("blog_config", configMap[key].id, { value: value });
+      configMap[key].value = value;
     } else {
-      html += '<div class="ttt-panel"><p class="ttt-empty">No games played yet.</p></div>';
-    }
-
-    html += '</div>';
-    root.innerHTML = html;
-
-    // Button handlers
-    var btnPve = document.getElementById("btn-pve");
-    if (btnPve) {
-      btnPve.onclick = async function () {
-        btnPve.disabled = true;
-        try {
-          var result = await db.call("ttt", { action: "new_pve" });
-          if (result.error) {
-            Goop.ui.toast(result.error);
-            btnPve.disabled = false;
-          } else {
-            // Render directly from the new_pve response — no extra game_state call
-            currentGameId = result.game_id;
-            renderBoard(result);
-          }
-        } catch (e) {
-          Goop.ui.toast(e.message || "Error starting game.");
-          btnPve.disabled = false;
+      await db.insert("blog_config", { key: key, value: value });
+      try {
+        var rows = await db.query("blog_config", { where: "key = ?", args: [key], limit: 1 });
+        if (rows && rows.length > 0) {
+          configMap[key] = { id: rows[0]._id, value: value };
         }
-      };
+      } catch (_) {}
+    }
+  }
+
+  // ── Design panel setup (host only) ──
+  async function setupDesigner() {
+    // Load all config rows
+    try {
+      var rows = await db.query("blog_config", { limit: 100 });
+      (rows || []).forEach(function (r) {
+        configMap[r.key] = { id: r._id, value: r.value };
+      });
+    } catch (_) {}
+
+    // Apply config to DOM (owner + visitors + co-authors all benefit)
+    var loaded = {
+      layout:        (configMap.layout        || {}).value,
+      blog_title:    (configMap.blog_title    || {}).value,
+      blog_subtitle: (configMap.blog_subtitle || {}).value,
+      accent:        (configMap.accent        || {}).value,
+      font:          (configMap.font          || {}).value,
+      theme:         (configMap.theme         || {}).value,
+    };
+    applyConfigKey("layout",        loaded.layout);
+    applyConfigKey("blog_title",    loaded.blog_title);
+    applyConfigKey("blog_subtitle", loaded.blog_subtitle);
+    applyConfigKey("accent",        loaded.accent);
+    applyConfigKey("font",          loaded.font);
+    applyConfigKey("theme",         loaded.theme);
+
+    if (!isOwner) return; // visitors and co-authors stop here
+
+    // Ensure default config rows exist
+    var defaults = {
+      layout:        "list",
+      blog_title:    "My Blog",
+      blog_subtitle: "Thoughts, stories & notes",
+      accent:        "#b44d2d",
+      font:          "serif",
+      theme:         "light",
+    };
+    for (var k in defaults) {
+      if (!configMap[k]) {
+        await saveConfig(k, defaults[k]);
+        applyConfigKey(k, defaults[k]);
+      }
     }
 
-    var btnChallenge = document.getElementById("btn-challenge");
-    if (btnChallenge) {
-      btnChallenge.onclick = async function () {
-        btnChallenge.disabled = true;
-        try {
-          var result = await db.call("ttt", { action: "new" });
-          if (result.error) {
-            Goop.ui.toast(result.error);
-            if (result.game_id) {
-              showGame(result.game_id);
-              return;
-            }
-            btnChallenge.disabled = false;
-          } else {
-            // For PvP, we need to poll for the host's acceptance
-            showGame(result.game_id);
-          }
-        } catch (e) {
-          Goop.ui.toast(e.message || "Error creating challenge.");
-          btnChallenge.disabled = false;
-        }
-      };
-    }
+    // Populate designer inputs
+    document.getElementById("d-title").value =
+      (configMap.blog_title || {}).value || "My Blog";
+    document.getElementById("d-subtitle").value =
+      (configMap.blog_subtitle || {}).value || "";
 
-    // Accept handlers — transition game from "waiting" to "playing", then show board
-    root.querySelectorAll("[data-accept]").forEach(function (btn) {
-      btn.onclick = async function () {
-        var gid = parseInt(btn.getAttribute("data-accept"));
-        btn.disabled = true;
-        try {
-          await db.call("ttt", { action: "accept", game_id: gid });
-        } catch (e) { /* showGame will handle current state */ }
-        showGame(gid);
-      };
+    // Show customize button
+    btnCustomize.classList.remove("hidden");
+
+    // ── Wire layout buttons ──
+    document.querySelectorAll(".layout-btn").forEach(function (btn) {
+      btn.addEventListener("click", async function () {
+        applyConfigKey("layout", btn.dataset.layout);
+        await saveConfig("layout", btn.dataset.layout);
+      });
+    });
+
+    // ── Wire color swatches ──
+    document.querySelectorAll(".swatch").forEach(function (sw) {
+      sw.addEventListener("click", async function () {
+        applyConfigKey("accent", sw.dataset.color);
+        await saveConfig("accent", sw.dataset.color);
+      });
+    });
+
+    // ── Wire font buttons ──
+    document.querySelectorAll(".font-btn").forEach(function (btn) {
+      btn.addEventListener("click", async function () {
+        applyConfigKey("font", btn.dataset.font);
+        await saveConfig("font", btn.dataset.font);
+      });
+    });
+
+    // ── Wire theme buttons ──
+    document.querySelectorAll(".theme-btn").forEach(function (btn) {
+      btn.addEventListener("click", async function () {
+        applyConfigKey("theme", btn.dataset.theme);
+        await saveConfig("theme", btn.dataset.theme);
+      });
+    });
+
+    // ── Wire title input ──
+    var titleInput = document.getElementById("d-title");
+    titleInput.addEventListener("input", function () {
+      applyConfigKey("blog_title", titleInput.value || "My Blog");
+    });
+    titleInput.addEventListener("blur", async function () {
+      var val = titleInput.value.trim() || "My Blog";
+      titleInput.value = val;
+      await saveConfig("blog_title", val);
+    });
+
+    // ── Wire subtitle input ──
+    var subtitleInput = document.getElementById("d-subtitle");
+    subtitleInput.addEventListener("input", function () {
+      applyConfigKey("blog_subtitle", subtitleInput.value);
+    });
+    subtitleInput.addEventListener("blur", async function () {
+      await saveConfig("blog_subtitle", subtitleInput.value.trim());
+    });
+
+    // ── Wire panel open / close ──
+    btnCustomize.addEventListener("click", function () {
+      designerPanel.classList.toggle("hidden");
+    });
+    document.getElementById("btn-designer-close").addEventListener("click", function () {
+      designerPanel.classList.add("hidden");
     });
   }
 
-  // ── Game view ──
+  // ── Seed sample posts on first run ──
+  async function seed() {
+    var tables = await db.tables();
+    if (tables && tables.length > 0) return;
 
-  async function showGame(gameId) {
-    stopPolling();
-    currentGameId = gameId;
+    await db.createTable("posts", [
+      { name: "title",       type: "TEXT",    not_null: true },
+      { name: "body",        type: "TEXT",    not_null: true },
+      { name: "author_name", type: "TEXT",    default: "" },
+      { name: "slug",        type: "TEXT" },
+      { name: "published",   type: "INTEGER", default: "1" },
+    ]);
 
+    var myLabel = "";
+    try { myLabel = await Goop.identity.label(); } catch (_) {}
+
+    await db.insert("posts", {
+      title: "Hello, World!",
+      body: "Welcome to my blog. This is my first post on the ephemeral web.\n\nI'm running a peer-to-peer site using Goop². Everything here is local-first and distributed — no central servers involved.\n\nFeel free to look around!",
+      slug: "hello-world",
+      author_name: myLabel,
+    });
+
+    await db.insert("posts", {
+      title: "How This Works",
+      body: "Each peer runs their own site. You're reading this through the p2p network right now.\n\nI write posts from my local editor, and they get served to anyone who connects. No accounts, no passwords, no cloud — just peers talking to peers.",
+      slug: "how-this-works",
+      author_name: myLabel,
+    });
+  }
+
+  // ── Load & render posts ──
+  async function loadPosts() {
     try {
-      var state = await db.call("ttt", { action: "state", game_id: gameId });
-      renderBoard(state);
-
-      // Poll for PvP games in progress or waiting
-      if (state.mode === "pvp" && (state.status === "playing" || state.status === "waiting")) {
-        startPolling(gameId);
-      }
-    } catch (e) {
-      console.error("game error:", e);
-      root.innerHTML = '<p class="ttt-empty">Could not load game.</p>'
-        + '<p class="ttt-empty" style="font-size:11px;color:#999;">' + esc(e.message || String(e)) + '</p>';
+      var rows = await db.query("posts", { where: "published = 1", limit: 50 });
+      renderPosts(rows || []);
+    } catch (err) {
+      postsEl.innerHTML =
+        '<div class="empty-msg"><p>Could not load posts.</p><p class="loading">' +
+        esc(err.message) + "</p></div>";
     }
   }
 
-  function renderBoard(state) {
-    var board = state.board || "---------";
-    var yourSymbol = state.your_symbol;
-    var isYourTurn = (state.status === "playing" && state.turn === yourSymbol);
-    var gameOver = (state.status !== "playing" && state.status !== "waiting");
-    var winCells = {};
-
-    if (state.win_line) {
-      for (var w = 0; w < state.win_line.length; w++) {
-        winCells[state.win_line[w]] = true;
-      }
-    }
-
-    var html = '<div class="ttt-game">';
-
-    // Waiting state — visitor sees spinner until host accepts
-    if (state.status === "waiting") {
-      html += '<div class="ttt-waiting">';
-      html += '<div class="spinner"></div>';
-      html += '<p>Waiting for host to accept&hellip;</p>';
-      html += '<button class="btn btn-secondary btn-sm" id="btn-cancel">Cancel</button>';
-      html += '</div>';
-      root.innerHTML = html;
-      var btnCancel = document.getElementById("btn-cancel");
-      if (btnCancel) {
-        btnCancel.onclick = async function () {
-          await db.call("ttt", { action: "cancel", game_id: state.game_id });
-          showLobby();
-        };
-      }
+  function renderPosts(posts) {
+    if (posts.length === 0) {
+      postsEl.innerHTML =
+        '<div class="empty-msg"><p>No posts yet.</p>' +
+        ((isOwner || isCoAuthor)
+          ? '<p class="loading">Click "+ New Post" to write your first one.</p>'
+          : "") +
+        "</div>";
       return;
     }
 
-    // Result banner
-    if (gameOver) {
-      var resultCls = "draw";
-      var resultMsg = "Draw!";
-      if (state.status === "cancelled") {
-        resultMsg = "Cancelled";
-      } else if (state.winner === myId) {
-        resultCls = "win";
-        resultMsg = "You won!";
-      } else if (state.winner && state.winner !== myId) {
-        resultCls = "loss";
-        var opponentName = (state.mode === "pve") ? "Computer" : "Opponent";
-        resultMsg = opponentName + " won!";
+    posts.sort(function (a, b) { return b._id - a._id; });
+
+    postsEl.innerHTML = posts.map(function (p) {
+      var date = p._created_at
+        ? new Date(String(p._created_at).replace(" ", "T") + "Z")
+            .toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })
+        : "";
+      var html = '<article class="post">';
+      if (p.image) {
+        html += '<img class="post-image" src="images/' + esc(p.image) + '" alt="">';
       }
-      html += '<div class="ttt-result ' + resultCls + '">' + resultMsg + '</div>';
-    } else {
-      // Turn indicator
-      var opLabel = (state.mode === "pve") ? "Computer" : "Opponent";
-      var turnLabel = isYourTurn ? "Your turn" : opLabel + "'s turn";
-      html += '<div class="ttt-status">';
-      html += 'You: <span class="' + (yourSymbol === "X" ? "symbol-x" : "symbol-o") + '">' + symbolChar(yourSymbol) + '</span>';
-      html += ' &mdash; ' + turnLabel;
-      html += '</div>';
-    }
-
-    // Board
-    html += '<div class="ttt-board">';
-    for (var i = 0; i < 9; i++) {
-      var ch = board.charAt(i);
-      var cls = "ttt-cell";
-      var content = "";
-
-      if (ch === "X") {
-        cls += " taken x";
-        content = symbolChar("X");
-      } else if (ch === "O") {
-        cls += " taken o";
-        content = symbolChar("O");
+      html += '<h2 class="post-title">' + esc(p.title) + "</h2>";
+      html += '<div class="post-meta">' + esc(date) + "</div>";
+      if (p.author_name) {
+        html += '<div class="post-byline">by ' + esc(p.author_name) + "</div>";
       }
-
-      if (winCells[i]) {
-        cls += " win-cell";
+      html += '<div class="post-body">' + esc(p.body) + "</div>";
+      var canEdit = isOwner || (isCoAuthor && p._owner === myId);
+      if (canEdit) {
+        html += '<div class="post-actions">';
+        html += '<button data-action="edit" data-id="' + p._id + '">Edit</button>';
+        html += '<button data-action="delete" data-id="' + p._id + '" data-image="' + esc(p.image || "") + '">Delete</button>';
+        html += "</div>";
       }
+      html += "</article>";
+      return html;
+    }).join("");
 
-      if (gameOver || !isYourTurn || ch !== "-") {
-        cls += " disabled";
-      }
+    if (isOwner || isCoAuthor) wireActions();
+  }
 
-      html += '<div class="' + cls + '" data-pos="' + i + '">' + content + '</div>';
-    }
-    html += '</div>';
-
-    // Actions
-    if (gameOver) {
-      html += '<div class="ttt-game-actions">';
-      if (state.mode === "pve") {
-        html += '<button class="btn btn-primary" id="btn-rematch-pve">Play Again</button>';
-      }
-      html += '<button class="btn btn-secondary" id="btn-back">Back to Lobby</button>';
-      html += '</div>';
-    }
-
-    html += '</div>';
-    root.innerHTML = html;
-
-    // Click handlers for cells
-    if (!gameOver && isYourTurn) {
-      root.querySelectorAll(".ttt-cell:not(.taken):not(.disabled)").forEach(function (cell) {
-        cell.onclick = async function () {
-          var pos = parseInt(cell.getAttribute("data-pos"));
-          cell.classList.add("disabled");
-
-          try {
-            var gameId = state.game_id || currentGameId;
-            var result = await db.call("move", {
-              game_id: gameId,
-              position: pos
-            });
-            if (result.error) {
-              Goop.ui.toast(result.error);
-              renderBoard(state); // re-render previous state
-              return;
-            }
-            if (!result.game_id) result.game_id = gameId;
-            if (!result.challenger_label) result.challenger_label = state.challenger_label;
-            renderBoard(result);
-
-            // Start polling for opponent's move in PvP
-            if (result.mode === "pvp" && result.status === "playing") {
-              startPolling(result.game_id);
-            }
-          } catch (e) {
-            Goop.ui.toast(e.message || "Error making move.");
-            renderBoard(state);
-          }
-        };
+  function wireActions() {
+    postsEl.querySelectorAll("[data-action=edit]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        openEditor(parseInt(btn.getAttribute("data-id"), 10));
       });
-    }
-
-    // Game-over button handlers
-    var btnRematchPve = document.getElementById("btn-rematch-pve");
-    if (btnRematchPve) {
-      btnRematchPve.onclick = async function () {
-        btnRematchPve.disabled = true;
-        try {
-          var result = await db.call("ttt", { action: "new_pve" });
-          if (result.error) {
-            Goop.ui.toast(result.error);
-            btnRematchPve.disabled = false;
-          } else {
-            // Render directly — no extra game_state call needed
-            currentGameId = result.game_id;
-            renderBoard(result);
-          }
-        } catch (e) {
-          Goop.ui.toast(e.message || "Error starting game.");
-          btnRematchPve.disabled = false;
+    });
+    postsEl.querySelectorAll("[data-action=delete]").forEach(function (btn) {
+      btn.addEventListener("click", async function () {
+        var id = parseInt(btn.getAttribute("data-id"), 10);
+        var imgFile = btn.getAttribute("data-image") || "";
+        var ok = true;
+        if (Goop.ui) ok = await Goop.ui.confirm("Delete this post?");
+        if (!ok) return;
+        await db.remove("posts", id);
+        if (imgFile && isOwner && site) {
+          try { await site.remove("images/" + imgFile); } catch (_) {}
         }
-      };
+        loadPosts();
+      });
+    });
+  }
+
+  // ── Editor ──
+  async function openEditor(id) {
+    editingId = id || null;
+    editingImage = null;
+    document.getElementById("f-title").value = "";
+    document.getElementById("f-body").value = "";
+    document.getElementById("editor-heading").textContent = id ? "Edit Post" : "New Post";
+    document.getElementById("btn-save").textContent = id ? "Update" : "Publish";
+
+    // Reset image input + preview
+    var fImage = document.getElementById("f-image");
+    var fPreview = document.getElementById("f-image-preview");
+    if (fImage) fImage.value = "";
+    if (fPreview) { fPreview.src = ""; fPreview.classList.add("hidden"); }
+
+    if (id) {
+      try {
+        var rows = await db.query("posts", { where: "_id = ?", args: [id], limit: 1 });
+        if (rows && rows.length > 0) {
+          document.getElementById("f-title").value = rows[0].title;
+          document.getElementById("f-body").value = rows[0].body;
+          if (rows[0].image && fPreview) {
+            editingImage = rows[0].image;
+            fPreview.src = "images/" + editingImage;
+            fPreview.classList.remove("hidden");
+          }
+        }
+      } catch (_) {}
+    }
+    overlay.classList.remove("hidden");
+    document.getElementById("f-title").focus();
+  }
+
+  btnNew.addEventListener("click", function () { openEditor(null); });
+
+  document.getElementById("btn-cancel").addEventListener("click", function () {
+    overlay.classList.add("hidden");
+  });
+
+  overlay.addEventListener("mousedown", function (e) {
+    if (e.target === overlay) overlay.classList.add("hidden");
+  });
+
+  document.getElementById("btn-save").addEventListener("click", async function () {
+    var title = document.getElementById("f-title").value.trim();
+    var body = document.getElementById("f-body").value.trim();
+    if (!title || !body) return;
+
+    var slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+    // Handle image upload (owner only)
+    var imageName = editingId ? editingImage : "";
+    var fImage = document.getElementById("f-image");
+    var imageFile = fImage && fImage.files && fImage.files[0];
+    if (imageFile && isOwner && site) {
+      var ext = (imageFile.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+      var safeName = Date.now() + "-" +
+        imageFile.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 60) +
+        "." + ext;
+      try {
+        await site.upload("images/" + safeName, imageFile);
+        // Remove old image if replacing
+        if (editingImage) {
+          try { await site.remove("images/" + editingImage); } catch (_) {}
+        }
+        imageName = safeName;
+      } catch (_) {
+        // Upload failed — save post without image change
+      }
     }
 
-    var btnBack = document.getElementById("btn-back");
-    if (btnBack) {
-      btnBack.onclick = function () { showLobby(); };
+    if (editingId) {
+      await db.update("posts", editingId, { title: title, body: body, slug: slug, image: imageName || "" });
+    } else {
+      var myLabel = "";
+      try { myLabel = await Goop.identity.label(); } catch (_) {}
+      await db.insert("posts", { title: title, body: body, slug: slug, author_name: myLabel, image: imageName || "" });
     }
-  }
 
-  // ── Helpers ──
+    overlay.classList.add("hidden");
+    loadPosts();
+  });
 
-  function symbolChar(s) {
-    if (s === "X") return "\u2715";
-    if (s === "O") return "\u25CB";
-    return "";
-  }
-
-  function timeAgo(ts) {
-    if (!ts) return "";
-    var now = new Date();
-    var then = new Date(ts.replace(" ", "T") + "Z");
-    var diff = Math.floor((now - then) / 1000);
-    if (diff < 60) return "just now";
-    if (diff < 3600) return Math.floor(diff / 60) + "m ago";
-    if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
-    return Math.floor(diff / 86400) + "d ago";
-  }
-
-  function esc(s) {
-    if (!s) return "";
-    var d = document.createElement("div");
-    d.appendChild(document.createTextNode(s));
-    return d.innerHTML;
-  }
+  // ── Init ──
+  await setupDesigner(); // loads + applies config for everyone; wires controls for owner
+  await seed();
+  loadPosts();
 })();

@@ -143,7 +143,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		}
 
-		if err := applyTemplateFiles(d, files, schema, tablePolicies); err != nil {
+		if err := applyTemplateFiles(d, files, schema, tablePolicies, meta.Name); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -252,7 +252,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		}
 
-		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies); err != nil {
+		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies, manifest.Name); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -274,13 +274,15 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	})
 }
 
-// applyTemplateFiles runs the 5-step apply flow:
+// applyTemplateFiles runs the apply flow:
 // 1. Drop all user tables
 // 2. Clear site files (preserve lua/)
 // 3. Write template site files
 // 4. Execute schema.sql
 // 5. Apply table insert policies
-func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePolicies map[string]string) error {
+// 6. Ensure Lua engine rescans if Lua files are present
+// 7. Auto-create a "template" group if any table uses "group" insert policy
+func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePolicies map[string]string, templateName string) error {
 	// 1. Drop all user database tables
 	if d.DB != nil {
 		if err := dropAllTables(d.DB); err != nil {
@@ -338,6 +340,43 @@ func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePol
 			if strings.HasPrefix(rel, "lua/functions/") && strings.HasSuffix(rel, ".lua") {
 				d.EnsureLua()
 				break
+			}
+		}
+	}
+
+	// 7. Manage template co-author group lifecycle.
+	if d.GroupManager != nil {
+		// Always close any existing template groups — the new template may not use one.
+		if existing, err := d.GroupManager.ListHostedGroups(); err == nil {
+			for _, g := range existing {
+				if g.AppType == "template" {
+					_ = d.GroupManager.CloseGroup(g.ID)
+				}
+			}
+		}
+
+		// If the new template uses "group" policy, create a fresh co-author group.
+		hasGroupPolicy := false
+		for _, policy := range tablePolicies {
+			if policy == "group" {
+				hasGroupPolicy = true
+				break
+			}
+		}
+		if hasGroupPolicy {
+			groupName := templateName + " Co-authors"
+			if templateName == "" {
+				groupName = "Co-authors"
+			}
+			groupID := generateGroupID()
+			if err := d.GroupManager.CreateGroup(groupID, groupName, "template", 0, false); err != nil {
+				log.Printf("template: failed to create co-author group: %v", err)
+			} else {
+				log.Printf("template: created co-author group %q (%s)", groupName, groupID)
+				// Host auto-joins their own template group so they appear as a member.
+				if err := d.GroupManager.JoinOwnGroup(groupID); err != nil {
+					log.Printf("template: failed to auto-join co-author group: %v", err)
+				}
 			}
 		}
 	}
