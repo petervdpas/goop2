@@ -6,6 +6,7 @@ CREATE TABLE posts (
   _updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
   title        TEXT NOT NULL,
   body         TEXT NOT NULL,
+  author_name  TEXT DEFAULT '',
   slug         TEXT,
   published    INTEGER DEFAULT 1
 );

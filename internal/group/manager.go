@@ -1202,12 +1202,12 @@ func (m *Manager) handleInviteStream(s network.Stream) {
 		},
 	})
 
-	// Realtime channels (e.g. video calls) require an immediate auto-join so
-	// that signaling messages can flow before the user interacts with the UI.
-	if inv.AppType == "realtime" {
+	// Realtime channels (e.g. video calls) and template co-author groups require
+	// an immediate auto-join so that access is established without user interaction.
+	if inv.AppType == "realtime" || inv.AppType == "template" {
 		go func() {
 			if err := m.JoinRemoteGroup(context.Background(), inv.HostPeerID, inv.GroupID); err != nil {
-				log.Printf("GROUP: Auto-join realtime group %s failed: %v", inv.GroupID, err)
+				log.Printf("GROUP: Auto-join %s group %s failed: %v", inv.AppType, inv.GroupID, err)
 			}
 		}()
 	}
@@ -1294,6 +1294,25 @@ func (m *Manager) IsPeerInGroup(peerID, groupID string) bool {
 
 	_, isMember := hg.members[peerID]
 	return isMember
+}
+
+// IsTemplateMember returns true if peerID is an active member of any
+// hosted group with app_type "template".
+func (m *Manager) IsTemplateMember(peerID string) bool {
+	m.mu.RLock()
+	var templateGroupIDs []string
+	for gid, hg := range m.groups {
+		if hg.info.AppType == "template" {
+			templateGroupIDs = append(templateGroupIDs, gid)
+		}
+	}
+	m.mu.RUnlock()
+	for _, gid := range templateGroupIDs {
+		if m.IsPeerInGroup(peerID, gid) {
+			return true
+		}
+	}
+	return false
 }
 
 // IsGroupHost returns true if this peer hosts the given group.

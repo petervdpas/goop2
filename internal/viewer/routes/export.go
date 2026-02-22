@@ -230,7 +230,7 @@ func registerExportRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 
 		// Reuse the existing template apply flow for site files + schema + policies
-		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies); err != nil {
+		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies, manifest.Label); err != nil {
 			http.Error(w, "failed to apply import: "+err.Error(), http.StatusInternalServerError)
 			return
 		}

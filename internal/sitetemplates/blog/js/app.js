@@ -5,6 +5,8 @@
   var btnNew = document.getElementById("btn-new");
   var overlay = document.getElementById("editor-overlay");
   var isOwner = false;
+  var isCoAuthor = false;
+  var myId = null;
   var editingId = null; // null = new post, number = editing existing
 
   function esc(s) {
@@ -13,16 +15,27 @@
     return d.innerHTML;
   }
 
-  // ── Owner detection ──
+  // ── Owner / co-author detection ──
   // Compare our peer ID with the peer ID in the URL path /p/{id}/
   try {
-    var myId = await Goop.identity.id();
+    myId = await Goop.identity.id();
     var match = window.location.pathname.match(/\/p\/([^/]+)/);
-    if (match && match[1] === myId) {
+    var ownerPeerId = match ? match[1] : null;
+    if (ownerPeerId && ownerPeerId === myId) {
       isOwner = true;
-      btnNew.classList.remove("hidden");
+    } else if (ownerPeerId && Goop.group) {
+      // Check if we have a "template" group subscription from this host
+      var subs = await Goop.group.subscriptions();
+      var list = (subs && subs.subscriptions) || [];
+      isCoAuthor = list.some(function (s) {
+        return s.host_peer_id === ownerPeerId && s.app_type === "template";
+      });
     }
   } catch (_) {}
+
+  if (isOwner || isCoAuthor) {
+    btnNew.classList.remove("hidden");
+  }
 
   // ── Seed sample posts on first run ──
   async function seed() {
@@ -32,20 +45,26 @@
     await db.createTable("posts", [
       { name: "title", type: "TEXT", not_null: true },
       { name: "body", type: "TEXT", not_null: true },
+      { name: "author_name", type: "TEXT", default: "" },
       { name: "slug", type: "TEXT" },
       { name: "published", type: "INTEGER", default: "1" },
     ]);
+
+    var myLabel = "";
+    try { myLabel = await Goop.identity.label(); } catch (_) {}
 
     await db.insert("posts", {
       title: "Hello, World!",
       body: "Welcome to my blog. This is my first post on the ephemeral web.\n\nI'm running a peer-to-peer site using Goop². Everything here is local-first and distributed — no central servers involved.\n\nFeel free to look around!",
       slug: "hello-world",
+      author_name: myLabel,
     });
 
     await db.insert("posts", {
       title: "How This Works",
       body: "Each peer runs their own site. You're reading this through the p2p network right now.\n\nI write posts from my local editor, and they get served to anyone who connects. No accounts, no passwords, no cloud — just peers talking to peers.",
       slug: "how-this-works",
+      author_name: myLabel,
     });
   }
 
@@ -65,7 +84,7 @@
   function renderPosts(posts) {
     if (posts.length === 0) {
       postsEl.innerHTML = '<div class="empty-msg"><p>No posts yet.</p>' +
-        (isOwner ? '<p class="loading">Click "+ New Post" to write your first one.</p>' : '') +
+        ((isOwner || isCoAuthor) ? '<p class="loading">Click "+ New Post" to write your first one.</p>' : '') +
         "</div>";
       return;
     }
@@ -78,8 +97,12 @@
       var html = '<article class="post">';
       html += '<h2 class="post-title">' + esc(p.title) + "</h2>";
       html += '<div class="post-meta">' + esc(date) + "</div>";
+      if (p.author_name) {
+        html += '<div class="post-byline">by ' + esc(p.author_name) + "</div>";
+      }
       html += '<div class="post-body">' + esc(p.body) + "</div>";
-      if (isOwner) {
+      var canEdit = isOwner || (isCoAuthor && p._owner === myId);
+      if (canEdit) {
         html += '<div class="post-actions">';
         html += '<button data-action="edit" data-id="' + p._id + '">Edit</button>';
         html += '<button data-action="delete" data-id="' + p._id + '">Delete</button>';
@@ -89,7 +112,7 @@
       return html;
     }).join("");
 
-    if (isOwner) wireActions();
+    if (isOwner || isCoAuthor) wireActions();
   }
 
   function wireActions() {
@@ -152,7 +175,9 @@
     if (editingId) {
       await db.update("posts", editingId, { title: title, body: body, slug: slug });
     } else {
-      await db.insert("posts", { title: title, body: body, slug: slug });
+      var myLabel = "";
+      try { myLabel = await Goop.identity.label(); } catch (_) {}
+      await db.insert("posts", { title: title, body: body, slug: slug, author_name: myLabel });
     }
 
     overlay.classList.add("hidden");
