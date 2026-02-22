@@ -1,12 +1,10 @@
 {{define "page.logs"}}
-<div style="display:flex; justify-content:space-between; align-items:center;">
-  <h1 style="margin:0;">Logs</h1>
-  <button id="copyLogsBtn" class="btn btn-sm" title="Copy logs to clipboard" style="padding:6px 12px; font-size:12px;">
-    Copy
-  </button>
+<div class="logs-header">
+  <h1>Logs</h1>
+  <button id="copyLogsBtn" class="btn btn-sm" title="Copy logs to clipboard">Copy</button>
 </div>
 
 <p class="muted small">Live tail from this Go process.</p>
 
-<pre id="logbox" class="content" style="height:70vh; overflow:auto; white-space:pre-wrap;"></pre>
+<pre id="logbox" class="content"></pre>
 {{end}}

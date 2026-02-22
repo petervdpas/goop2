@@ -3,7 +3,6 @@ package routes
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
@@ -12,10 +11,10 @@ import (
 
 // RegisterCall registers the native call API endpoints.
 // callMgr may be nil — in that case only GET /api/call/mode is registered
-// and it always returns {"mode":"browser"}, so the frontend has a safe endpoint
-// to query regardless of whether the feature is enabled.
+// and it always returns {"mode":"browser"}, so the frontend always has a safe
+// endpoint to query regardless of whether the feature is enabled.
 func RegisterCall(mux *http.ServeMux, callMgr *call.Manager) {
-	// GET /api/call/mode — always registered
+	// GET /api/call/mode — always registered; safe to call in any mode.
 	handleGet(mux, "/api/call/mode", func(w http.ResponseWriter, r *http.Request) {
 		mode := "browser"
 		if callMgr != nil {
@@ -27,6 +26,20 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager) {
 	if callMgr == nil {
 		return
 	}
+
+	// GET /api/call/debug — live session status for testing without a UI.
+	// Returns all active sessions with their PC state and RTP stats.
+	handleGet(mux, "/api/call/debug", func(w http.ResponseWriter, r *http.Request) {
+		sessions := callMgr.AllSessions()
+		statuses := make([]call.SessionStatus, 0, len(sessions))
+		for _, s := range sessions {
+			statuses = append(statuses, s.Status())
+		}
+		writeJSON(w, map[string]any{
+			"session_count": len(statuses),
+			"sessions":      statuses,
+		})
+	})
 
 	// POST /api/call/start
 	handlePost(mux, "/api/call/start", func(w http.ResponseWriter, r *http.Request, req struct {
@@ -101,7 +114,9 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager) {
 		writeJSON(w, map[string]bool{"disabled": sess.ToggleVideo()})
 	})
 
-	// GET /api/call/events — SSE stream: incoming call notifications for the browser
+	// GET /api/call/events — SSE stream: incoming call notifications.
+	// Each connection gets its own subscription channel; unsubscribed on disconnect
+	// so the manager never accumulates stale handlers.
 	handleGet(mux, "/api/call/events", func(w http.ResponseWriter, r *http.Request) {
 		sseHeaders(w)
 		flusher, ok := w.(http.Flusher)
@@ -110,14 +125,8 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager) {
 			return
 		}
 
-		incoming := make(chan *call.IncomingCall, 4)
-		callMgr.OnIncoming(func(ic *call.IncomingCall) {
-			select {
-			case incoming <- ic:
-			default:
-				log.Printf("CALL/events: incoming channel full, dropping call from %s", ic.RemotePeer)
-			}
-		})
+		inCh := callMgr.SubscribeIncoming()
+		defer callMgr.UnsubscribeIncoming(inCh)
 
 		fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"ok\"}\n\n")
 		flusher.Flush()
@@ -127,7 +136,7 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager) {
 			select {
 			case <-ctx.Done():
 				return
-			case ic, ok := <-incoming:
+			case ic, ok := <-inCh:
 				if !ok {
 					return
 				}
@@ -145,8 +154,54 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager) {
 		}
 	})
 
-	// Loopback signaling routes — browser ↔ Go localhost WebRTC (Phase 4)
-	// POST /api/call/loopback/{channel}/offer   → browser SDP offer, Go returns SDP answer
+	// GET /api/call/session/{channel}/events — SSE: per-session events (hangup, state).
+	// The browser subscribes after start/accept; fires once when the call ends.
+	mux.HandleFunc("/api/call/session/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Path: /api/call/session/{channel}/events
+		tail := strings.TrimPrefix(r.URL.Path, "/api/call/session/")
+		parts := strings.SplitN(tail, "/", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] != "events" {
+			http.Error(w, "invalid path — expected /api/call/session/{channel}/events", http.StatusBadRequest)
+			return
+		}
+		channelID := parts[0]
+
+		sess, ok := callMgr.GetSession(channelID)
+		if !ok {
+			http.Error(w, "session not found", http.StatusNotFound)
+			return
+		}
+
+		sseHeaders(w)
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming not supported", http.StatusInternalServerError)
+			return
+		}
+
+		fmt.Fprintf(w, "event: connected\ndata: {}\n\n")
+		flusher.Flush()
+
+		select {
+		case <-r.Context().Done():
+			// Client disconnected before hangup — that's fine.
+		case <-sess.HangupCh():
+			data, _ := json.Marshal(map[string]string{
+				"type":       "hangup",
+				"channel_id": channelID,
+			})
+			fmt.Fprintf(w, "event: hangup\ndata: %s\n\n", data)
+			flusher.Flush()
+		}
+	})
+
+	// Loopback signaling routes — browser ↔ Go localhost WebRTC (Phase 4).
+	// POST /api/call/loopback/{channel}/offer   → browser SDP offer; Go returns SDP answer
 	// POST /api/call/loopback/{channel}/ice      → browser ICE candidates → Go LocalPC
 	// GET  /api/call/loopback/{channel}/ice      → SSE: Go LocalPC ICE candidates → browser
 	mux.HandleFunc("/api/call/loopback/", func(w http.ResponseWriter, r *http.Request) {
@@ -183,7 +238,6 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager) {
 		case "ice":
 			switch r.Method {
 			case http.MethodPost:
-				// Browser sends its ICE candidates to Go's LocalPC.
 				var body struct {
 					Candidate string `json:"candidate"`
 					Mid       string `json:"sdpMid"`
@@ -197,7 +251,6 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager) {
 				writeJSON(w, map[string]string{"status": "ok"})
 
 			case http.MethodGet:
-				// SSE stream of Go's LocalPC ICE candidates → browser.
 				sseHeaders(w)
 				flusher, ok := w.(http.Flusher)
 				if !ok {

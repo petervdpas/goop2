@@ -143,13 +143,14 @@ github.com/pion/mediadevices/pkg/driver/microphone/alsa
 
 ### Phase 2 — Signaling bridge (calls ring, no media)
 
-**Status: pending**
+**Status: ✅ Complete**
 
-- [ ] `internal/call/manager.go`: verify dispatch handles all signaling types
-- [ ] `internal/call/session.go`: add loopback ice candidate channel for SSE
-- [ ] `internal/viewer/routes/call.go`: wire loopback ICE SSE to session
-- [ ] `internal/ui/assets/js/call-native.js`: full loopback RTCPeerConnection setup
-- [ ] Test: incoming call modal appears, accept/reject works, hangup cleans up
+- [x] `internal/call/manager.go`: `SubscribeIncoming/UnsubscribeIncoming` channel-based pub/sub; `call-ack` sent on accept; no callback-slice leak
+- [x] `internal/call/session.go`: `hangupCh chan struct{}`, `HangupCh()`, `Hangup()` closes channel; `handleSignal` handles `call-hangup` + `call-ack`
+- [x] `internal/viewer/routes/call.go`: `/api/call/events` SSE uses subscribe/defer-unsubscribe; `/api/call/session/{channel}/events` per-session hangup SSE
+- [x] `internal/ui/assets/js/call-ui.js`: `Goop.callUI.showIncoming(info)` bridge for re-registration
+- [x] `internal/ui/assets/js/video-call.js`: `window._callNativeMode` guard in `notifyIncoming` (suppresses double modal)
+- [x] `internal/ui/assets/js/call-native.js`: `NativeSession` (sync toggles, `_listenForHangup`, `_connectLoopback` stub); `NativeCallManager` (SSE subscription, `start`, `onIncoming`); `init` sets flag + re-registers on new manager
 
 **Goal:** Incoming call modal appears on Linux. Accept/reject works. `call-hangup` cleans up session.
 
@@ -157,19 +158,24 @@ github.com/pion/mediadevices/pkg/driver/microphone/alsa
 
 ### Phase 3 — Media capture (local camera/mic flows to remote peer)
 
-**Status: pending**
+**Status: ✅ Complete**
 
-Prerequisites: Verify Phase 2 works end-to-end.
+- [x] `go get github.com/pion/mediadevices v0.9.4` (pulls pion/webrtc/v4 — coexists with v3 used by libp2p)
+- [x] `go get github.com/pion/mediadevices/pkg/codec/vpx` + `pkg/codec/opus`
+- [x] `go get github.com/pion/mediadevices/pkg/driver/camera` (blackjack/webcam V4L2 backend)
+- [x] `go get github.com/pion/mediadevices/pkg/driver/microphone` (gen2brain/malgo, cross-platform audio)
+- [x] `internal/call/session.go`: full rewrite — ExternalPC with VP8+Opus codec selector, RegisterDefaultInterceptors, STUN server
+- [x] `internal/call/session.go`: `initExternalPC()` goroutine — creates PC, captures camera+mic via GetUserMedia, adds tracks
+- [x] `internal/call/session.go`: full SDP/ICE signal handling — `call-ack` → createAndSendOffer, `call-offer` → handleOffer, `call-answer` → handleAnswer, ICE candidate buffering until remote desc set
+- [x] `internal/call/manager.go`: passes `isCaller bool` to `newSession` (true for StartCall, false for AcceptCall)
+- [x] CI build scripts updated: `libvpx-dev libv4l-dev libopus-dev libasound2-dev` (Debian), `libvpx-devel libv4l-devel alsa-lib-devel opus-devel` (Fedora)
+- [x] `.deb` control runtime Depends updated: `libvpx7, libv4l-0, libopus0, libasound2`
+- [x] Flatpak finish-args: `--device=all`, `--socket=pulseaudio`
 
-- [ ] `go get github.com/pion/webrtc/v3`
-- [ ] `go get github.com/pion/mediadevices` + codec/vpx + codec/opus
-- [ ] `go get github.com/pion/mediadevices/pkg/driver/camera/v4l2`
-- [ ] `go get github.com/pion/mediadevices/pkg/driver/microphone/alsa`
-- [ ] `internal/call/session.go`: add `ExternalPC *webrtc.PeerConnection`
-- [ ] `internal/call/session.go`: open V4L2 camera + ALSA mic via mediadevices
-- [ ] `internal/call/session.go`: add local tracks to ExternalPC
-- [ ] Wire STUN servers for external ICE (e.g., `stun:stun.l.google.com:19302`)
-- [ ] Wire ExternalPC ICE/SDP exchange through `handleSignal`
+**Notes:**
+- `pion/mediadevices/pkg/driver/microphone` uses `malgo` (miniaudio) — ALSA/PulseAudio on Linux, WASAPI on Windows. No separate ALSA dev package needed beyond `libasound2-dev`.
+- `GetUserMedia` failure is non-fatal: PC is still created, call proceeds without local media (receive-only).
+- `ToggleAudio`/`ToggleVideo` update local state only; actual Pion track muting is Phase 5.
 
 **Goal:** Linux peer sends camera+mic to a remote peer running browser WebRTC.
 

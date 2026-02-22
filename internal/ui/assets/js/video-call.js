@@ -378,6 +378,11 @@
   function handleSignaling(payload, env) {
     if (!payload) return;
 
+    // In native mode Go handles all call signaling; browser has no session.
+    // Only process call-request here (already suppressed separately) — skip
+    // offer/answer/ICE entirely to avoid "no session/pc" noise in the logs.
+    if (window._callNativeMode) return;
+
     var channelId = env.channel;
     var session = activeCalls[channelId];
 
@@ -536,6 +541,12 @@
   // ── Incoming call notification ──────────────────────────────────────────────
 
   function notifyIncoming(channelId, fromPeer, payload) {
+    // In native mode call-native.js handles incoming calls via /api/call/events SSE.
+    // Suppress the browser modal here to avoid showing two incoming-call dialogs.
+    if (window._callNativeMode) {
+      log('debug', 'notifyIncoming suppressed — native call mode active');
+      return;
+    }
     log('info', 'Processing incoming call: channel=' + channelId + ', from=' + fromPeer);
 
     var info = {

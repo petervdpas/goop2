@@ -1,6 +1,6 @@
 // Package call manages native WebRTC call sessions using Pion.
-// It is designed to be maximally standalone — it imports only Pion libraries
-// and stdlib. Coupling to the rest of goop2 is via the Signaler interface only.
+// It is designed to be maximally standalone — it imports only stdlib.
+// Coupling to the rest of goop2 is via the Signaler interface only.
 package call
 
 import (
@@ -17,8 +17,11 @@ type Manager struct {
 	mu       sync.RWMutex
 	sessions map[string]*Session
 
-	incomingMu sync.RWMutex
-	incoming   []func(*IncomingCall)
+	// Subscription-based incoming call notifications.
+	// Each /api/call/events SSE connection subscribes one channel and unsubscribes
+	// on disconnect — prevents the handler-slice leak of the callback approach.
+	incomingMu        sync.RWMutex
+	incomingListeners map[chan *IncomingCall]struct{}
 
 	done chan struct{}
 }
@@ -27,26 +30,39 @@ type Manager struct {
 // signaling messages immediately.
 func New(sig Signaler, selfID string) *Manager {
 	m := &Manager{
-		sig:      sig,
-		selfID:   selfID,
-		sessions: make(map[string]*Session),
-		done:     make(chan struct{}),
+		sig:               sig,
+		selfID:            selfID,
+		sessions:          make(map[string]*Session),
+		incomingListeners: make(map[chan *IncomingCall]struct{}),
+		done:              make(chan struct{}),
 	}
 	go m.dispatchLoop()
 	return m
 }
 
-// OnIncoming registers a callback that is fired for each incoming call-request.
-// Multiple handlers can be registered; each SSE connection in call.go registers one.
-func (m *Manager) OnIncoming(fn func(*IncomingCall)) {
+// SubscribeIncoming returns a channel that receives incoming call notifications.
+// Call UnsubscribeIncoming when done (e.g. on SSE client disconnect) to avoid leaks.
+func (m *Manager) SubscribeIncoming() chan *IncomingCall {
+	ch := make(chan *IncomingCall, 4)
 	m.incomingMu.Lock()
-	m.incoming = append(m.incoming, fn)
+	m.incomingListeners[ch] = struct{}{}
+	m.incomingMu.Unlock()
+	return ch
+}
+
+// UnsubscribeIncoming removes the subscription and closes the channel.
+func (m *Manager) UnsubscribeIncoming(ch chan *IncomingCall) {
+	m.incomingMu.Lock()
+	if _, ok := m.incomingListeners[ch]; ok {
+		delete(m.incomingListeners, ch)
+		close(ch)
+	}
 	m.incomingMu.Unlock()
 }
 
 // StartCall creates a new outbound call session on channelID to remotePeer.
 func (m *Manager) StartCall(ctx context.Context, channelID, remotePeer string) (*Session, error) {
-	sess := newSession(channelID, remotePeer, m.sig)
+	sess := newSession(channelID, remotePeer, m.sig, true)
 	m.mu.Lock()
 	m.sessions[channelID] = sess
 	m.mu.Unlock()
@@ -54,12 +70,14 @@ func (m *Manager) StartCall(ctx context.Context, channelID, remotePeer string) (
 	return sess, nil
 }
 
-// AcceptCall creates a session for an incoming call.
+// AcceptCall creates a session for an incoming call and sends call-ack to the caller.
 func (m *Manager) AcceptCall(ctx context.Context, channelID, remotePeer string) (*Session, error) {
-	sess := newSession(channelID, remotePeer, m.sig)
+	sess := newSession(channelID, remotePeer, m.sig, false)
 	m.mu.Lock()
 	m.sessions[channelID] = sess
 	m.mu.Unlock()
+	// Notify the caller that we accepted — they can proceed with SDP exchange.
+	_ = m.sig.Send(channelID, map[string]any{"type": "call-ack"})
 	log.Printf("CALL: accepted %s from %s", channelID, remotePeer)
 	return sess, nil
 }
@@ -70,6 +88,17 @@ func (m *Manager) GetSession(channelID string) (*Session, bool) {
 	s, ok := m.sessions[channelID]
 	m.mu.RUnlock()
 	return s, ok
+}
+
+// AllSessions returns a snapshot of all active sessions (for the debug endpoint).
+func (m *Manager) AllSessions() []*Session {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]*Session, 0, len(m.sessions))
+	for _, s := range m.sessions {
+		out = append(out, s)
+	}
+	return out
 }
 
 // removeSession removes a session from the tracking map.
@@ -92,10 +121,16 @@ func (m *Manager) Close() {
 	sessions := m.sessions
 	m.sessions = make(map[string]*Session)
 	m.mu.Unlock()
-
 	for _, s := range sessions {
 		s.Hangup()
 	}
+
+	m.incomingMu.Lock()
+	for ch := range m.incomingListeners {
+		close(ch)
+	}
+	m.incomingListeners = nil
+	m.incomingMu.Unlock()
 }
 
 // dispatchLoop reads signaling envelopes from the Signaler and routes them.
@@ -116,8 +151,8 @@ func (m *Manager) dispatchLoop() {
 	}
 }
 
-// dispatch routes one signaling envelope to the appropriate session or
-// fires OnIncoming handlers for new call-request messages.
+// dispatch routes one signaling envelope to the appropriate session or fires
+// incoming-call listeners for new call-request messages.
 func (m *Manager) dispatch(env *Envelope) {
 	payload, ok := env.Payload.(map[string]any)
 	if !ok {
@@ -138,16 +173,18 @@ func (m *Manager) dispatch(env *Envelope) {
 			},
 		}
 		m.incomingMu.RLock()
-		handlers := make([]func(*IncomingCall), len(m.incoming))
-		copy(handlers, m.incoming)
-		m.incomingMu.RUnlock()
-		for _, fn := range handlers {
-			fn(ic)
+		for ch := range m.incomingListeners {
+			select {
+			case ch <- ic:
+			default:
+				log.Printf("CALL: incoming listener channel full, dropping")
+			}
 		}
+		m.incomingMu.RUnlock()
 		return
 	}
 
-	// Route other signals (offer, answer, ice-candidate, hangup) to existing session.
+	// Route other signals (call-ack, offer, answer, ice-candidate, hangup) to existing session.
 	m.mu.RLock()
 	sess, ok := m.sessions[env.Channel]
 	m.mu.RUnlock()

@@ -430,6 +430,13 @@
     // Manually show call UI for an existing session
     showCall: function(session) {
       showActiveCall(session);
+    },
+
+    // Show the incoming call modal for a given info object.
+    // Called by call-native.js after it replaces Goop.call in native mode,
+    // since call-ui.js's auto-registration above already ran on the old manager.
+    showIncoming: function(info) {
+      showIncomingCall(info);
     }
   };
 })();

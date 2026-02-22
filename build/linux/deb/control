@@ -3,7 +3,7 @@ Version: 2.0.0
 Section: net
 Priority: optional
 Architecture: amd64
-Depends: libgtk-3-0, libwebkit2gtk-4.0-37
+Depends: libgtk-3-0, libwebkit2gtk-4.0-37, libvpx7, libv4l-0, libopus0, libasound2
 Maintainer: Peter van de Pas <peter.vdpas@protonmail.com>
 Description: Ephemeral Web - peer-to-peer presence-based web system
  Goop2 is a peer-to-peer, presence-based web system for small, personal
