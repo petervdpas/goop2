@@ -227,9 +227,9 @@ func (n *Node) dataOpQuery(callerID string, req DataRequest) DataResponse {
 	where := req.Where
 	args := req.Args
 
-	// Owner-only and public tables have public reads — skip _owner scoping.
+	// Owner-only, public, and group tables have public reads — skip _owner scoping.
 	policy, _ := n.db.GetTableInsertPolicy(req.Table)
-	if policy != "owner" && policy != "public" {
+	if policy != "owner" && policy != "public" && policy != "group" {
 		// Scope query to caller's own rows: inject _owner = ? condition
 		if where != "" {
 			where = "(" + where + ") AND _owner = ?"
@@ -283,6 +283,12 @@ func (n *Node) dataOpInsert(callerID string, req DataRequest) DataResponse {
 		}
 	case "open", "public":
 		// anyone can insert
+	case "group":
+		if !isLocal {
+			if n.groupChecker == nil || !n.groupChecker.IsTemplateMember(callerID) {
+				return DataResponse{Error: "insert not allowed: not a template group co-author"}
+			}
+		}
 	default:
 		// unknown policy — default to owner-only for safety
 		if !isLocal {

@@ -28,6 +28,7 @@ import (
 type GroupChecker interface {
 	IsGroupHost(groupID string) bool
 	IsPeerInGroup(peerID, groupID string) bool
+	IsTemplateMember(peerID string) bool
 }
 
 // EnableDocs registers the docs stream handler.
