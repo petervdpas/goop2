@@ -4,6 +4,7 @@
   "category": "content",
   "icon": "📝",
   "tables": {
-    "posts": { "insert_policy": "group" }
+    "posts":       { "insert_policy": "group" },
+    "blog_config": { "insert_policy": "owner" }
   }
 }
