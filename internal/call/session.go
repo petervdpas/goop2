@@ -6,35 +6,34 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/pion/interceptor"
-	"github.com/pion/mediadevices"
-	"github.com/pion/mediadevices/pkg/codec/opus"
-	"github.com/pion/mediadevices/pkg/codec/vpx"
-	_ "github.com/pion/mediadevices/pkg/driver/camera"
-	_ "github.com/pion/mediadevices/pkg/driver/microphone"
 	"github.com/pion/webrtc/v4"
 )
 
 // Session represents one active call between two peers.
-// Phase 3: ExternalPC captures camera/mic via pion/mediadevices (V4L2 + malgo) and
-// exchanges media with the remote peer over a standard WebRTC PeerConnection.
-// Phase 4 will add LocalPC — a localhost loopback connection so the browser webview
-// receives a real MediaStream without needing getUserMedia.
+// Platform-specific media capture (camera/mic) is in media_linux.go /
+// media_other.go via the initMediaPC() function they each provide.
+//
+// Phase 3: ExternalPC exchanges media with the remote peer over a standard
+// WebRTC PeerConnection.  Local capture works on Linux (V4L2 + malgo);
+// on other platforms the PC is receive-only until Phase 5 adds more drivers.
+//
+// Phase 4 will add LocalPC — a localhost loopback connection so the browser
+// webview receives a real MediaStream without needing getUserMedia.
 type Session struct {
 	channelID  string
 	remotePeer string
 	sig        Signaler
 	isCaller   bool // true = created by StartCall; false = created by AcceptCall
 
-	mu      sync.Mutex
-	audioOn bool
-	videoOn bool
-	hung    bool
-	hangupCh chan struct{}
+	mu         sync.Mutex
+	audioOn    bool
+	videoOn    bool
+	hung       bool
+	hangupCh   chan struct{}
+	mediaClose func() // closes local media tracks; nil when no local media
 
 	// ExternalPC is the Pion PeerConnection to the remote peer.
-	externalPC  *webrtc.PeerConnection
-	localStream mediadevices.MediaStream
+	externalPC *webrtc.PeerConnection
 
 	// pcState tracks the most recent PeerConnectionState for /api/call/debug.
 	pcState webrtc.PeerConnectionState
@@ -133,19 +132,17 @@ func (s *Session) Hangup() {
 	log.Printf("CALL [%s]: hangup sent to %s", s.channelID, s.remotePeer)
 }
 
-// cleanup closes ExternalPC and releases the local media stream.
+// cleanup closes ExternalPC and releases local media tracks.
 func (s *Session) cleanup() {
 	s.mu.Lock()
 	pc := s.externalPC
-	stream := s.localStream
+	closeFn := s.mediaClose
 	s.externalPC = nil
-	s.localStream = nil
+	s.mediaClose = nil
 	s.mu.Unlock()
 
-	if stream != nil {
-		for _, t := range stream.GetTracks() {
-			t.Close()
-		}
+	if closeFn != nil {
+		closeFn()
 	}
 	if pc != nil {
 		_ = pc.Close()
@@ -154,53 +151,13 @@ func (s *Session) cleanup() {
 
 // ── ExternalPC initialisation ──────────────────────────────────────────────────
 
-// initExternalPC builds the Pion PeerConnection with VP8+Opus codecs, captures
-// local camera and mic via pion/mediadevices, and adds the tracks to the PC.
-// Called in a goroutine from newSession; closes s.mediaReady when done.
+// initExternalPC builds the Pion PeerConnection using the platform-specific
+// initMediaPC() function (media_linux.go / media_other.go), wires up common
+// callbacks, and closes s.mediaReady when done.
 func (s *Session) initExternalPC() {
 	defer close(s.mediaReady)
 
-	// ── Codec selector ───────────────────────────────────────────────────────
-
-	vpxParams, err := vpx.NewVP8Params()
-	if err != nil {
-		log.Printf("CALL [%s]: VP8 params error: %v", s.channelID, err)
-		return
-	}
-	vpxParams.BitRate = 1_500_000 // 1.5 Mbps
-
-	opusParams, err := opus.NewParams()
-	if err != nil {
-		log.Printf("CALL [%s]: Opus params error: %v", s.channelID, err)
-		return
-	}
-
-	codecSelector := mediadevices.NewCodecSelector(
-		mediadevices.WithVideoEncoders(&vpxParams),
-		mediadevices.WithAudioEncoders(&opusParams),
-	)
-
-	// ── WebRTC API ───────────────────────────────────────────────────────────
-
-	mediaEngine := &webrtc.MediaEngine{}
-	codecSelector.Populate(mediaEngine)
-
-	interceptorRegistry := &interceptor.Registry{}
-	if err := webrtc.RegisterDefaultInterceptors(mediaEngine, interceptorRegistry); err != nil {
-		log.Printf("CALL [%s]: interceptor register error: %v", s.channelID, err)
-		return
-	}
-
-	api := webrtc.NewAPI(
-		webrtc.WithMediaEngine(mediaEngine),
-		webrtc.WithInterceptorRegistry(interceptorRegistry),
-	)
-
-	pc, err := api.NewPeerConnection(webrtc.Configuration{
-		ICEServers: []webrtc.ICEServer{
-			{URLs: []string{"stun:stun.l.google.com:19302"}},
-		},
-	})
+	pc, closeFn, err := initMediaPC(s.channelID)
 	if err != nil {
 		log.Printf("CALL [%s]: PeerConnection create error: %v", s.channelID, err)
 		return
@@ -208,6 +165,7 @@ func (s *Session) initExternalPC() {
 
 	s.mu.Lock()
 	s.externalPC = pc
+	s.mediaClose = closeFn
 	s.mu.Unlock()
 
 	// ── PC callbacks ─────────────────────────────────────────────────────────
@@ -252,50 +210,6 @@ func (s *Session) initExternalPC() {
 			s.channelID, track.Kind(), track.Codec().MimeType, track.SSRC())
 		go s.drainRemoteTrack(track)
 	})
-
-	// ── Capture local media ──────────────────────────────────────────────────
-
-	stream, err := mediadevices.GetUserMedia(mediadevices.MediaStreamConstraints{
-		Video: func(_ *mediadevices.MediaTrackConstraints) {},
-		Audio: func(_ *mediadevices.MediaTrackConstraints) {},
-		Codec: codecSelector,
-	})
-	if err != nil {
-		// Non-fatal: call can still receive remote media; we just won't send any.
-		log.Printf("CALL [%s]: GetUserMedia error: %v — proceeding without local media", s.channelID, err)
-		// Add recvonly transceivers so CreateOffer/CreateAnswer still produces
-		// valid m-lines with ICE credentials. Without at least one m-line, the
-		// remote peer's SetRemoteDescription fails with "no ice-ufrag".
-		if _, terr := pc.AddTransceiverFromKind(webrtc.RTPCodecTypeVideo, webrtc.RTPTransceiverInit{
-			Direction: webrtc.RTPTransceiverDirectionRecvonly,
-		}); terr != nil {
-			log.Printf("CALL [%s]: AddTransceiver(video) error: %v", s.channelID, terr)
-		}
-		if _, terr := pc.AddTransceiverFromKind(webrtc.RTPCodecTypeAudio, webrtc.RTPTransceiverInit{
-			Direction: webrtc.RTPTransceiverDirectionRecvonly,
-		}); terr != nil {
-			log.Printf("CALL [%s]: AddTransceiver(audio) error: %v", s.channelID, terr)
-		}
-		return
-	}
-
-	s.mu.Lock()
-	s.localStream = stream
-	s.mu.Unlock()
-
-	for _, track := range stream.GetTracks() {
-		track.OnEnded(func(err error) {
-			if err != nil {
-				log.Printf("CALL [%s]: local track ended: %v", s.channelID, err)
-			}
-		})
-		if _, err := pc.AddTrack(track); err != nil {
-			log.Printf("CALL [%s]: AddTrack error: %v", s.channelID, err)
-		}
-	}
-
-	log.Printf("CALL [%s]: ExternalPC ready — %d local tracks, awaiting signal",
-		s.channelID, len(stream.GetTracks()))
 }
 
 // drainRemoteTrack reads RTP data from a remote track and logs packet stats every
