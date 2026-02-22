@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="css/style.css">
   <script src="/sdk/goop-data.js"></script>
+  <script src="/sdk/goop-site.js"></script>
   <script src="/sdk/goop-identity.js"></script>
   <script src="/sdk/goop-group.js"></script>
   <script src="/sdk/goop-ui.js"></script>
@@ -30,6 +31,12 @@
       <h2 id="editor-heading">New Post</h2>
       <label>Title <input type="text" id="f-title" required></label>
       <label>Body <textarea id="f-body" rows="10"></textarea></label>
+      <div id="editor-image-section" class="editor-image-section hidden">
+        <label>Cover image (optional)
+          <input type="file" id="f-image" accept="image/*">
+        </label>
+        <img id="f-image-preview" class="editor-image-preview hidden" src="" alt="">
+      </div>
       <div class="editor-btns">
         <button id="btn-cancel" class="btn-cancel">Cancel</button>
         <button id="btn-save" class="btn-save">Publish</button>

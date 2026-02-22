@@ -1,6 +1,7 @@
 // Blog app.js
 (async function () {
   var db = Goop.data;
+  var site = Goop.site;
   var postsEl = document.getElementById("posts");
   var btnNew = document.getElementById("btn-new");
   var btnCustomize = document.getElementById("btn-customize");
@@ -13,6 +14,7 @@
   var currentLayout = "list";
   var configMap = {}; // key -> { id: number, value: string }
   var editingId = null;
+  var editingImage = null; // filename of current post's image when editing
 
   function esc(s) {
     var d = document.createElement("div");
@@ -38,6 +40,9 @@
 
   if (isOwner || isCoAuthor) {
     btnNew.classList.remove("hidden");
+  }
+  if (isOwner) {
+    document.getElementById("editor-image-section").classList.remove("hidden");
   }
 
   // ── Config helpers ──
@@ -284,6 +289,9 @@
             .toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })
         : "";
       var html = '<article class="post">';
+      if (p.image) {
+        html += '<img class="post-image" src="images/' + esc(p.image) + '" alt="">';
+      }
       html += '<h2 class="post-title">' + esc(p.title) + "</h2>";
       html += '<div class="post-meta">' + esc(date) + "</div>";
       if (p.author_name) {
@@ -294,7 +302,7 @@
       if (canEdit) {
         html += '<div class="post-actions">';
         html += '<button data-action="edit" data-id="' + p._id + '">Edit</button>';
-        html += '<button data-action="delete" data-id="' + p._id + '">Delete</button>';
+        html += '<button data-action="delete" data-id="' + p._id + '" data-image="' + esc(p.image || "") + '">Delete</button>';
         html += "</div>";
       }
       html += "</article>";
@@ -313,10 +321,14 @@
     postsEl.querySelectorAll("[data-action=delete]").forEach(function (btn) {
       btn.addEventListener("click", async function () {
         var id = parseInt(btn.getAttribute("data-id"), 10);
+        var imgFile = btn.getAttribute("data-image") || "";
         var ok = true;
         if (Goop.ui) ok = await Goop.ui.confirm("Delete this post?");
         if (!ok) return;
         await db.remove("posts", id);
+        if (imgFile && isOwner && site) {
+          try { await site.remove("images/" + imgFile); } catch (_) {}
+        }
         loadPosts();
       });
     });
@@ -325,10 +337,17 @@
   // ── Editor ──
   async function openEditor(id) {
     editingId = id || null;
+    editingImage = null;
     document.getElementById("f-title").value = "";
     document.getElementById("f-body").value = "";
     document.getElementById("editor-heading").textContent = id ? "Edit Post" : "New Post";
     document.getElementById("btn-save").textContent = id ? "Update" : "Publish";
+
+    // Reset image input + preview
+    var fImage = document.getElementById("f-image");
+    var fPreview = document.getElementById("f-image-preview");
+    if (fImage) fImage.value = "";
+    if (fPreview) { fPreview.src = ""; fPreview.classList.add("hidden"); }
 
     if (id) {
       try {
@@ -336,6 +355,11 @@
         if (rows && rows.length > 0) {
           document.getElementById("f-title").value = rows[0].title;
           document.getElementById("f-body").value = rows[0].body;
+          if (rows[0].image && fPreview) {
+            editingImage = rows[0].image;
+            fPreview.src = "images/" + editingImage;
+            fPreview.classList.remove("hidden");
+          }
         }
       } catch (_) {}
     }
@@ -360,12 +384,33 @@
 
     var slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
+    // Handle image upload (owner only)
+    var imageName = editingId ? editingImage : "";
+    var fImage = document.getElementById("f-image");
+    var imageFile = fImage && fImage.files && fImage.files[0];
+    if (imageFile && isOwner && site) {
+      var ext = (imageFile.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+      var safeName = Date.now() + "-" +
+        imageFile.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 60) +
+        "." + ext;
+      try {
+        await site.upload("images/" + safeName, imageFile);
+        // Remove old image if replacing
+        if (editingImage) {
+          try { await site.remove("images/" + editingImage); } catch (_) {}
+        }
+        imageName = safeName;
+      } catch (_) {
+        // Upload failed — save post without image change
+      }
+    }
+
     if (editingId) {
-      await db.update("posts", editingId, { title: title, body: body, slug: slug });
+      await db.update("posts", editingId, { title: title, body: body, slug: slug, image: imageName || "" });
     } else {
       var myLabel = "";
       try { myLabel = await Goop.identity.label(); } catch (_) {}
-      await db.insert("posts", { title: title, body: body, slug: slug, author_name: myLabel });
+      await db.insert("posts", { title: title, body: body, slug: slug, author_name: myLabel, image: imageName || "" });
     }
 
     overlay.classList.add("hidden");
