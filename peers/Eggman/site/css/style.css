@@ -138,6 +138,53 @@ html, body {
 
 .hidden { display: none !important; }
 
+/* ── Post images ── */
+.post-image {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  object-fit: cover;
+  border-radius: 6px;
+  margin-bottom: 1.25rem;
+}
+
+/* Grid: image bleeds to card edges */
+.blog.layout-grid .post-image {
+  margin: -1.25rem -1.5rem 1.1rem;
+  width: calc(100% + 3rem);
+  max-height: 180px;
+  border-radius: 10px 10px 0 0;
+}
+
+/* Magazine: featured first post — taller image */
+.blog.layout-magazine .post:first-child .post-image {
+  max-height: 340px;
+  border-radius: 6px;
+}
+
+/* Magazine: secondary posts — bleed to card edges */
+.blog.layout-magazine .post:not(:first-child) .post-image {
+  margin: -1.25rem -1.25rem 1rem;
+  width: calc(100% + 2.5rem);
+  max-height: 150px;
+  border-radius: 10px 10px 0 0;
+}
+
+/* Editor image preview */
+.editor-image-section {
+  margin-bottom: 0.75rem;
+}
+
+.editor-image-preview {
+  display: block;
+  width: 100%;
+  max-height: 140px;
+  object-fit: cover;
+  border-radius: 6px;
+  margin-top: 0.5rem;
+  border: 1px solid var(--border);
+}
+
 /* ── Posts ── */
 .posts { }
 

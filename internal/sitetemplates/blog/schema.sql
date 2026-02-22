@@ -7,6 +7,7 @@ CREATE TABLE posts (
   title        TEXT NOT NULL,
   body         TEXT NOT NULL,
   author_name  TEXT DEFAULT '',
+  image        TEXT DEFAULT '',
   slug         TEXT,
   published    INTEGER DEFAULT 1
 );
