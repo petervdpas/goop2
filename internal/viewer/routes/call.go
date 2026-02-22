@@ -1,0 +1,220 @@
+package routes
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"strings"
+
+	"github.com/petervdpas/goop2/internal/call"
+)
+
+// RegisterCall registers the native call API endpoints.
+// callMgr may be nil — in that case only GET /api/call/mode is registered
+// and it always returns {"mode":"browser"}, so the frontend has a safe endpoint
+// to query regardless of whether the feature is enabled.
+func RegisterCall(mux *http.ServeMux, callMgr *call.Manager) {
+	// GET /api/call/mode — always registered
+	handleGet(mux, "/api/call/mode", func(w http.ResponseWriter, r *http.Request) {
+		mode := "browser"
+		if callMgr != nil {
+			mode = "native"
+		}
+		writeJSON(w, map[string]string{"mode": mode})
+	})
+
+	if callMgr == nil {
+		return
+	}
+
+	// POST /api/call/start
+	handlePost(mux, "/api/call/start", func(w http.ResponseWriter, r *http.Request, req struct {
+		ChannelID  string `json:"channel_id"`
+		RemotePeer string `json:"remote_peer"`
+	}) {
+		if req.ChannelID == "" || req.RemotePeer == "" {
+			http.Error(w, "missing channel_id or remote_peer", http.StatusBadRequest)
+			return
+		}
+		if _, err := callMgr.StartCall(r.Context(), req.ChannelID, req.RemotePeer); err != nil {
+			http.Error(w, fmt.Sprintf("start call failed: %v", err), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, map[string]string{"status": "started", "channel_id": req.ChannelID})
+	})
+
+	// POST /api/call/accept
+	handlePost(mux, "/api/call/accept", func(w http.ResponseWriter, r *http.Request, req struct {
+		ChannelID  string `json:"channel_id"`
+		RemotePeer string `json:"remote_peer"`
+	}) {
+		if req.ChannelID == "" || req.RemotePeer == "" {
+			http.Error(w, "missing channel_id or remote_peer", http.StatusBadRequest)
+			return
+		}
+		if _, err := callMgr.AcceptCall(r.Context(), req.ChannelID, req.RemotePeer); err != nil {
+			http.Error(w, fmt.Sprintf("accept call failed: %v", err), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, map[string]string{"status": "accepted", "channel_id": req.ChannelID})
+	})
+
+	// POST /api/call/hangup
+	handlePost(mux, "/api/call/hangup", func(w http.ResponseWriter, r *http.Request, req struct {
+		ChannelID string `json:"channel_id"`
+	}) {
+		if req.ChannelID == "" {
+			http.Error(w, "missing channel_id", http.StatusBadRequest)
+			return
+		}
+		sess, ok := callMgr.GetSession(req.ChannelID)
+		if !ok {
+			writeJSON(w, map[string]string{"status": "not_found"})
+			return
+		}
+		sess.Hangup()
+		writeJSON(w, map[string]string{"status": "hung_up"})
+	})
+
+	// POST /api/call/toggle-audio
+	handlePost(mux, "/api/call/toggle-audio", func(w http.ResponseWriter, r *http.Request, req struct {
+		ChannelID string `json:"channel_id"`
+	}) {
+		sess, ok := callMgr.GetSession(req.ChannelID)
+		if !ok {
+			http.Error(w, "session not found", http.StatusNotFound)
+			return
+		}
+		writeJSON(w, map[string]bool{"muted": sess.ToggleAudio()})
+	})
+
+	// POST /api/call/toggle-video
+	handlePost(mux, "/api/call/toggle-video", func(w http.ResponseWriter, r *http.Request, req struct {
+		ChannelID string `json:"channel_id"`
+	}) {
+		sess, ok := callMgr.GetSession(req.ChannelID)
+		if !ok {
+			http.Error(w, "session not found", http.StatusNotFound)
+			return
+		}
+		writeJSON(w, map[string]bool{"disabled": sess.ToggleVideo()})
+	})
+
+	// GET /api/call/events — SSE stream: incoming call notifications for the browser
+	handleGet(mux, "/api/call/events", func(w http.ResponseWriter, r *http.Request) {
+		sseHeaders(w)
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming not supported", http.StatusInternalServerError)
+			return
+		}
+
+		incoming := make(chan *call.IncomingCall, 4)
+		callMgr.OnIncoming(func(ic *call.IncomingCall) {
+			select {
+			case incoming <- ic:
+			default:
+				log.Printf("CALL/events: incoming channel full, dropping call from %s", ic.RemotePeer)
+			}
+		})
+
+		fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"ok\"}\n\n")
+		flusher.Flush()
+
+		ctx := r.Context()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case ic, ok := <-incoming:
+				if !ok {
+					return
+				}
+				data, err := json.Marshal(map[string]string{
+					"type":        "incoming-call",
+					"channel_id":  ic.ChannelID,
+					"remote_peer": ic.RemotePeer,
+				})
+				if err != nil {
+					continue
+				}
+				fmt.Fprintf(w, "event: call\ndata: %s\n\n", data)
+				flusher.Flush()
+			}
+		}
+	})
+
+	// Loopback signaling routes — browser ↔ Go localhost WebRTC (Phase 4)
+	// POST /api/call/loopback/{channel}/offer   → browser SDP offer, Go returns SDP answer
+	// POST /api/call/loopback/{channel}/ice      → browser ICE candidates → Go LocalPC
+	// GET  /api/call/loopback/{channel}/ice      → SSE: Go LocalPC ICE candidates → browser
+	mux.HandleFunc("/api/call/loopback/", func(w http.ResponseWriter, r *http.Request) {
+		tail := strings.TrimPrefix(r.URL.Path, "/api/call/loopback/")
+		parts := strings.SplitN(tail, "/", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			http.Error(w, "invalid path — expected /api/call/loopback/{channel}/{action}", http.StatusBadRequest)
+			return
+		}
+		channelID, action := parts[0], parts[1]
+
+		sess, ok := callMgr.GetSession(channelID)
+		if !ok {
+			http.Error(w, "session not found", http.StatusNotFound)
+			return
+		}
+
+		switch action {
+		case "offer":
+			if r.Method != http.MethodPost {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			var body struct {
+				SDP string `json:"sdp"`
+			}
+			if decodeJSON(w, r, &body) != nil {
+				return
+			}
+			_ = sess
+			// TODO Phase 4: pass SDP offer to LocalPC, return real SDP answer.
+			writeJSON(w, map[string]string{"sdp": "", "status": "stub — Phase 4 pending"})
+
+		case "ice":
+			switch r.Method {
+			case http.MethodPost:
+				// Browser sends its ICE candidates to Go's LocalPC.
+				var body struct {
+					Candidate string `json:"candidate"`
+					Mid       string `json:"sdpMid"`
+					Index     int    `json:"sdpMLineIndex"`
+				}
+				if decodeJSON(w, r, &body) != nil {
+					return
+				}
+				_ = sess
+				// TODO Phase 4: add to LocalPC remote candidates.
+				writeJSON(w, map[string]string{"status": "ok"})
+
+			case http.MethodGet:
+				// SSE stream of Go's LocalPC ICE candidates → browser.
+				sseHeaders(w)
+				flusher, ok := w.(http.Flusher)
+				if !ok {
+					http.Error(w, "streaming not supported", http.StatusInternalServerError)
+					return
+				}
+				fmt.Fprintf(w, "event: connected\ndata: {}\n\n")
+				flusher.Flush()
+				// TODO Phase 4: stream real ICE candidates from LocalPC.
+				<-r.Context().Done()
+
+			default:
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			}
+
+		default:
+			http.Error(w, "unknown loopback action", http.StatusNotFound)
+		}
+	})
+}
