@@ -41,12 +41,12 @@
     "templates_admin_token": ""
   },
   "profile": {
-    "label": "EggMan",
-    "email": "humpty@dumpty.com",
+    "label": "Pioneer",
+    "email": "pion@video.nl",
     "verification_token": ""
   },
   "viewer": {
-    "http_addr": ":7777",
+    "http_addr": ":7778",
     "debug": true,
     "theme": "dark",
     "preferred_cam": "",
@@ -54,7 +54,7 @@
     "video_disabled": false,
     "experimental_calls": true,
     "hide_unverified": false,
-    "active_template": "blog",
+    "active_template": "",
     "open_sites_external": false,
     "splash": "goop2-splash3.png"
   },

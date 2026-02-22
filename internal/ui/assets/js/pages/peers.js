@@ -65,10 +65,14 @@
 
     var peerName = peer.Content || shortId;
 
-    var rowDisabled = peer.Offline || peer.Reachable === false;
-    var rowClass = rowDisabled ? ' dimmed' : '';
+    // peer.Offline = explicitly gone (OfflineSince set) → full inert + dimmed.
+    // peer.Reachable === false = probe failed or not yet run → just dim; call may
+    // still succeed via relay so we keep the row interactive.
+    var rowOffline = !!peer.Offline;
+    var rowDimmed  = rowOffline || peer.Reachable === false;
+    var rowClass   = rowDimmed ? ' dimmed' : '';
 
-    return '<li class="peerrow' + rowClass + '" data-peer-id="' + escapeHtml(peer.ID) + '" data-favorite="' + (peer.Favorite ? 'true' : 'false') + '"' + (rowDisabled ? ' inert' : '') + '>' +
+    return '<li class="peerrow' + rowClass + '" data-peer-id="' + escapeHtml(peer.ID) + '" data-favorite="' + (peer.Favorite ? 'true' : 'false') + '"' + (rowOffline ? ' inert' : '') + '>' +
       '<img class="avatar avatar-md" src="' + avatarSrc + '" alt="">' +
       '<div class="peerleft">' +
         '<div class="peer-name-row">' +
@@ -326,7 +330,10 @@
       alert('Call feature not available');
       return;
     }
-    if (busyPeers.has(peerId)) return;
+    if (busyPeers.has(peerId)) {
+      console.warn('[peers] call button: peer already busy', peerId.substring(0, 8));
+      return;
+    }
 
     busyPeers.add(peerId);
     updateBusyState();

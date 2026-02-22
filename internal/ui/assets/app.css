@@ -22,3 +22,16 @@
 @import url("./css/pages/settings.css");
 @import url("./css/pages/listen.css");
 @import url("./css/pages/rendezvous.css");
+
+/* ── Logs page ──────────────────────────────────────────────────────────── */
+#logbox { height: 70vh; overflow: auto; white-space: pre-wrap; }
+
+/* Color-coding by subsystem */
+#logbox .log-call     { color: #7b9ef5; } /* CALL / [call-native] / [call-ui] / [webrtc] */
+#logbox .log-relay    { color: #f5a623; } /* relay                                        */
+#logbox .log-realtime { color: #50c8a8; } /* GROUP / REALTIME                             */
+#logbox .log-peer     { color: #68d391; } /* [update] / [online] / REACHABLE              */
+#logbox .log-probe    { color: #555;    } /* probe — dimmed, very frequent                */
+#logbox .log-error    { color: #fc8181; } /* UNREACHABLE / error                          */
+
+.logs-header { display: flex; justify-content: space-between; align-items: center; }
