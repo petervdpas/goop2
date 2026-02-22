@@ -203,6 +203,23 @@
             </div>
           </div>
 
+          <div class="field">
+            <label>Experimental native calls (Go/Pion)</label>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <label class="switch" title="Use Go/Pion WebRTC instead of browser WebRTC">
+                <input type="checkbox"
+                       name="viewer_experimental_calls"
+                       {{if .Cfg.Viewer.ExperimentalCalls}}checked{{end}}>
+                <span class="slider"></span>
+              </label>
+              <span class="muted small">Linux: bypasses WebKitGTK camera/mic limitations</span>
+            </div>
+            <div class="hint">
+              Uses Go's native media stack (Pion WebRTC). Restart required.
+              Fully interoperable with browser-based peers.
+            </div>
+          </div>
+
         </div>
 
         <!-- Network -->

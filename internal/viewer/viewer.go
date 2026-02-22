@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/petervdpas/goop2/internal/avatar"
+	"github.com/petervdpas/goop2/internal/call"
 	"github.com/petervdpas/goop2/internal/chat"
 	"github.com/petervdpas/goop2/internal/content"
 	"github.com/petervdpas/goop2/internal/docs"
@@ -52,6 +53,10 @@ type Viewer struct {
 
 	// EnsureLua starts the Lua engine if needed and rescans functions.
 	EnsureLua func()
+
+	// Call manager for native Go/Pion WebRTC (nil = use browser WebRTC).
+	// Set when cfg.Viewer.ExperimentalCalls is true.
+	Call *call.Manager
 }
 
 func Start(addr string, v Viewer) error {
@@ -146,6 +151,9 @@ func Start(addr string, v Viewer) error {
 	if v.Realtime != nil {
 		routes.RegisterRealtime(mux, v.Realtime, v.Node.ID())
 	}
+
+	// Register native call endpoints (always register mode endpoint; full API when Call != nil)
+	routes.RegisterCall(mux, v.Call)
 
 	// Register listen room endpoints if listen manager is available
 	if v.Listen != nil {

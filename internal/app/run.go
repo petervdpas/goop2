@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/petervdpas/goop2/internal/avatar"
+	"github.com/petervdpas/goop2/internal/call"
 	"github.com/petervdpas/goop2/internal/chat"
 	"github.com/petervdpas/goop2/internal/config"
 	"github.com/petervdpas/goop2/internal/content"
@@ -25,6 +26,32 @@ import (
 	"github.com/petervdpas/goop2/internal/util"
 	"github.com/petervdpas/goop2/internal/viewer"
 )
+
+// signalerAdapter bridges *realtime.Manager to call.Signaler.
+// This is the only place that imports both packages — call knows nothing about realtime.
+type signalerAdapter struct {
+	rt *realtime.Manager
+}
+
+func (a *signalerAdapter) Send(channelID string, payload any) error {
+	return a.rt.Send(channelID, payload)
+}
+
+func (a *signalerAdapter) Subscribe() (chan *call.Envelope, func()) {
+	rtCh, cancel := a.rt.Subscribe()
+	callCh := make(chan *call.Envelope, 64)
+	go func() {
+		defer close(callCh)
+		for env := range rtCh {
+			callCh <- &call.Envelope{
+				Channel: env.Channel,
+				From:    env.From,
+				Payload: env.Payload,
+			}
+		}
+	}()
+	return callCh, cancel
+}
 
 type Options struct {
 	PeerDir   string
@@ -353,6 +380,14 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	rtMgr := realtime.New(grpMgr, node.ID())
 	log.Printf("⚡ Realtime channels enabled")
 
+	// ── Native call manager (Go/Pion WebRTC — Linux only, experimental)
+	var callMgr *call.Manager
+	if cfg.Viewer.ExperimentalCalls {
+		callMgr = call.New(&signalerAdapter{rt: rtMgr}, node.ID())
+		defer callMgr.Close()
+		log.Printf("📞 Experimental native call stack enabled (Go/Pion WebRTC)")
+	}
+
 	// ── Listen room (wraps group protocol + binary audio stream)
 	listenMgr := listen.New(node.Host, grpMgr, node.ID(), o.PeerDir)
 	defer listenMgr.Close()
@@ -463,6 +498,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			RVClients:   rvClients,
 			BridgeURL:   o.BridgeURL,
 			EnsureLua:   ensureLua,
+			Call:        callMgr,
 		})
 	}
 
