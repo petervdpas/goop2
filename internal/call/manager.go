@@ -14,8 +14,9 @@ type Manager struct {
 	sig    Signaler
 	selfID string
 
-	mu       sync.RWMutex
-	sessions map[string]*Session
+	mu           sync.RWMutex
+	sessions     map[string]*Session
+	pendingCalls map[string]struct{} // channels where call-request fired but not yet accepted/rejected
 
 	// Subscription-based incoming call notifications.
 	// Each /api/call/events SSE connection subscribes one channel and unsubscribes
@@ -33,6 +34,7 @@ func New(sig Signaler, selfID string) *Manager {
 		sig:               sig,
 		selfID:            selfID,
 		sessions:          make(map[string]*Session),
+		pendingCalls:      make(map[string]struct{}),
 		incomingListeners: make(map[chan *IncomingCall]struct{}),
 		done:              make(chan struct{}),
 	}
@@ -75,6 +77,7 @@ func (m *Manager) AcceptCall(ctx context.Context, channelID, remotePeer string) 
 	sess := newSession(channelID, remotePeer, m.sig, false)
 	m.mu.Lock()
 	m.sessions[channelID] = sess
+	delete(m.pendingCalls, channelID)
 	m.mu.Unlock()
 	// Notify the caller that we accepted — they can proceed with SDP exchange.
 	_ = m.sig.Send(channelID, map[string]any{"type": "call-ack"})
@@ -101,10 +104,11 @@ func (m *Manager) AllSessions() []*Session {
 	return out
 }
 
-// removeSession removes a session from the tracking map.
+// removeSession removes a session (and any pending call-request record) from tracking.
 func (m *Manager) removeSession(channelID string) {
 	m.mu.Lock()
 	delete(m.sessions, channelID)
+	delete(m.pendingCalls, channelID)
 	m.mu.Unlock()
 }
 
@@ -120,6 +124,7 @@ func (m *Manager) Close() {
 	m.mu.Lock()
 	sessions := m.sessions
 	m.sessions = make(map[string]*Session)
+	m.pendingCalls = make(map[string]struct{})
 	m.mu.Unlock()
 	for _, s := range sessions {
 		s.Hangup()
@@ -161,6 +166,20 @@ func (m *Manager) dispatch(env *Envelope) {
 	msgType, _ := payload["type"].(string)
 
 	if msgType == "call-request" {
+		// De-duplicate: an old browser client sends call-request twice per call
+		// (once synthesized from the group invite, once explicitly). Only fire
+		// listeners the first time for a given channel.
+		m.mu.Lock()
+		_, alreadyPending := m.pendingCalls[env.Channel]
+		_, alreadyActive := m.sessions[env.Channel]
+		if alreadyPending || alreadyActive {
+			m.mu.Unlock()
+			log.Printf("CALL: duplicate call-request on channel %s — ignored", env.Channel)
+			return
+		}
+		m.pendingCalls[env.Channel] = struct{}{}
+		m.mu.Unlock()
+
 		ic := &IncomingCall{
 			ChannelID:  env.Channel,
 			RemotePeer: env.From,
