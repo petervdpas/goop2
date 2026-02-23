@@ -140,8 +140,12 @@ jobs:
           go install "github.com/wailsapp/wails/v2/cmd/wails@${WAILS_VERSION}"
           export PATH="$(go env GOPATH)/bin:${PATH}"
 
+          # Remove libvpx shared objects so the linker falls back to libvpx.a (static).
+          # libvpx bumps its soname every release (libvpx6/7/9/…); static linking
+          # makes the binary portable across all Debian/Ubuntu/Fedora versions.
+          find /usr -name 'libvpx.so*' -delete 2>/dev/null || true
+
           wails doctor
-          export CGO_LDFLAGS="-Wl,-Bstatic,-lvpx,-Bdynamic"
           wails build -clean -platform linux/amd64 -ldflags "-X main.appVersion=${VERSION}"
 
           # Create portable tarball
@@ -218,8 +222,9 @@ jobs:
           go install "github.com/wailsapp/wails/v2/cmd/wails@${WAILS_VERSION}"
           export PATH="$(go env GOPATH)/bin:${PATH}"
 
+          find /usr -name 'libvpx.so*' -delete 2>/dev/null || true
+
           wails doctor
-          export CGO_LDFLAGS="-Wl,-Bstatic,-lvpx,-Bdynamic"
           wails build -clean -platform linux/amd64 -ldflags "-X main.appVersion=${VERSION}"
 
           # Assemble .deb
@@ -308,8 +313,9 @@ jobs:
           go install "github.com/wailsapp/wails/v2/cmd/wails@${WAILS_VERSION}"
           export PATH="$(go env GOPATH)/bin:${PATH}"
 
+          find /usr -name 'libvpx.so*' -delete 2>/dev/null || true
+
           wails doctor
-          export CGO_LDFLAGS="-Wl,-Bstatic,-lvpx,-Bdynamic"
           wails build -clean -platform linux/arm64 -tags webkit2_41 -ldflags "-X main.appVersion=${VERSION}"
 
           # Create portable tarball
@@ -386,8 +392,9 @@ jobs:
           go install "github.com/wailsapp/wails/v2/cmd/wails@${WAILS_VERSION}"
           export PATH="$(go env GOPATH)/bin:${PATH}"
 
+          find /usr -name 'libvpx.so*' -delete 2>/dev/null || true
+
           wails doctor
-          export CGO_LDFLAGS="-Wl,-Bstatic,-lvpx,-Bdynamic"
           wails build -clean -platform linux/arm64 -tags webkit2_41 -ldflags "-X main.appVersion=${VERSION}"
 
           # Assemble .deb
@@ -477,8 +484,9 @@ jobs:
           go install "github.com/wailsapp/wails/v2/cmd/wails@${WAILS_VERSION}"
           export PATH="$(go env GOPATH)/bin:${PATH}"
 
+          find /usr -name 'libvpx.so*' -delete 2>/dev/null || true
+
           wails doctor
-          export CGO_LDFLAGS="-Wl,-Bstatic,-lvpx,-Bdynamic"
           wails build -clean -platform linux/amd64 -tags webkit2_41 -ldflags "-X main.appVersion=${VERSION}"
 
           # Set up rpmbuild
@@ -561,8 +569,9 @@ jobs:
           go install "github.com/wailsapp/wails/v2/cmd/wails@${WAILS_VERSION}"
           export PATH="$(go env GOPATH)/bin:${PATH}"
 
+          find /usr -name 'libvpx.so*' -delete 2>/dev/null || true
+
           wails doctor
-          export CGO_LDFLAGS="-Wl,-Bstatic,-lvpx,-Bdynamic"
           wails build -clean -platform linux/amd64 -tags webkit2_41 -ldflags "-X main.appVersion=${VERSION}"
 
           # Make output readable for the host runner user
