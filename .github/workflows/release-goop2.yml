@@ -470,7 +470,7 @@ jobs:
             gtk3-devel webkit2gtk4.1-devel libayatana-appindicator-gtk3-devel \
             libX11-devel libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel \
             mesa-libGL-devel \
-            yasm libv4l-devel alsa-lib-devel opus-devel \
+            libvpx-devel libv4l-devel alsa-lib-devel opus-devel \
             zip unzip tar gzip rpm-build
 
           curl -fsSL "https://rpm.nodesource.com/setup_${NODE_VERSION}.x" | bash -
@@ -483,18 +483,6 @@ jobs:
 
           go install "github.com/wailsapp/wails/v2/cmd/wails@${WAILS_VERSION}"
           export PATH="$(go env GOPATH)/bin:${PATH}"
-
-          # Fedora's libvpx-devel has no static archive; build libvpx.a from source.
-          # This avoids soname mismatches (libvpx6/7/9/…) on the target system.
-          LIBVPX_VER=1.14.1
-          curl -fsSL "https://github.com/webmproject/libvpx/archive/v${LIBVPX_VER}.tar.gz" | tar xz -C /tmp
-          cd /tmp/libvpx-${LIBVPX_VER}
-          ./configure --enable-static --disable-shared \
-            --disable-unit-tests --disable-examples --disable-docs
-          make -j$(nproc)
-          make install
-          cd /src
-          rm -rf /tmp/libvpx-${LIBVPX_VER}
 
           wails doctor
           wails build -clean -platform linux/amd64 -tags webkit2_41 -ldflags "-X main.appVersion=${VERSION}"
