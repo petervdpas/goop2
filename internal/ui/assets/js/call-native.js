@@ -364,11 +364,7 @@
      * 1. Create a realtime channel (invites the peer via the group protocol).
      * 2. Tell Go's call manager about the session.
      * 3. Return a NativeSession — call-ui.js shows the active-call overlay.
-     *
-     * The callee's Go realtime manager fires a synthetic "call-request" from the
-     * invite event, which flows through signalerAdapter → callMgr → /api/call/events
-     * SSE → callee's call-native.js → showIncomingCall modal.  No explicit
-     * "call-request" send needed from the caller's browser side.
+     * 4. In background: watch for callee to join, then send call-request signal.
      */
     async start(peerId /*, constraints — ignored; Go handles media in Phase 3+ */) {
       log('info', 'starting call to ' + peerId);
@@ -396,7 +392,47 @@
       const sess = new NativeSession(channel.id);
       sess._listenForHangup();
       sess._connectLoopback();
+
+      // Step 4: notify callee — mirrors video-call.js: wait for callee to appear
+      // in the channel members list, then send call-request so their call.Manager
+      // fires the incoming-call SSE → showIncomingCall modal.
+      this._notifyCallee(channel.id, peerId);
+
       return sess;
+    }
+
+    /**
+     * Watch the realtime channel for the callee joining, then send call-request.
+     * Falls back after 5 s in case the callee joined before we subscribed.
+     */
+    _notifyCallee(channelId, peerId) {
+      let done = false;
+      const send = () => {
+        if (done) return;
+        done = true;
+        log('info', 'sending call-request to ' + peerId + ' on ' + channelId);
+        fetch('/api/realtime/send', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ channel_id: channelId, payload: { type: 'call-request' } }),
+        }).catch(() => {});
+      };
+
+      const timer = setTimeout(() => { es.close(); send(); }, 5000);
+
+      const es = new EventSource('/api/realtime/events?channel=' + encodeURIComponent(channelId));
+      es.addEventListener('message', e => {
+        try {
+          const env   = JSON.parse(e.data);
+          const members = env.payload && env.payload.members;
+          if (Array.isArray(members) && members.some(m => m.peer_id === peerId)) {
+            clearTimeout(timer);
+            es.close();
+            send();
+          }
+        } catch (_) {}
+      });
+      es.onerror = () => { clearTimeout(timer); es.close(); send(); };
     }
 
     /**

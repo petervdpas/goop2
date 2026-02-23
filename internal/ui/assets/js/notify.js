@@ -10,6 +10,11 @@
     try {
       var evt = JSON.parse(e.data);
       var p = evt.payload || {};
+
+      // Suppress invite toast for call channels (rt-*) —
+      // the call accept modal handles user interaction directly.
+      if ((p.group_id || '').startsWith('rt-')) return;
+
       var name = p.group_name || p.group_id || 'a group';
 
       if (window.Goop && window.Goop.toast) {
