@@ -297,7 +297,9 @@
         try {
           const data = JSON.parse(e.data);
           if (data.type === 'incoming-call') this._handleIncoming(data);
-        } catch (_) {}
+        } catch (e) {
+          log('warn', 'SSE call event error: ' + e);
+        }
       });
 
       es.onerror = () => {
