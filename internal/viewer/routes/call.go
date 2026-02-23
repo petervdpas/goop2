@@ -22,14 +22,27 @@ var wsUpgrader = websocket.Upgrader{
 // callMgr may be nil — in that case only GET /api/call/mode is registered
 // and it always returns {"mode":"browser"}, so the frontend always has a safe
 // endpoint to query regardless of whether the feature is enabled.
+// modeFirstSeen is flipped to true after the first /api/call/mode request
+// that returns "native". JS uses the "first" field to log exactly once per
+// server process (survives page navigations in Wails).
+var modeFirstSeen bool
+
 func RegisterCall(mux *http.ServeMux, callMgr *call.Manager) {
 	// GET /api/call/mode — always registered; safe to call in any mode.
 	handleGet(mux, "/api/call/mode", func(w http.ResponseWriter, r *http.Request) {
 		mode := "browser"
+		first := false
 		if callMgr != nil {
 			mode = "native"
+			if !modeFirstSeen {
+				modeFirstSeen = true
+				first = true
+				// Log via log.Printf so it flows through the SSE stream
+				// and appears in the Video tab on the Logs page.
+				log.Printf("[info] [call-native] mode=native — Go/Pion call stack active")
+			}
 		}
-		writeJSON(w, map[string]string{"mode": mode})
+		writeJSON(w, map[string]any{"mode": mode, "first": first})
 	})
 
 	if callMgr == nil {

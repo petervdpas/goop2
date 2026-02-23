@@ -513,14 +513,13 @@
   // ── Bootstrap ──────────────────────────────────────────────────────────────
 
   async function init() {
-    let mode = 'browser';
+    let mode = 'browser', first = false;
     try {
       const res = await fetch('/api/call/mode');
-      if (res.ok) mode = (await res.json()).mode || 'browser';
+      if (res.ok) { const j = await res.json(); mode = j.mode || 'browser'; first = !!j.first; }
     } catch (_) { /* endpoint unavailable — stay in browser mode */ }
 
     if (mode !== 'native') {
-      log('info', 'mode=browser — browser WebRTC unchanged');
       return;
     }
 
@@ -528,7 +527,6 @@
     // call-request that arrives on the realtime SSE during the tiny init window
     // is already suppressed in video-call.js.notifyIncoming.
     window._callNativeMode = true;
-    log('info', 'mode=native — Go/Pion call stack active');
 
     window.Goop = window.Goop || {};
     Goop.call = new NativeCallManager();

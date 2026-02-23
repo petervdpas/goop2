@@ -24,14 +24,33 @@
 @import url("./css/pages/rendezvous.css");
 
 /* ── Logs page ──────────────────────────────────────────────────────────── */
-#logbox { height: 70vh; overflow: auto; white-space: pre-wrap; }
+#logbox { height: 65vh; overflow: auto; white-space: pre-wrap; }
 
 /* Color-coding by subsystem */
 #logbox .log-call     { color: #7b9ef5; } /* CALL / [call-native] / [call-ui] / [webrtc] */
 #logbox .log-relay    { color: #f5a623; } /* relay                                        */
 #logbox .log-realtime { color: #50c8a8; } /* GROUP / REALTIME                             */
-#logbox .log-peer     { color: #68d391; } /* [update] / [online] / REACHABLE              */
-#logbox .log-probe    { color: #555;    } /* probe — dimmed, very frequent                */
+#logbox .log-peer     { color: #68d391; } /* [update] / [online]                          */
+#logbox .log-ok       { color: #68d391; } /* REACHABLE                                    */
+#logbox .log-probe    { color: #555;    } /* probe — dimmed                               */
 #logbox .log-error    { color: #fc8181; } /* UNREACHABLE / error                          */
+
+/* Per-tab line filtering — hide spans that don't belong to the active tab */
+#logbox[data-tab="relay"]  > span:not(.log-relay)                         { display: none; }
+#logbox[data-tab="video"]  > span:not(.log-call)                          { display: none; }
+#logbox[data-tab="peers"]  > span:not(.log-peer):not(.log-ok):not(.log-probe) { display: none; }
+#logbox[data-tab="errors"] > span:not(.log-error)                         { display: none; }
+#logbox[data-tab="system"] > span:not(.log-default)                       { display: none; }
+
+/* Log tab links need cursor since they have no href */
+.log-tab { cursor: pointer; }
+.log-tabs { margin-bottom: 0.4rem; }
+
+/* Tab accent colours — underline matches the log line colour */
+.log-tab--relay.active  { color: #f5a623; border-bottom-color: #f5a623; }
+.log-tab--video.active  { color: #7b9ef5; border-bottom-color: #7b9ef5; }
+.log-tab--peers.active  { color: #68d391; border-bottom-color: #68d391; }
+.log-tab--errors.active { color: #fc8181; border-bottom-color: #fc8181; }
+.log-tab--system.active { color: var(--accent); border-bottom-color: var(--accent); }
 
 .logs-header { display: flex; justify-content: space-between; align-items: center; }

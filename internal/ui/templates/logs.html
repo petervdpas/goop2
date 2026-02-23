@@ -4,7 +4,14 @@
   <button id="copyLogsBtn" class="btn btn-sm" title="Copy logs to clipboard">Copy</button>
 </div>
 
-<p class="muted small">Live tail from this Go process.</p>
+<div class="log-tabs create-tabs">
+  <a class="log-tab create-tab active" data-tab="all">All</a>
+  <a class="log-tab create-tab log-tab--relay" data-tab="relay">Relay</a>
+  <a class="log-tab create-tab log-tab--video" data-tab="video">Video</a>
+  <a class="log-tab create-tab log-tab--peers" data-tab="peers">Peers</a>
+  <a class="log-tab create-tab log-tab--errors" data-tab="errors">Errors</a>
+  <a class="log-tab create-tab log-tab--system" data-tab="system">System</a>
+</div>
 
 <pre id="logbox" class="content"></pre>
 {{end}}

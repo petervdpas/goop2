@@ -17,6 +17,12 @@ type SeenPeer struct {
 	LastSeen       time.Time
 	OfflineSince   time.Time
 	Favorite       bool
+
+	// Consecutive probe failures. A peer is only marked unreachable after
+	// failStreak >= 2 distinct failure events (> 4 s apart). This prevents
+	// a single transient probe timeout from causing the UI to flash.
+	failStreak int
+	lastFailAt time.Time
 }
 
 type PeerEvent struct {
@@ -44,12 +50,16 @@ func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled 
 	defer t.mu.Unlock()
 	reachable := true
 	favorite := false
+	var failStreak int
+	var lastFailAt time.Time
 	if existing, ok := t.peers[id]; ok {
 		if existing.OfflineSince.IsZero() {
 			reachable = existing.Reachable
 		}
-		// Preserve local favorite status across presence updates
+		// Preserve local state across presence updates.
 		favorite = existing.Favorite
+		failStreak = existing.failStreak
+		lastFailAt = existing.lastFailAt
 	}
 	peer := SeenPeer{
 		Content:        content,
@@ -61,6 +71,8 @@ func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled 
 		Reachable:      reachable,
 		LastSeen:       time.Now(),
 		Favorite:       favorite,
+		failStreak:     failStreak,
+		lastFailAt:     lastFailAt,
 	}
 	t.peers[id] = peer
 	t.notifyListeners(PeerEvent{Type: "update", PeerID: id, Peer: &peer})
@@ -115,6 +127,8 @@ func (t *PeerTable) MarkOffline(id string) {
 	}
 	wasOnline := sp.OfflineSince.IsZero()
 	sp.Reachable = false
+	sp.failStreak = 0
+	sp.lastFailAt = time.Time{}
 	if wasOnline {
 		sp.OfflineSince = time.Now()
 	}
@@ -148,12 +162,34 @@ func (t *PeerTable) SetReachable(id string, reachable bool) {
 	if !ok {
 		return
 	}
-	if sp.Reachable == reachable {
+
+	if reachable {
+		// Success — reset failure streak immediately and mark reachable.
+		sp.failStreak = 0
+		sp.lastFailAt = time.Time{}
+		if sp.Reachable {
+			t.peers[id] = sp
+			return
+		}
+		sp.Reachable = true
+		t.peers[id] = sp
+		t.notifyListeners(PeerEvent{Type: "update", PeerID: id, Peer: &sp})
 		return
 	}
-	sp.Reachable = reachable
+
+	// Failure path — only mark unreachable after 2 distinct failure events.
+	// Events within 4 s of each other count as one (concurrent probe dedup).
+	if time.Since(sp.lastFailAt) > 4*time.Second {
+		sp.failStreak++
+		sp.lastFailAt = time.Now()
+	}
 	t.peers[id] = sp
-	t.notifyListeners(PeerEvent{Type: "update", PeerID: id, Peer: &sp})
+
+	if sp.failStreak >= 2 && sp.Reachable {
+		sp.Reachable = false
+		t.peers[id] = sp
+		t.notifyListeners(PeerEvent{Type: "update", PeerID: id, Peer: &sp})
+	}
 }
 
 func (t *PeerTable) SetFavorite(id string, favorite bool) {
@@ -187,6 +223,8 @@ func (t *PeerTable) PruneStale(ttlCutoff, graceCutoff time.Time) {
 		if sp.OfflineSince.IsZero() {
 			if sp.LastSeen.Before(ttlCutoff) {
 				sp.Reachable = false
+				sp.failStreak = 0
+				sp.lastFailAt = time.Time{}
 				sp.OfflineSince = time.Now()
 				t.peers[id] = sp
 				t.notifyListeners(PeerEvent{Type: "update", PeerID: id, Peer: &sp})

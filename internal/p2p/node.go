@@ -40,12 +40,19 @@ import (
 )
 
 func init() {
-	// Silence noisy libp2p subsystems — dial failures and backoff errors
-	// go to stderr by default and pollute terminal output.
+	// Silence noisy libp2p subsystems.  These produce high-frequency
+	// info/debug output (relay reservations, autorelay ticks, dial retries)
+	// that floods stderr — especially visible in Wails/Windows devtools.
 	logging.SetLogLevel("swarm2", "error")
-	logging.SetLogLevel("relay", "info")
-	logging.SetLogLevel("autorelay", "info")
-	logging.SetLogLevel("autonat", "warn")
+	logging.SetLogLevel("relay", "error")
+	logging.SetLogLevel("autorelay", "error")
+	logging.SetLogLevel("autonat", "error")
+	logging.SetLogLevel("net/identify", "error")
+	logging.SetLogLevel("basichost", "error")
+	logging.SetLogLevel("connmgr", "error")
+	logging.SetLogLevel("dht", "error")
+	logging.SetLogLevel("pubsub", "error")
+	logging.SetLogLevel("mdns", "error")
 }
 
 type Node struct {
@@ -317,14 +324,13 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 	return n, nil
 }
 
-// diag logs a relay diagnostic message and stores it in the ring buffer.
+// diag stores a relay diagnostic message in the ring buffer.
 // The rendezvous server can query this buffer via the /goop/diag/1.0.0 stream.
+// These are NOT written to stderr — relay diagnostics are high-frequency
+// internal events; use the admin panel or /api/diag to inspect them.
 func (n *Node) diag(format string, args ...any) {
-	msg := fmt.Sprintf(format, args...)
-	log.Print(msg)
-
 	ts := time.Now().Format("15:04:05")
-	entry := fmt.Sprintf("[%s] %s", ts, msg)
+	entry := fmt.Sprintf("[%s] "+format, append([]any{ts}, args...)...)
 
 	n.diagMu.Lock()
 	n.diagLogs = append(n.diagLogs, entry)
@@ -1003,20 +1009,22 @@ func (n *Node) ProbePeer(ctx context.Context, rawID string) {
 	if sw, ok := n.Host.Network().(*swarm.Swarm); ok {
 		sw.Backoff().Clear(pid)
 	}
-	addrs := n.Host.Peerstore().Addrs(pid)
-	log.Printf("probe %s: starting (addrs=%d, connected=%v)", rawID[:16], len(addrs), n.Host.Network().Connectedness(pid) == network.Connected)
 	probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	start := time.Now()
 	s, err := n.Host.NewStream(probeCtx, pid, protocol.ID(proto.ContentProtoID))
-	elapsed := time.Since(start)
 	if err != nil {
-		log.Printf("probe %s: UNREACHABLE (%s) err=%v", rawID[:16], elapsed, err)
+		// Only log when transitioning from reachable → unreachable.
+		if sp, ok := n.peers.Get(rawID); ok && sp.Reachable {
+			log.Printf("probe %s: UNREACHABLE err=%v", rawID[:16], err)
+		}
 		n.peers.SetReachable(rawID, false)
 		return
 	}
 	s.Close()
-	log.Printf("probe %s: REACHABLE (%s)", rawID[:16], elapsed)
+	// Only log when transitioning from unreachable → reachable.
+	if sp, ok := n.peers.Get(rawID); ok && !sp.Reachable {
+		log.Printf("probe %s: REACHABLE", rawID[:16])
+	}
 	n.peers.SetReachable(rawID, true)
 }
 
