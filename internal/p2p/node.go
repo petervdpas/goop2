@@ -107,10 +107,16 @@ type Node struct {
 }
 
 type mdnsNotifee struct {
-	h host.Host
+	h  host.Host
+	sw *swarm.Swarm
 }
 
 func (n *mdnsNotifee) HandlePeerFound(pi peer.AddrInfo) {
+	// Clear dial backoff so the fresh LAN address wins immediately over any
+	// stale cached state from a previous failed dial.
+	if n.sw != nil {
+		n.sw.Backoff().Clear(pi.ID)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), util.DefaultConnectTimeout)
 	defer cancel()
 	_ = n.h.Connect(ctx, pi)
@@ -200,7 +206,11 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 	})
 
 	// LAN discovery via mDNS (API matches your version)
-	md := mdns.NewMdnsService(h, proto.MdnsTag, &mdnsNotifee{h: h})
+	var mdnsSw *swarm.Swarm
+	if s, ok := h.Network().(*swarm.Swarm); ok {
+		mdnsSw = s
+	}
+	md := mdns.NewMdnsService(h, proto.MdnsTag, &mdnsNotifee{h: h, sw: mdnsSw})
 	if err := md.Start(); err != nil {
 		_ = h.Close()
 		return nil, err
@@ -922,6 +932,26 @@ func (n *Node) AddPeerAddrs(peerID string, addrs []string) {
 	// can reach peers that failed to obtain their own relay reservation.
 	if len(circuit) == 0 && n.relayPeer != nil && pid != n.relayPeer.ID {
 		n.injectRelayAddrs(pid, false)
+	}
+
+	// Fresh addresses just arrived (presence heartbeat or mDNS).
+	// Clear any accumulated dial backoff so the new addresses win immediately,
+	// then kick off a background connect if we are not already connected.
+	// This handles both LAN (direct addresses) and WAN (circuit relay addresses).
+	if sw, ok := n.Host.Network().(*swarm.Swarm); ok {
+		sw.Backoff().Clear(pid)
+	}
+	if n.Host.Network().Connectedness(pid) != network.Connected {
+		allAddrs := make([]ma.Multiaddr, 0, len(direct)+len(circuit))
+		allAddrs = append(allAddrs, direct...)
+		allAddrs = append(allAddrs, circuit...)
+		if len(allAddrs) > 0 {
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), util.DefaultConnectTimeout)
+				defer cancel()
+				_ = n.Host.Connect(ctx, peer.AddrInfo{ID: pid, Addrs: allAddrs})
+			}()
+		}
 	}
 }
 
