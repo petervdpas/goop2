@@ -419,7 +419,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			}
 			switch pm.Type {
 			case proto.TypeOnline, proto.TypeUpdate:
-				_, known := peers.Get(pm.PeerID)
+				sp, known := peers.Get(pm.PeerID)
 				peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.Verified)
 				go db.UpsertCachedPeer(storage.CachedPeer{
 					PeerID:         pm.PeerID,
@@ -432,7 +432,11 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 					Addrs:          pm.Addrs,
 				})
 				node.AddPeerAddrs(pm.PeerID, pm.Addrs)
-				if !known {
+				// Probe on first sight (TypeOnline/TypeUpdate for unknown peer) OR when
+				// a known-unreachable peer sends TypeUpdate — their relay circuit may have
+				// just been established, so an immediate probe avoids waiting up to 5s
+				// for the next periodic browser probe round.
+				if !known || (pm.Type == proto.TypeUpdate && !sp.Reachable) {
 					go node.ProbePeer(ctx, pm.PeerID)
 				}
 			case proto.TypeOffline:
@@ -536,6 +540,12 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 				Verified:       m.Verified,
 				Addrs:          m.Addrs,
 			})
+			// If the peer is currently unreachable, their relay circuit may have
+			// just appeared — probe immediately rather than waiting for the next
+			// browser-triggered round (up to 5 s away).
+			if sp, ok := peers.Get(m.PeerID); ok && !sp.Reachable {
+				go node.ProbePeer(ctx, m.PeerID)
+			}
 		case proto.TypeOffline:
 			delete(seenContent, m.PeerID)
 			log.Printf("[%s] %s", m.Type, m.PeerID)

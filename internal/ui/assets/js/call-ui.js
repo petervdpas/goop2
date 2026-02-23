@@ -116,7 +116,7 @@
         var session = await info.accept();
         showActiveCall(session);
       } catch(e) {
-        console.error("Failed to accept call:", e);
+        log('error', 'Failed to accept call: ' + e);
       }
     };
 
