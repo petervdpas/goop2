@@ -53,6 +53,11 @@
       this._hangupCbs       = [];
       this._stateCbs        = [];
 
+      // Phase 4: remote video src (MSE blob URL) callbacks.
+      // Uses replay-on-subscribe so late registrations still receive the URL.
+      this._remoteVideoSrcCbs = [];
+      this._remoteVideoSrc    = null;
+
       // Local toggle state — toggleAudio/toggleVideo must be sync for call-ui.js.
       this._audioEnabled = true;
       this._videoEnabled = true;
@@ -60,11 +65,21 @@
       this._loopbackPc    = null;
       this._loopbackIceEs = null;
       this._sessionEs     = null;
+      this._mediaWs       = null; // Phase 4: WebM/MSE WebSocket
     }
 
     onRemoteStream(cb) { this._remoteStreamCbs.push(cb); }
     onHangup(cb)       { this._hangupCbs.push(cb); }
     onStateChange(cb)  { this._stateCbs.push(cb); }
+
+    // Phase 4: subscribe to remote video src URL (MSE WebM stream).
+    // Fires immediately if the URL is already known (replay-on-subscribe).
+    onRemoteVideoSrc(cb) {
+      this._remoteVideoSrcCbs.push(cb);
+      if (this._remoteVideoSrc !== null) {
+        try { cb(this._remoteVideoSrc); } catch (_) {}
+      }
+    }
 
     // Sync-compatible toggle: update local state immediately, fire async in background.
     // call-ui.js does:  var enabled = session.toggleAudio();  muteBtn.toggle(!enabled);
@@ -107,11 +122,16 @@
       if (this._sessionEs)     { this._sessionEs.close();     this._sessionEs = null; }
       if (this._loopbackIceEs) { this._loopbackIceEs.close(); this._loopbackIceEs = null; }
       if (this._loopbackPc)    { this._loopbackPc.close();    this._loopbackPc = null; }
+      if (this._mediaWs)       { this._mediaWs.close();       this._mediaWs = null; }
     }
 
     _emitRemoteStream(stream) { this._remoteStreamCbs.forEach(cb => cb(stream)); }
     _emitHangup()             { this._hangupCbs.forEach(cb => cb()); }
     _emitState(state)         { this._stateCbs.forEach(cb => cb(state)); }
+    _emitRemoteVideoSrc(src)  {
+      this._remoteVideoSrc = src;
+      this._remoteVideoSrcCbs.forEach(cb => { try { cb(src); } catch (_) {} });
+    }
 
     /**
      * Subscribe to server-side session events (hangup).
@@ -139,16 +159,26 @@
     }
 
     /**
-     * Phase 4: establish loopback RTCPeerConnection (localhost only, no STUN).
-     * Go's LocalPC sends the remote peer's tracks + local camera preview to the
-     * browser via this connection so <video>.srcObject just works.
+     * Phase 4: deliver remote media to the browser.
      *
-     * In Phase 2 the /loopback/offer endpoint returns an empty SDP (stub).
-     * The connection proceeds without tracks and the overlay shows "Connected".
-     * Phase 4 fills in the Go side so real media flows.
+     * Two paths depending on browser capability:
+     *   A) RTCPeerConnection available (macOS/Windows browser, or WebKitGTK with
+     *      WebRTC enabled): loopback PeerConnection — Go's LocalPC relays tracks.
+     *   B) RTCPeerConnection unavailable (WebKitGTK/Wails on Linux): WebM/MSE
+     *      streaming — Go encodes VP8+Opus into a live WebM and streams it over
+     *      a WebSocket to the browser's MediaSource API.
      */
     async _connectLoopback() {
       this._emitState('connecting');
+
+      // Path B — WebKitGTK/Wails on Linux: no RTCPeerConnection.
+      if (typeof RTCPeerConnection === 'undefined') {
+        log('info', 'RTCPeerConnection unavailable — using WebM/MSE stream');
+        await this._connectMSE();
+        return;
+      }
+
+      // Path A — standard browser RTCPeerConnection loopback.
       try {
         const pc = new RTCPeerConnection({ iceServers: [] });
         this._loopbackPc = pc;
@@ -215,6 +245,104 @@
         log('warn', 'loopback setup error: ' + err);
         this._emitState('error');
       }
+    }
+
+    /**
+     * Phase 4 (MSE path): receive remote video as a live WebM stream over WebSocket.
+     *
+     * Go encodes the remote VP8 video and Opus audio into WebM clusters and
+     * sends them as binary WebSocket messages.  The browser feeds these into a
+     * MediaSource so <video>.src just works — no RTCPeerConnection needed.
+     *
+     * Message layout:
+     *   - First message: EBML header + Segment(unknown-size) + Info + Tracks  (init segment)
+     *   - Subsequent messages: Cluster elements  (one per video keyframe interval)
+     */
+    async _connectMSE() {
+      if (typeof MediaSource === 'undefined') {
+        log('warn', 'MSE not available — remote video will not display');
+        this._emitState('connected');
+        return;
+      }
+
+      const mimeType = 'video/webm; codecs="vp8,opus"';
+      const supported = MediaSource.isTypeSupported(mimeType);
+      log('info', 'MSE support for ' + mimeType + ': ' + supported);
+      if (!supported) {
+        log('warn', 'VP8+Opus WebM not supported by MSE — remote video unavailable');
+        this._emitState('connected');
+        return;
+      }
+
+      const ms  = new MediaSource();
+      const url = URL.createObjectURL(ms);
+
+      // Emit early — call-ui.js sets video.src = url, which triggers 'sourceopen'.
+      // Uses replay-on-subscribe so this is safe even if the callback isn't registered yet.
+      this._emitRemoteVideoSrc(url);
+
+      // Wait for the video element to connect to the MediaSource.
+      await new Promise(resolve => ms.addEventListener('sourceopen', resolve, { once: true }));
+
+      let sb;
+      try {
+        sb = ms.addSourceBuffer(mimeType);
+      } catch (e) {
+        log('warn', 'MSE addSourceBuffer failed: ' + e);
+        return;
+      }
+
+      // Sequential append queue — MSE requires one appendBuffer at a time.
+      const queue = [];
+      let   appending = false;
+      let   connectedEmitted = false;
+
+      const tryAppend = () => {
+        if (appending || queue.length === 0 || sb.updating || ms.readyState !== 'open') return;
+        appending = true;
+        try {
+          sb.appendBuffer(queue.shift());
+        } catch (e) {
+          log('warn', 'MSE appendBuffer error: ' + e);
+          appending = false;
+        }
+      };
+
+      sb.addEventListener('updateend', () => {
+        appending = false;
+        // Emit "connected" once the first chunk has been buffered.
+        if (!connectedEmitted && ms.readyState === 'open') {
+          connectedEmitted = true;
+          this._emitState('connected');
+        }
+        tryAppend();
+      });
+
+      // Connect WebSocket — same host as the page (viewer HTTP server).
+      const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl   = wsProto + '//' + window.location.host + '/api/call/media/' + this.channelId;
+      log('info', 'Opening media WebSocket: ' + wsUrl);
+
+      const ws = new WebSocket(wsUrl);
+      this._mediaWs  = ws;
+      ws.binaryType  = 'arraybuffer';
+
+      ws.onopen = () => log('info', 'Media WebSocket connected');
+
+      ws.onmessage = e => {
+        queue.push(new Uint8Array(e.data));
+        tryAppend();
+      };
+
+      ws.onerror = () => log('warn', 'Media WebSocket error');
+
+      ws.onclose = () => {
+        log('info', 'Media WebSocket closed');
+        this._mediaWs = null;
+        if (ms.readyState === 'open') {
+          try { ms.endOfStream(); } catch (_) {}
+        }
+      };
     }
   }
 

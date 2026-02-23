@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/pion/rtp/codecs"
 	"github.com/pion/webrtc/v4"
 )
 
@@ -17,8 +18,10 @@ import (
 // WebRTC PeerConnection.  Local capture works on Linux (V4L2 + malgo);
 // on other platforms the PC is receive-only until Phase 5 adds more drivers.
 //
-// Phase 4 will add LocalPC — a localhost loopback connection so the browser
-// webview receives a real MediaStream without needing getUserMedia.
+// Phase 4: Remote tracks are relayed to the browser via a WebM stream served
+// over a WebSocket at /api/call/media/{channel}.  The browser's MSE API
+// (Media Source Extensions) feeds the stream to a <video> element, giving us
+// remote video without requiring RTCPeerConnection in the webview.
 type Session struct {
 	channelID  string
 	remotePeer string
@@ -46,6 +49,10 @@ type Session struct {
 	// mediaReady is closed when initExternalPC completes (success or failure).
 	// createAndSendOffer and handleOffer wait on it before touching the PC.
 	mediaReady chan struct{}
+
+	// webm manages the live WebM stream sent to the browser via WebSocket.
+	// Browser uses MSE to display the received VP8/Opus stream.
+	webm *webmSession
 }
 
 // SessionStatus is the snapshot returned by /api/call/debug.
@@ -85,9 +92,17 @@ func newSession(channelID, remotePeer string, sig Signaler, isCaller bool) *Sess
 		videoOn:    true,
 		hangupCh:   make(chan struct{}),
 		mediaReady: make(chan struct{}),
+		webm:       newWebmSession(),
 	}
 	go s.initExternalPC()
 	return s
+}
+
+// SubscribeMedia returns a channel that receives binary WebM messages
+// (init segment first, then clusters) for Phase 4 browser display via MSE.
+// The caller must invoke the returned cancel function when done.
+func (s *Session) SubscribeMedia() (<-chan []byte, func()) {
+	return s.webm.subscribeMedia()
 }
 
 // HangupCh returns a channel closed when the call ends (either peer hung up).
@@ -204,42 +219,112 @@ func (s *Session) initExternalPC() {
 		}
 	})
 
-	// Phase 4: OnTrack will also relay remote tracks to LocalPC.
+	// Phase 4: stream remote tracks to the browser via WebM/MSE.
 	pc.OnTrack(func(track *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
 		log.Printf("CALL [%s]: remote track — kind=%s codec=%s ssrc=%d",
 			s.channelID, track.Kind(), track.Codec().MimeType, track.SSRC())
-		go s.drainRemoteTrack(track)
+		switch track.Kind() {
+		case webrtc.RTPCodecTypeVideo:
+			go s.streamVideoTrack(track)
+		case webrtc.RTPCodecTypeAudio:
+			s.webm.enableAudio()
+			go s.streamAudioTrack(track)
+		}
 	})
 }
 
-// drainRemoteTrack reads RTP data from a remote track and logs packet stats every
-// 5 seconds so you can confirm media is flowing without needing a UI.
-func (s *Session) drainRemoteTrack(track *webrtc.TrackRemote) {
-	var count atomic.Uint64
+// streamVideoTrack depacketizes incoming VP8 RTP packets, assembles frames,
+// and feeds them to the webmSession for Phase 4 browser display via MSE.
+// ReadRTP blocks until a packet arrives or the PC closes (error → return).
+func (s *Session) streamVideoTrack(track *webrtc.TrackRemote) {
+	codec := track.Codec().MimeType
+	log.Printf("CALL [%s]: video streaming started (%s)", s.channelID, codec)
 
-	// Ticker: log stats every 5 s until the call ends.
+	var depack codecs.VP8Packet
+	var frameAccum []byte
+	var pktCount atomic.Int64
+
+	// Log stats periodically; exit on hangup.
 	go func() {
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-s.hangupCh:
-				log.Printf("CALL [%s]: remote %s track done — %d packets total",
-					s.channelID, track.Kind(), count.Load())
+				log.Printf("CALL [%s]: remote video (%s) done — %d packets total", s.channelID, codec, pktCount.Load())
 				return
 			case <-ticker.C:
-				log.Printf("CALL [%s]: ← remote %s (%s) — %d packets",
-					s.channelID, track.Kind(), track.Codec().MimeType, count.Load())
+				log.Printf("CALL [%s]: ← remote video (%s) — %d packets", s.channelID, codec, pktCount.Load())
 			}
 		}
 	}()
 
-	buf := make([]byte, 1500)
 	for {
-		if _, _, err := track.Read(buf); err != nil {
+		pkt, _, err := track.ReadRTP()
+		if err != nil {
 			return
 		}
-		count.Add(1)
+		pktCount.Add(1)
+
+		payload, err := depack.Unmarshal(pkt.Payload)
+		if err != nil || len(payload) == 0 {
+			continue
+		}
+		frameAccum = append(frameAccum, payload...)
+
+		if pkt.Marker {
+			// Complete VP8 frame — feed to WebM session.
+			// VP8 RTP clock is 90 kHz; convert to milliseconds.
+			tsMs := int64(pkt.Timestamp) / 90
+			keyframe := len(frameAccum) > 0 && (frameAccum[0]&0x01) == 0
+			frame := make([]byte, len(frameAccum))
+			copy(frame, frameAccum)
+			s.webm.handleVideoFrame(tsMs, keyframe, frame)
+			frameAccum = frameAccum[:0]
+		}
+	}
+}
+
+// streamAudioTrack reads incoming Opus RTP packets and feeds them to the
+// webmSession for Phase 4 browser audio via MSE.
+// ReadRTP blocks until a packet arrives or the PC closes (error → return).
+func (s *Session) streamAudioTrack(track *webrtc.TrackRemote) {
+	codec := track.Codec().MimeType
+	log.Printf("CALL [%s]: audio streaming started (%s)", s.channelID, codec)
+
+	var pktCount atomic.Int64
+
+	// Log stats periodically; exit on hangup.
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-s.hangupCh:
+				log.Printf("CALL [%s]: remote audio (%s) done — %d packets total", s.channelID, codec, pktCount.Load())
+				return
+			case <-ticker.C:
+				log.Printf("CALL [%s]: ← remote audio (%s) — %d packets", s.channelID, codec, pktCount.Load())
+			}
+		}
+	}()
+
+	for {
+		pkt, _, err := track.ReadRTP()
+		if err != nil {
+			return
+		}
+		pktCount.Add(1)
+
+		if len(pkt.Payload) == 0 {
+			continue
+		}
+		// Opus RTP clock is 48 kHz; convert to milliseconds.
+		tsMs := int64(pkt.Timestamp) / 48
+		// Opus RTP payload is the raw Opus frame — no header to strip.
+		frame := make([]byte, len(pkt.Payload))
+		copy(frame, pkt.Payload)
+		s.webm.handleAudioFrame(tsMs, frame)
 	}
 }
 

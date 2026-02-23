@@ -3,11 +3,20 @@ package routes
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
+	"github.com/gorilla/websocket"
 	"github.com/petervdpas/goop2/internal/call"
 )
+
+var wsUpgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 65536,
+	// Allow connections from the Wails webview (localhost, file://, etc.)
+	CheckOrigin: func(r *http.Request) bool { return true },
+}
 
 // RegisterCall registers the native call API endpoints.
 // callMgr may be nil — in that case only GET /api/call/mode is registered
@@ -197,6 +206,65 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager) {
 			})
 			fmt.Fprintf(w, "event: hangup\ndata: %s\n\n", data)
 			flusher.Flush()
+		}
+	})
+
+	// GET /api/call/media/{channel} — WebSocket: live WebM stream for Phase 4 browser display.
+	// The browser's MSE API receives binary WebM messages and feeds them to a <video> element.
+	// First message is the init segment; subsequent messages are clusters.
+	mux.HandleFunc("/api/call/media/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		channelID := strings.TrimPrefix(r.URL.Path, "/api/call/media/")
+		channelID = strings.TrimSuffix(channelID, "/")
+		if channelID == "" {
+			http.Error(w, "missing channel id", http.StatusBadRequest)
+			return
+		}
+
+		sess, ok := callMgr.GetSession(channelID)
+		if !ok {
+			http.Error(w, "session not found", http.StatusNotFound)
+			return
+		}
+
+		conn, err := wsUpgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Printf("CALL [%s]: WebSocket upgrade error: %v", channelID, err)
+			return
+		}
+		defer conn.Close()
+		log.Printf("CALL [%s]: media WebSocket connected", channelID)
+
+		dataCh, cancel := sess.SubscribeMedia()
+		defer cancel()
+
+		// Drain incoming messages (ping/pong, close frames) without blocking.
+		go func() {
+			for {
+				if _, _, err := conn.ReadMessage(); err != nil {
+					return
+				}
+			}
+		}()
+
+		for {
+			select {
+			case <-r.Context().Done():
+				log.Printf("CALL [%s]: media WebSocket disconnected", channelID)
+				return
+			case <-sess.HangupCh():
+				return
+			case data, ok := <-dataCh:
+				if !ok {
+					return
+				}
+				if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
+					return
+				}
+			}
 		}
 	})
 

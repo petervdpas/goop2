@@ -345,6 +345,25 @@
       statusEl.textContent = "Connected";
     });
 
+    // Phase 4 (native MSE path): session emits a blob URL instead of a MediaStream.
+    // Set video.src so the browser can play the live WebM stream via MSE.
+    if (typeof session.onRemoteVideoSrc === 'function') {
+      session.onRemoteVideoSrc(function(src) {
+        log('info', 'Remote video src received (MSE WebM stream)');
+        remoteVideo.srcObject = null;
+        remoteVideo.src = src;
+        remoteVideo.play().catch(function(e) {
+          log('warn', 'MSE video autoplay: ' + e.message);
+        });
+        remoteVideo.onloadedmetadata = function() {
+          log('info', 'MSE video metadata: ' + remoteVideo.videoWidth + 'x' + remoteVideo.videoHeight);
+        };
+        remoteVideo.onerror = function() {
+          log('error', 'MSE video error: ' + (remoteVideo.error ? remoteVideo.error.message : 'unknown'));
+        };
+      });
+    }
+
     session.onStateChange(function(state) {
       statusEl.textContent = state === "connected" ? "Connected" :
                              state === "connecting" ? "Connecting..." :
