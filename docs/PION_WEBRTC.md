@@ -181,25 +181,37 @@ github.com/pion/mediadevices/pkg/driver/microphone/alsa
 
 ---
 
-### Phase 4 — Loopback (browser displays remote video)
+### Phase 4 — Browser video display (WebM/MSE streaming)
 
-**Status: pending**
+**Status: complete**
 
-Prerequisites: Phase 3 working (ExternalPC sending media).
+> **Implementation note:** The original plan used an RTCPeerConnection loopback
+> (Go LocalPC ↔ browser).  WebKitGTK/Wails v2 on Linux does not expose
+> `RTCPeerConnection`, so that approach was replaced with WebM/MSE streaming.
+> The result is simpler and works without any loopback PeerConnection.
 
-- [ ] `internal/call/session.go`: add `LocalPC *webrtc.PeerConnection` (loopback only)
-- [ ] `internal/call/session.go`: `ExternalPC.OnTrack` → relay tracks to LocalPC
-- [ ] `internal/call/session.go`: add local camera track to LocalPC for preview PiP
-- [ ] `internal/call/session.go`: expose `LoopbackOffer(sdp) (string, error)` method
-- [ ] `internal/call/session.go`: expose `AddLoopbackICE(candidate)` + ICE candidate channel
-- [ ] `internal/viewer/routes/call.go`: wire `/loopback/{channel}/offer` to `session.LoopbackOffer`
-- [ ] `internal/viewer/routes/call.go`: wire `/loopback/{channel}/ice` GET (SSE) and POST
-- [ ] `internal/ui/assets/js/call-native.js`: complete loopback RTCPeerConnection
-  - `createOffer` → POST `/offer` → `setRemoteDescription(answer)`
-  - SSE `/ice` → `addIceCandidate`
-  - POST own candidates → `/ice`
+Prerequisites: Phase 3 working (ExternalPC receiving remote media).
 
-**Goal:** Remote peer's video appears in `<video>.srcObject` in the webview browser.
+- [x] `internal/call/webm.go`: pure-Go EBML/WebM encoder + `webmSession` manager
+  - EBML header, Segment (unknown size), Info, Tracks
+  - VP8 video track (track 1) + Opus audio track (track 2)
+  - `handleVideoFrame` / `handleAudioFrame` → live cluster assembly
+  - `subscribeMedia` / `broadcastLocked` → per-subscriber WebSocket channels
+- [x] `internal/call/session.go`: VP8/Opus depacketization + WebM streaming
+  - `streamVideoTrack`: `codecs.VP8Packet.Unmarshal` + frame assembly on `Marker` bit
+  - `streamAudioTrack`: Opus RTP payload → `webm.handleAudioFrame`
+  - `SubscribeMedia() (<-chan []byte, func())` exposes the stream to HTTP layer
+- [x] `internal/viewer/routes/call.go`: `/api/call/media/{channel}` WebSocket endpoint
+  - Upgrades HTTP to WebSocket; streams binary WebM messages
+  - Exits cleanly on hangup or client disconnect
+- [x] `internal/ui/assets/js/call-native.js`: MSE path in `_connectLoopback`
+  - Detects `RTCPeerConnection === undefined` → calls `_connectMSE()`
+  - `_connectMSE()`: MediaSource + object URL → `onRemoteVideoSrc` + WebSocket append loop
+  - Replay-on-subscribe for `onRemoteVideoSrc` (timing-safe)
+- [x] `internal/ui/assets/js/call-ui.js`: `onRemoteVideoSrc` handler in `showActiveCall`
+  - Sets `video.src = url` (not `srcObject`) for MSE streams
+
+**Goal:** Remote peer's video appears in `<video>` element via MSE WebM stream.
 
 ---
 
