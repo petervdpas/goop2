@@ -298,6 +298,13 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	}
 	defer node.Close()
 
+	// Register MQ stream handler immediately after the host is created — before
+	// any peer can connect and run Identify. If MQ is registered late, mDNS peers
+	// (which connect in milliseconds) complete Identify without /goop/mq/1.0.0 in
+	// their protocol list, causing peerSupportsMQ() to wrongly fast-fail all sends.
+	mqMgr := mq.New(node.Host)
+	log.Printf("📨 MQ enabled: message queue via /goop/mq/1.0.0")
+
 	node.EnableSite(util.ResolvePath(o.PeerDir, cfg.Paths.SiteRoot))
 
 	// ── Avatar store
@@ -334,10 +341,6 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 
 	step++
 	progress(step, total, "Setting up services")
-
-	// ── MQ manager (replaces chat + realtime transports)
-	mqMgr := mq.New(node.Host)
-	log.Printf("📨 MQ enabled: message queue via /goop/mq/1.0.0")
 
 	// Bridge: PeerTable → MQ so the browser's mq.js maintains a peer name cache.
 	// Every peer presence change (online/update/offline/prune) is forwarded as
