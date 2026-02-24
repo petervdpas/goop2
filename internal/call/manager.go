@@ -16,7 +16,7 @@ type Manager struct {
 
 	mu           sync.RWMutex
 	sessions     map[string]*Session
-	pendingCalls map[string]struct{} // channels where call-request fired but not yet accepted/rejected
+	pendingCalls map[string]string // channelID → caller peerID (call-request received, not yet accepted)
 
 	done chan struct{}
 }
@@ -28,7 +28,7 @@ func New(sig Signaler, selfID string) *Manager {
 		sig:          sig,
 		selfID:       selfID,
 		sessions:     make(map[string]*Session),
-		pendingCalls: make(map[string]struct{}),
+		pendingCalls: make(map[string]string),
 		done:         make(chan struct{}),
 	}
 	go m.dispatchLoop()
@@ -37,6 +37,7 @@ func New(sig Signaler, selfID string) *Manager {
 
 // StartCall creates a new outbound call session on channelID to remotePeer.
 func (m *Manager) StartCall(ctx context.Context, channelID, remotePeer string) (*Session, error) {
+	m.sig.RegisterChannel(channelID, remotePeer)
 	sess := newSession(channelID, remotePeer, m.sig, true)
 	m.mu.Lock()
 	m.sessions[channelID] = sess
@@ -47,6 +48,7 @@ func (m *Manager) StartCall(ctx context.Context, channelID, remotePeer string) (
 
 // AcceptCall creates a session for an incoming call and sends call-ack to the caller.
 func (m *Manager) AcceptCall(ctx context.Context, channelID, remotePeer string) (*Session, error) {
+	m.sig.RegisterChannel(channelID, remotePeer)
 	sess := newSession(channelID, remotePeer, m.sig, false)
 	m.mu.Lock()
 	m.sessions[channelID] = sess
@@ -104,7 +106,7 @@ func (m *Manager) Close() {
 	m.mu.Lock()
 	sessions := m.sessions
 	m.sessions = make(map[string]*Session)
-	m.pendingCalls = make(map[string]struct{})
+	m.pendingCalls = make(map[string]string)
 	m.mu.Unlock()
 	for _, s := range sessions {
 		s.Hangup()
@@ -149,7 +151,7 @@ func (m *Manager) dispatch(env *Envelope) {
 			log.Printf("CALL: duplicate call-request on channel %s — ignored", env.Channel)
 			return
 		}
-		m.pendingCalls[env.Channel] = struct{}{}
+		m.pendingCalls[env.Channel] = env.From
 		m.mu.Unlock()
 		log.Printf("CALL: incoming call-request on channel %s from %s", env.Channel, env.From)
 		return

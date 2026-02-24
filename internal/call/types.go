@@ -1,9 +1,12 @@
 package call
 
 // Signaler is the only surface the call package needs from the realtime layer.
-// The concrete realtime.Manager satisfies this via a small adapter in run.go
+// The concrete mqSignalerAdapter satisfies this via a small adapter in run.go
 // (the only place that imports both packages).
 type Signaler interface {
+	// RegisterChannel tells the signaler which remote peer owns a channel ID.
+	// Must be called before Send can route outbound messages for that channel.
+	RegisterChannel(channelID, peerID string)
 	Send(channelID string, payload any) error
 	Subscribe() (ch chan *Envelope, cancel func())
 }
