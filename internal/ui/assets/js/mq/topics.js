@@ -56,6 +56,7 @@
     CHAT:                  "chat",
     CHAT_BROADCAST:        "chat.broadcast",
     LOG_MQ:                "log:mq",
+    LOG_CALL:              "log:call",
   });
 
   // ── Call signal type constants ────────────────────────────────────────────────
@@ -117,6 +118,9 @@
 
   /** log:mq — MQ event log entry from Go */
   mq.onLogMQ = function (fn) { return mq.subscribe(mq.TOPICS.LOG_MQ, fn); };
+
+  /** log:call — call-layer structured log event (hardware errors, media state) */
+  mq.onLogCall = function (fn) { return mq.subscribe(mq.TOPICS.LOG_CALL, fn); };
 
   // ── Typed send helpers — call protocol ───────────────────────────────────────
 

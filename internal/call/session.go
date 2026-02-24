@@ -28,6 +28,7 @@ type Session struct {
 	remotePeer string
 	sig        Signaler
 	isCaller   bool // true = created by StartCall; false = created by AcceptCall
+	logFn      func(level, msg string) // may be nil; publishes structured logs to browser
 
 	mu         sync.Mutex
 	audioOn    bool
@@ -83,12 +84,13 @@ func (s *Session) Status() SessionStatus {
 }
 
 // newSession creates a Session and kicks off background PC + media initialisation.
-func newSession(channelID, remotePeer string, sig Signaler, isCaller bool) *Session {
+func newSession(channelID, remotePeer string, sig Signaler, isCaller bool, logFn func(level, msg string)) *Session {
 	s := &Session{
 		channelID:  channelID,
 		remotePeer: remotePeer,
 		sig:        sig,
 		isCaller:   isCaller,
+		logFn:      logFn,
 		audioOn:    true,
 		videoOn:    true,
 		hangupCh:   make(chan struct{}),
@@ -196,7 +198,7 @@ func (s *Session) cleanup() {
 func (s *Session) initExternalPC() {
 	defer close(s.mediaReady)
 
-	pc, closeFn, err := initMediaPC(s.channelID)
+	pc, closeFn, err := initMediaPC(s.channelID, s.logFn)
 	if err != nil {
 		log.Printf("CALL [%s]: PeerConnection create error: %v", s.channelID, err)
 		return

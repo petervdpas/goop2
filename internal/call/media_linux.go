@@ -17,7 +17,9 @@ import (
 // initMediaPC creates the ExternalPC with VP8+Opus codecs and attempts to
 // capture local camera/mic via pion/mediadevices (V4L2 + malgo on Linux).
 // Returns the PC, a cleanup func for local media (may be nil), and any error.
-func initMediaPC(channelID string) (*webrtc.PeerConnection, func(), error) {
+// logFn, if non-nil, is called with (level, msg) for hardware errors that
+// should appear in the browser's Video log tab via MQ. May be nil.
+func initMediaPC(channelID string, logFn func(level, msg string)) (*webrtc.PeerConnection, func(), error) {
 	// ── Codec selector ───────────────────────────────────────────────────────
 
 	vpxParams, err := vpx.NewVP8Params()
@@ -60,39 +62,83 @@ func initMediaPC(channelID string) (*webrtc.PeerConnection, func(), error) {
 		return nil, nil, err
 	}
 
-	// ── Capture local media ──────────────────────────────────────────────────
+	// ── Enumerate available media devices (diagnostics) ──────────────────────
 
-	stream, err := mediadevices.GetUserMedia(mediadevices.MediaStreamConstraints{
-		Video: func(_ *mediadevices.MediaTrackConstraints) {},
-		Audio: func(_ *mediadevices.MediaTrackConstraints) {},
-		Codec: codecSelector,
-	})
-	if err != nil {
-		// Non-fatal: add recvonly transceivers so the SDP offer still has valid
-		// m-lines with ICE credentials; call can still receive remote media.
-		log.Printf("CALL [%s]: GetUserMedia error: %v — proceeding without local media", channelID, err)
-		addRecvOnlyTransceivers(channelID, pc)
-		return pc, nil, nil
+	devices := mediadevices.EnumerateDevices()
+	if len(devices) == 0 {
+		msg := "no media devices found by pion/mediadevices"
+		log.Printf("CALL [%s]: %s", channelID, msg)
+		if logFn != nil {
+			logFn("warn", msg)
+		}
+	} else {
+		for _, d := range devices {
+			log.Printf("CALL [%s]: media device — kind=%v label=%q", channelID, d.Kind, d.Label)
+		}
 	}
 
-	for _, track := range stream.GetTracks() {
-		track.OnEnded(func(err error) {
-			if err != nil {
-				log.Printf("CALL [%s]: local track ended: %v", channelID, err)
+	// ── Capture local media with graceful fallback ───────────────────────────
+	//
+	// GetUserMedia fails as a unit if either track (video OR audio) can't be
+	// opened.  Try video+audio first, then video-only, then audio-only so that
+	// a missing/busy microphone doesn't prevent the camera from working and
+	// vice versa.
+
+	type attempt struct {
+		video bool
+		audio bool
+		label string
+	}
+	for _, a := range []attempt{
+		{true, true, "video+audio"},
+		{true, false, "video-only"},
+		{false, true, "audio-only"},
+	} {
+		constraints := mediadevices.MediaStreamConstraints{Codec: codecSelector}
+		if a.video {
+			constraints.Video = func(_ *mediadevices.MediaTrackConstraints) {}
+		}
+		if a.audio {
+			constraints.Audio = func(_ *mediadevices.MediaTrackConstraints) {}
+		}
+
+		stream, err := mediadevices.GetUserMedia(constraints)
+		if err != nil {
+			msg := "GetUserMedia (" + a.label + ") failed: " + err.Error()
+			log.Printf("CALL [%s]: %s", channelID, msg)
+			if logFn != nil {
+				logFn("warn", msg)
 			}
-		})
-		if _, err := pc.AddTrack(track); err != nil {
-			log.Printf("CALL [%s]: AddTrack error: %v", channelID, err)
+			continue
 		}
+
+		for _, track := range stream.GetTracks() {
+			track.OnEnded(func(err error) {
+				if err != nil {
+					log.Printf("CALL [%s]: local track ended: %v", channelID, err)
+				}
+			})
+			if _, err := pc.AddTrack(track); err != nil {
+				log.Printf("CALL [%s]: AddTrack error: %v", channelID, err)
+			}
+		}
+
+		log.Printf("CALL [%s]: local media captured (%s) — %d tracks", channelID, a.label, len(stream.GetTracks()))
+		closeFn := func() {
+			for _, t := range stream.GetTracks() {
+				t.Close()
+			}
+		}
+		return pc, closeFn, nil
 	}
 
-	log.Printf("CALL [%s]: ExternalPC ready — %d local tracks", channelID, len(stream.GetTracks()))
-
-	closeFn := func() {
-		for _, t := range stream.GetTracks() {
-			t.Close()
-		}
+	// All attempts failed — fall back to receive-only so the call can still
+	// receive remote media even without local camera/mic.
+	msg := "all media capture attempts failed — proceeding receive-only"
+	log.Printf("CALL [%s]: %s", channelID, msg)
+	if logFn != nil {
+		logFn("warn", msg)
 	}
-	return pc, closeFn, nil
+	addRecvOnlyTransceivers(channelID, pc)
+	return pc, nil, nil
 }
-

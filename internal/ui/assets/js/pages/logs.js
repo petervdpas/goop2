@@ -151,6 +151,37 @@
   }
   initMQLog();
 
+  // ── Call hardware log ───────────────────────────────────────────────────────
+  // Receives log:call events from Go's call layer (hardware capture errors etc.)
+  // and renders them as Video-tab entries (log-call class).
+  function appendCallLogLine(payload) {
+    if (!payload) return;
+    var level  = payload.level || 'info';
+    var source = payload.source || 'call';
+    var msg    = payload.msg || '';
+    var ts     = payload.ts ? new Date(payload.ts).toLocaleTimeString() : '';
+    var s      = ts + ' [' + level + '] [' + source + '] ' + msg;
+    var span   = document.createElement('span');
+    span.className = 'log-call';
+    span.textContent = s + '\n';
+    box.appendChild(span);
+    lineCount++;
+    if (lineCount > MAX_LINES) {
+      if (box.firstChild) box.removeChild(box.firstChild);
+      lineCount = MAX_LINES;
+    }
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function initCallLog() {
+    if (!window.Goop || !window.Goop.mq) { setTimeout(initCallLog, 50); return; }
+    Goop.mq.onLogCall(function(from, topic, payload, ack) {
+      appendCallLogLine(payload);
+      ack();
+    });
+  }
+  initCallLog();
+
   // ── Load snapshot then stream ──────────────────────────────────────────────
   api("/api/logs")
     .then(items => {

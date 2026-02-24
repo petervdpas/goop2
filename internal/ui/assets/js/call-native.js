@@ -312,12 +312,14 @@
           connectedEmitted = true;
           this._emitState('connected');
         }
-        // Trim old buffered data to prevent QuotaExceededError on long calls.
-        // Keep only the last 30 s; remove() is async and fires updateend again.
+        // Trim old buffered data to prevent QuotaExceededError on very long calls.
+        // Threshold: 120 s (~18 MB at 1.5 Mbps VP8) — aggressive trimming (30 s) can
+        // cause WebKitGTK to enter a waiting/stalled state and show black video.
+        // remove() is async and fires updateend again when complete.
         if (!sb.updating && sb.buffered.length > 0 && ms.readyState === 'open') {
           const s0 = sb.buffered.start(0), e0 = sb.buffered.end(0);
-          if (e0 - s0 > 30) {
-            try { sb.remove(s0, e0 - 30); return; } catch (_) {}
+          if (e0 - s0 > 120) {
+            try { sb.remove(s0, e0 - 120); return; } catch (_) {}
           }
         }
         tryAppend();

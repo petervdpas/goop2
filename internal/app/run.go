@@ -447,7 +447,17 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	var callMgr *call.Manager
 	if cfg.Viewer.ExperimentalCalls {
 		sigAdapter := &mqSignalerAdapter{mqMgr: mqMgr, peers: make(map[string]string)}
-		callMgr = call.New(sigAdapter, node.ID())
+		// callLogFn publishes structured log events from the call layer (e.g. hardware
+		// capture errors) to the MQ bus so they appear in the browser's Video log tab.
+		callLogFn := func(level, msg string) {
+			mqMgr.PublishLocal("log:call", "", map[string]any{
+				"level":  level,
+				"source": "media",
+				"msg":    msg,
+				"ts":     time.Now().UnixMilli(),
+			})
+		}
+		callMgr = call.New(sigAdapter, node.ID(), callLogFn)
 		defer callMgr.Close()
 		log.Printf("📞 Experimental native call stack enabled (Go/Pion WebRTC)")
 	}

@@ -12,7 +12,8 @@ import (
 // initMediaPC creates a receive-only PeerConnection on non-Linux platforms.
 // Camera/mic capture via pion/mediadevices requires platform-specific drivers
 // (V4L2/malgo on Linux); on Windows/macOS the browser WebRTC path handles media.
-func initMediaPC(channelID string) (*webrtc.PeerConnection, func(), error) {
+// logFn is unused on non-Linux — no hardware capture is attempted here.
+func initMediaPC(channelID string, _ func(level, msg string)) (*webrtc.PeerConnection, func(), error) {
 	mediaEngine := &webrtc.MediaEngine{}
 	if err := mediaEngine.RegisterDefaultCodecs(); err != nil {
 		return nil, nil, err

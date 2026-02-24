@@ -13,6 +13,7 @@ import (
 type Manager struct {
 	sig    Signaler
 	selfID string
+	logFn  func(level, msg string) // publishes structured log events to the browser
 
 	mu           sync.RWMutex
 	sessions     map[string]*Session
@@ -23,10 +24,13 @@ type Manager struct {
 
 // New creates a new call Manager attached to sig and starts listening for
 // signaling messages immediately.
-func New(sig Signaler, selfID string) *Manager {
+// logFn, if non-nil, is called for structured log events (e.g. hardware errors)
+// that should appear in the browser's Video log tab via MQ. May be nil.
+func New(sig Signaler, selfID string, logFn func(level, msg string)) *Manager {
 	m := &Manager{
 		sig:          sig,
 		selfID:       selfID,
+		logFn:        logFn,
 		sessions:     make(map[string]*Session),
 		pendingCalls: make(map[string]string),
 		done:         make(chan struct{}),
@@ -38,7 +42,7 @@ func New(sig Signaler, selfID string) *Manager {
 // StartCall creates a new outbound call session on channelID to remotePeer.
 func (m *Manager) StartCall(ctx context.Context, channelID, remotePeer string) (*Session, error) {
 	m.sig.RegisterChannel(channelID, remotePeer)
-	sess := newSession(channelID, remotePeer, m.sig, true)
+	sess := newSession(channelID, remotePeer, m.sig, true, m.logFn)
 	m.mu.Lock()
 	m.sessions[channelID] = sess
 	m.mu.Unlock()
@@ -49,7 +53,7 @@ func (m *Manager) StartCall(ctx context.Context, channelID, remotePeer string) (
 // AcceptCall creates a session for an incoming call and sends call-ack to the caller.
 func (m *Manager) AcceptCall(ctx context.Context, channelID, remotePeer string) (*Session, error) {
 	m.sig.RegisterChannel(channelID, remotePeer)
-	sess := newSession(channelID, remotePeer, m.sig, false)
+	sess := newSession(channelID, remotePeer, m.sig, false, m.logFn)
 	m.mu.Lock()
 	m.sessions[channelID] = sess
 	delete(m.pendingCalls, channelID)

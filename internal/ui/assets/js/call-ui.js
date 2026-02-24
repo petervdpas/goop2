@@ -296,6 +296,16 @@
         remoteVideo.onerror = function() {
           log('error', 'MSE video error: ' + (remoteVideo.error ? remoteVideo.error.message : 'unknown'));
         };
+        // WebKitGTK can enter a stalled/waiting state (shows black) when the MSE
+        // buffer is trimmed or after long playback. Recover by calling play().
+        remoteVideo.addEventListener('waiting', function() {
+          log('warn', 'MSE video waiting — attempting play() recovery');
+          remoteVideo.play().catch(function() {});
+        });
+        remoteVideo.addEventListener('stalled', function() {
+          log('warn', 'MSE video stalled — attempting play() recovery');
+          remoteVideo.play().catch(function() {});
+        });
       });
     }
 
