@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/petervdpas/goop2/internal/group"
@@ -335,66 +334,6 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 		writeJSON(w, map[string]string{"status": "sent"})
 	})
 
-	// GET /api/groups/events — compatibility SSE shim for SDK and templates.
-	// Reads from the unified MQ event stream and re-emits group events in the
-	// original wire format: "event: {type}\ndata: {json}\n\n".
-	handleGet(mux, "/api/groups/events", func(w http.ResponseWriter, r *http.Request) {
-		if mqMgr == nil {
-			http.Error(w, "not available", http.StatusServiceUnavailable)
-			return
-		}
-		sseHeaders(w)
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			http.Error(w, "streaming not supported", http.StatusInternalServerError)
-			return
-		}
-
-		evtCh, cancel := mqMgr.Subscribe()
-		defer cancel()
-
-		fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"ok\"}\n\n")
-		flusher.Flush()
-
-		ctx := r.Context()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case evt, ok := <-evtCh:
-				if !ok {
-					return
-				}
-				if evt.Type != "message" || evt.Msg == nil {
-					continue
-				}
-				topic := evt.Msg.Topic
-				var evtType string
-				if topic == "group.invite" {
-					evtType = "invite"
-				} else if strings.HasPrefix(topic, "group:") {
-					// topic = "group:{groupID}:{type}" — extract last segment
-					parts := strings.SplitN(topic, ":", 3)
-					if len(parts) != 3 {
-						continue
-					}
-					evtType = parts[2]
-				} else {
-					continue // not a group event
-				}
-				// Skip internal-only protocol messages
-				if evtType == group.TypePing || evtType == group.TypePong || evtType == group.TypeMeta {
-					continue
-				}
-				data, err := json.Marshal(evt.Msg.Payload)
-				if err != nil {
-					continue
-				}
-				fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evtType, data)
-				flusher.Flush()
-			}
-		}
-	})
 }
 
 // generateGroupID returns a random 8-byte hex string (16 chars).
