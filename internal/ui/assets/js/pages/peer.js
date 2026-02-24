@@ -86,9 +86,9 @@
     addMessage(outMsg);
     input.value = '';
 
-    window.Goop.mq.send(peerID, 'chat', { content: content, to: peerID })
+    window.Goop.mq.sendChat(peerID, { content: content, to: peerID })
       .catch(function(err) {
-        console.error('Failed to send:', err);
+        Goop.log.error('peer', 'chat send failed: ' + err);
         alert('Failed to send message');
       });
   });
@@ -99,7 +99,7 @@
       setTimeout(initMQChat, 100);
       return;
     }
-    window.Goop.mq.subscribe('chat', function(from, _topic, payload, ack) {
+    window.Goop.mq.onChat( function(from, _topic, payload, ack) {
       // Show messages from this peer only
       if (from !== peerID) { ack(); return; }
       var msg = { from: from, to: selfID, content: payload.content || '', timestamp: Date.now() };
@@ -150,7 +150,7 @@
     Goop.callUI.startCall(peerID, constraints).then(function(session) {
       session.onHangup(function() { setCallBusy(false); });
     }).catch(function(err) {
-      console.error('Call failed:', err);
+      Goop.log.error('peer', 'call failed: ' + err);
       setCallBusy(false);
     });
   }

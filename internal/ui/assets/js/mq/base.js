@@ -1,13 +1,16 @@
 /**
- * 00-mq.js — Message Queue layer.
+ * mq/base.js — MQ transport engine.
  *
- * Provides Goop.mq: a reliable message transport backed by IndexedDB (outbox +
- * inbox), HTTP (/api/mq/*), and SSE (/api/mq/events).
+ * Provides the core Goop.mq object:
+ *   Goop.mq.send(peerID, topic, payload)  → Promise
+ *   Goop.mq.subscribe(topic, fn)          → unsubFn   (topic supports '*' suffix)
+ *   Goop.mq.broadcast(topic, payload)     → Promise
+ *   Goop.mq.onFailed(fn)                  register failed-message callback
  *
- * IndexedDB is reset on every app start (session-only semantics: identical to
- * the previous in-memory ring buffer, but with retry support).
+ * Topic constants, typed helpers, and the peer cache live in mq/topics.js
+ * and mq/peers.js — load those after this file.
  *
- * Load order: must come before any file that uses Goop.mq (i.e. before 05-layout.js).
+ * Load order: mq/base.js → mq/topics.js → mq/peers.js
  */
 (function () {
   "use strict";
@@ -33,9 +36,9 @@
   // ── IndexedDB ────────────────────────────────────────────────────────────────
   var DB_NAME = "goop-mq";
   var DB_VERSION = 1;
-  var _db = null; // resolved after init
+  var _db = null;
   var _dbReady = false;
-  var _dbQueue = []; // callbacks waiting for DB
+  var _dbQueue = [];
 
   function withDB(fn) {
     if (_db) { fn(_db); return; }
@@ -49,12 +52,8 @@
       var req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onupgradeneeded = function (e) {
         var db = e.target.result;
-
-        // outbox: messages we are sending
         var outbox = db.createObjectStore("outbox", { keyPath: "id" });
         outbox.createIndex("status", "status", { unique: false });
-
-        // inbox: messages we have received
         var inbox = db.createObjectStore("inbox", { keyPath: ["from", "seq"] });
         inbox.createIndex("processed", "processed", { unique: false });
       };
@@ -74,7 +73,6 @@
     };
   }
 
-  // Write a record to an object store. db may be null (no-op).
   function dbPut(storeName, record) {
     withDB(function (db) {
       if (!db) return;
@@ -84,7 +82,6 @@
     });
   }
 
-  // Delete a record from an object store by key (single value or array key).
   function dbDelete(storeName, key) {
     withDB(function (db) {
       if (!db) return;
@@ -94,7 +91,6 @@
     });
   }
 
-  // Read all records from an object store.
   function dbGetAll(storeName, cb) {
     withDB(function (db) {
       if (!db) { cb([]); return; }
@@ -107,12 +103,7 @@
   }
 
   // ── Topic subscriptions ──────────────────────────────────────────────────────
-  var _subs = []; // [{topic, fn}]
-
-  // ── Peer metadata cache ─────────────────────────────────────────────────────
-  // Populated by peer:announce messages pushed from Go via PublishLocal.
-  // Keyed by full peer ID; values match the peer:announce payload shape.
-  var _peerMeta = {};
+  var _subs = [];
 
   function matchTopic(pattern, topic) {
     if (pattern.endsWith("*")) {
@@ -132,8 +123,7 @@
       }
     });
     if (!handled) {
-      // Auto-ack unhandled messages so the sender doesn't time out.
-      ackFn();
+      ackFn(); // auto-ack unhandled messages
     }
   }
 
@@ -165,25 +155,21 @@
 
   function handleSSEEvent(evt) {
     if (evt.type === "delivered") {
-      // Sender-side: our outbox entry was processed by the remote browser.
       markDelivered(evt.msg_id);
       return;
     }
 
     if (evt.type === "message" && evt.msg) {
-      var msg   = evt.msg;
-      var from  = evt.from || "";
-      var msgId = msg.id;
-      var seq   = msg.seq;
-      var topic = msg.topic;
+      var msg     = evt.msg;
+      var from    = evt.from || "";
+      var msgId   = msg.id;
+      var seq     = msg.seq;
+      var topic   = msg.topic;
       var payload = msg.payload;
 
-      // Deduplicate via [from, seq] compound key.
       withDB(function (db) {
         if (!db) {
-          // No IndexedDB — dispatch directly.
-          var ackFn = makeAckFn(msgId, from);
-          dispatch(from, topic, payload, ackFn);
+          dispatch(from, topic, payload, makeAckFn(msgId, from));
           return;
         }
 
@@ -192,22 +178,18 @@
         var getReq = store.get([from, seq]);
         getReq.onsuccess = function () {
           if (getReq.result) {
-            // Already processed — silently re-ack.
-            sendAck(msgId, from);
+            sendAck(msgId, from); // already processed — re-ack silently
             return;
           }
-          // Store and dispatch.
           store.put({ from: from, seq: seq, id: msgId, topic: topic, payload: payload, processed: 0, received: Date.now() });
           var ackFn = makeAckFn(msgId, from);
           dispatch(from, topic, payload, function () {
             ackFn();
-            // Mark processed in inbox.
             withDB(function (db2) {
               if (!db2) return;
               try {
-                var tx2 = db2.transaction("inbox", "readwrite");
-                var rec = { from: from, seq: seq, id: msgId, topic: topic, payload: payload, processed: 1, received: Date.now() };
-                tx2.objectStore("inbox").put(rec);
+                db2.transaction("inbox", "readwrite").objectStore("inbox")
+                   .put({ from: from, seq: seq, id: msgId, topic: topic, payload: payload, processed: 1, received: Date.now() });
               } catch (_) {}
             });
           });
@@ -234,12 +216,13 @@
   }
 
   // ── Outbox management ────────────────────────────────────────────────────────
-
   function markDelivered(msgId) {
     if (!msgId) return;
     dbDelete("outbox", msgId);
     log("info", "delivered: " + msgId.substring(0, 8));
   }
+
+  var _onFailed = null;
 
   function markFailed(entry) {
     entry.status = "failed";
@@ -249,15 +232,7 @@
     }
   }
 
-  var _onFailed = null;
-
   // ── Core send ────────────────────────────────────────────────────────────────
-
-  /**
-   * send(peerID, topic, payload) → Promise
-   * Writes to outbox, POSTs to /api/mq/send.
-   * Retries are handled by the 30s interval timer.
-   */
   function mqSend(peerID, topic, payload) {
     var msgId = uuid4();
     var entry = {
@@ -276,7 +251,7 @@
       markDelivered(msgId);
       return result;
     }).catch(function (err) {
-      entry.status = "pending"; // will be retried
+      entry.status = "pending";
       dbPut("outbox", entry);
       throw err;
     });
@@ -305,22 +280,18 @@
     });
   }
 
-  /**
-   * broadcast(topic, payload) — fetch /api/peers then send individually.
-   */
   function mqBroadcast(topic, payload) {
     return fetch("/api/peers").then(function (r) { return r.json(); }).then(function (peers) {
       if (!Array.isArray(peers)) return;
-      var promises = peers.map(function (p) {
+      return Promise.all(peers.map(function (p) {
         return mqSend(p.ID, topic, payload).catch(function (e) {
           log("warn", "broadcast to " + p.ID.substring(0, 8) + " failed: " + e);
         });
-      });
-      return Promise.all(promises);
+      }));
     });
   }
 
-  // ── Retry timer (every 30 s) ─────────────────────────────────────────────────
+  // ── Retry timer (every 30 s) ──────────────────────────────────────────────────
   var MAX_ATTEMPTS = 10;
 
   setInterval(function () {
@@ -329,10 +300,7 @@
       entries.forEach(function (entry) {
         if (entry.status === "failed") return;
         if (entry.status === "in-flight" && (now - entry.lastAttempt) < 30000) return;
-        if (entry.attempts >= MAX_ATTEMPTS) {
-          markFailed(entry);
-          return;
-        }
+        if (entry.attempts >= MAX_ATTEMPTS) { markFailed(entry); return; }
         doSend(entry).then(function () { markDelivered(entry.id); }).catch(function () {
           entry.status = "pending";
           dbPut("outbox", entry);
@@ -342,19 +310,19 @@
   }, 30000);
 
   // ── Public API ───────────────────────────────────────────────────────────────
-
   window.Goop = window.Goop || {};
 
   window.Goop.mq = {
     /**
      * send(peerID, topic, payload) → Promise<{msg_id, status}>
+     * Writes to IndexedDB outbox, POSTs to /api/mq/send. Retried on failure.
      */
     send: mqSend,
 
     /**
-     * subscribe(topic, fn(from, topic, payload, ackFn))
-     * topic supports exact match or prefix wildcard ending with '*'.
-     * Returns unsubscribe function.
+     * subscribe(topic, fn(from, topic, payload, ackFn)) → unsubscribeFn
+     * topic supports exact match or '*'-suffix wildcard (e.g. 'call:*').
+     * Unhandled topics are auto-acked. Starts SSE connection on first call.
      */
     subscribe: function (topic, fn) {
       var sub = { topic: topic, fn: fn };
@@ -368,41 +336,15 @@
 
     /**
      * broadcast(topic, payload) → Promise
-     * Sends to all known peers individually.
+     * Fetches /api/peers and sends individually to each online peer.
      */
     broadcast: mqBroadcast,
 
     /**
-     * onFailed(fn) — register a callback for messages that exceeded MAX_ATTEMPTS.
+     * onFailed(fn(entry)) — callback for messages that exceeded MAX_ATTEMPTS.
      */
     onFailed: function (fn) { _onFailed = fn; },
-
-    /**
-     * getPeer(peerID) → peer metadata object or null.
-     * Returns the last known peer:announce payload for peerID, or null if unknown.
-     */
-    getPeer: function (peerID) { return _peerMeta[peerID] || null; },
-
-    /**
-     * getPeerName(peerID) → display name string or null.
-     * Shorthand for getPeer(peerID)?.content.
-     */
-    getPeerName: function (peerID) {
-      var p = _peerMeta[peerID];
-      return (p && p.content) || null;
-    },
   };
-
-  // Auto-subscribe to peer:announce / peer:gone to maintain the local peer cache.
-  // These are internal topics published by Go via PublishLocal — no P2P send.
-  window.Goop.mq.subscribe("peer:announce", function (from, topic, payload, ack) {
-    if (payload && payload.peerID) _peerMeta[payload.peerID] = payload;
-    ack();
-  });
-  window.Goop.mq.subscribe("peer:gone", function (from, topic, payload, ack) {
-    if (payload && payload.peerID) delete _peerMeta[payload.peerID];
-    ack();
-  });
 
   // Start IndexedDB and SSE immediately.
   openDB();

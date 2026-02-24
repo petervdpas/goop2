@@ -239,7 +239,7 @@
           if (micEl) Goop.select.setOpts(micEl, { options: micOpts }, micPref);
         });
       }).catch(function(err) {
-        console.warn('settings: cannot enumerate devices:', err);
+        Goop.log.warn('settings', 'cannot enumerate devices: ' + err);
       });
   }
 
@@ -289,7 +289,7 @@
 
       closePopup();
     }).catch(function(err) {
-      console.error('settings: save failed:', err);
+      Goop.log.error('settings', 'save failed: ' + err);
       alert('Failed to save settings: ' + err.message);
     });
   }

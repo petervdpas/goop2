@@ -144,7 +144,7 @@
 
   function initMQLog() {
     if (!window.Goop || !window.Goop.mq) { setTimeout(initMQLog, 50); return; }
-    Goop.mq.subscribe('log:mq', function(from, topic, payload, ack) {
+    Goop.mq.onLogMQ( function(from, topic, payload, ack) {
       appendMQLogLine(payload);
       ack();
     });

@@ -16,6 +16,7 @@ package call
 import (
 	"bytes"
 	"encoding/binary"
+	"log"
 	"math"
 	"sync"
 )
@@ -226,7 +227,8 @@ func webmSimpleBlock(trackNum int, relMs int16, keyframe bool, data []byte) []by
 // Video and audio goroutines call handleVideoFrame / handleAudioFrame.
 // HTTP WebSocket handlers subscribe via subscribeMedia / unsubscribeMedia.
 type webmSession struct {
-	mu sync.Mutex
+	mu        sync.Mutex
+	channelID string // for log messages
 
 	// Video track state
 	dimKnown    bool
@@ -254,9 +256,10 @@ type webmAudioFrame struct {
 	data       []byte
 }
 
-func newWebmSession() *webmSession {
+func newWebmSession(channelID string) *webmSession {
 	return &webmSession{
-		subs: make(map[chan []byte]struct{}),
+		channelID: channelID,
+		subs:      make(map[chan []byte]struct{}),
 	}
 }
 
@@ -283,7 +286,8 @@ func (ws *webmSession) hasInitSeg() bool {
 func (ws *webmSession) subscribeMedia() (<-chan []byte, func()) {
 	ch := make(chan []byte, 32)
 	ws.mu.Lock()
-	if ws.initSeg != nil {
+	replayed := ws.initSeg != nil
+	if replayed {
 		// Send cached init segment immediately to the new subscriber.
 		select {
 		case ch <- ws.initSeg:
@@ -291,12 +295,16 @@ func (ws *webmSession) subscribeMedia() (<-chan []byte, func()) {
 		}
 	}
 	ws.subs[ch] = struct{}{}
+	n := len(ws.subs)
 	ws.mu.Unlock()
+	log.Printf("CALL [%s]: WebM subscriber added (total=%d, init_replayed=%v)", ws.channelID, n, replayed)
 	return ch, func() {
 		ws.mu.Lock()
 		delete(ws.subs, ch)
+		n := len(ws.subs)
 		ws.mu.Unlock()
 		close(ch)
+		log.Printf("CALL [%s]: WebM subscriber removed (total=%d)", ws.channelID, n)
 	}
 }
 
@@ -324,6 +332,8 @@ func (ws *webmSession) handleVideoFrame(timecodeMs int64, keyframe bool, data []
 			return // wait for a keyframe so we know dimensions and MSE can start
 		}
 		ws.initSeg = webmInitSegment(ws.videoWidth, ws.videoHeight, ws.hasAudio)
+		log.Printf("CALL [%s]: WebM init segment — VP8 %dx%d audio=%v subs=%d",
+			ws.channelID, ws.videoWidth, ws.videoHeight, ws.hasAudio, len(ws.subs))
 		ws.broadcastLocked(ws.initSeg)
 	}
 
@@ -369,6 +379,8 @@ func (ws *webmSession) handleAudioFrame(timecodeMs int64, data []byte) {
 		// Cluster not open yet — queue audio (bounded).
 		if len(ws.audioQ) < 200 {
 			ws.audioQ = append(ws.audioQ, webmAudioFrame{timecodeMs, data})
+		} else {
+			log.Printf("CALL [%s]: WebM audio queue full (200 frames) — dropping audio frame", ws.channelID)
 		}
 		return
 	}

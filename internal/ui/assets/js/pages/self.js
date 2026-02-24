@@ -77,7 +77,7 @@
         }
       })
       .catch(function(err) {
-        console.error('Service check failed:', err);
+        Goop.log.error('self', 'service check failed: ' + err);
         if (statusEl) { statusEl.textContent = 'check failed'; statusEl.className = 'svc-status svc-err'; }
       })
       .finally(function() {
@@ -312,7 +312,7 @@
               tplInput.value = data.path;
             }
           })
-          .catch(function(err) { console.error('Browse failed:', err); });
+          .catch(function(err) { Goop.log.error('self', 'file browse failed: ' + err); });
       });
     } else {
       tplBrowse.classList.add('hidden');

@@ -30,7 +30,7 @@
   function startEventStream() {
     if (!window.Goop || !window.Goop.mq) { setTimeout(startEventStream, 100); return; }
 
-    Goop.mq.subscribe('group:*', function(from, topic, payload, ack) {
+    Goop.mq.onGroup( function(from, topic, payload, ack) {
       var type = payload && payload.type;
       addEventToLog(payload);
       if (type === 'members' || type === 'close' || type === 'welcome' || type === 'leave') {
@@ -39,7 +39,7 @@
       ack();
     });
 
-    Goop.mq.subscribe('group.invite', function(from, topic, payload, ack) {
+    Goop.mq.onGroupInvite( function(from, topic, payload, ack) {
       addEventToLog(payload);
       g.renderSubscriptions(subListEl);
       ack();

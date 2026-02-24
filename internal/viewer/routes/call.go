@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/petervdpas/goop2/internal/call"
+	"github.com/petervdpas/goop2/internal/mq"
 )
 
 var wsUpgrader = websocket.Upgrader{
@@ -27,7 +27,7 @@ var wsUpgrader = websocket.Upgrader{
 // server process (survives page navigations in Wails).
 var modeFirstSeen bool
 
-func RegisterCall(mux *http.ServeMux, callMgr *call.Manager) {
+func RegisterCall(mux *http.ServeMux, callMgr *call.Manager, mqMgr *mq.Manager) {
 	// GET /api/call/mode — always registered; safe to call in any mode.
 	handleGet(mux, "/api/call/mode", func(w http.ResponseWriter, r *http.Request) {
 		mode := "browser"
@@ -72,10 +72,12 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager) {
 			http.Error(w, "missing channel_id or remote_peer", http.StatusBadRequest)
 			return
 		}
-		if _, err := callMgr.StartCall(r.Context(), req.ChannelID, req.RemotePeer); err != nil {
+		sess, err := callMgr.StartCall(r.Context(), req.ChannelID, req.RemotePeer)
+		if err != nil {
 			http.Error(w, fmt.Sprintf("start call failed: %v", err), http.StatusInternalServerError)
 			return
 		}
+		watchHangup(sess, req.ChannelID, mqMgr)
 		writeJSON(w, map[string]string{"status": "started", "channel_id": req.ChannelID})
 	})
 
@@ -88,10 +90,12 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager) {
 			http.Error(w, "missing channel_id or remote_peer", http.StatusBadRequest)
 			return
 		}
-		if _, err := callMgr.AcceptCall(r.Context(), req.ChannelID, req.RemotePeer); err != nil {
+		sess, err := callMgr.AcceptCall(r.Context(), req.ChannelID, req.RemotePeer)
+		if err != nil {
 			http.Error(w, fmt.Sprintf("accept call failed: %v", err), http.StatusInternalServerError)
 			return
 		}
+		watchHangup(sess, req.ChannelID, mqMgr)
 		writeJSON(w, map[string]string{"status": "accepted", "channel_id": req.ChannelID})
 	})
 
@@ -134,92 +138,6 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager) {
 			return
 		}
 		writeJSON(w, map[string]bool{"disabled": sess.ToggleVideo()})
-	})
-
-	// GET /api/call/events — SSE stream: incoming call notifications.
-	// Each connection gets its own subscription channel; unsubscribed on disconnect
-	// so the manager never accumulates stale handlers.
-	handleGet(mux, "/api/call/events", func(w http.ResponseWriter, r *http.Request) {
-		sseHeaders(w)
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			http.Error(w, "streaming not supported", http.StatusInternalServerError)
-			return
-		}
-
-		inCh := callMgr.SubscribeIncoming()
-		defer callMgr.UnsubscribeIncoming(inCh)
-
-		fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"ok\"}\n\n")
-		flusher.Flush()
-
-		ctx := r.Context()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case ic, ok := <-inCh:
-				if !ok {
-					return
-				}
-				data, err := json.Marshal(map[string]string{
-					"type":        "incoming-call",
-					"channel_id":  ic.ChannelID,
-					"remote_peer": ic.RemotePeer,
-				})
-				if err != nil {
-					continue
-				}
-				fmt.Fprintf(w, "event: call\ndata: %s\n\n", data)
-				flusher.Flush()
-			}
-		}
-	})
-
-	// GET /api/call/session/{channel}/events — SSE: per-session events (hangup, state).
-	// The browser subscribes after start/accept; fires once when the call ends.
-	mux.HandleFunc("/api/call/session/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		// Path: /api/call/session/{channel}/events
-		tail := strings.TrimPrefix(r.URL.Path, "/api/call/session/")
-		parts := strings.SplitN(tail, "/", 2)
-		if len(parts) != 2 || parts[0] == "" || parts[1] != "events" {
-			http.Error(w, "invalid path — expected /api/call/session/{channel}/events", http.StatusBadRequest)
-			return
-		}
-		channelID := parts[0]
-
-		sess, ok := callMgr.GetSession(channelID)
-		if !ok {
-			http.Error(w, "session not found", http.StatusNotFound)
-			return
-		}
-
-		sseHeaders(w)
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			http.Error(w, "streaming not supported", http.StatusInternalServerError)
-			return
-		}
-
-		fmt.Fprintf(w, "event: connected\ndata: {}\n\n")
-		flusher.Flush()
-
-		select {
-		case <-r.Context().Done():
-			// Client disconnected before hangup — that's fine.
-		case <-sess.HangupCh():
-			data, _ := json.Marshal(map[string]string{
-				"type":       "hangup",
-				"channel_id": channelID,
-			})
-			fmt.Fprintf(w, "event: hangup\ndata: %s\n\n", data)
-			flusher.Flush()
-		}
 	})
 
 	// GET /api/call/media/{channel} — WebSocket: live WebM stream for Phase 4 browser display.
@@ -317,38 +235,43 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager) {
 			writeJSON(w, map[string]string{"sdp": "", "status": "stub — Phase 4 pending"})
 
 		case "ice":
-			switch r.Method {
-			case http.MethodPost:
-				var body struct {
-					Candidate string `json:"candidate"`
-					Mid       string `json:"sdpMid"`
-					Index     int    `json:"sdpMLineIndex"`
-				}
-				if decodeJSON(w, r, &body) != nil {
-					return
-				}
-				_ = sess
-				// TODO Phase 4: add to LocalPC remote candidates.
-				writeJSON(w, map[string]string{"status": "ok"})
-
-			case http.MethodGet:
-				sseHeaders(w)
-				flusher, ok := w.(http.Flusher)
-				if !ok {
-					http.Error(w, "streaming not supported", http.StatusInternalServerError)
-					return
-				}
-				fmt.Fprintf(w, "event: connected\ndata: {}\n\n")
-				flusher.Flush()
-				// TODO Phase 4: stream real ICE candidates from LocalPC.
-				<-r.Context().Done()
-
-			default:
+			// Only POST is accepted — browser sends its ICE candidates here for
+			// Go's LocalPC (Phase 4).
+			// The reverse direction (Go → browser ICE) uses MQ: mqMgr.PublishLoopbackICE()
+			// publishes to topic "call:loopback:{channelID}"; the browser subscribes
+			// via Goop.mq.onLoopbackICE(channelId, fn) in call-native.js.
+			if r.Method != http.MethodPost {
 				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
 			}
+			var body struct {
+				Candidate string `json:"candidate"`
+				Mid       string `json:"sdpMid"`
+				Index     int    `json:"sdpMLineIndex"`
+			}
+			if decodeJSON(w, r, &body) != nil {
+				return
+			}
+			_ = sess
+			// TODO Phase 4: add to LocalPC remote candidates.
+			writeJSON(w, map[string]string{"status": "ok"})
 
 		default:
 			http.Error(w, "unknown loopback action", http.StatusNotFound)
 		}
 	})
+}
+
+// watchHangup spawns a goroutine that waits for the session to end and then
+// publishes a call-hangup event to the browser via MQ PublishLocal so the
+// call overlay closes regardless of how the hangup was triggered (remote peer,
+// PC failure, etc.). mqMgr may be nil when native calls are disabled.
+func watchHangup(sess *call.Session, channelID string, mqMgr *mq.Manager) {
+	if mqMgr == nil {
+		return
+	}
+	go func() {
+		<-sess.HangupCh()
+		mqMgr.PublishCallHangup(channelID)
+	}()
 }

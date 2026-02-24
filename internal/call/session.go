@@ -93,7 +93,7 @@ func newSession(channelID, remotePeer string, sig Signaler, isCaller bool) *Sess
 		videoOn:    true,
 		hangupCh:   make(chan struct{}),
 		mediaReady: make(chan struct{}),
-		webm:       newWebmSession(),
+		webm:       newWebmSession(channelID),
 	}
 	go s.initExternalPC()
 

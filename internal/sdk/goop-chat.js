@@ -25,9 +25,9 @@
 //
 //   Goop.chat.unsubscribe();
 //
-// MQ topics:
-//   chat:broadcast   — broadcast message to all peers
-//   chat:direct      — direct message from one peer to another
+// MQ topics (via Goop.mq typed helpers):
+//   chat.broadcast   — broadcast message to all peers  (mq.TOPICS.CHAT_BROADCAST)
+//   chat             — direct message from one peer to another  (mq.TOPICS.CHAT)
 //
 (() => {
   window.Goop = window.Goop || {};
@@ -46,7 +46,7 @@
     broadcast: function(content) {
       return new Promise(function(resolve, reject) {
         waitMQ(function() {
-          Goop.mq.broadcast('chat:broadcast', { content: content, timestamp: Date.now() })
+          Goop.mq.broadcastChat({ content: content, timestamp: Date.now() })
             .then(resolve).catch(reject);
         });
       });
@@ -56,7 +56,7 @@
     send: function(to, content) {
       return new Promise(function(resolve, reject) {
         waitMQ(function() {
-          Goop.mq.send(to, 'chat:direct', { content: content, timestamp: Date.now() })
+          Goop.mq.sendChat(to, { content: content, timestamp: Date.now() })
             .then(resolve).catch(reject);
         });
       });
@@ -81,20 +81,25 @@
       if (_unsub) { _unsub(); _unsub = null; }
 
       waitMQ(function() {
-        _unsub = Goop.mq.subscribe('chat:*', function(from, topic, payload, ack) {
-          var type = topic === 'chat:broadcast' ? 'broadcast' : 'direct';
-          if (callback) {
-            try {
-              callback({
-                from:      from,
-                content:   payload && payload.content,
-                type:      type,
-                timestamp: (payload && payload.timestamp) || Date.now(),
-              });
-            } catch (_) {}
-          }
-          ack();
-        });
+        var unsubs = [];
+        function handle(type) {
+          return function(from, topic, payload, ack) {
+            if (callback) {
+              try {
+                callback({
+                  from:      from,
+                  content:   payload && payload.content,
+                  type:      type,
+                  timestamp: (payload && payload.timestamp) || Date.now(),
+                });
+              } catch (_) {}
+            }
+            ack();
+          };
+        }
+        unsubs.push(Goop.mq.onChatBroadcast(handle('broadcast')));
+        unsubs.push(Goop.mq.onChat(handle('direct')));
+        _unsub = function() { unsubs.forEach(function(u) { if (u) u(); }); };
       });
 
       return {

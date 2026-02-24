@@ -358,23 +358,21 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 					return
 				}
 				if evt.Type == "update" && evt.Peer != nil && evt.PeerID != "" {
-					mqMgr.PublishLocal("peer:announce", "", map[string]any{
-						"peerID":         evt.PeerID,
-						"content":        evt.Peer.Content,
-						"email":          evt.Peer.Email,
-						"avatarHash":     evt.Peer.AvatarHash,
-						"videoDisabled":  evt.Peer.VideoDisabled,
-						"activeTemplate": evt.Peer.ActiveTemplate,
-						"verified":       evt.Peer.Verified,
-						"reachable":      evt.Peer.Reachable,
-						"offline":        !evt.Peer.OfflineSince.IsZero(),
-						"lastSeen":       evt.Peer.LastSeen.UnixMilli(),
-						"favorite":       evt.Peer.Favorite,
+					mqMgr.PublishPeerAnnounce(mq.PeerAnnouncePayload{
+						PeerID:         evt.PeerID,
+						Content:        evt.Peer.Content,
+						Email:          evt.Peer.Email,
+						AvatarHash:     evt.Peer.AvatarHash,
+						VideoDisabled:  evt.Peer.VideoDisabled,
+						ActiveTemplate: evt.Peer.ActiveTemplate,
+						Verified:       evt.Peer.Verified,
+						Reachable:      evt.Peer.Reachable,
+						Offline:        !evt.Peer.OfflineSince.IsZero(),
+						LastSeen:       evt.Peer.LastSeen.UnixMilli(),
+						Favorite:       evt.Peer.Favorite,
 					})
 				} else if evt.Type == "remove" && evt.PeerID != "" {
-					mqMgr.PublishLocal("peer:gone", "", map[string]any{
-						"peerID": evt.PeerID,
-					})
+					mqMgr.PublishPeerGone(evt.PeerID)
 					// Sync DB cache with in-memory prune: delete from _peer_cache.
 					// Favorites survive in _favorites; non-favorites are gone for good.
 					go db.DeleteCachedPeer(evt.PeerID)

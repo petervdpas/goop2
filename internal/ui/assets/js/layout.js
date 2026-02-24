@@ -81,7 +81,7 @@
         setTimeout(initChatNotifications, 100);
         return;
       }
-      window.Goop.mq.subscribe('chat', function(from, _topic, payload, ack) {
+      window.Goop.mq.onChat( function(from, _topic, payload, ack) {
         showChatToast(from, payload && payload.content);
         ack();
       });

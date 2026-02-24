@@ -148,7 +148,7 @@ func Start(addr string, v Viewer) error {
 
 
 	// Register native call endpoints (always register mode endpoint; full API when Call != nil)
-	routes.RegisterCall(mux, v.Call)
+	routes.RegisterCall(mux, v.Call, v.MQ)
 
 	// Register listen room endpoints if listen manager is available
 	if v.Listen != nil {

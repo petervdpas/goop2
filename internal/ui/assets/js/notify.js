@@ -7,7 +7,7 @@
   function initInviteNotify() {
     if (!window.Goop || !window.Goop.mq) { setTimeout(initInviteNotify, 100); return; }
 
-    Goop.mq.subscribe('group.invite', function(from, topic, payload, ack) {
+    Goop.mq.onGroupInvite( function(from, topic, payload, ack) {
       var p = (payload && payload.payload) || {};
       var name = p.group_name || p.group_id || 'a group';
 

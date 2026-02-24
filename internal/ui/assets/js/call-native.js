@@ -62,10 +62,9 @@
       this._audioEnabled = true;
       this._videoEnabled = true;
 
-      this._loopbackPc    = null;
-      this._loopbackIceEs = null;
-      this._sessionEs     = null;
-      this._mediaWs       = null; // Phase 4: WebM/MSE WebSocket
+      this._loopbackPc      = null;
+      this._loopbackIceUnsub = null; // Phase 4: unsubscribe for MQ loopback ICE
+      this._mediaWs          = null; // Phase 4: WebM/MSE WebSocket
     }
 
     onRemoteStream(cb) { this._remoteStreamCbs.push(cb); }
@@ -119,10 +118,15 @@
     // ── Internal ──
 
     _cleanup() {
-      if (this._sessionEs)     { this._sessionEs.close();     this._sessionEs = null; }
-      if (this._loopbackIceEs) { this._loopbackIceEs.close(); this._loopbackIceEs = null; }
-      if (this._loopbackPc)    { this._loopbackPc.close();    this._loopbackPc = null; }
-      if (this._mediaWs)       { this._mediaWs.close();       this._mediaWs = null; }
+      if (this._loopbackIceUnsub) { this._loopbackIceUnsub(); this._loopbackIceUnsub = null; }
+      if (this._loopbackPc)       { this._loopbackPc.close(); this._loopbackPc = null; }
+      if (this._mediaWs)          { this._mediaWs.close();    this._mediaWs = null; }
+    }
+
+    // Called by NativeCallManager when a call-hangup arrives on this channel via MQ.
+    _handleRemoteHangup() {
+      this._cleanup();
+      this._emitHangup();
     }
 
     _emitRemoteStream(stream) { this._remoteStreamCbs.forEach(cb => cb(stream)); }
@@ -131,46 +135,6 @@
     _emitRemoteVideoSrc(src)  {
       this._remoteVideoSrc = src;
       this._remoteVideoSrcCbs.forEach(cb => { try { cb(src); } catch (_) {} });
-    }
-
-    /**
-     * Subscribe to server-side session events (hangup).
-     * Go closes session.HangupCh() when either peer hangs up → SSE fires →
-     * browser receives "hangup" event → call overlay closes.
-     * Must be called after the Go session exists (i.e. after start/accept returns).
-     *
-     * Retries up to 5 times (2 s apart) on transient connection errors so that
-     * a brief network hiccup doesn't permanently lose the hangup notification.
-     */
-    _listenForHangup(attempt) {
-      attempt = attempt || 0;
-      const maxAttempts = 5;
-
-      const es = new EventSource(`/api/call/session/${this.channelId}/events`);
-      this._sessionEs = es;
-
-      es.addEventListener('hangup', () => {
-        es.close();
-        this._sessionEs = null;
-        this._emitHangup();
-      });
-
-      es.onerror = () => {
-        if (this._sessionEs !== es) return; // superseded by a later connection
-        es.close();
-        this._sessionEs = null;
-        if (attempt < maxAttempts) {
-          log('warn', 'session SSE error — retry ' + (attempt + 1) + '/' + maxAttempts);
-          setTimeout(() => {
-            // Only reconnect if we haven't already hung up.
-            if (this._sessionEs === null && this._hangupCbs.length > 0) {
-              this._listenForHangup(attempt + 1);
-            }
-          }, 2000);
-        } else {
-          log('warn', 'session SSE failed after ' + maxAttempts + ' retries — hangup events will be missed');
-        }
-      };
     }
 
     /**
@@ -219,13 +183,10 @@
           }).catch(() => {});
         };
 
-        // Subscribe to Go's loopback ICE candidates via SSE.
-        const iceEs = new EventSource(`/api/call/loopback/${this.channelId}/ice`);
-        this._loopbackIceEs = iceEs;
-        iceEs.addEventListener('candidate', e => {
-          try {
-            pc.addIceCandidate(new RTCIceCandidate(JSON.parse(e.data))).catch(() => {});
-          } catch (_) {}
+        // Subscribe to Go's LocalPC ICE candidates via MQ (Phase 4).
+        // Go publishes on "call:loopback:{channelId}" via mqMgr.PublishLoopbackICE().
+        this._loopbackIceUnsub = window.Goop.mq.onLoopbackICE(this.channelId, candidate => {
+          pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
         });
 
         // Ask Go to receive our offer and return an SDP answer.
@@ -388,6 +349,7 @@
     constructor() {
       this._incomingCbs = [];
       this._evtSource   = null;
+      this._sessions    = {}; // channelId → NativeSession
     }
 
     /**
@@ -413,9 +375,10 @@
       if (!startRes.ok) throw new Error('call start failed: ' + startRes.status);
       log('info', 'Go call session started, channel=' + channelId);
 
-      // Create session and wire hangup + loopback.
+      // Create session, register it, then wire loopback.
       const sess = new NativeSession(channelId);
-      sess._listenForHangup();
+      this._sessions[channelId] = sess;
+      sess.onHangup(() => { delete this._sessions[channelId]; });
       sess._connectLoopback();
 
       // Send call-request to callee via MQ.
@@ -434,7 +397,7 @@
           setTimeout(send, 200);
           return;
         }
-        window.Goop.mq.send(peerId, 'call:' + channelId, { type: 'call-request' }).catch(() => {
+        window.Goop.mq.sendCallRequest(peerId, channelId).catch(() => {
           // MQ will retry automatically from outbox.
         });
       };
@@ -443,7 +406,7 @@
 
     /**
      * Register a handler for incoming calls.
-     * Subscribes to the /api/call/events SSE.  call-ui.js calls this at load time
+     * Subscribes to 'call:*' via Goop.mq.  call-ui.js calls this at load time
      * on the original browser Goop.call; call-native.js re-registers on the
      * new NativeCallManager after replacing Goop.call.
      */
@@ -456,26 +419,26 @@
     // Native mode tracks sessions server-side; return empty for now.
     activeCalls() { return []; }
 
-    // ── SSE subscription ──
+    // ── MQ subscription ──
 
     _ensureEventSource() {
       if (this._evtSource) return;
-      const es = new EventSource('/api/call/events');
-      this._evtSource = es;
-
-      es.addEventListener('call', e => {
-        try {
-          const data = JSON.parse(e.data);
-          if (data.type === 'incoming-call') this._handleIncoming(data);
-        } catch (e) {
-          log('warn', 'SSE call event error: ' + e);
-        }
-      });
-
-      es.onerror = () => {
-        this._evtSource = null;
-        setTimeout(() => this._ensureEventSource(), 3000);
+      this._evtSource = true; // prevent double-init
+      const init = () => {
+        if (!window.Goop || !window.Goop.mq) { setTimeout(init, 100); return; }
+        window.Goop.mq.onCall( (from, topic, payload, ack) => {
+          ack();
+          if (!payload) return;
+          const channelId = topic.slice(5); // strip 'call:' prefix
+          if (payload.type === 'call-request') {
+            this._handleIncoming({ channel_id: channelId, remote_peer: from });
+          } else if (payload.type === 'call-hangup') {
+            const sess = this._sessions[channelId];
+            if (sess) sess._handleRemoteHangup();
+          }
+        });
       };
+      init();
     }
 
     _handleIncoming({ channel_id: channelId, remote_peer: remotePeerId }) {
@@ -496,7 +459,8 @@
           });
           if (!res.ok) throw new Error('accept failed: ' + res.status);
           const sess = new NativeSession(channelId);
-          sess._listenForHangup();
+          this._sessions[channelId] = sess;
+          sess.onHangup(() => { delete this._sessions[channelId]; });
           sess._connectLoopback();
           return sess;
         },

@@ -7,6 +7,14 @@
   var on = core.on || function(el, ev, fn) { el.addEventListener(ev, fn); };
   var toast = core.toast || function(msg) { console.log('[listen]', msg); };
 
+  function log(level, msg) {
+    if (window.Goop && window.Goop.log && window.Goop.log[level]) {
+      window.Goop.log[level]('listen', msg);
+    } else {
+      (console[level] || console.log)('[listen]', msg);
+    }
+  }
+
   // ── HTTP API ─────────────────────────────────────────────────────────────────
 
   var api = {
@@ -93,7 +101,7 @@
       var unsub = null;
       function init() {
         if (!window.Goop || !window.Goop.mq) { setTimeout(init, 100); return; }
-        unsub = Goop.mq.subscribe('listen:*', function(from, topic, payload, ack) {
+        unsub = Goop.mq.onListen( function(from, topic, payload, ack) {
           callback(payload && payload.group);
           ack();
         });
@@ -163,7 +171,7 @@
       }
 
       if (listenLastProgressTime && (now - listenLastProgressTime) > 3000) {
-        console.warn('[LISTEN] Stream stalled for 3s, closing connection');
+        log('warn', 'stream stalled for 3s, closing connection');
         audio.pause();
         audio.src = '';
         stopStallMonitor();
@@ -206,7 +214,7 @@
         listenAudioSource.connect(listenAnalyser);
         listenAnalyser.connect(listenAudioCtx.destination);
       } catch (e) {
-        console.warn('LISTEN: visualizer setup failed:', e);
+        log('warn', 'visualizer setup failed: ' + e);
         return;
       }
     }
@@ -424,7 +432,7 @@
         audio.src = '/api/listen/stream';
         audio.volume = volEl ? volEl.value / 100 : 0.8;
         audio.load();
-        audio.play().catch(function(e) { console.warn('LISTEN host play:', e); });
+        audio.play().catch(function(e) { log('warn', 'host play failed: ' + e); });
         startStallMonitor();
         api.control('play').catch(function(e) {
           toast('Play failed: ' + e.message, true);
@@ -470,7 +478,7 @@
       if (audio.paused || !audio.src) {
         audio.src = '/api/listen/stream';
         audio.volume = volEl ? volEl.value / 100 : 0.8;
-        audio.play().catch(function(e) { console.warn('LISTEN host autoplay:', e); });
+        audio.play().catch(function(e) { log('warn', 'host autoplay failed: ' + e); });
         startStallMonitor();
       } else if (audio.src === '/api/listen/stream') {
         startStallMonitor();
@@ -577,14 +585,14 @@
           audio.src = '/api/listen/stream';
           audio.volume = 0.8;
           audio.play().catch(function(e) {
-            console.warn('LISTEN autoplay blocked:', e);
+            log('warn', 'autoplay blocked: ' + e);
             if (playFallback) playFallback.classList.remove('hidden');
           });
         }
         if (playFallback) {
           on(playFallback, 'click', function() {
             playFallback.classList.add('hidden');
-            audio.play().catch(function(e) { console.warn('LISTEN manual play failed:', e); });
+            audio.play().catch(function(e) { log('warn', 'manual play failed: ' + e); });
           });
         }
         startVisualizer(wrapperEl.querySelector('.glisten-wave'));

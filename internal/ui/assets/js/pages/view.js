@@ -247,22 +247,15 @@
 
   renderTabs();
 
-  // Auto-close tabs when peers drop off the network
-  var peersSSE = new EventSource('/api/peers/events');
-
-  peersSSE.addEventListener('remove', function(e) {
-    try {
-      var data = JSON.parse(e.data);
-      if (data.peer_id) {
-        var tabs = loadTabs();
-        if (tabs.some(function(t) { return t.id === data.peer_id; })) {
-          removeTab(data.peer_id);
-        }
+  // Auto-close tabs when peers drop off the network.
+  // peer:gone is published by Go via MQ PublishLocal when a peer is pruned.
+  Goop.mq.onPeerGone( function(from, topic, payload, ack) {
+    ack();
+    if (payload && payload.peerID) {
+      var tabs = loadTabs();
+      if (tabs.some(function(t) { return t.id === payload.peerID; })) {
+        removeTab(payload.peerID);
       }
-    } catch(err) {}
+    }
   });
-
-  peersSSE.onerror = function() {
-    console.error('View: peers SSE connection lost');
-  };
 })();

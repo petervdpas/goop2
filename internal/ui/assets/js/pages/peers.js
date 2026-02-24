@@ -201,7 +201,7 @@
 
   function initPeersMQ() {
     if (!window.Goop || !window.Goop.mq) { setTimeout(initPeersMQ, 100); return; }
-    Goop.mq.subscribe('peer:announce', function(from, topic, payload, ack) {
+    Goop.mq.onPeerAnnounce( function(from, topic, payload, ack) {
       if (!payload || !payload.peerID) { ack(); return; }
       var peer = announceToRow(payload);
       var idx = currentPeers.findIndex(function(p) { return p.ID === peer.ID; });
@@ -213,7 +213,7 @@
       renderPeersList(null);
       ack();
     });
-    Goop.mq.subscribe('peer:gone', function(from, topic, payload, ack) {
+    Goop.mq.onPeerGone( function(from, topic, payload, ack) {
       if (payload && payload.peerID) {
         currentPeers = currentPeers.filter(function(p) { return p.ID !== payload.peerID; });
         renderPeersList(null);
@@ -291,7 +291,7 @@
             }
           })
           .catch(function(err) {
-            console.error('Failed to toggle favorite:', err);
+            Goop.log.error('peers', 'toggle favorite failed: ' + err);
           });
 
         peerCtxMenu.classList.add('hidden');
@@ -340,7 +340,7 @@
       return;
     }
     if (busyPeers.has(peerId)) {
-      console.warn('[peers] call button: peer already busy', peerId.substring(0, 8));
+      Goop.log.warn('peers', 'call button: peer already busy ' + peerId.substring(0, 8));
       return;
     }
 
@@ -353,7 +353,7 @@
         updateBusyState();
       });
     }).catch(function(err) {
-      console.error('Call failed:', err);
+      Goop.log.error('peers', 'call failed: ' + err);
       busyPeers.delete(peerId);
       updateBusyState();
     });
@@ -453,8 +453,8 @@
     input.value = '';
     renderBroadcasts(_broadcastMessages);
 
-    window.Goop.mq.broadcast('chat.broadcast', { content: content })
-      .catch(function(err) { console.error('Broadcast failed:', err); });
+    window.Goop.mq.broadcastChat( { content: content })
+      .catch(function(err) { Goop.log.error('peers', 'broadcast failed: ' + err); });
   });
 
   // Subscribe to MQ for direct chat unread badges and broadcast messages.
@@ -464,7 +464,7 @@
       return;
     }
     // Direct chat: show unread badge on the peer row
-    window.Goop.mq.subscribe('chat', function(from, _topic, payload, ack) {
+    window.Goop.mq.onChat( function(from, _topic, payload, ack) {
       if (from && from !== selfID) {
         unreadPeers.add(from);
         var badge = document.querySelector('[data-unread-badge="' + from + '"]');
@@ -473,7 +473,7 @@
       ack();
     });
     // Broadcast
-    window.Goop.mq.subscribe('chat.broadcast', function(from, _topic, payload, ack) {
+    window.Goop.mq.onChatBroadcast( function(from, _topic, payload, ack) {
       var msg = { from: from, content: (payload && payload.content) || '', timestamp: Date.now() };
       _broadcastMessages.push(msg);
       renderBroadcasts(_broadcastMessages);

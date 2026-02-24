@@ -152,7 +152,7 @@
   // Listen for group events to auto-refresh on doc changes (via MQ)
   function startEventListener() {
     if (!window.Goop || !window.Goop.mq) { setTimeout(startEventListener, 100); return; }
-    Goop.mq.subscribe('group:*', function(from, topic, payload, ack) {
+    Goop.mq.onGroup( function(from, topic, payload, ack) {
       if (payload && payload.type === 'msg' && currentGroupID && payload.group === currentGroupID) {
         var p = payload.payload;
         if (p && (p.action === "doc-added" || p.action === "doc-removed")) {

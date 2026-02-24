@@ -34,14 +34,6 @@
     { urls: "stun:stun1.l.google.com:19302" }
   ];
 
-  // Signaling message types
-  var SIG_OFFER     = "call-offer";
-  var SIG_ANSWER    = "call-answer";
-  var SIG_ICE       = "ice-candidate";
-  var SIG_HANGUP    = "call-hangup";
-  var SIG_CALL_REQ  = "call-request";
-  var SIG_CALL_ACK  = "call-ack";
-
   var incomingHandlers = [];
   var activeCalls = {};   // channelId -> CallSession
   var listening = false;
@@ -49,6 +41,25 @@
   // MQ channels are virtual — no server-side state to close.
   function closeChannel(channelId) {
     log('debug', 'Channel closed (virtual): ' + channelId);
+  }
+
+  // Routes a generic { type, ... } payload to the correct typed MQ helper.
+  // Returned function is used as channel.send(payload) on each CallSession.
+  function makeCallSend(peerId, channelId) {
+    return function(p) {
+      var mq = window.Goop && window.Goop.mq;
+      if (!mq) return Promise.reject(new Error('MQ not available'));
+      var T = mq.CALL_TYPES;
+      switch (p.type) {
+        case T.REQUEST: return mq.sendCallRequest(peerId, channelId, p.constraints);
+        case T.ACK:     return mq.sendCallAck(peerId, channelId);
+        case T.OFFER:   return mq.sendCallOffer(peerId, channelId, p.sdp);
+        case T.ANSWER:  return mq.sendCallAnswer(peerId, channelId, p.sdp);
+        case T.ICE:     return mq.sendCallICE(peerId, channelId, p.candidate);
+        case T.HANGUP:  return mq.sendCallHangup(peerId, channelId);
+        default:        return mq.sendCall(peerId, channelId, p);
+      }
+    };
   }
 
   // ── CallSession ─────────────────────────────────────────────────────────────
@@ -138,7 +149,7 @@
 
     // Send hangup signal
     try {
-      this.channel.send({ type: SIG_HANGUP });
+      this.channel.send({ type: Goop.mq.CALL_TYPES.HANGUP });
     } catch(e) { /* ignore */ }
 
     this._cleanup();
@@ -274,7 +285,7 @@
         var c = event.candidate;
         log('debug', 'ICE candidate: type=' + (c.type || 'unknown') + ', protocol=' + (c.protocol || 'unknown') + ', address=' + (c.address || 'hidden'));
         session.channel.send({
-          type: SIG_ICE,
+          type: Goop.mq.CALL_TYPES.ICE,
           candidate: event.candidate.toJSON()
         });
       } else {
@@ -378,13 +389,14 @@
 
     log('debug', 'Signaling received: type=' + payload.type + ', channel=' + channelId + ', hasSession=' + !!session);
 
+    var T = Goop.mq.CALL_TYPES;
     switch (payload.type) {
-      case SIG_CALL_REQ:
+      case T.REQUEST:
         log('info', 'Incoming call request from: ' + env.from);
         notifyIncoming(channelId, env.from, payload);
         break;
 
-      case SIG_CALL_ACK:
+      case T.ACK:
         log('info', 'Call acknowledged by remote peer');
         if (session && session.isInitiator) {
           createAndSendOffer(session);
@@ -393,7 +405,7 @@
         }
         break;
 
-      case SIG_OFFER:
+      case T.OFFER:
         log('info', 'Received SDP offer');
         if (session && session.pc) {
           handleOffer(session, payload);
@@ -402,7 +414,7 @@
         }
         break;
 
-      case SIG_ANSWER:
+      case T.ANSWER:
         log('info', 'Received SDP answer');
         if (session && session.pc) {
           handleAnswer(session, payload);
@@ -411,7 +423,7 @@
         }
         break;
 
-      case SIG_ICE:
+      case T.ICE:
         if (session && session.pc) {
           handleICE(session, payload);
         } else {
@@ -419,7 +431,7 @@
         }
         break;
 
-      case SIG_HANGUP:
+      case T.HANGUP:
         log('info', 'Remote peer hung up');
         if (session) {
           session._ended = true;
@@ -447,7 +459,7 @@
 
       log('info', 'Sending offer to remote peer...');
       await session.channel.send({
-        type: SIG_OFFER,
+        type: Goop.mq.CALL_TYPES.OFFER,
         sdp: session.pc.localDescription.sdp
       });
       log('debug', 'Offer sent successfully');
@@ -483,7 +495,7 @@
 
       log('info', 'Sending answer to remote peer...');
       await session.channel.send({
-        type: SIG_ANSWER,
+        type: Goop.mq.CALL_TYPES.ANSWER,
         sdp: session.pc.localDescription.sdp
       });
       log('debug', 'Answer sent successfully');
@@ -543,9 +555,7 @@
         var channel = {
           id: channelId,
           remotePeer: fromPeer,
-          send: function(p) {
-            return Goop.mq.send(fromPeer, 'call:' + channelId, p);
-          }
+          send: makeCallSend(fromPeer, channelId)
         };
 
         var session = new CallSession(channel, false);
@@ -554,7 +564,7 @@
         await setupPeerConnection(session, c);
 
         log('info', 'Sending call ACK to initiator...');
-        await channel.send({ type: SIG_CALL_ACK });
+        await Goop.mq.sendCallAck(fromPeer, channelId);
         log('debug', 'ACK sent, waiting for offer...');
 
         return session;
@@ -562,7 +572,7 @@
 
       reject: function() {
         log('info', 'Rejecting incoming call');
-        Goop.mq.send(fromPeer, 'call:' + channelId, { type: SIG_HANGUP });
+        Goop.mq.sendCallHangup(fromPeer, channelId);
         closeChannel(channelId);
       }
     };
@@ -582,8 +592,8 @@
     }
     listening = true;
     log('debug', 'Starting to listen for call signaling messages');
-    Goop.mq.subscribe('call:*', function(from, topic, payload, ack) {
-      var channelId = topic.replace(/^call:/, '');
+    Goop.mq.onCall(function(from, topic, payload, ack) {
+      var channelId = topic.slice(Goop.mq.TOPICS.CALL_PREFIX.length);
       handleSignaling(payload, { channel: channelId, from: from });
       ack();
     });
@@ -606,9 +616,7 @@
       var channel = {
         id: channelId,
         remotePeer: peerId,
-        send: function(p) {
-          return Goop.mq.send(peerId, 'call:' + channelId, p);
-        }
+        send: makeCallSend(peerId, channelId)
       };
       log('info', 'Virtual MQ channel created: ' + channelId);
 
@@ -622,7 +630,7 @@
       // Send call request via MQ — delivery is guaranteed with ACK + retry.
       if (!session._ended) {
         log('info', 'Sending call request to ' + peerId + '...');
-        session.channel.send({ type: SIG_CALL_REQ, constraints: c });
+        await Goop.mq.sendCallRequest(peerId, channelId, c);
       }
 
       return session;

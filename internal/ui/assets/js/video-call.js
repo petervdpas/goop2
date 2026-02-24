@@ -328,36 +328,6 @@
     var channelId = env.channel;
     var session = activeCalls[channelId];
 
-    // Members update — fire pending call-request once the callee has joined the group.
-    // The callee auto-joins in a background goroutine on the Go side; we must not send
-    // SIG_CALL_REQ until they're actually in the group or the broadcast is lost.
-    if (Array.isArray(payload.members)) {
-      if (session && session._pendingCallReq && session.remotePeer) {
-        for (var k = 0; k < payload.members.length; k++) {
-          if (payload.members[k].peer_id === session.remotePeer) {
-            // Always clear the join-timeout — callee has arrived.
-            if (session._callReqTimeout) {
-              clearTimeout(session._callReqTimeout);
-              session._callReqTimeout = null;
-            }
-            if (session.pc) {
-              // PC is ready — send call-request immediately.
-              session._pendingCallReq = false;
-              log('info', 'Callee joined channel, sending call request...');
-              session.channel.send({ type: SIG_CALL_REQ, constraints: session._constraints });
-            } else {
-              // PC not ready yet (getUserMedia/setup still in progress).
-              // Mark so start() sends the call-request once setup finishes.
-              log('info', 'Callee joined before PC ready, deferring call request...');
-              session._calleePreJoined = true;
-            }
-            break;
-          }
-        }
-      }
-      return;
-    }
-
     if (!payload.type) return;
 
     log('debug', 'Signaling received: type=' + payload.type + ', channel=' + channelId + ', hasSession=' + !!session);
@@ -483,7 +453,7 @@
   // ── Incoming call notification ──────────────────────────────────────────────
 
   function notifyIncoming(channelId, fromPeer, payload) {
-    // In native mode call-native.js handles incoming calls via /api/call/events SSE.
+    // In native mode call-native.js handles incoming calls via Goop.mq.subscribe('call:*').
     // Suppress the browser modal here to avoid showing two incoming-call dialogs.
     if (window._callNativeMode) {
       log('debug', 'notifyIncoming suppressed — native call mode active');
@@ -499,11 +469,7 @@
       accept: async function(constraints) {
         log('info', 'Accepting incoming call...');
         var c = constraints || info.constraints;
-        var channel = { id: channelId, remotePeer: fromPeer, send: function(p) {
-          return window.Goop && window.Goop.mq
-            ? window.Goop.mq.send(fromPeer, 'call:' + channelId, p)
-            : Promise.reject(new Error('MQ not available'));
-        }};
+        var channel = { id: channelId, remotePeer: fromPeer, send: makeCallSend(fromPeer, channelId) };
 
         var session = new CallSession(channel, false);
         activeCalls[channelId] = session;
@@ -520,7 +486,7 @@
       reject: function() {
         log('info', 'Rejecting incoming call');
         if (window.Goop && window.Goop.mq) {
-          window.Goop.mq.send(fromPeer, 'call:' + channelId, { type: SIG_HANGUP }).catch(function() {});
+          window.Goop.mq.sendCall(fromPeer, channelId, { type: SIG_HANGUP }).catch(function() {});
         }
       }
     };
@@ -528,6 +494,26 @@
     for (var i = 0; i < incomingHandlers.length; i++) {
       try { incomingHandlers[i](info); } catch(e) { log('error', 'Incoming handler error: ' + e.message); }
     }
+  }
+
+  // ── Call send factory ───────────────────────────────────────────────────────
+  // Returns a send(payload) function that routes each call signal type to the
+  // appropriate typed Goop.mq helper. Falls back to sendCall for unknown types.
+
+  function makeCallSend(peerId, channelId) {
+    return function (p) {
+      var mq = window.Goop && window.Goop.mq;
+      if (!mq) return Promise.reject(new Error('MQ not available'));
+      switch (p.type) {
+        case SIG_CALL_REQ: return mq.sendCallRequest(peerId, channelId, p.constraints);
+        case SIG_CALL_ACK: return mq.sendCallAck(peerId, channelId);
+        case SIG_OFFER:    return mq.sendCallOffer(peerId, channelId, p.sdp);
+        case SIG_ANSWER:   return mq.sendCallAnswer(peerId, channelId, p.sdp);
+        case SIG_ICE:      return mq.sendCallICE(peerId, channelId, p.candidate);
+        case SIG_HANGUP:   return mq.sendCallHangup(peerId, channelId);
+        default:           return mq.sendCall(peerId, channelId, p);
+      }
+    };
   }
 
   // ── Start listening for signaling ───────────────────────────────────────────
@@ -539,7 +525,7 @@
     // Subscribe to all call:* topics; handleSignaling receives (payload, {channel,from})
     function initMQSig() {
       if (!window.Goop || !window.Goop.mq) { setTimeout(initMQSig, 100); return; }
-      window.Goop.mq.subscribe('call:*', function(from, topic, payload, ack) {
+      window.Goop.mq.onCall( function(from, topic, payload, ack) {
         var channelId = topic.replace(/^call:/, '');
         handleSignaling(payload, { channel: channelId, from: from });
         ack();
@@ -564,41 +550,22 @@
       var channel = {
         id: channelId,
         remotePeer: peerId,
-        send: function(p) {
-          return window.Goop && window.Goop.mq
-            ? window.Goop.mq.send(peerId, 'call:' + channelId, p)
-            : Promise.reject(new Error('MQ not available'));
-        }
+        send: makeCallSend(peerId, channelId),
       };
       log('info', 'MQ channel created: ' + channel.id);
 
       var session = new CallSession(channel, true);
       activeCalls[channel.id] = session;
 
-      // Set up the pending-call-request flag BEFORE setupPeerConnection so that
-      // if the callee auto-joins during getUserMedia (e.g. while the browser shows
-      // a permission prompt), the members handler can record it and we send the
-      // call-request immediately after setup finishes.
-      session._pendingCallReq = true;
-      session._constraints = c;
-      session._calleePreJoined = false;
-      session._callReqTimeout = setTimeout(function() {
-        if (session._pendingCallReq && !session._ended) {
-          log('error', 'Callee did not join channel within 30s, hanging up');
-          session._pendingCallReq = false;
-          session.hangup();
-        }
-      }, 30000);
-
-      log('info', 'Waiting for callee to join channel (setting up WebRTC in parallel)...');
+      // Set up media and RTCPeerConnection first so session.pc is ready before
+      // the callee can accept and send SIG_CALL_ACK (which triggers createAndSendOffer).
       await setupPeerConnection(session, c);
 
-      // If the callee joined while getUserMedia was pending, the members handler
-      // couldn't send the call-request (PC wasn't ready). Do it now.
-      if (!session._ended && session._calleePreJoined) {
-        session._pendingCallReq = false;
-        log('info', 'Callee pre-joined during PC setup, sending deferred call request...');
-        session.channel.send({ type: SIG_CALL_REQ, constraints: session._constraints });
+      // Now invite the callee. No server-side channel registration needed —
+      // the call-request goes directly over MQ.
+      if (!session._ended) {
+        log('info', 'Sending call-request to ' + peerId);
+        session.channel.send({ type: SIG_CALL_REQ, constraints: c }).catch(function() {});
       }
 
       return session;
