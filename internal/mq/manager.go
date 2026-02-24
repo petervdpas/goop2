@@ -180,6 +180,18 @@ func (m *Manager) handleIncoming(stream network.Stream) {
 
 	log.Printf("MQ: received msg %s (topic=%s) from %s", msg.ID[:8], msg.Topic, remotePeer[:8])
 
+	// Application-level ACK: remote browser confirmed delivery of one of our messages.
+	// Convert to a local "delivered" SSE event and stop — do NOT forward as a
+	// "message" event or the browser will call ack() on it and create an ACK storm.
+	if msg.Topic == "mq.ack" {
+		if payload, ok := msg.Payload.(map[string]any); ok {
+			if origID, ok := payload["msg_id"].(string); ok && origID != "" {
+				m.NotifyDelivered(origID)
+			}
+		}
+		return
+	}
+
 	// Dispatch to topic subscribers (call.Signaler adapter etc.)
 	m.topicMu.RLock()
 	for _, sub := range m.topicSubs {
