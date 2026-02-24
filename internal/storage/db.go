@@ -148,12 +148,15 @@ func Open(configDir string) (*DB, error) {
 			active_template  TEXT    NOT NULL DEFAULT '',
 			verified         INTEGER NOT NULL DEFAULT 0,
 			addrs            TEXT    NOT NULL DEFAULT '[]',
-			last_seen        DATETIME DEFAULT CURRENT_TIMESTAMP
+			last_seen        DATETIME DEFAULT CURRENT_TIMESTAMP,
+			protocols        TEXT    NOT NULL DEFAULT '[]'
 		);
 	`); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("create peer cache table: %w", err)
 	}
+	// Migration: add protocols column to existing databases.
+	db.Exec(`ALTER TABLE _peer_cache ADD COLUMN protocols TEXT NOT NULL DEFAULT '[]'`)
 
 	// Separate table for favorites — stores favorite peers with their metadata.
 	// Favorites are never pruned by TTL, so metadata is always available even if peer goes offline.
@@ -167,12 +170,15 @@ func Open(configDir string) (*DB, error) {
 			active_template  TEXT    NOT NULL DEFAULT '',
 			verified         INTEGER NOT NULL DEFAULT 0,
 			addrs            TEXT    NOT NULL DEFAULT '[]',
-			last_seen        DATETIME DEFAULT CURRENT_TIMESTAMP
+			last_seen        DATETIME DEFAULT CURRENT_TIMESTAMP,
+			protocols        TEXT    NOT NULL DEFAULT '[]'
 		);
 	`); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("create favorites table: %w", err)
 	}
+	// Migration: add protocols column to existing databases.
+	db.Exec(`ALTER TABLE _favorites ADD COLUMN protocols TEXT NOT NULL DEFAULT '[]'`)
 
 	return &DB{db: db, path: dbPath}, nil
 }

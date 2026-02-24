@@ -323,6 +323,9 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			if len(cp.Addrs) > 0 {
 				node.AddPeerAddrs(cp.PeerID, cp.Addrs)
 			}
+			// Pre-populate peerstore with cached protocol lists so mq.Send()
+			// can fast-fail for peers that don't support /goop/mq/1.0.0.
+			node.SetPeerProtocols(cp.PeerID, cp.Protocols)
 		}
 		if len(cachedPeers) > 0 {
 			log.Printf("peer cache: loaded %d known peers", len(cachedPeers))
@@ -352,7 +355,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 					return
 				}
 				if evt.Type == "update" && evt.Peer != nil && evt.PeerID != "" {
-					mqMgr.PublishLocal("peer:announce", evt.PeerID, map[string]any{
+					mqMgr.PublishLocal("peer:announce", "", map[string]any{
 						"peerID":         evt.PeerID,
 						"content":        evt.Peer.Content,
 						"email":          evt.Peer.Email,
@@ -366,13 +369,20 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 						"favorite":       evt.Peer.Favorite,
 					})
 				} else if evt.Type == "remove" && evt.PeerID != "" {
-					mqMgr.PublishLocal("peer:gone", evt.PeerID, map[string]any{
+					mqMgr.PublishLocal("peer:gone", "", map[string]any{
 						"peerID": evt.PeerID,
 					})
 				}
 			}
 		}
 	}()
+
+	// Persist peer protocol lists whenever libp2p Identify completes.
+	// This keeps the DB cache warm across restarts so peerSupportsMQ()
+	// can fast-fail for old clients without a dial attempt.
+	node.SubscribeIdentify(ctx, func(peerID string, protocols []string) {
+		go db.UpsertPeerProtocols(peerID, protocols)
+	})
 
 	// ── Lua scripting engine
 	var luaEngine *luapkg.Engine

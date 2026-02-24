@@ -51,8 +51,14 @@ func RegisterMQ(mux *http.ServeMux, mqMgr *mq.Manager) {
 		MsgID      string `json:"msg_id"`
 		FromPeerID string `json:"from_peer_id"`
 	}) {
-		if req.MsgID == "" || req.FromPeerID == "" {
-			http.Error(w, "missing msg_id or from_peer_id", http.StatusBadRequest)
+		if req.MsgID == "" {
+			http.Error(w, "missing msg_id", http.StatusBadRequest)
+			return
+		}
+		// Empty from_peer_id = local PublishLocal event; no reverse ACK needed.
+		if req.FromPeerID == "" {
+			mqMgr.NotifyDelivered(req.MsgID)
+			writeJSON(w, map[string]string{"status": "ok"})
 			return
 		}
 

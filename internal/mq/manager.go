@@ -78,6 +78,23 @@ func New(h host.Host) *Manager {
 	return m
 }
 
+// peerSupportsMQ returns false only when the peerstore has a non-empty protocol
+// list for the peer and /goop/mq/1.0.0 is absent from that list.
+// If the protocol list is unknown (empty or error), we optimistically return true
+// so a live connection attempt is still made.
+func (m *Manager) peerSupportsMQ(pid peer.ID) bool {
+	protos, err := m.host.Peerstore().GetProtocols(pid)
+	if err != nil || len(protos) == 0 {
+		return true // unknown — optimistically try
+	}
+	for _, p := range protos {
+		if p == protocol.ID(proto.MQProtoID) {
+			return true
+		}
+	}
+	return false
+}
+
 // Send opens (or reuses) a stream to peerID, writes a message with the given
 // topic and payload, and waits up to ackTimeout for a transport ACK.
 // Returns the message ID and nil on success, or an error if the send or ACK fails.
@@ -85,6 +102,12 @@ func (m *Manager) Send(ctx context.Context, peerID, topic string, payload any) (
 	pid, err := peer.Decode(peerID)
 	if err != nil {
 		return "", fmt.Errorf("mq: invalid peer id %q: %w", peerID, err)
+	}
+
+	// Fast-fail if we know from the peerstore that this peer doesn't support MQ.
+	// This avoids a dial attempt + timeout for old clients.
+	if !m.peerSupportsMQ(pid) {
+		return "", fmt.Errorf("protocols not supported: [%s]", proto.MQProtoID)
 	}
 
 	msgID := uuid.NewString()

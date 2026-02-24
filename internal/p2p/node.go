@@ -507,6 +507,58 @@ func dirString(d network.Direction) string {
 	}
 }
 
+// SetPeerProtocols pre-populates the peerstore with a cached protocol list for a peer.
+// Called on startup to restore protocol knowledge from the DB across restarts.
+// Skips peers with an empty protocol list (nothing to seed).
+func (n *Node) SetPeerProtocols(peerID string, protocols []string) {
+	if len(protocols) == 0 {
+		return
+	}
+	pid, err := peer.Decode(peerID)
+	if err != nil {
+		return
+	}
+	protos := make([]protocol.ID, len(protocols))
+	for i, p := range protocols {
+		protos[i] = protocol.ID(p)
+	}
+	_ = n.Host.Peerstore().SetProtocols(pid, protos...)
+}
+
+// SubscribeIdentify registers a callback that fires whenever a peer's supported
+// protocol list is learned via the libp2p Identify exchange. Used to persist
+// protocol lists to the DB so mq.Send() can skip unsupported peers after restart.
+func (n *Node) SubscribeIdentify(ctx context.Context, fn func(peerID string, protocols []string)) {
+	sub, err := n.Host.EventBus().Subscribe(new(event.EvtPeerIdentificationCompleted))
+	if err != nil {
+		log.Printf("identify: failed to subscribe: %v", err)
+		return
+	}
+	go func() {
+		defer sub.Close()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case evt, ok := <-sub.Out():
+				if !ok {
+					return
+				}
+				e := evt.(event.EvtPeerIdentificationCompleted)
+				protos, err := n.Host.Peerstore().GetProtocols(e.Peer)
+				if err != nil || len(protos) == 0 {
+					continue
+				}
+				strs := make([]string, len(protos))
+				for i, p := range protos {
+					strs[i] = string(p)
+				}
+				fn(e.Peer.String(), strs)
+			}
+		}
+	}()
+}
+
 // SetPulseFn sets the callback that FetchSiteFile uses to ask the rendezvous
 // server to pulse a target peer (tell it to refresh its relay reservation).
 func (n *Node) SetPulseFn(fn func(ctx context.Context, peerID string) error) {

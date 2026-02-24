@@ -20,10 +20,12 @@ type CachedPeer struct {
 	Addrs          []string
 	LastSeen       time.Time
 	Favorite       bool
+	Protocols      []string // libp2p protocols supported by this peer (from Identify)
 }
 
 // UpsertCachedPeer stores or fully replaces the cached state for a peer in _peer_cache.
 // If the peer is in _favorites (marked as favorite), also updates their metadata there so data is preserved.
+// Protocols are intentionally NOT touched here — they come from libp2p Identify via UpsertPeerProtocols.
 func (d *DB) UpsertCachedPeer(p CachedPeer) error {
 	addrs, _ := json.Marshal(p.Addrs)
 	vd := 0
@@ -37,7 +39,7 @@ func (d *DB) UpsertCachedPeer(p CachedPeer) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	// Update _peer_cache
+	// Update _peer_cache (protocols preserved via EXCLUDED pattern — not overwritten)
 	_, err := d.db.Exec(`
 		INSERT INTO _peer_cache
 			(peer_id, content, email, avatar_hash, video_disabled, active_template, verified, addrs, last_seen)
@@ -75,6 +77,27 @@ func (d *DB) UpsertCachedPeer(p CachedPeer) error {
 	return nil
 }
 
+// UpsertPeerProtocols stores the libp2p protocol list for a peer.
+// Called after a successful Identify exchange — independent of presence data.
+// Also mirrors to _favorites if the peer is favorited.
+func (d *DB) UpsertPeerProtocols(peerID string, protocols []string) error {
+	data, _ := json.Marshal(protocols)
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	_, err := d.db.Exec(
+		`UPDATE _peer_cache SET protocols = ? WHERE peer_id = ?`,
+		string(data), peerID,
+	)
+	if err != nil {
+		return err
+	}
+	_, _ = d.db.Exec(
+		`UPDATE _favorites SET protocols = ? WHERE peer_id = ?`,
+		string(data), peerID,
+	)
+	return nil
+}
+
 // GetCachedPeer returns the last known state for a peer, or false if unknown.
 // Prefers _peer_cache (current data if online), falls back to _favorites if peer is offline/pruned.
 // Favorite flag is only set if peer is in _favorites.
@@ -83,26 +106,26 @@ func (d *DB) GetCachedPeer(peerID string) (CachedPeer, bool) {
 	defer d.mu.RUnlock()
 	var p CachedPeer
 	var vd, ver int
-	var addrsJSON string
+	var addrsJSON, protosJSON string
 	var lastSeen string
 	isFavorite := false
 
 	// Try _peer_cache first (most current if online)
 	err := d.db.QueryRow(`
 		SELECT peer_id, content, email, avatar_hash, video_disabled,
-		       active_template, verified, addrs, last_seen
+		       active_template, verified, addrs, last_seen, protocols
 		FROM _peer_cache WHERE peer_id = ?`, peerID).
 		Scan(&p.PeerID, &p.Content, &p.Email, &p.AvatarHash, &vd,
-			&p.ActiveTemplate, &ver, &addrsJSON, &lastSeen)
+			&p.ActiveTemplate, &ver, &addrsJSON, &lastSeen, &protosJSON)
 
 	if err != nil {
 		// Fall back to _favorites if peer is offline/pruned
 		err = d.db.QueryRow(`
 			SELECT peer_id, content, email, avatar_hash, video_disabled,
-			       active_template, verified, addrs, last_seen
+			       active_template, verified, addrs, last_seen, protocols
 			FROM _favorites WHERE peer_id = ?`, peerID).
 			Scan(&p.PeerID, &p.Content, &p.Email, &p.AvatarHash, &vd,
-				&p.ActiveTemplate, &ver, &addrsJSON, &lastSeen)
+				&p.ActiveTemplate, &ver, &addrsJSON, &lastSeen, &protosJSON)
 		if err != nil {
 			return CachedPeer{}, false
 		}
@@ -118,6 +141,7 @@ func (d *DB) GetCachedPeer(peerID string) (CachedPeer, bool) {
 	p.Verified = ver != 0
 	p.Favorite = isFavorite
 	json.Unmarshal([]byte(addrsJSON), &p.Addrs)
+	json.Unmarshal([]byte(protosJSON), &p.Protocols)
 	p.LastSeen, _ = time.Parse("2006-01-02 15:04:05", lastSeen)
 	return p, true
 }
@@ -140,7 +164,7 @@ func (d *DB) ListCachedPeers() ([]CachedPeer, error) {
 	// Get all peers from _peer_cache
 	rows, err := d.db.Query(`
 		SELECT peer_id, content, email, avatar_hash, video_disabled,
-		       active_template, verified, addrs, last_seen
+		       active_template, verified, addrs, last_seen, protocols
 		FROM _peer_cache ORDER BY last_seen DESC`)
 	if err != nil {
 		return nil, err
@@ -172,15 +196,16 @@ func (d *DB) ListCachedPeers() ([]CachedPeer, error) {
 	for rows.Next() {
 		var p CachedPeer
 		var vd, ver int
-		var addrsJSON, lastSeen string
+		var addrsJSON, protosJSON, lastSeen string
 		if err := rows.Scan(&p.PeerID, &p.Content, &p.Email, &p.AvatarHash, &vd,
-			&p.ActiveTemplate, &ver, &addrsJSON, &lastSeen); err != nil {
+			&p.ActiveTemplate, &ver, &addrsJSON, &lastSeen, &protosJSON); err != nil {
 			return nil, err
 		}
 		p.VideoDisabled = vd != 0
 		p.Verified = ver != 0
 		p.Favorite = favorites[p.PeerID]
 		json.Unmarshal([]byte(addrsJSON), &p.Addrs)
+		json.Unmarshal([]byte(protosJSON), &p.Protocols)
 		p.LastSeen, _ = time.Parse("2006-01-02 15:04:05", lastSeen)
 		peers = append(peers, p)
 		seenPeers[p.PeerID] = true
@@ -197,12 +222,13 @@ func (d *DB) ListCachedPeers() ([]CachedPeer, error) {
 		var p CachedPeer
 		var vd, ver int
 		var addrsJSON, lastSeen string
+		var protosJSON string
 		err := d.db.QueryRow(`
 			SELECT peer_id, content, email, avatar_hash, video_disabled,
-			       active_template, verified, addrs, last_seen
+			       active_template, verified, addrs, last_seen, protocols
 			FROM _favorites WHERE peer_id = ?`, favID).
 			Scan(&p.PeerID, &p.Content, &p.Email, &p.AvatarHash, &vd,
-				&p.ActiveTemplate, &ver, &addrsJSON, &lastSeen)
+				&p.ActiveTemplate, &ver, &addrsJSON, &lastSeen, &protosJSON)
 		if err != nil {
 			continue // Skip if can't read
 		}
@@ -210,6 +236,7 @@ func (d *DB) ListCachedPeers() ([]CachedPeer, error) {
 		p.Verified = ver != 0
 		p.Favorite = true
 		json.Unmarshal([]byte(addrsJSON), &p.Addrs)
+		json.Unmarshal([]byte(protosJSON), &p.Protocols)
 		p.LastSeen, _ = time.Parse("2006-01-02 15:04:05", lastSeen)
 		peers = append(peers, p)
 	}
