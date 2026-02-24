@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/pion/rtcp"
 	"github.com/pion/rtp/codecs"
 	"github.com/pion/webrtc/v4"
 )
@@ -95,6 +96,29 @@ func newSession(channelID, remotePeer string, sig Signaler, isCaller bool) *Sess
 		webm:       newWebmSession(),
 	}
 	go s.initExternalPC()
+
+	// Callee-side watchdog: if no call-offer arrives within 10 s after the
+	// session is created (i.e. after call-ack was sent), log a clear warning.
+	// This fires only when something is wrong with the signaling chain so the
+	// problem appears in the Video log tab without requiring Eggman's full
+	// Go stdout to be captured.
+	if !isCaller {
+		go func() {
+			select {
+			case <-s.hangupCh:
+				return // normal path — call ended before 10 s
+			case <-time.After(10 * time.Second):
+				// Check if the PC has made any progress (received an offer → pcState set)
+				s.mu.Lock()
+				started := s.remoteDescSet
+				s.mu.Unlock()
+				if !started {
+					log.Printf("CALL [%s]: WARNING — no call-offer received from %s within 10 s; check caller signaling", channelID, remotePeer)
+				}
+			}
+		}()
+	}
+
 	return s
 }
 
@@ -240,6 +264,45 @@ func (s *Session) streamVideoTrack(track *webrtc.TrackRemote) {
 	codec := track.Codec().MimeType
 	log.Printf("CALL [%s]: video streaming started (%s)", s.channelID, codec)
 
+	// Send PLI (Picture Loss Indication) to request a keyframe from the remote
+	// VP8 encoder.  Without this the browser may wait 3–10 s for the encoder's
+	// natural keyframe interval before the WebM init segment can be generated.
+	sendPLI := func() {
+		s.mu.Lock()
+		pc := s.externalPC
+		s.mu.Unlock()
+		if pc != nil {
+			_ = pc.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{
+				MediaSSRC: uint32(track.SSRC()),
+			}})
+		}
+	}
+	sendPLI()
+	log.Printf("CALL [%s]: PLI sent — requesting initial VP8 keyframe", s.channelID)
+
+	// Keep requesting keyframes every 2 s until the WebM init segment is ready,
+	// then stop.  Bounded to 10 s to avoid hammering a stalled remote encoder.
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		deadline := time.NewTimer(10 * time.Second)
+		defer ticker.Stop()
+		defer deadline.Stop()
+		for {
+			select {
+			case <-s.hangupCh:
+				return
+			case <-deadline.C:
+				return
+			case <-ticker.C:
+				if s.webm.hasInitSeg() {
+					return
+				}
+				sendPLI()
+				log.Printf("CALL [%s]: PLI retry — still waiting for VP8 keyframe", s.channelID)
+			}
+		}
+	}()
+
 	var depack codecs.VP8Packet
 	var frameAccum []byte
 	var pktCount atomic.Int64
@@ -339,6 +402,7 @@ func (s *Session) handleSignal(msgType string, payload map[string]any) {
 			log.Printf("CALL [%s]: unexpected call-ack on callee side", s.channelID)
 			return
 		}
+		log.Printf("CALL [%s]: call-ack received — starting SDP offer", s.channelID)
 		go s.createAndSendOffer()
 
 	case "call-offer":
@@ -352,6 +416,7 @@ func (s *Session) handleSignal(msgType string, payload map[string]any) {
 			log.Printf("CALL [%s]: call-offer missing SDP", s.channelID)
 			return
 		}
+		log.Printf("CALL [%s]: call-offer received — handling SDP", s.channelID)
 		go s.handleOffer(sdp)
 
 	case "call-answer":
@@ -365,6 +430,7 @@ func (s *Session) handleSignal(msgType string, payload map[string]any) {
 			log.Printf("CALL [%s]: call-answer missing SDP", s.channelID)
 			return
 		}
+		log.Printf("CALL [%s]: call-answer received — setting remote description", s.channelID)
 		go s.handleAnswer(sdp)
 
 	case "ice-candidate":
@@ -402,6 +468,7 @@ func (s *Session) handleSignal(msgType string, payload map[string]any) {
 
 // createAndSendOffer waits for media to be ready, then negotiates as the caller.
 func (s *Session) createAndSendOffer() {
+	log.Printf("CALL [%s]: createAndSendOffer: waiting for media to be ready", s.channelID)
 	<-s.mediaReady
 
 	s.mu.Lock()
@@ -430,13 +497,14 @@ func (s *Session) createAndSendOffer() {
 
 // handleOffer waits for media, sets the remote offer, and sends back an answer.
 func (s *Session) handleOffer(sdp string) {
+	log.Printf("CALL [%s]: handleOffer: waiting for media to be ready", s.channelID)
 	<-s.mediaReady
 
 	s.mu.Lock()
 	pc := s.externalPC
 	s.mu.Unlock()
 	if pc == nil {
-		log.Printf("CALL [%s]: handleOffer: no PC available", s.channelID)
+		log.Printf("CALL [%s]: handleOffer: no PC available (media init failed)", s.channelID)
 		return
 	}
 

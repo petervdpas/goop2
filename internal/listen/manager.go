@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/petervdpas/goop2/internal/group"
+	"github.com/petervdpas/goop2/internal/mq"
 	"github.com/petervdpas/goop2/internal/proto"
 
 	"github.com/libp2p/go-libp2p/core/host"
@@ -29,6 +30,7 @@ import (
 type Manager struct {
 	host    host.Host
 	grp     *group.Manager
+	mq      *mq.Manager
 	selfID  string
 	dataDir string // directory for persisting queue state
 
@@ -53,10 +55,6 @@ type Manager struct {
 	httpPipeMu sync.Mutex
 	httpPipeR  *io.PipeReader
 	httpPipeW  *io.PipeWriter
-
-	// SSE listeners for state changes
-	sseMu    sync.RWMutex
-	sseChans map[chan *Group]struct{}
 }
 
 type listenerPipe struct {
@@ -91,14 +89,14 @@ func streamDisplayName(rawURL string) string {
 
 // New creates a new listen manager. It registers the binary stream handler
 // and subscribes to group events for listen control messages.
-func New(h host.Host, grp *group.Manager, selfID, dataDir string) *Manager {
+func New(h host.Host, grp *group.Manager, mqMgr *mq.Manager, selfID, dataDir string) *Manager {
 	m := &Manager{
-		host:     h,
-		grp:      grp,
-		selfID:   selfID,
-		dataDir:  dataDir,
-		pipes:    make(map[string]*listenerPipe),
-		sseChans: make(map[chan *Group]struct{}),
+		host:    h,
+		grp:     grp,
+		mq:      mqMgr,
+		selfID:  selfID,
+		dataDir: dataDir,
+		pipes:   make(map[string]*listenerPipe),
 	}
 
 	// Recover any listen group left over from a previous session.
@@ -172,7 +170,7 @@ func (m *Manager) CreateGroup(name string) (*Group, error) {
 	m.stopCh = make(chan struct{})
 
 	log.Printf("LISTEN: Created group %s (%s)", id, name)
-	m.notifySSE()
+	m.notifyBrowser()
 	return m.group, nil
 }
 
@@ -233,7 +231,7 @@ func (m *Manager) AddToQueue(paths []string) error {
 	m.queue = append(m.queue, paths...)
 	m.updateQueueInfoLocked()
 	m.saveQueueToDisk()
-	m.notifySSE()
+	m.notifyBrowser()
 	return nil
 }
 
@@ -275,7 +273,7 @@ func (m *Manager) loadTrackAtLocked(idx int) (*Track, error) {
 		})
 
 		log.Printf("LISTEN: Loaded stream %s [%d/%d]", track.Name, idx+1, len(m.queue))
-		m.notifySSE()
+		m.notifyBrowser()
 		return track, nil
 	}
 
@@ -314,7 +312,7 @@ func (m *Manager) loadTrackAtLocked(idx int) (*Track, error) {
 
 	log.Printf("LISTEN: Loaded track %s (%d kbps, %.1fs) [%d/%d]",
 		track.Name, track.Bitrate/1000, track.Duration, idx+1, len(m.queue))
-	m.notifySSE()
+	m.notifyBrowser()
 	return track, nil
 }
 
@@ -379,7 +377,7 @@ func (m *Manager) Next() error {
 	}
 
 	m.saveQueueToDisk()
-	m.notifySSE()
+	m.notifyBrowser()
 	return nil
 }
 
@@ -450,7 +448,7 @@ func (m *Manager) RemoveFromQueue(idx int) error {
 	}
 
 	m.saveQueueToDisk()
-	m.notifySSE()
+	m.notifyBrowser()
 	log.Printf("LISTEN: Removed track at index %d", idx)
 	return nil
 }
@@ -486,7 +484,7 @@ func (m *Manager) SkipToTrack(idx int) error {
 	}
 
 	m.saveQueueToDisk()
-	m.notifySSE()
+	m.notifyBrowser()
 	log.Printf("LISTEN: Skipped to track %d", idx)
 	return nil
 }
@@ -517,7 +515,7 @@ func (m *Manager) Prev() error {
 			go m.trackTimerGoroutine(stopCh)
 		}
 		m.saveQueueToDisk()
-		m.notifySSE()
+		m.notifyBrowser()
 		return nil
 	}
 
@@ -541,7 +539,7 @@ func (m *Manager) Prev() error {
 	}
 
 	m.saveQueueToDisk()
-	m.notifySSE()
+	m.notifyBrowser()
 	return nil
 }
 
@@ -564,7 +562,7 @@ func (m *Manager) advanceQueue() {
 				m.group.PlayState.Playing = false
 			}
 			log.Printf("LISTEN: Playlist finished")
-			m.notifySSE()
+			m.notifyBrowser()
 			return
 		}
 
@@ -589,7 +587,7 @@ func (m *Manager) advanceQueue() {
 		m.startStreaming(0)
 		stopCh := m.stopCh
 		go m.trackTimerGoroutine(stopCh)
-		m.notifySSE()
+		m.notifyBrowser()
 		return
 	}
 }
@@ -696,7 +694,7 @@ func (m *Manager) Play() error {
 	go m.trackTimerGoroutine(stopCh)
 
 	log.Printf("LISTEN: Play from %.1fs", pos)
-	m.notifySSE()
+	m.notifyBrowser()
 	return nil
 }
 
@@ -727,7 +725,7 @@ func (m *Manager) Pause() error {
 	m.sendControl(ControlMsg{Action: "pause", Position: pos})
 	log.Printf("LISTEN: Sent pause control")
 
-	m.notifySSE()
+	m.notifyBrowser()
 	log.Printf("LISTEN: Paused at %.1fs", pos)
 	return nil
 }
@@ -762,7 +760,7 @@ func (m *Manager) Seek(position float64) error {
 	}
 
 	log.Printf("LISTEN: Seek to %.1fs (playing=%v)", position, wasPlaying)
-	m.notifySSE()
+	m.notifyBrowser()
 	return nil
 }
 
@@ -792,7 +790,7 @@ func (m *Manager) CloseGroup() error {
 	m.saveQueueToDisk() // clear persisted queue
 
 	log.Printf("LISTEN: Group closed")
-	m.notifySSE()
+	m.notifyBrowser()
 	return nil
 }
 
@@ -811,7 +809,7 @@ func (m *Manager) JoinGroup(hostPeerID, groupID string) error {
 			_ = m.grp.LeaveGroup(m.group.ID)
 			m.closeHTTPPipeLocked()
 			m.group = nil
-			m.notifySSE()
+			m.notifyBrowser()
 		} else {
 			// Role == "host": can't abandon your own party.
 			m.mu.Unlock()
@@ -846,7 +844,7 @@ func (m *Manager) JoinGroup(hostPeerID, groupID string) error {
 	}
 
 	log.Printf("LISTEN: Joined group %s on host %s", groupID, hostPeerID)
-	m.notifySSE()
+	m.notifyBrowser()
 	return nil
 }
 
@@ -864,7 +862,7 @@ func (m *Manager) LeaveGroup() error {
 	m.group = nil
 
 	log.Printf("LISTEN: Left group")
-	m.notifySSE()
+	m.notifyBrowser()
 	return nil
 }
 
@@ -989,39 +987,14 @@ func (m *Manager) GetGroup() *Group {
 	return &r
 }
 
-// ── SSE subscription ─────────────────────────────────────────────────────────
-
-// SubscribeSSE returns a channel that receives group state updates.
-func (m *Manager) SubscribeSSE() (ch chan *Group, cancel func()) {
-	ch = make(chan *Group, 16)
-
-	m.sseMu.Lock()
-	m.sseChans[ch] = struct{}{}
-	m.sseMu.Unlock()
-
-	cancel = func() {
-		m.sseMu.Lock()
-		if _, ok := m.sseChans[ch]; ok {
-			delete(m.sseChans, ch)
-			close(ch)
-		}
-		m.sseMu.Unlock()
+// notifyBrowser publishes the current group state to the browser via MQ PublishLocal.
+// Caller must hold m.mu (at minimum read lock).
+func (m *Manager) notifyBrowser() {
+	groupID := ""
+	if m.group != nil {
+		groupID = m.group.ID
 	}
-	return ch, cancel
-}
-
-func (m *Manager) notifySSE() {
-	lg := m.group // caller holds mu
-
-	m.sseMu.RLock()
-	defer m.sseMu.RUnlock()
-
-	for ch := range m.sseChans {
-		select {
-		case ch <- lg:
-		default:
-		}
-	}
+	m.mq.PublishLocal("listen:"+groupID+":state", "", map[string]any{"group": m.group})
 }
 
 // ── Streaming (host → listeners) ─────────────────────────────────────────────
@@ -1387,7 +1360,7 @@ func (m *Manager) HandleGroupEvent(evt *group.Event) {
 				lg = m.group
 			}
 			m.mu.Unlock()
-			m.notifySSELocked()
+			m.notifyBrowserLocked()
 		}
 		if lg == nil {
 			return
@@ -1411,7 +1384,7 @@ func (m *Manager) HandleGroupEvent(evt *group.Event) {
 		m.closeHTTPPipeLocked()
 		m.group = nil
 		m.mu.Unlock()
-		m.notifySSELocked()
+		m.notifyBrowserLocked()
 		log.Printf("LISTEN: Group closed by host")
 	case "leave":
 		if lg.Role == "host" {
@@ -1477,7 +1450,7 @@ func (m *Manager) HandleGroupEvent(evt *group.Event) {
 					}
 
 					m.mu.Unlock()
-					m.notifySSELocked()
+					m.notifyBrowserLocked()
 
 					// Bring newly joined listeners up to speed.
 					if syncTrack != nil {
@@ -1594,23 +1567,20 @@ func (m *Manager) handleControlEvent(payload any) {
 		log.Printf("LISTEN: Group closed by host")
 	}
 
-	m.notifySSE()
+	m.notifyBrowser()
 }
 
-func (m *Manager) notifySSELocked() {
+// notifyBrowserLocked reads m.group under its own RLock and publishes to the browser.
+// Use this when the caller does NOT already hold m.mu.
+func (m *Manager) notifyBrowserLocked() {
 	m.mu.RLock()
+	groupID := ""
+	if m.group != nil {
+		groupID = m.group.ID
+	}
 	lg := m.group
 	m.mu.RUnlock()
-
-	m.sseMu.RLock()
-	defer m.sseMu.RUnlock()
-
-	for ch := range m.sseChans {
-		select {
-		case ch <- lg:
-		default:
-		}
-	}
+	m.mq.PublishLocal("listen:"+groupID+":state", "", map[string]any{"group": lg})
 }
 
 // Close shuts down the listen manager.
@@ -1620,13 +1590,6 @@ func (m *Manager) Close() {
 
 	m.stopPlaybackLocked()
 	m.closeHTTPPipeLocked()
-
-	m.sseMu.Lock()
-	for ch := range m.sseChans {
-		close(ch)
-	}
-	m.sseChans = nil
-	m.sseMu.Unlock()
 
 	m.group = nil
 }

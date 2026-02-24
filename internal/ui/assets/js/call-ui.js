@@ -27,6 +27,13 @@
     styleInjected = true;
 
     var css = [
+      // Entry animation — forces WebKitGTK to composite the overlay immediately.
+      // Without this, fixed-position elements appended outside a user-interaction
+      // task (e.g. after an await) are not painted until the next reflow/repaint.
+      "@keyframes goop-call-appear {",
+      "  from { opacity: 0; transform: translateY(6px) scale(0.97); }",
+      "  to   { opacity: 1; transform: translateY(0)   scale(1);    }",
+      "}",
       ".goop-call-overlay {",
       "  position: fixed; bottom: 16px; right: 16px; z-index: 10000;",
       "  background: #1a1a2e; border: 1px solid #333; border-radius: 12px;",
@@ -34,6 +41,7 @@
       "  box-shadow: 0 8px 32px rgba(0,0,0,0.4); max-width: 320px;",
       "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;",
       "  color: #e0e0e0; font-size: 13px;",
+      "  animation: goop-call-appear 0.18s ease-out forwards;",
       "}",
       ".goop-call-videos { position: relative; }",
       ".goop-call-videos video {",
@@ -112,11 +120,36 @@
 
     modal.querySelector(".goop-call-accept").onclick = async function() {
       removeIncoming();
+
+      // ── KEY FIX: create and attach the overlay to the DOM synchronously,
+      // *inside the click-event task*, so WebKitGTK's compositor sees it and
+      // renders it before we yield to the network for info.accept().
+      // Without this, the overlay is only added after the await resolves (a
+      // microtask), and WebKitGTK doesn't repaint until the next user interaction.
+      var parts = prepareOverlay();
+
+      // Allow cancellation while accept() is in-flight.
+      var cancelled = false;
+      parts.hangupBtn.onclick = function() {
+        cancelled = true;
+        info.reject();
+        removeOverlay();
+      };
+
       try {
         var session = await info.accept();
-        showActiveCall(session);
+        if (cancelled) return; // user hung up while connecting
+        wireSession(parts, session);
       } catch(e) {
         log('error', 'Failed to accept call: ' + e);
+        if (!cancelled) {
+          removeOverlay();
+          // Show a brief error in the status area of the overlay if it still exists,
+          // or surface via notify if available.
+          if (window.Goop && Goop.notify) {
+            Goop.notify('Call failed — caller may have already hung up', 'error');
+          }
+        }
       }
     };
 
@@ -137,131 +170,21 @@
     incomingEl = null;
   }
 
-  // ── Soft navigation (keeps call alive across page changes) ─────────────────
-
-  var softNavInstalled = false;
-
-  function softNavHandler(e) {
-    var a = e.target.closest ? e.target.closest('a') : null;
-    if (!a) return;
-
-    // Skip if no active call
-    if (!currentSession) return;
-
-    // Skip modifier-key clicks (new tab, etc.)
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-
-    var href = a.getAttribute('href');
-    if (!href) return;
-
-    // Skip non-navigational links
-    if (href.startsWith('#') || href.startsWith('javascript:')) return;
-
-    // Skip external links
-    try {
-      var target = new URL(href, window.location.origin);
-      if (target.origin !== window.location.origin) return;
-    } catch(_) {
-      return;
-    }
-
-    // Skip links with explicit target
-    if (a.target && a.target !== '_self') return;
-
-    e.preventDefault();
-    e.stopPropagation();
-    softNavigateTo(target.href);
-  }
-
-  function softNavigateTo(url) {
-    fetch(url, { credentials: 'same-origin' })
-      .then(function(resp) {
-        if (!resp.ok) {
-          log('warn', 'Soft nav fetch failed: ' + resp.status);
-          return;
-        }
-        return resp.text();
-      })
-      .then(function(html) {
-        if (!html) return;
-
-        var doc = new DOMParser().parseFromString(html, 'text/html');
-
-        // Swap content
-        var newContent = doc.querySelector('.content');
-        var curContent = document.querySelector('.content');
-        if (newContent && curContent) {
-          curContent.innerHTML = newContent.innerHTML;
-
-          // Re-execute inline scripts from new content
-          var scripts = curContent.querySelectorAll('script');
-          for (var i = 0; i < scripts.length; i++) {
-            var oldScript = scripts[i];
-            var newScript = document.createElement('script');
-            if (oldScript.src) {
-              newScript.src = oldScript.src;
-            } else {
-              newScript.textContent = oldScript.textContent;
-            }
-            oldScript.parentNode.replaceChild(newScript, oldScript);
-          }
-        }
-
-        // Update URL
-        history.pushState(null, '', url);
-
-        // Update title
-        var newTitle = doc.querySelector('title');
-        if (newTitle) {
-          document.title = newTitle.textContent;
-        }
-
-        // Update nav active state
-        var navItems = document.querySelectorAll('.topnav .navitem');
-        for (var j = 0; j < navItems.length; j++) {
-          var item = navItems[j];
-          var itemHref = item.getAttribute('href');
-          if (itemHref && new URL(url).pathname.startsWith(itemHref)) {
-            item.classList.add('active');
-          } else {
-            item.classList.remove('active');
-          }
-        }
-      })
-      .catch(function(err) {
-        log('error', 'Soft nav error: ' + err.message);
-      });
-  }
-
-  function softNavPopState() {
-    if (!currentSession) return;
-    softNavigateTo(window.location.href);
-  }
-
-  function installSoftNav() {
-    if (softNavInstalled) return;
-    softNavInstalled = true;
-    document.addEventListener('click', softNavHandler, true);
-    window.addEventListener('popstate', softNavPopState);
-    log('info', 'Soft navigation installed (call active)');
-  }
-
-  function removeSoftNav() {
-    if (!softNavInstalled) return;
-    softNavInstalled = false;
-    document.removeEventListener('click', softNavHandler, true);
-    window.removeEventListener('popstate', softNavPopState);
-    log('info', 'Soft navigation removed');
-  }
 
   // ── Active call overlay ─────────────────────────────────────────────────────
 
-  function showActiveCall(session) {
-    log('info', 'Showing active call UI for channel: ' + session.channelId);
+  // prepareOverlay() creates and appends the overlay shell to document.body
+  // SYNCHRONOUSLY — no session needed yet.  The overlay shows "Connecting…"
+  // and has placeholder button handlers.  Call wireSession() once the session
+  // is available to activate the real callbacks.
+  //
+  // Returns a {el, remoteVideo, localVideo, statusEl, muteBtn, hangupBtn, videoBtn} object.
+  //
+  // Must be called from within a user-interaction task (click handler) so that
+  // WebKitGTK composites and paints the element before any await suspends execution.
+  function prepareOverlay() {
     injectStyles();
     removeOverlay();
-
-    currentSession = session;
 
     var el = document.createElement("div");
     el.className = "goop-call-overlay";
@@ -270,7 +193,7 @@
         '<video class="goop-call-remote" autoplay playsinline></video>' +
         '<video class="goop-call-local" autoplay playsinline muted></video>' +
       '</div>' +
-      '<div class="goop-call-status">Connecting...</div>' +
+      '<div class="goop-call-status">Connecting\u2026</div>' +
       '<div class="goop-call-controls">' +
         '<button class="goop-call-btn goop-call-btn-mute" title="Toggle Mute">' +
           '<svg class="icon-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
@@ -303,35 +226,47 @@
         '</button>' +
       '</div>';
 
-    var remoteVideo = el.querySelector(".goop-call-remote");
-    var localVideo = el.querySelector(".goop-call-local");
-    var statusEl = el.querySelector(".goop-call-status");
-    var muteBtn = el.querySelector(".goop-call-btn-mute");
-    var hangupBtn = el.querySelector(".goop-call-btn-hangup");
-    var videoBtn = el.querySelector(".goop-call-btn-video");
+    overlayEl = el;
+    document.body.appendChild(el);
+    return {
+      el:          el,
+      remoteVideo: el.querySelector(".goop-call-remote"),
+      localVideo:  el.querySelector(".goop-call-local"),
+      statusEl:    el.querySelector(".goop-call-status"),
+      muteBtn:     el.querySelector(".goop-call-btn-mute"),
+      hangupBtn:   el.querySelector(".goop-call-btn-hangup"),
+      videoBtn:    el.querySelector(".goop-call-btn-video"),
+    };
+  }
+
+  // wireSession() attaches a live session to an overlay created by prepareOverlay().
+  // Safe to call as a separate step after an await (the overlay is already visible).
+  function wireSession(parts, session) {
+    log('info', 'Wiring session to call overlay, channel: ' + session.channelId);
+    currentSession = session;
+
+    var remoteVideo = parts.remoteVideo;
+    var localVideo  = parts.localVideo;
+    var statusEl    = parts.statusEl;
+    var muteBtn     = parts.muteBtn;
+    var hangupBtn   = parts.hangupBtn;
+    var videoBtn    = parts.videoBtn;
 
     // Show local video
     if (session.localStream) {
       localVideo.srcObject = session.localStream;
     }
 
-    // Show remote video when available
+    // Show remote video when available (browser RTCPeerConnection path)
     session.onRemoteStream(function(stream) {
       var trackInfo = stream.getTracks().map(function(t) { return t.kind + ":" + t.readyState + ":enabled=" + t.enabled; }).join(", ");
       log('info', 'Remote stream received in UI! tracks=[' + trackInfo + ']');
-
-      log('debug', 'Setting remote video srcObject...');
       remoteVideo.srcObject = stream;
-      log('debug', 'srcObject set, video element: readyState=' + remoteVideo.readyState + ', networkState=' + remoteVideo.networkState);
-
-      // Explicitly try to play in case autoplay is blocked
       remoteVideo.play().then(function() {
         log('info', 'Remote video playing successfully');
       }).catch(function(e) {
         log('warn', 'Remote video autoplay blocked: ' + e.message);
       });
-
-      // Monitor video element
       remoteVideo.onloadedmetadata = function() {
         log('info', 'Remote video metadata loaded: ' + remoteVideo.videoWidth + 'x' + remoteVideo.videoHeight);
       };
@@ -341,12 +276,12 @@
       remoteVideo.onerror = function(e) {
         log('error', 'Remote video error: ' + (e.message || 'unknown'));
       };
-
       statusEl.textContent = "Connected";
     });
 
     // Phase 4 (native MSE path): session emits a blob URL instead of a MediaStream.
-    // Set video.src so the browser can play the live WebM stream via MSE.
+    // The overlay element is already in the DOM (prepareOverlay appended it), so
+    // setting video.src here will correctly trigger MediaSource's sourceopen event.
     if (typeof session.onRemoteVideoSrc === 'function') {
       session.onRemoteVideoSrc(function(src) {
         log('info', 'Remote video src received (MSE WebM stream)');
@@ -366,7 +301,7 @@
 
     session.onStateChange(function(state) {
       statusEl.textContent = state === "connected" ? "Connected" :
-                             state === "connecting" ? "Connecting..." :
+                             state === "connecting" ? "Connecting\u2026" :
                              state;
     });
 
@@ -392,30 +327,27 @@
       session.hangup();
     };
 
-    overlayEl = el;
-    document.body.appendChild(el);
-    installSoftNav();
+  }
+
+  // showActiveCall() — convenience wrapper for outbound calls and callUI.showCall().
+  // Creates the overlay and wires the session in one step.
+  function showActiveCall(session) {
+    log('info', 'Showing active call UI for channel: ' + session.channelId);
+    wireSession(prepareOverlay(), session);
   }
 
   function removeOverlay() {
-    var wasActive = !!overlayEl;
     if (overlayEl && overlayEl.parentNode) {
       overlayEl.parentNode.removeChild(overlayEl);
     }
     overlayEl = null;
     currentSession = null;
-    if (wasActive && softNavInstalled) {
-      removeSoftNav();
-      window.location.reload();
-    }
+    // No window.location.reload() — removing the element from the DOM is
+    // sufficient.  A forced reload is disruptive in Wails webviews and can
+    // appear to the user as if the call didn't close.
   }
 
-  function escapeHtml(s) {
-    if (!s) return "";
-    var d = document.createElement("div");
-    d.appendChild(document.createTextNode(s));
-    return d.innerHTML;
-  }
+  var escapeHtml = (window.Goop && window.Goop.core && window.Goop.core.escapeHtml) || function(s) { if (!s) return ''; var d = document.createElement('div'); d.appendChild(document.createTextNode(s)); return d.innerHTML; };
 
   // ── Auto-register for incoming calls ────────────────────────────────────────
 

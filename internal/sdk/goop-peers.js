@@ -20,12 +20,12 @@
 //   //   LastSeen:       string   — RFC3339 timestamp of last activity
 //   // }
 //
-//   // subscribe to live updates
+//   // subscribe to live updates (polls /api/peers every 5 s by default)
 //   Goop.peers.subscribe({
-//     onSnapshot(peers)   { /* full list, same shape as list() */ },
-//     onUpdate(peer)      { /* peer came online or updated */ },
-//     onRemove(peer)      { /* peer went offline — only {ID} is present */ },
-//   });
+//     onSnapshot(peers)         { /* full list on first load, same shape as list() */ },
+//     onUpdate(peer_id, peer)   { /* peer came online, updated, or reachability changed */ },
+//     onRemove(peer_id)         { /* peer was pruned from the list */ },
+//   }, 5000 /* optional poll interval ms */);
 //
 //   // unsubscribe
 //   Goop.peers.unsubscribe();
@@ -33,7 +33,7 @@
 (() => {
   window.Goop = window.Goop || {};
 
-  let sse = null;
+  let _timer = null;
 
   window.Goop.peers = {
     /** Fetch current peer list. Returns array of peer objects (see file header for fields). */
@@ -45,47 +45,55 @@
     },
 
     /**
-     * Subscribe to live peer updates via SSE.
-     * callbacks: { onSnapshot(peers), onUpdate(peer), onRemove(peer) }
+     * Subscribe to live peer updates via REST polling.
+     * callbacks: { onSnapshot(peers), onUpdate(peer_id, peer), onRemove(peer_id) }
+     * pollIntervalMs defaults to 5000.
      */
-    subscribe(callbacks) {
-      if (sse) sse.close();
+    subscribe(callbacks, pollIntervalMs) {
+      if (_timer) { clearInterval(_timer); _timer = null; }
 
-      sse = new EventSource("/api/peers/events");
       const cb = callbacks || {};
+      const interval = pollIntervalMs || 5000;
+      let known = null; // null until first successful fetch
 
-      sse.addEventListener("snapshot", (e) => {
-        try {
-          const data = JSON.parse(e.data);
-          if (cb.onSnapshot) cb.onSnapshot(data.peers || []);
-        } catch (_) {}
-      });
+      function poll() {
+        fetch("/api/peers")
+          .then((r) => { if (!r.ok) throw new Error(r.statusText); return r.json(); })
+          .then((peers) => {
+            if (!Array.isArray(peers)) return;
 
-      sse.addEventListener("update", (e) => {
-        try {
-          if (cb.onUpdate) cb.onUpdate(JSON.parse(e.data));
-        } catch (_) {}
-      });
+            if (known === null) {
+              // First load: fire onSnapshot with the full list.
+              known = {};
+              peers.forEach((p) => { known[p.ID] = p; });
+              if (cb.onSnapshot) cb.onSnapshot(peers);
+              return;
+            }
 
-      sse.addEventListener("remove", (e) => {
-        try {
-          if (cb.onRemove) cb.onRemove(JSON.parse(e.data));
-        } catch (_) {}
-      });
+            // Subsequent polls: diff against known set.
+            const next = {};
+            peers.forEach((p) => {
+              next[p.ID] = p;
+              const prev = known[p.ID];
+              if (!prev || JSON.stringify(prev) !== JSON.stringify(p)) {
+                if (cb.onUpdate) cb.onUpdate(p.ID, p);
+              }
+            });
+            Object.keys(known).forEach((id) => {
+              if (!next[id] && cb.onRemove) cb.onRemove(id);
+            });
+            known = next;
+          })
+          .catch(() => { if (cb.onError) cb.onError(); });
+      }
 
-      sse.onerror = () => {
-        if (cb.onError) cb.onError();
-      };
-
-      return sse;
+      poll(); // immediate first fetch
+      _timer = setInterval(poll, interval);
     },
 
-    /** Close the SSE connection */
+    /** Stop polling */
     unsubscribe() {
-      if (sse) {
-        sse.close();
-        sse = null;
-      }
+      if (_timer) { clearInterval(_timer); _timer = null; }
     },
   };
 })();

@@ -1,6 +1,6 @@
 //
-// Real-time channel API for peer-to-peer communication.
-// Wraps the /api/realtime/* endpoints + SSE for receiving.
+// Real-time channel API — bridged over Goop MQ.
+// API surface identical to the previous /api/realtime/* version.
 //
 // Usage:
 //   <script src="/sdk/goop-realtime.js"></script>
@@ -20,91 +20,86 @@
 //   // List active channels
 //   const channels = await Goop.realtime.channels();
 //
+// MQ topics:
+//   realtime:invite          — incoming channel invitation
+//   realtime:{channelId}     — messages on a specific channel
+//
 (() => {
   window.Goop = window.Goop || {};
 
-  var apiBase = "/api/realtime";
-  var messageHandlers = {};    // channelID -> [callbacks]
-  var globalHandlers = [];     // callbacks for all channels
-  var incomingHandlers = [];   // callbacks for incoming channel invites
-  var eventSource = null;
-  var connected = false;
+  var activeChannels  = {};  // channelId -> channel wrapper
+  var messageHandlers = {};  // channelId -> [callbacks]
+  var globalHandlers  = [];  // callbacks for all channels
+  var incomingHandlers = []; // callbacks for incoming invitations
+  var _unsub = null;
+  var _initialized = false;
 
-  async function request(url, opts) {
-    var res = await fetch(url, opts);
-    if (!res.ok) {
-      var text = await res.text();
-      throw new Error(text || res.statusText);
-    }
-    return res.json();
+  function waitMQ(fn) {
+    if (window.Goop && window.Goop.mq) { fn(); return; }
+    var t = setInterval(function() {
+      if (window.Goop && window.Goop.mq) { clearInterval(t); fn(); }
+    }, 50);
   }
 
-  function post(path, body) {
-    return request(apiBase + path, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
+  function newChannelId() {
+    return 'rt-' + Math.random().toString(36).slice(2, 10);
   }
 
-  // ── SSE connection ──────────────────────────────────────────────────────────
+  function ensureListening() {
+    if (_initialized) return;
+    _initialized = true;
 
-  function ensureSSE() {
-    if (eventSource) return;
+    waitMQ(function() {
+      _unsub = Goop.mq.subscribe('realtime:*', function(from, topic, payload, ack) {
+        var suffix = topic.slice('realtime:'.length);
 
-    eventSource = new EventSource(apiBase + "/events");
+        // Incoming channel invitation
+        if (suffix === 'invite') {
+          var info = {
+            channelId:   payload && payload.channel_id,
+            hostPeerId:  from,
+          };
+          for (var i = 0; i < incomingHandlers.length; i++) {
+            try { incomingHandlers[i](info); } catch (e) {}
+          }
+          ack();
+          return;
+        }
 
-    eventSource.addEventListener("connected", function() {
-      connected = true;
-    });
+        // Regular message on a channel
+        var channelId = suffix;
+        var env = { channel: channelId, from: from };
 
-    eventSource.addEventListener("message", function(e) {
-      try {
-        var env = JSON.parse(e.data);
-        var channelId = env.channel;
-        var payload = env.payload;
-
-        // Notify channel-specific handlers
         var cbs = messageHandlers[channelId];
         if (cbs) {
           for (var i = 0; i < cbs.length; i++) {
-            try { cbs[i](payload, env); } catch(err) { console.error("realtime handler error:", err); }
+            try { cbs[i](payload, env); } catch (e) { console.error('realtime handler error:', e); }
           }
         }
-
-        // Notify global handlers
         for (var j = 0; j < globalHandlers.length; j++) {
-          try { globalHandlers[j](payload, env); } catch(err) { console.error("realtime handler error:", err); }
+          try { globalHandlers[j](payload, env); } catch (e) { console.error('realtime handler error:', e); }
         }
-      } catch(err) {
-        console.error("realtime: failed to parse message:", err);
-      }
+        ack();
+      });
     });
-
-    eventSource.onerror = function() {
-      connected = false;
-      // Auto-reconnect is handled by EventSource
-    };
   }
 
-  // ── Channel wrapper ─────────────────────────────────────────────────────────
-
-  function wrapChannel(info) {
-    var channelId = info.id;
-
-    return {
-      id: channelId,
-      remotePeer: info.remote_peer,
-      role: info.role,
+  function wrapChannel(channelId, remotePeer) {
+    var ch = {
+      id:         channelId,
+      remotePeer: remotePeer,
 
       send: function(payload) {
-        return post("/send", { channel_id: channelId, payload: payload });
+        return new Promise(function(resolve, reject) {
+          waitMQ(function() {
+            Goop.mq.send(remotePeer, 'realtime:' + channelId, payload)
+              .then(resolve).catch(reject);
+          });
+        });
       },
 
       onMessage: function(callback) {
-        if (!messageHandlers[channelId]) {
-          messageHandlers[channelId] = [];
-        }
+        if (!messageHandlers[channelId]) messageHandlers[channelId] = [];
         messageHandlers[channelId].push(callback);
       },
 
@@ -117,80 +112,67 @@
 
       close: function() {
         delete messageHandlers[channelId];
-        return post("/close", { channel_id: channelId });
-      }
+        delete activeChannels[channelId];
+        return Promise.resolve();
+      },
     };
+
+    activeChannels[channelId] = ch;
+    return ch;
   }
-
-  // ── Listen for incoming channel invites via group events ────────────────────
-
-  function listenForInvites() {
-    var grpSource = new EventSource("/api/groups/events");
-
-    grpSource.addEventListener("welcome", function(e) {
-      try {
-        var evt = JSON.parse(e.data);
-        // Check if this is a realtime channel
-        if (evt.payload && evt.payload.app_type === "realtime") {
-          var info = {
-            channelId: evt.group,
-            hostPeerId: evt.from || (evt.payload && evt.payload.host_peer_id) || ""
-          };
-          for (var i = 0; i < incomingHandlers.length; i++) {
-            try { incomingHandlers[i](info); } catch(err) { console.error("incoming handler error:", err); }
-          }
-        }
-      } catch(err) {
-        // ignore parse errors
-      }
-    });
-  }
-
-  // ── Public API ──────────────────────────────────────────────────────────────
 
   Goop.realtime = {
-    // Connect to a peer, creating a new realtime channel
+    /** Connect to a peer, creating a new virtual MQ channel */
     connect: async function(peerId) {
-      ensureSSE();
-      var info = await post("/connect", { peer_id: peerId });
-      return wrapChannel(info);
+      ensureListening();
+      var channelId = newChannelId();
+      var channel = wrapChannel(channelId, peerId);
+      // Notify the remote peer
+      await new Promise(function(resolve) {
+        waitMQ(function() {
+          Goop.mq.send(peerId, 'realtime:invite', { channel_id: channelId })
+            .then(resolve).catch(resolve);
+        });
+      });
+      return channel;
     },
 
-    // Accept an incoming channel invitation
+    /** Accept an incoming channel invitation */
     accept: async function(channelId, hostPeerId) {
-      ensureSSE();
-      var info = await post("/accept", { channel_id: channelId, host_peer_id: hostPeerId });
-      return wrapChannel(info);
+      ensureListening();
+      return wrapChannel(channelId, hostPeerId);
     },
 
-    // List active channels
+    /** List active channels */
     channels: function() {
-      return request(apiBase + "/channels");
+      return Promise.resolve(
+        Object.keys(activeChannels).map(function(id) {
+          return { id: id, remote_peer: activeChannels[id].remotePeer };
+        })
+      );
     },
 
-    // Register handler for incoming channel invites
+    /** Register handler for incoming channel invitations */
     onIncoming: function(callback) {
-      if (incomingHandlers.length === 0) {
-        listenForInvites();
-      }
+      ensureListening();
       incomingHandlers.push(callback);
     },
 
-    // Register handler for all messages on all channels
+    /** Register handler for all messages on all channels */
     onMessage: function(callback) {
-      ensureSSE();
+      ensureListening();
       globalHandlers.push(callback);
     },
 
-    // Remove a global message handler
+    /** Remove a global message handler */
     offMessage: function(callback) {
       var idx = globalHandlers.indexOf(callback);
       if (idx >= 0) globalHandlers.splice(idx, 1);
     },
 
-    // Check if SSE is connected
+    /** Returns true once MQ subscription is active */
     isConnected: function() {
-      return connected;
-    }
+      return _initialized;
+    },
   };
 })();

@@ -1,7 +1,8 @@
 //
-// Chat client for site pages.
-// Usage:
+// Chat client for site pages — bridged over Goop MQ.
+// API surface identical to the previous SSE-based version.
 //
+// Usage:
 //   <script src="/sdk/goop-chat.js"></script>
 //
 //   // send a broadcast message
@@ -10,91 +11,102 @@
 //   // send a direct message
 //   await Goop.chat.send(peerId, "Hey there");
 //
-//   // fetch broadcast history
+//   // fetch broadcast history (returns empty — history not stored over MQ)
 //   const msgs = await Goop.chat.broadcasts();
 //
-//   // fetch direct message history with a peer
+//   // fetch direct message history with a peer (returns empty — not stored over MQ)
 //   const dms = await Goop.chat.messages(peerId);
 //
 //   // subscribe to all incoming messages (broadcast + direct)
 //   Goop.chat.subscribe(function(msg) {
 //     // msg: {from, content, type, timestamp}
+//     // type: "broadcast" | "direct"
 //   });
 //
 //   Goop.chat.unsubscribe();
 //
+// MQ topics:
+//   chat:broadcast   — broadcast message to all peers
+//   chat:direct      — direct message from one peer to another
+//
 (() => {
   window.Goop = window.Goop || {};
 
-  let sse = null;
+  var _unsub = null;
 
-  function post(url, body) {
-    return fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }).then((r) => {
-      if (!r.ok) return r.text().then((t) => { throw new Error(t); });
-      return r.json();
-    });
+  function waitMQ(fn) {
+    if (window.Goop && window.Goop.mq) { fn(); return; }
+    var t = setInterval(function() {
+      if (window.Goop && window.Goop.mq) { clearInterval(t); fn(); }
+    }, 50);
   }
 
   window.Goop.chat = {
     /** Send a broadcast message to all peers */
-    broadcast(content) {
-      return post("/api/chat/broadcast", { content });
+    broadcast: function(content) {
+      return new Promise(function(resolve, reject) {
+        waitMQ(function() {
+          Goop.mq.broadcast('chat:broadcast', { content: content, timestamp: Date.now() })
+            .then(resolve).catch(reject);
+        });
+      });
     },
 
     /** Send a direct message to a specific peer */
-    send(to, content) {
-      return post("/api/chat/send", { to, content });
-    },
-
-    /** Fetch broadcast message history */
-    broadcasts() {
-      return fetch("/api/chat/broadcasts").then((r) => {
-        if (!r.ok) throw new Error(r.statusText);
-        return r.json();
+    send: function(to, content) {
+      return new Promise(function(resolve, reject) {
+        waitMQ(function() {
+          Goop.mq.send(to, 'chat:direct', { content: content, timestamp: Date.now() })
+            .then(resolve).catch(reject);
+        });
       });
     },
 
-    /** Fetch direct message history with a peer */
-    messages(peerId) {
-      const url = peerId
-        ? "/api/chat/messages?peer=" + encodeURIComponent(peerId)
-        : "/api/chat/messages";
-      return fetch(url).then((r) => {
-        if (!r.ok) throw new Error(r.statusText);
-        return r.json();
-      });
+    /** Fetch broadcast message history — not persisted over MQ, returns empty array */
+    broadcasts: function() {
+      return Promise.resolve([]);
+    },
+
+    /** Fetch direct message history — not persisted over MQ, returns empty array */
+    messages: function(peerId) {
+      return Promise.resolve([]);
     },
 
     /**
-     * Subscribe to incoming messages via SSE.
+     * Subscribe to incoming messages via MQ.
      * callback(msg) where msg has {from, content, type, timestamp}
+     * Returns an object with a close() method.
      */
-    subscribe(callback) {
-      if (sse) sse.close();
+    subscribe: function(callback) {
+      if (_unsub) { _unsub(); _unsub = null; }
 
-      sse = new EventSource("/api/chat/events");
-
-      sse.addEventListener("message", (e) => {
-        try {
-          if (callback) callback(JSON.parse(e.data));
-        } catch (_) {}
+      waitMQ(function() {
+        _unsub = Goop.mq.subscribe('chat:*', function(from, topic, payload, ack) {
+          var type = topic === 'chat:broadcast' ? 'broadcast' : 'direct';
+          if (callback) {
+            try {
+              callback({
+                from:      from,
+                content:   payload && payload.content,
+                type:      type,
+                timestamp: (payload && payload.timestamp) || Date.now(),
+              });
+            } catch (_) {}
+          }
+          ack();
+        });
       });
 
-      sse.onerror = () => {};
-
-      return sse;
+      return {
+        close: function() {
+          if (_unsub) { _unsub(); _unsub = null; }
+        },
+      };
     },
 
-    /** Close the SSE connection */
-    unsubscribe() {
-      if (sse) {
-        sse.close();
-        sse = null;
-      }
+    /** Stop receiving messages */
+    unsubscribe: function() {
+      if (_unsub) { _unsub(); _unsub = null; }
     },
   };
 })();

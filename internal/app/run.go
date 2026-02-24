@@ -10,16 +10,15 @@ import (
 
 	"github.com/petervdpas/goop2/internal/avatar"
 	"github.com/petervdpas/goop2/internal/call"
-	"github.com/petervdpas/goop2/internal/chat"
 	"github.com/petervdpas/goop2/internal/config"
 	"github.com/petervdpas/goop2/internal/content"
 	"github.com/petervdpas/goop2/internal/docs"
 	"github.com/petervdpas/goop2/internal/group"
 	"github.com/petervdpas/goop2/internal/listen"
 	luapkg "github.com/petervdpas/goop2/internal/lua"
+	"github.com/petervdpas/goop2/internal/mq"
 	"github.com/petervdpas/goop2/internal/p2p"
 	"github.com/petervdpas/goop2/internal/proto"
-	"github.com/petervdpas/goop2/internal/realtime"
 	"github.com/petervdpas/goop2/internal/rendezvous"
 	"github.com/petervdpas/goop2/internal/state"
 	"github.com/petervdpas/goop2/internal/storage"
@@ -27,29 +26,50 @@ import (
 	"github.com/petervdpas/goop2/internal/viewer"
 )
 
-// signalerAdapter bridges *realtime.Manager to call.Signaler.
-// This is the only place that imports both packages — call knows nothing about realtime.
-type signalerAdapter struct {
-	rt *realtime.Manager
+// mqSignalerAdapter bridges *mq.Manager to call.Signaler.
+// This is the only place that imports both packages — call knows nothing about mq.
+type mqSignalerAdapter struct {
+	mqMgr *mq.Manager
+
+	mu    sync.Mutex
+	peers map[string]string // channelID → peerID
 }
 
-func (a *signalerAdapter) Send(channelID string, payload any) error {
-	return a.rt.Send(channelID, payload)
+// RegisterChannel associates a call channel ID with the remote peer ID.
+// Must be called by run.go after StartCall/AcceptCall so Send knows the peer.
+func (a *mqSignalerAdapter) RegisterChannel(channelID, peerID string) {
+	a.mu.Lock()
+	a.peers[channelID] = peerID
+	a.mu.Unlock()
 }
 
-func (a *signalerAdapter) Subscribe() (chan *call.Envelope, func()) {
-	rtCh, cancel := a.rt.Subscribe()
+func (a *mqSignalerAdapter) Send(channelID string, payload any) error {
+	a.mu.Lock()
+	peerID, ok := a.peers[channelID]
+	a.mu.Unlock()
+	if !ok {
+		return fmt.Errorf("mqSignaler: no peer registered for channel %s", channelID)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_, err := a.mqMgr.Send(ctx, peerID, "call:"+channelID, payload)
+	return err
+}
+
+func (a *mqSignalerAdapter) Subscribe() (chan *call.Envelope, func()) {
 	callCh := make(chan *call.Envelope, 64)
-	go func() {
-		defer close(callCh)
-		for env := range rtCh {
-			callCh <- &call.Envelope{
-				Channel: env.Channel,
-				From:    env.From,
-				Payload: env.Payload,
-			}
+	unsub := a.mqMgr.SubscribeTopic("call:", func(from, topic string, payload any) {
+		channelID := strings.TrimPrefix(topic, "call:")
+		select {
+		case callCh <- &call.Envelope{Channel: channelID, From: from, Payload: payload}:
+		default:
+			log.Printf("mqSignaler: callCh full, dropping envelope for channel %s", channelID)
 		}
-	}()
+	})
+	cancel := func() {
+		unsub()
+		close(callCh)
+	}
 	return callCh, cancel
 }
 
@@ -312,9 +332,47 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	step++
 	progress(step, total, "Setting up services")
 
-	// ── Chat manager
-	chatMgr := chat.New(node.Host, 100) // 100 message buffer
-	log.Printf("💬 Chat enabled: direct messaging via /goop/chat/1.0.0")
+	// ── MQ manager (replaces chat + realtime transports)
+	mqMgr := mq.New(node.Host)
+	log.Printf("📨 MQ enabled: message queue via /goop/mq/1.0.0")
+
+	// Bridge: PeerTable → MQ so the browser's mq.js maintains a peer name cache.
+	// Every peer presence change (online/update/offline/prune) is forwarded as
+	// peer:announce (or peer:gone) via PublishLocal, making peer metadata
+	// available to all MQ subscribers without a separate API call.
+	go func() {
+		peerCh := peers.Subscribe()
+		defer peers.Unsubscribe(peerCh)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case evt, ok := <-peerCh:
+				if !ok {
+					return
+				}
+				if evt.Type == "update" && evt.Peer != nil && evt.PeerID != "" {
+					mqMgr.PublishLocal("peer:announce", evt.PeerID, map[string]any{
+						"peerID":         evt.PeerID,
+						"content":        evt.Peer.Content,
+						"email":          evt.Peer.Email,
+						"avatarHash":     evt.Peer.AvatarHash,
+						"videoDisabled":  evt.Peer.VideoDisabled,
+						"activeTemplate": evt.Peer.ActiveTemplate,
+						"verified":       evt.Peer.Verified,
+						"reachable":      evt.Peer.Reachable,
+						"offline":        !evt.Peer.OfflineSince.IsZero(),
+						"lastSeen":       evt.Peer.LastSeen.UnixMilli(),
+						"favorite":       evt.Peer.Favorite,
+					})
+				} else if evt.Type == "remove" && evt.PeerID != "" {
+					mqMgr.PublishLocal("peer:gone", evt.PeerID, map[string]any{
+						"peerID": evt.PeerID,
+					})
+				}
+			}
+		}
+	}()
 
 	// ── Lua scripting engine
 	var luaEngine *luapkg.Engine
@@ -334,11 +392,6 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 				luaEngine = nil
 				return
 			}
-			chatMgr.SetCommandHandler(func(ctx context.Context, fromPeerID, content string, sender chat.DirectSender) {
-				luaEngine.Dispatch(ctx, fromPeerID, content, luapkg.SenderFunc(func(ctx2 context.Context, toPeerID, msg string) error {
-					return sender.SendDirect(ctx2, toPeerID, msg)
-				}))
-			})
 			luaEngine.SetDB(db)
 			node.SetLuaDispatcher(luaEngine)
 		})
@@ -373,23 +426,20 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	}
 
 	// ── Group manager
-	grpMgr := group.New(node.Host, db)
-	log.Printf("👥 Group protocol enabled: /goop/group/1.0.0")
-
-	// ── Realtime channels (wraps group protocol)
-	rtMgr := realtime.New(grpMgr, node.ID())
-	log.Printf("⚡ Realtime channels enabled")
+	grpMgr := group.New(node.Host, db, mqMgr)
+	log.Printf("👥 Group manager enabled (MQ transport)")
 
 	// ── Native call manager (Go/Pion WebRTC — Linux only, experimental)
 	var callMgr *call.Manager
 	if cfg.Viewer.ExperimentalCalls {
-		callMgr = call.New(&signalerAdapter{rt: rtMgr}, node.ID())
+		sigAdapter := &mqSignalerAdapter{mqMgr: mqMgr, peers: make(map[string]string)}
+		callMgr = call.New(sigAdapter, node.ID())
 		defer callMgr.Close()
 		log.Printf("📞 Experimental native call stack enabled (Go/Pion WebRTC)")
 	}
 
 	// ── Listen room (wraps group protocol + binary audio stream)
-	listenMgr := listen.New(node.Host, grpMgr, node.ID(), o.PeerDir)
+	listenMgr := listen.New(node.Host, grpMgr, mqMgr, node.ID(), o.PeerDir)
 	defer listenMgr.Close()
 	grpMgr.RegisterHandler("listen", listenMgr)
 	if luaEngine != nil {
@@ -489,9 +539,8 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			Cfg:         cfg, // always *config.Config
 			Logs:        o.Logs,
 			Content:     store,
-			Chat:        chatMgr,
+			MQ:          mqMgr,
 			Groups:      grpMgr,
-			Realtime:    rtMgr,
 			Listen:      listenMgr,
 			DB:          db,
 			Docs:        docStore,
@@ -513,6 +562,9 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		case proto.TypeOnline:
 			seenContent[m.PeerID] = m.Content
 			log.Printf("[%s] %s -> %q", m.Type, m.PeerID, m.Content)
+			// Use the peer table's Verified value — it is set exclusively by the
+			// rendezvous server and must not be overwritten by P2P gossip.
+			sp, _ := peers.Get(m.PeerID)
 			go db.UpsertCachedPeer(storage.CachedPeer{
 				PeerID:         m.PeerID,
 				Content:        m.Content,
@@ -520,7 +572,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 				AvatarHash:     m.AvatarHash,
 				VideoDisabled:  m.VideoDisabled,
 				ActiveTemplate: m.ActiveTemplate,
-				Verified:       m.Verified,
+				Verified:       sp.Verified,
 				Addrs:          m.Addrs,
 			})
 			go node.ProbePeer(ctx, m.PeerID)
@@ -530,6 +582,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 				seenContent[m.PeerID] = m.Content
 				log.Printf("[%s] %s -> %q", m.Type, m.PeerID, m.Content)
 			}
+			sp, _ := peers.Get(m.PeerID)
 			go db.UpsertCachedPeer(storage.CachedPeer{
 				PeerID:         m.PeerID,
 				Content:        m.Content,
@@ -537,7 +590,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 				AvatarHash:     m.AvatarHash,
 				VideoDisabled:  m.VideoDisabled,
 				ActiveTemplate: m.ActiveTemplate,
-				Verified:       m.Verified,
+				Verified:       sp.Verified,
 				Addrs:          m.Addrs,
 			})
 			// If the peer is currently unreachable, their relay circuit may have

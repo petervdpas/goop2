@@ -1,46 +1,40 @@
-// Peer page: chat messages, send handler, SSE, call buttons.
+// Peer page: chat messages, send handler, MQ subscription, call buttons.
 (function() {
   var pageEl = document.querySelector('.peer-page');
   if (!pageEl) return;
 
   var core = window.Goop && window.Goop.core || {};
-  var api = core.api;
+  var escapeHtml = core.escapeHtml || function(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
 
   var peerID = pageEl.dataset.peerId;
   if (!peerID) return;
+
+  var selfID = document.body.dataset.selfId || '';
 
   var messagesDiv = document.getElementById('chat-messages');
   var form = document.getElementById('chat-form');
   var input = document.getElementById('chat-message');
 
-  // Load peer content (display name) in background
+  // ── In-memory message list (session only, like the old ring buffer) ──
+  var _messages = [];
+
+  function addMessage(msg) {
+    _messages.push(msg);
+    renderMessages(_messages);
+  }
+
+  // Load peer name
   var peerNameEl = document.getElementById('peer-name');
   fetch('/api/peer/content?id=' + encodeURIComponent(peerID))
     .then(function(res) { return res.json(); })
     .then(function(data) {
-      if (data.content) {
-        peerNameEl.textContent = data.content;
-      } else {
-        peerNameEl.textContent = peerID;
-      }
+      peerNameEl.textContent = data.content || peerID;
     })
-    .catch(function() {
-      peerNameEl.textContent = peerID;
-    });
+    .catch(function() { peerNameEl.textContent = peerID; });
 
-  // Load existing messages
-  function loadMessages() {
-    api('/api/chat/messages?peer=' + encodeURIComponent(peerID))
-      .then(function(messages) { renderMessages(messages); })
-      .catch(function(err) {
-        console.error('Failed to load messages:', err);
-        messagesDiv.innerHTML = '<p class="error">Failed to load messages</p>';
-      });
-  }
-
-  // Render messages
+  // ── Render messages ──
   function renderMessages(messages) {
-    if (messages.length === 0) {
+    if (!messages || messages.length === 0) {
       messagesDiv.innerHTML = '<p class="muted"><i>No messages yet. Start a conversation!</i></p>';
       return;
     }
@@ -78,49 +72,42 @@
       });
     });
 
-    // Scroll to bottom
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
   }
 
-  // Send message
+  // ── Send message ──
   form.addEventListener('submit', function(e) {
     e.preventDefault();
     var content = input.value.trim();
     if (!content) return;
+    if (!window.Goop || !window.Goop.mq) { alert('MQ not available'); return; }
 
-    api('/api/chat/send', { to: peerID, content: content })
-    .then(function() {
-      input.value = '';
-      loadMessages();
-    })
-    .catch(function(err) {
-      console.error('Failed to send:', err);
-      alert('Failed to send message');
-    });
+    var outMsg = { from: selfID, to: peerID, content: content, timestamp: Date.now() };
+    addMessage(outMsg);
+    input.value = '';
+
+    window.Goop.mq.send(peerID, 'chat', { content: content, to: peerID })
+      .catch(function(err) {
+        console.error('Failed to send:', err);
+        alert('Failed to send message');
+      });
   });
 
-  // Listen for new messages via SSE
-  var eventSource = new EventSource('/api/chat/events');
-  eventSource.addEventListener('message', function(e) {
-    var msg = JSON.parse(e.data);
-    if (msg.from === peerID || msg.to === peerID) {
-      loadMessages();
+  // ── Subscribe to incoming chat for this peer ──
+  function initMQChat() {
+    if (!window.Goop || !window.Goop.mq) {
+      setTimeout(initMQChat, 100);
+      return;
     }
-  });
-
-  eventSource.onerror = function() {
-    console.error('SSE connection lost, reconnecting...');
-  };
-
-  var escapeHtml = Goop.core.escapeHtml;
-
-  function emojify(text) {
-    return window.Goop && window.Goop.emoji ? window.Goop.emoji.emojify(text) : text;
+    window.Goop.mq.subscribe('chat', function(from, _topic, payload, ack) {
+      // Show messages from this peer only
+      if (from !== peerID) { ack(); return; }
+      var msg = { from: from, to: selfID, content: payload.content || '', timestamp: Date.now() };
+      addMessage(msg);
+      ack();
+    });
   }
-
-  function isEmojiOnly(text) {
-    return window.Goop && window.Goop.emoji ? window.Goop.emoji.isEmojiOnly(text) : false;
-  }
+  initMQChat();
 
   // ── Call buttons ──
   var callActionsEl = document.querySelector('.chat-call-actions');
@@ -180,6 +167,13 @@
     });
   }
 
-  // Initial load
-  loadMessages();
+  function emojify(text) {
+    return window.Goop && window.Goop.emoji ? window.Goop.emoji.emojify(text) : text;
+  }
+
+  function isEmojiOnly(text) {
+    return window.Goop && window.Goop.emoji ? window.Goop.emoji.isEmojiOnly(text) : false;
+  }
+
+  renderMessages([]);
 })();

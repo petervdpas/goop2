@@ -31,9 +31,10 @@
     if (/\bCALL\b/.test(s) ||
         /\[call-native\]|\[call-ui\]|\[webrtc\]/.test(s)) return 'log-call';
     if (/\brelay\b/.test(s)) return 'log-relay';
-    if (/\bGROUP\b|\bREALTIME\b/.test(s)) return 'log-realtime';
+    if (/\bGROUP\b|\bLISTEN\b/.test(s)) return 'log-group';
     if (/\bprobe\b/.test(s)) return 'log-probe';
     if (/\[update\]|\[online\]/.test(s)) return 'log-peer';
+    if (/\[data\]/.test(s)) return 'log-data';
     if (/UNREACHABLE|error|ERROR/.test(s)) return 'log-error';
     if (/\bREACHABLE\b/.test(s)) return 'log-ok';
     return 'log-default';
@@ -103,6 +104,52 @@
       });
     });
   }
+
+  // ── MQ structured event log ────────────────────────────────────────────────
+  // Receives log:mq events from PublishLocal and renders them as log lines.
+  // Group-topic lines get class log-group so the Group tab filter works.
+  function appendMQLogLine(payload) {
+    if (!payload) return;
+    var dir   = payload.dir === 'send' ? '→' : (payload.dir === 'recv' ? '←' : '✗');
+    var rawPeer = payload.peer || '';
+    // Use cached peer name when available, fall back to 8-char ID prefix.
+    var peerName = window.Goop && Goop.mq && Goop.mq.getPeerName(rawPeer);
+    var peer = peerName ? peerName.slice(0, 14) : rawPeer.slice(0, 8);
+    var topic = payload.topic || '';
+    var ts    = payload.ts ? new Date(payload.ts).toLocaleTimeString() : '';
+    var via   = payload.via && payload.via !== 'direct' ? ' ~' + payload.via : '';
+    var s     = ts + ' ' + dir + ' ' + peer + '  ' + topic + via;
+    if (payload.error) s += '  [' + payload.error + ']';
+
+    var span = document.createElement('span');
+    if (topic.startsWith('group:') || topic === 'group.invite') {
+      span.className = 'log-group';
+    } else if (topic.startsWith('peer:')) {
+      span.className = 'log-peer';
+    } else {
+      span.className = 'log-default';
+    }
+    span.textContent = s + '\n';
+    box.appendChild(span);
+    lineCount++;
+    if (lineCount > MAX_LINES) {
+      var trim = lineCount - MAX_LINES;
+      for (var i = 0; i < trim; i++) {
+        if (box.firstChild) box.removeChild(box.firstChild);
+      }
+      lineCount = MAX_LINES;
+    }
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function initMQLog() {
+    if (!window.Goop || !window.Goop.mq) { setTimeout(initMQLog, 50); return; }
+    Goop.mq.subscribe('log:mq', function(from, topic, payload, ack) {
+      appendMQLogLine(payload);
+      ack();
+    });
+  }
+  initMQLog();
 
   // ── Load snapshot then stream ──────────────────────────────────────────────
   api("/api/logs")

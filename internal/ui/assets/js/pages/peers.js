@@ -26,6 +26,9 @@
   // Track unread direct messages per peer
   var unreadPeers = new Set();
 
+  // In-memory broadcast message list (session only)
+  var _broadcastMessages = [];
+
   // Current peers data for search filtering
   var currentPeers = [];
 
@@ -173,46 +176,52 @@
     });
   }
 
-  // Connect to peers SSE
-  var peersSSE = new EventSource('/api/peers/events');
+  // Initial peer list via REST, then live updates via MQ peer:announce / peer:gone.
+  api('/api/peers').then(function(peers) {
+    if (peers) renderPeersList(peers);
+  }).catch(function() {});
 
-  peersSSE.addEventListener('snapshot', function(e) {
-    try {
-      var data = JSON.parse(e.data);
-      if (data.peers) renderPeersList(data.peers);
-    } catch (err) {
-      console.error('Failed to parse peers snapshot:', err);
-    }
-  });
+  // Converts a peer:announce MQ payload (camelCase) to the PeerRow shape (PascalCase)
+  // used by renderPeerRow so both REST and MQ data go through the same renderer.
+  function announceToRow(p) {
+    return {
+      ID:             p.peerID         || '',
+      Content:        p.content        || '',
+      Email:          p.email          || '',
+      AvatarHash:     p.avatarHash     || '',
+      VideoDisabled:  p.videoDisabled  || false,
+      ActiveTemplate: p.activeTemplate || '',
+      Verified:       p.verified       || false,
+      Reachable:      p.reachable      || false,
+      Offline:        p.offline        || false,
+      LastSeen:       p.lastSeen ? new Date(p.lastSeen).toISOString() : new Date().toISOString(),
+      Favorite:       p.favorite       || false,
+    };
+  }
 
-  peersSSE.addEventListener('update', function(e) {
-    try {
-      var data = JSON.parse(e.data);
-      if (data.peer_id && data.peer) {
-        var idx = currentPeers.findIndex(function(p) { return p.ID === data.peer_id; });
-        if (idx >= 0) {
-          currentPeers[idx] = data.peer;
-        } else {
-          currentPeers.push(data.peer);
-        }
+  function initPeersMQ() {
+    if (!window.Goop || !window.Goop.mq) { setTimeout(initPeersMQ, 100); return; }
+    Goop.mq.subscribe('peer:announce', function(from, topic, payload, ack) {
+      if (!payload || !payload.peerID) { ack(); return; }
+      var peer = announceToRow(payload);
+      var idx = currentPeers.findIndex(function(p) { return p.ID === peer.ID; });
+      if (idx >= 0) {
+        currentPeers[idx] = peer;
+      } else {
+        currentPeers.push(peer);
+      }
+      renderPeersList(null);
+      ack();
+    });
+    Goop.mq.subscribe('peer:gone', function(from, topic, payload, ack) {
+      if (payload && payload.peerID) {
+        currentPeers = currentPeers.filter(function(p) { return p.ID !== payload.peerID; });
         renderPeersList(null);
       }
-    } catch (err) { console.error('Failed to parse peer update:', err); }
-  });
-
-  peersSSE.addEventListener('remove', function(e) {
-    try {
-      var data = JSON.parse(e.data);
-      if (data.peer_id) {
-        currentPeers = currentPeers.filter(function(p) { return p.ID !== data.peer_id; });
-        renderPeersList(null);
-      }
-    } catch (err) { console.error('Failed to parse peer remove:', err); }
-  });
-
-  peersSSE.onerror = function() {
-    console.error('Peers SSE connection lost');
-  };
+      ack();
+    });
+  }
+  initPeersMQ();
 
   // =====================
   // Context Menu
@@ -377,12 +386,12 @@
   // =====================
 
   function loadBroadcasts() {
-    api('/api/chat/broadcasts')
-      .then(function(messages) { renderBroadcasts(messages); })
-      .catch(function(err) {
-        console.error('Failed to load broadcasts:', err);
-        messagesDiv.innerHTML = '<p class="error">Failed to load messages</p>';
-      });
+    // Broadcasts are delivered via MQ subscription; no REST history endpoint.
+    if (!_broadcastMessages || _broadcastMessages.length === 0) {
+      messagesDiv.innerHTML = '<p class="muted"><i>No broadcast messages yet. Say hello!</i></p>';
+    } else {
+      renderBroadcasts(_broadcastMessages);
+    }
   }
 
   function renderBroadcasts(messages) {
@@ -415,7 +424,7 @@
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
   }
 
-  // Send broadcast
+  // Send broadcast via MQ
   form.addEventListener('submit', function(e) {
     e.preventDefault();
     var content = input.value.trim();
@@ -434,40 +443,44 @@
       return;
     }
 
-    api('/api/chat/broadcast', { content: content })
-    .then(function() {
-      input.value = '';
-      loadBroadcasts();
-    })
-    .catch(function(err) {
-      console.error('Failed to send:', err);
-      alert('Failed to send broadcast');
-    });
+    if (!window.Goop || !window.Goop.mq) {
+      alert('MQ not available');
+      return;
+    }
+
+    var outMsg = { from: selfID, content: content, timestamp: Date.now() };
+    _broadcastMessages.push(outMsg);
+    input.value = '';
+    renderBroadcasts(_broadcastMessages);
+
+    window.Goop.mq.broadcast('chat.broadcast', { content: content })
+      .catch(function(err) { console.error('Broadcast failed:', err); });
   });
 
-  // Listen for new messages via SSE (both direct and broadcast)
-  var chatSSE = new EventSource('/api/chat/events');
-
-  chatSSE.addEventListener('message', function(e) {
-    try {
-      var msg = JSON.parse(e.data);
-      var msgType = msg.type || 'direct';
-
-      if (msgType === 'broadcast') {
-        loadBroadcasts();
-      } else if (msgType === 'direct' && msg.from && msg.from !== selfID) {
-        unreadPeers.add(msg.from);
-        var badge = document.querySelector('[data-unread-badge="' + msg.from + '"]');
+  // Subscribe to MQ for direct chat unread badges and broadcast messages.
+  function initMQSubscriptions() {
+    if (!window.Goop || !window.Goop.mq) {
+      setTimeout(initMQSubscriptions, 100);
+      return;
+    }
+    // Direct chat: show unread badge on the peer row
+    window.Goop.mq.subscribe('chat', function(from, _topic, payload, ack) {
+      if (from && from !== selfID) {
+        unreadPeers.add(from);
+        var badge = document.querySelector('[data-unread-badge="' + from + '"]');
         if (badge) badge.classList.remove('hidden');
       }
-    } catch (err) {
-      console.error('Failed to parse message:', err);
-    }
-  });
-
-  chatSSE.onerror = function() {
-    console.error('Chat SSE connection lost');
-  };
+      ack();
+    });
+    // Broadcast
+    window.Goop.mq.subscribe('chat.broadcast', function(from, _topic, payload, ack) {
+      var msg = { from: from, content: (payload && payload.content) || '', timestamp: Date.now() };
+      _broadcastMessages.push(msg);
+      renderBroadcasts(_broadcastMessages);
+      ack();
+    });
+  }
+  initMQSubscriptions();
 
   var escapeHtml = Goop.core.escapeHtml;
 
@@ -498,12 +511,5 @@
   }
 
   triggerProbe();
-  var probeInterval = setInterval(triggerProbe, 5000);
 
-  // Clean up polling when navigating away
-  window.addEventListener('beforeunload', function() {
-    if (probeInterval) clearInterval(probeInterval);
-    if (peersSSE) peersSSE.close();
-    if (chatSSE) chatSSE.close();
-  });
 })();

@@ -149,19 +149,17 @@
     if (files.length > 0) doUpload(files);
   });
 
-  // Listen for group events to auto-refresh on doc changes (direct SSE)
+  // Listen for group events to auto-refresh on doc changes (via MQ)
   function startEventListener() {
-    var es = new EventSource('/api/groups/events');
-    es.addEventListener('msg', function(e) {
-      try {
-        var evt = JSON.parse(e.data);
-        if (!currentGroupID) return;
-        var p = evt.payload;
-        if (!p) return;
-        if (p.action === "doc-added" || p.action === "doc-removed") {
+    if (!window.Goop || !window.Goop.mq) { setTimeout(startEventListener, 100); return; }
+    Goop.mq.subscribe('group:*', function(from, topic, payload, ack) {
+      if (payload && payload.type === 'msg' && currentGroupID && payload.group === currentGroupID) {
+        var p = payload.payload;
+        if (p && (p.action === "doc-added" || p.action === "doc-removed")) {
           loadBrowse();
         }
-      } catch(_) {}
+      }
+      ack();
     });
   }
   startEventListener();

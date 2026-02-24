@@ -5,13 +5,12 @@ import (
 
 	"github.com/petervdpas/goop2/internal/avatar"
 	"github.com/petervdpas/goop2/internal/call"
-	"github.com/petervdpas/goop2/internal/chat"
 	"github.com/petervdpas/goop2/internal/content"
 	"github.com/petervdpas/goop2/internal/docs"
 	"github.com/petervdpas/goop2/internal/group"
 	"github.com/petervdpas/goop2/internal/listen"
+	"github.com/petervdpas/goop2/internal/mq"
 	"github.com/petervdpas/goop2/internal/p2p"
-	"github.com/petervdpas/goop2/internal/realtime"
 	"github.com/petervdpas/goop2/internal/rendezvous"
 	"github.com/petervdpas/goop2/internal/state"
 	"github.com/petervdpas/goop2/internal/storage"
@@ -31,10 +30,9 @@ type Viewer struct {
 	Cfg     any // Config interface to avoid import cycle
 	Logs    *LogBuffer
 	Content *content.Store
-	Chat    *chat.Manager
-	Groups   *group.Manager
-	Realtime *realtime.Manager
-	Listen   *listen.Manager
+	MQ      *mq.Manager
+	Groups  *group.Manager
+	Listen  *listen.Manager
 	DB       *storage.DB // SQLite database for peer data
 	Docs    *docs.Store // shared documents store
 
@@ -102,9 +100,9 @@ func Start(addr string, v Viewer) error {
 	}
 	routes.Register(mux, deps)
 
-	// Register chat endpoints if chat manager is available
-	if v.Chat != nil {
-		routes.RegisterChat(mux, v.Chat, v.Peers)
+	// Register MQ endpoints
+	if v.MQ != nil {
+		routes.RegisterMQ(mux, v.MQ)
 	}
 
 	// Register data/storage endpoints if DB is available
@@ -144,13 +142,10 @@ func Start(addr string, v Viewer) error {
 				}
 				return false
 			},
+			v.MQ,
 		)
 	}
 
-	// Register realtime channel endpoints if realtime manager is available
-	if v.Realtime != nil {
-		routes.RegisterRealtime(mux, v.Realtime, v.Node.ID())
-	}
 
 	// Register native call endpoints (always register mode endpoint; full API when Call != nil)
 	routes.RegisterCall(mux, v.Call)

@@ -29,18 +29,20 @@
 /* Color-coding by subsystem */
 #logbox .log-call     { color: #7b9ef5; } /* CALL / [call-native] / [call-ui] / [webrtc] */
 #logbox .log-relay    { color: #f5a623; } /* relay                                        */
-#logbox .log-realtime { color: #50c8a8; } /* GROUP / REALTIME                             */
+#logbox .log-group    { color: #c792ea; } /* GROUP: / LISTEN: text + structured MQ events */
+#logbox .log-data     { color: #76e4f7; } /* [data] operations                            */
 #logbox .log-peer     { color: #68d391; } /* [update] / [online]                          */
 #logbox .log-ok       { color: #68d391; } /* REACHABLE                                    */
 #logbox .log-probe    { color: #555;    } /* probe — dimmed                               */
 #logbox .log-error    { color: #fc8181; } /* UNREACHABLE / error                          */
 
 /* Per-tab line filtering — hide spans that don't belong to the active tab */
-#logbox[data-tab="relay"]  > span:not(.log-relay)                         { display: none; }
-#logbox[data-tab="video"]  > span:not(.log-call)                          { display: none; }
+#logbox[data-tab="relay"]  > span:not(.log-relay)                             { display: none; }
+#logbox[data-tab="video"]  > span:not(.log-call)                              { display: none; }
 #logbox[data-tab="peers"]  > span:not(.log-peer):not(.log-ok):not(.log-probe) { display: none; }
-#logbox[data-tab="errors"] > span:not(.log-error)                         { display: none; }
-#logbox[data-tab="system"] > span:not(.log-default)                       { display: none; }
+#logbox[data-tab="errors"] > span:not(.log-error)                             { display: none; }
+#logbox[data-tab="data"]   > span:not(.log-data)                              { display: none; }
+#logbox[data-tab="group"]  > span:not(.log-group)                             { display: none; }
 
 /* Log tab links need cursor since they have no href */
 .log-tab { cursor: pointer; }
@@ -51,6 +53,7 @@
 .log-tab--video.active  { color: #7b9ef5; border-bottom-color: #7b9ef5; }
 .log-tab--peers.active  { color: #68d391; border-bottom-color: #68d391; }
 .log-tab--errors.active { color: #fc8181; border-bottom-color: #fc8181; }
-.log-tab--system.active { color: var(--accent); border-bottom-color: var(--accent); }
+.log-tab--data.active   { color: #76e4f7; border-bottom-color: #76e4f7; }
+.log-tab--group.active  { color: #c792ea; border-bottom-color: #c792ea; }
 
 .logs-header { display: flex; justify-content: space-between; align-items: center; }

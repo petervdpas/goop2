@@ -93,8 +93,15 @@ func (m *Manager) AcceptCall(ctx context.Context, channelID, remotePeer string) 
 	delete(m.pendingCalls, channelID)
 	m.mu.Unlock()
 	// Notify the caller that we accepted — they can proceed with SDP exchange.
-	_ = m.sig.Send(channelID, map[string]any{"type": "call-ack"})
-	log.Printf("CALL: accepted %s from %s", channelID, remotePeer)
+	// If the channel is already closed (caller hung up before we accepted), log
+	// the error so it's visible in the Logs → Video tab, then clean up immediately.
+	if err := m.sig.Send(channelID, map[string]any{"type": "call-ack"}); err != nil {
+		log.Printf("CALL: accepted %s but call-ack send failed (%v) — channel likely closed, aborting", channelID, err)
+		m.removeSession(channelID)
+		sess.Hangup()
+		return nil, err
+	}
+	log.Printf("CALL: accepted %s from %s — call-ack sent, waiting for SDP offer", channelID, remotePeer)
 	return sess, nil
 }
 
@@ -220,7 +227,12 @@ func (m *Manager) dispatch(env *Envelope) {
 	m.mu.RLock()
 	sess, ok := m.sessions[env.Channel]
 	m.mu.RUnlock()
-	if ok {
-		sess.handleSignal(msgType, payload)
+	if !ok {
+		// Only warn for meaningful signal types — ice-candidate noise would flood logs.
+		if msgType == "call-ack" || msgType == "call-offer" || msgType == "call-answer" {
+			log.Printf("CALL: received %q on %s but no session found — caller may not have called /api/call/start", msgType, env.Channel)
+		}
+		return
 	}
+	sess.handleSignal(msgType, payload)
 }

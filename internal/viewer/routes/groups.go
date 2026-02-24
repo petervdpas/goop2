@@ -6,16 +6,17 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/petervdpas/goop2/internal/group"
+	"github.com/petervdpas/goop2/internal/mq"
 	"github.com/petervdpas/goop2/internal/storage"
 )
 
 // RegisterGroups adds group-related HTTP API endpoints.
-func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, peerName func(id string) string, peerReachable func(id string) bool) {
+func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, peerName func(id string) string, peerReachable func(id string) bool, mqMgr *mq.Manager) {
 	// Create a hosted group / list hosted groups
 	mux.HandleFunc("/api/groups", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -334,18 +335,23 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 		writeJSON(w, map[string]string{"status": "sent"})
 	})
 
-	// SSE endpoint for group events
+	// GET /api/groups/events — compatibility SSE shim for SDK and templates.
+	// Reads from the unified MQ event stream and re-emits group events in the
+	// original wire format: "event: {type}\ndata: {json}\n\n".
 	handleGet(mux, "/api/groups/events", func(w http.ResponseWriter, r *http.Request) {
+		if mqMgr == nil {
+			http.Error(w, "not available", http.StatusServiceUnavailable)
+			return
+		}
 		sseHeaders(w)
-
 		flusher, ok := w.(http.Flusher)
 		if !ok {
-			http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+			http.Error(w, "streaming not supported", http.StatusInternalServerError)
 			return
 		}
 
-		evtChan := grpMgr.Subscribe()
-		defer grpMgr.Unsubscribe(evtChan)
+		evtCh, cancel := mqMgr.Subscribe()
+		defer cancel()
 
 		fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"ok\"}\n\n")
 		flusher.Flush()
@@ -355,20 +361,36 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 			select {
 			case <-ctx.Done():
 				return
-			case evt, ok := <-evtChan:
+			case evt, ok := <-evtCh:
 				if !ok {
 					return
 				}
-				// Internal protocol messages; never forward to browser.
-				if evt.Type == group.TypePing || evt.Type == group.TypePong || evt.Type == group.TypeMeta {
+				if evt.Type != "message" || evt.Msg == nil {
 					continue
 				}
-				data, err := json.Marshal(evt)
+				topic := evt.Msg.Topic
+				var evtType string
+				if topic == "group.invite" {
+					evtType = "invite"
+				} else if strings.HasPrefix(topic, "group:") {
+					// topic = "group:{groupID}:{type}" — extract last segment
+					parts := strings.SplitN(topic, ":", 3)
+					if len(parts) != 3 {
+						continue
+					}
+					evtType = parts[2]
+				} else {
+					continue // not a group event
+				}
+				// Skip internal-only protocol messages
+				if evtType == group.TypePing || evtType == group.TypePong || evtType == group.TypeMeta {
+					continue
+				}
+				data, err := json.Marshal(evt.Msg.Payload)
 				if err != nil {
-					log.Printf("GROUP: Failed to marshal event: %v", err)
 					continue
 				}
-				fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evt.Type, data)
+				fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evtType, data)
 				flusher.Flush()
 			}
 		}

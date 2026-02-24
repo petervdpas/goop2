@@ -1,9 +1,7 @@
 //
-// WebRTC video/audio call API built on top of Goop.realtime channels.
-// Signaling flows over the realtime channel (offer/answer/ICE candidates).
+// WebRTC video/audio call API. Signaling flows over Goop.mq (MQ channels).
 //
 // Usage:
-//   <script src="/sdk/goop-realtime.js"></script>
 //   <script src="/sdk/goop-call.js"></script>
 //
 //   // Start a call
@@ -48,16 +46,9 @@
   var activeCalls = {};   // channelId -> CallSession
   var listening = false;
 
-  // Tell the backend to destroy the rt- group so it doesn't linger.
+  // MQ channels are virtual — no server-side state to close.
   function closeChannel(channelId) {
-    log('debug', 'Closing channel: ' + channelId);
-    fetch("/api/realtime/close", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ channel_id: channelId })
-    }).catch(function(e) {
-      log('warn', 'Failed to close channel: ' + e.message);
-    });
+    log('debug', 'Channel closed (virtual): ' + channelId);
   }
 
   // ── CallSession ─────────────────────────────────────────────────────────────
@@ -74,9 +65,6 @@
     this._onHangup = [];
     this._onStateChange = [];
     this._ended = false;
-    this._pendingCallReq = false;
-    this._constraints = null;
-    this._callReqTimeout = null;
 
     log('info', 'CallSession created: channel=' + channel.id + ', initiator=' + isInitiator + ', remotePeer=' + (channel.remotePeer || 'unknown'));
   }
@@ -160,10 +148,6 @@
 
   CallSession.prototype._cleanup = function() {
     log('debug', 'Cleaning up call session');
-    if (this._callReqTimeout) {
-      clearTimeout(this._callReqTimeout);
-      this._callReqTimeout = null;
-    }
     if (this.pc) {
       log('debug', 'Closing RTCPeerConnection');
       this.pc.close();
@@ -390,36 +374,6 @@
     var channelId = env.channel;
     var session = activeCalls[channelId];
 
-    // Members update — fire pending call-request once the callee has joined the group.
-    // The callee auto-joins in a background goroutine; we must not send SIG_CALL_REQ
-    // until they're actually in the group or the broadcast is lost.
-    if (Array.isArray(payload.members)) {
-      if (session && session._pendingCallReq && session.remotePeer) {
-        for (var k = 0; k < payload.members.length; k++) {
-          if (payload.members[k].peer_id === session.remotePeer) {
-            // Always clear the join-timeout — callee has arrived.
-            if (session._callReqTimeout) {
-              clearTimeout(session._callReqTimeout);
-              session._callReqTimeout = null;
-            }
-            if (session.pc) {
-              // PC is ready — send call-request immediately.
-              session._pendingCallReq = false;
-              log('info', 'Callee joined channel, sending call request...');
-              session.channel.send({ type: SIG_CALL_REQ, constraints: session._constraints });
-            } else {
-              // PC not ready yet (getUserMedia/setup still in progress).
-              // Mark so start() sends the call-request once setup finishes.
-              log('info', 'Callee joined before PC ready, deferring call request...');
-              session._calleePreJoined = true;
-            }
-            break;
-          }
-        }
-      }
-      return;
-    }
-
     if (!payload.type) return;
 
     log('debug', 'Signaling received: type=' + payload.type + ', channel=' + channelId + ', hasSession=' + !!session);
@@ -586,26 +540,13 @@
       accept: async function(constraints) {
         log('info', 'Accepting incoming call...');
         var c = constraints || info.constraints;
-        var channel = { id: channelId, remotePeer: fromPeer, send: function(p) {
-          return fetch("/api/realtime/send", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ channel_id: channelId, payload: p })
-          });
-        }};
-
-        // Only override remotePeer if the server lookup returns a non-empty value —
-        // the auto-registered channel may have an empty remote_peer until the welcome
-        // event From field is populated.
-        var existingChannels = await Goop.realtime.channels();
-        for (var i = 0; i < existingChannels.length; i++) {
-          if (existingChannels[i].id === channelId) {
-            if (existingChannels[i].remote_peer) {
-              channel.remotePeer = existingChannels[i].remote_peer;
-            }
-            break;
+        var channel = {
+          id: channelId,
+          remotePeer: fromPeer,
+          send: function(p) {
+            return Goop.mq.send(fromPeer, 'call:' + channelId, p);
           }
-        }
+        };
 
         var session = new CallSession(channel, false);
         activeCalls[channelId] = session;
@@ -613,11 +554,7 @@
         await setupPeerConnection(session, c);
 
         log('info', 'Sending call ACK to initiator...');
-        await fetch("/api/realtime/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ channel_id: channelId, payload: { type: SIG_CALL_ACK } })
-        });
+        await channel.send({ type: SIG_CALL_ACK });
         log('debug', 'ACK sent, waiting for offer...');
 
         return session;
@@ -625,11 +562,8 @@
 
       reject: function() {
         log('info', 'Rejecting incoming call');
-        fetch("/api/realtime/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ channel_id: channelId, payload: { type: SIG_HANGUP } })
-        }).then(function() { closeChannel(channelId); });
+        Goop.mq.send(fromPeer, 'call:' + channelId, { type: SIG_HANGUP });
+        closeChannel(channelId);
       }
     };
 
@@ -642,9 +576,17 @@
 
   function ensureListening() {
     if (listening) return;
+    if (!window.Goop || !window.Goop.mq) {
+      setTimeout(ensureListening, 100);
+      return;
+    }
     listening = true;
     log('debug', 'Starting to listen for call signaling messages');
-    Goop.realtime.onMessage(handleSignaling);
+    Goop.mq.subscribe('call:*', function(from, topic, payload, ack) {
+      var channelId = topic.replace(/^call:/, '');
+      handleSignaling(payload, { channel: channelId, from: from });
+      ack();
+    });
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────
@@ -659,39 +601,28 @@
       var c = constraints || { video: true, audio: true };
       log('debug', 'Call constraints: ' + JSON.stringify(c));
 
-      // Create realtime channel
-      log('debug', 'Creating realtime channel...');
-      var channel = await Goop.realtime.connect(peerId);
-      log('info', 'Realtime channel created: ' + channel.id);
+      // Create a virtual MQ channel — no server-side state needed.
+      var channelId = 'sdk-' + Math.random().toString(36).slice(2, 10);
+      var channel = {
+        id: channelId,
+        remotePeer: peerId,
+        send: function(p) {
+          return Goop.mq.send(peerId, 'call:' + channelId, p);
+        }
+      };
+      log('info', 'Virtual MQ channel created: ' + channelId);
 
       var session = new CallSession(channel, true);
-      activeCalls[channel.id] = session;
+      activeCalls[channelId] = session;
 
-      // Set up the pending-call-request flag BEFORE setupPeerConnection so that
-      // if the callee auto-joins during getUserMedia (e.g. while the browser shows
-      // a permission prompt), the members handler can record it and we send the
-      // call-request immediately after setup finishes.
-      session._pendingCallReq = true;
-      session._constraints = c;
-      session._calleePreJoined = false;
-      session._callReqTimeout = setTimeout(function() {
-        if (session._pendingCallReq && !session._ended) {
-          log('error', 'Callee did not join channel within 30s, hanging up');
-          session._pendingCallReq = false;
-          session.hangup();
-        }
-      }, 30000);
-
-      // Set up WebRTC (may take time if browser shows a camera/mic permission prompt).
-      log('info', 'Waiting for callee to join channel (setting up WebRTC in parallel)...');
+      // Set up WebRTC before sending the call request.
+      log('info', 'Setting up WebRTC...');
       await setupPeerConnection(session, c);
 
-      // If the callee joined while getUserMedia was pending, the members handler
-      // couldn't send the call-request (PC wasn't ready). Do it now.
-      if (!session._ended && session._calleePreJoined) {
-        session._pendingCallReq = false;
-        log('info', 'Callee pre-joined during PC setup, sending deferred call request...');
-        session.channel.send({ type: SIG_CALL_REQ, constraints: session._constraints });
+      // Send call request via MQ — delivery is guaranteed with ACK + retry.
+      if (!session._ended) {
+        log('info', 'Sending call request to ' + peerId + '...');
+        session.channel.send({ type: SIG_CALL_REQ, constraints: c });
       }
 
       return session;

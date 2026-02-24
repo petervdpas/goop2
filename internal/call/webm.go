@@ -139,7 +139,7 @@ func webmInitSegment(videoW, videoH uint16, withAudio bool) []byte {
 		ebmlElem(idEBMLMaxIDLen, ebmlUint(4)),
 		ebmlElem(idEBMLMaxSzLen, ebmlUint(8)),
 		ebmlElem(idDocType, []byte("webm")),
-		ebmlElem(idDocTypeVer, ebmlUint(4)),
+		ebmlElem(idDocTypeVer, ebmlUint(2)),
 		ebmlElem(idDocTypeRdVer, ebmlUint(2)),
 	)
 	buf.Write(ebmlElem(idEBML, ebmlBody))
@@ -266,6 +266,15 @@ func (ws *webmSession) enableAudio() {
 	ws.mu.Lock()
 	ws.hasAudio = true
 	ws.mu.Unlock()
+}
+
+// hasInitSeg reports whether the init segment has been generated (i.e. the
+// first VP8 keyframe has been received and its dimensions are known).
+func (ws *webmSession) hasInitSeg() bool {
+	ws.mu.Lock()
+	ok := ws.initSeg != nil
+	ws.mu.Unlock()
+	return ok
 }
 
 // subscribeMedia returns a channel that receives WebM binary messages and a

@@ -260,30 +260,3 @@ func (d *DB) SetFavorite(peerID string, favorite bool) error {
 	}
 }
 
-// UpdateFavoriteIfExists updates a favorite peer's metadata if they exist in _favorites.
-// Called when a peer comes online and their metadata updates.
-func (d *DB) UpdateFavoriteIfExists(peerID string, content, email, avatarHash string, videoDisabled, verified bool, addrs string, lastSeen time.Time) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	vd := 0
-	if videoDisabled {
-		vd = 1
-	}
-	ver := 0
-	if verified {
-		ver = 1
-	}
-	_, err := d.db.Exec(`
-		UPDATE _favorites SET
-			content         = ?,
-			email           = ?,
-			avatar_hash     = ?,
-			video_disabled  = ?,
-			active_template = ?,
-			verified        = ?,
-			addrs           = ?,
-			last_seen       = ?
-		WHERE peer_id = ?`,
-		content, email, avatarHash, vd, "", ver, addrs, lastSeen, peerID)
-	return err
-}

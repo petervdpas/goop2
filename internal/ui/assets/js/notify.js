@@ -4,17 +4,11 @@
   // Only run when a peer is active (body carries data-self-id).
   if (!document.body || !document.body.dataset.selfId) return;
 
-  var sse = new EventSource('/api/groups/events');
+  function initInviteNotify() {
+    if (!window.Goop || !window.Goop.mq) { setTimeout(initInviteNotify, 100); return; }
 
-  sse.addEventListener('invite', function(e) {
-    try {
-      var evt = JSON.parse(e.data);
-      var p = evt.payload || {};
-
-      // Suppress invite toast for call channels (rt-*) —
-      // the call accept modal handles user interaction directly.
-      if ((p.group_id || '').startsWith('rt-')) return;
-
+    Goop.mq.subscribe('group.invite', function(from, topic, payload, ack) {
+      var p = (payload && payload.payload) || {};
       var name = p.group_name || p.group_id || 'a group';
 
       if (window.Goop && window.Goop.toast) {
@@ -28,8 +22,9 @@
           }
         });
       }
-    } catch (_) {}
-  });
+      ack();
+    });
+  }
 
-  sse.onerror = function() {};
+  initInviteNotify();
 })();

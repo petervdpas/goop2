@@ -22,58 +22,6 @@
     { urls: "stun:stun1.l.google.com:19302" }
   ];
 
-  // ── Inline realtime transport ────────────────────────────────────────────────
-  // Talks directly to /api/realtime/* — no dependency on Goop.realtime (SDK).
-
-  var _rtSSE = null;
-  var _rtGlobalHandlers = [];
-
-  function rtEnsureSSE() {
-    if (_rtSSE) return;
-    _rtSSE = new EventSource('/api/realtime/events');
-    _rtSSE.addEventListener('message', function(e) {
-      try {
-        var env = JSON.parse(e.data);
-        var payload = env.payload;
-        for (var i = 0; i < _rtGlobalHandlers.length; i++) {
-          try { _rtGlobalHandlers[i](payload, env); } catch(err) { /* ignore */ }
-        }
-      } catch(err) {}
-    });
-  }
-
-  async function rtConnect(peerId) {
-    rtEnsureSSE();
-    var res = await fetch('/api/realtime/connect', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ peer_id: peerId })
-    });
-    if (!res.ok) { var t = await res.text(); throw new Error(t || res.statusText); }
-    var info = await res.json();
-    return {
-      id: info.id,
-      remotePeer: info.remote_peer,
-      send: function(payload) {
-        return fetch('/api/realtime/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ channel_id: info.id, payload: payload })
-        });
-      }
-    };
-  }
-
-  function rtOnMessage(callback) {
-    rtEnsureSSE();
-    _rtGlobalHandlers.push(callback);
-  }
-
-  async function rtChannels() {
-    var res = await fetch('/api/realtime/channels');
-    if (!res.ok) { var t = await res.text(); throw new Error(t || res.statusText); }
-    return res.json();
-  }
 
   var SIG_OFFER     = "call-offer";
   var SIG_ANSWER    = "call-answer";
@@ -87,14 +35,8 @@
   var listening = false;
 
   function closeChannel(channelId) {
-    log('debug', 'Closing channel: ' + channelId);
-    fetch("/api/realtime/close", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ channel_id: channelId })
-    }).catch(function(e) {
-      log('warn', 'Failed to close channel: ' + e.message);
-    });
+    // MQ channels are virtual — no explicit close needed.
+    log('debug', 'closeChannel: ' + channelId + ' (no-op with MQ transport)');
   }
 
   // ── CallSession ─────────────────────────────────────────────────────────────
@@ -171,7 +113,7 @@
     if (this._ended) return;
     this._ended = true;
     log('info', 'Hanging up call on channel: ' + this.channelId);
-    try { this.channel.send({ type: SIG_HANGUP }); } catch(e) { /* ignore */ }
+    try { this.channel.send({ type: SIG_HANGUP }).catch(function(){}); } catch(e) { /* ignore */ }
     this._cleanup();
     this._emitHangup();
     closeChannel(this.channelId);
@@ -297,7 +239,7 @@
       if (event.candidate) {
         var c = event.candidate;
         log('debug', 'ICE candidate: type=' + (c.type || 'unknown') + ', protocol=' + (c.protocol || 'unknown') + ', address=' + (c.address || 'hidden'));
-        session.channel.send({ type: SIG_ICE, candidate: event.candidate.toJSON() });
+        session.channel.send({ type: SIG_ICE, candidate: event.candidate.toJSON() }).catch(function(){});
       } else {
         log('info', 'ICE gathering complete (null candidate)');
       }
@@ -558,25 +500,10 @@
         log('info', 'Accepting incoming call...');
         var c = constraints || info.constraints;
         var channel = { id: channelId, remotePeer: fromPeer, send: function(p) {
-          return fetch("/api/realtime/send", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ channel_id: channelId, payload: p })
-          });
+          return window.Goop && window.Goop.mq
+            ? window.Goop.mq.send(fromPeer, 'call:' + channelId, p)
+            : Promise.reject(new Error('MQ not available'));
         }};
-
-        // Only override remotePeer if the server lookup returns a non-empty value —
-        // the auto-registered channel may have an empty remote_peer until the welcome
-        // event From field is populated.
-        var existingChannels = await rtChannels();
-        for (var i = 0; i < existingChannels.length; i++) {
-          if (existingChannels[i].id === channelId) {
-            if (existingChannels[i].remote_peer) {
-              channel.remotePeer = existingChannels[i].remote_peer;
-            }
-            break;
-          }
-        }
 
         var session = new CallSession(channel, false);
         activeCalls[channelId] = session;
@@ -584,11 +511,7 @@
         await setupPeerConnection(session, c);
 
         log('info', 'Sending call ACK to initiator...');
-        await fetch("/api/realtime/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ channel_id: channelId, payload: { type: SIG_CALL_ACK } })
-        });
+        await channel.send({ type: SIG_CALL_ACK }).catch(function(){});
         log('debug', 'ACK sent, waiting for offer...');
 
         return session;
@@ -596,11 +519,9 @@
 
       reject: function() {
         log('info', 'Rejecting incoming call');
-        fetch("/api/realtime/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ channel_id: channelId, payload: { type: SIG_HANGUP } })
-        }).then(function() { closeChannel(channelId); });
+        if (window.Goop && window.Goop.mq) {
+          window.Goop.mq.send(fromPeer, 'call:' + channelId, { type: SIG_HANGUP }).catch(function() {});
+        }
       }
     };
 
@@ -614,8 +535,17 @@
   function ensureListening() {
     if (listening) return;
     listening = true;
-    log('debug', 'Starting to listen for call signaling messages');
-    rtOnMessage(handleSignaling);
+    log('debug', 'Starting to listen for call signaling messages via MQ');
+    // Subscribe to all call:* topics; handleSignaling receives (payload, {channel,from})
+    function initMQSig() {
+      if (!window.Goop || !window.Goop.mq) { setTimeout(initMQSig, 100); return; }
+      window.Goop.mq.subscribe('call:*', function(from, topic, payload, ack) {
+        var channelId = topic.replace(/^call:/, '');
+        handleSignaling(payload, { channel: channelId, from: from });
+        ack();
+      });
+    }
+    initMQSig();
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────
@@ -629,9 +559,18 @@
       var c = constraints || { video: true, audio: true };
       log('debug', 'Call constraints: ' + JSON.stringify(c));
 
-      log('debug', 'Creating realtime channel...');
-      var channel = await rtConnect(peerId);
-      log('info', 'Realtime channel created: ' + channel.id);
+      // Create a virtual MQ channel (no server-side channel registration needed).
+      var channelId = 'mc-' + Math.random().toString(36).slice(2, 10);
+      var channel = {
+        id: channelId,
+        remotePeer: peerId,
+        send: function(p) {
+          return window.Goop && window.Goop.mq
+            ? window.Goop.mq.send(peerId, 'call:' + channelId, p)
+            : Promise.reject(new Error('MQ not available'));
+        }
+      };
+      log('info', 'MQ channel created: ' + channel.id);
 
       var session = new CallSession(channel, true);
       activeCalls[channel.id] = session;
@@ -670,9 +609,6 @@
       incomingHandlers.push(callback);
     },
 
-    getCall: function(channelId) {
-      return activeCalls[channelId] || null;
-    },
 
     activeCalls: function() {
       var out = [];

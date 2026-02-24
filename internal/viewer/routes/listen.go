@@ -1,9 +1,7 @@
 package routes
 
 import (
-	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
@@ -209,39 +207,4 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager, peerName func(string
 		writeJSON(w, map[string]any{"group": group, "listener_names": names})
 	})
 
-	// GET /api/listen/events — SSE for state updates
-	handleGet(mux, "/api/listen/events", func(w http.ResponseWriter, r *http.Request) {
-		sseHeaders(w)
-
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			http.Error(w, "streaming not supported", http.StatusInternalServerError)
-			return
-		}
-
-		evtCh, cancel := lm.SubscribeSSE()
-		defer cancel()
-
-		fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"ok\"}\n\n")
-		flusher.Flush()
-
-		ctx := r.Context()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case group, ok := <-evtCh:
-				if !ok {
-					return
-				}
-				data, err := json.Marshal(map[string]any{"group": group})
-				if err != nil {
-					log.Printf("LISTEN: marshal error: %v", err)
-					continue
-				}
-				fmt.Fprintf(w, "event: state\ndata: %s\n\n", data)
-				flusher.Flush()
-			}
-		}
-	})
 }

@@ -138,8 +138,14 @@
      * Go closes session.HangupCh() when either peer hangs up → SSE fires →
      * browser receives "hangup" event → call overlay closes.
      * Must be called after the Go session exists (i.e. after start/accept returns).
+     *
+     * Retries up to 5 times (2 s apart) on transient connection errors so that
+     * a brief network hiccup doesn't permanently lose the hangup notification.
      */
-    _listenForHangup() {
+    _listenForHangup(attempt) {
+      attempt = attempt || 0;
+      const maxAttempts = 5;
+
       const es = new EventSource(`/api/call/session/${this.channelId}/events`);
       this._sessionEs = es;
 
@@ -150,10 +156,19 @@
       });
 
       es.onerror = () => {
-        // Session ended or server restarted — stop retrying.
-        if (this._sessionEs === es) {
-          es.close();
-          this._sessionEs = null;
+        if (this._sessionEs !== es) return; // superseded by a later connection
+        es.close();
+        this._sessionEs = null;
+        if (attempt < maxAttempts) {
+          log('warn', 'session SSE error — retry ' + (attempt + 1) + '/' + maxAttempts);
+          setTimeout(() => {
+            // Only reconnect if we haven't already hung up.
+            if (this._sessionEs === null && this._hangupCbs.length > 0) {
+              this._listenForHangup(attempt + 1);
+            }
+          }, 2000);
+        } else {
+          log('warn', 'session SSE failed after ' + maxAttempts + ' retries — hangup events will be missed');
         }
       };
     }
@@ -282,13 +297,29 @@
       this._emitRemoteVideoSrc(url);
 
       // Wait for the video element to connect to the MediaSource.
-      await new Promise(resolve => ms.addEventListener('sourceopen', resolve, { once: true }));
+      // Add a 4-second timeout: if WebKitGTK never fires sourceopen (e.g. the
+      // video element isn't rendering), bail so the WebSocket still opens and
+      // we at least get audio/connection state — better than hanging forever.
+      const sourceOpenOk = await new Promise(resolve => {
+        const timeout = setTimeout(() => {
+          log('warn', 'sourceopen timeout — MSE may not be supported or video is not rendered');
+          resolve(false);
+        }, 4000);
+        ms.addEventListener('sourceopen', () => { clearTimeout(timeout); resolve(true); }, { once: true });
+      });
+
+      if (!sourceOpenOk || ms.readyState !== 'open') {
+        log('warn', 'MSE not ready (readyState=' + ms.readyState + ') — remote video unavailable');
+        this._emitState('connected');
+        return;
+      }
 
       let sb;
       try {
         sb = ms.addSourceBuffer(mimeType);
       } catch (e) {
         log('warn', 'MSE addSourceBuffer failed: ' + e);
+        this._emitState('connected');
         return;
       }
 
@@ -369,70 +400,45 @@
     async start(peerId /*, constraints — ignored; Go handles media in Phase 3+ */) {
       log('info', 'starting call to ' + peerId);
 
-      // Step 1: create realtime channel (same HTTP call as browser mode).
-      const chRes = await fetch('/api/realtime/connect', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ peer_id: peerId }),
-      });
-      if (!chRes.ok) throw new Error('realtime connect failed: ' + chRes.status);
-      const channel = await chRes.json();
-      log('info', 'channel created: ' + channel.id);
+      // Create a virtual MQ channel ID (no server-side registration needed).
+      const channelId = 'nc-' + Math.random().toString(36).slice(2, 10);
+      log('info', 'MQ channel id: ' + channelId);
 
-      // Step 2: register session with Go's call manager.
+      // Register session with Go's call manager.
       const startRes = await fetch('/api/call/start', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ channel_id: channel.id, remote_peer: peerId }),
+        body:    JSON.stringify({ channel_id: channelId, remote_peer: peerId }),
       });
       if (!startRes.ok) throw new Error('call start failed: ' + startRes.status);
-      log('info', 'Go call session started, channel=' + channel.id);
+      log('info', 'Go call session started, channel=' + channelId);
 
-      // Step 3: create session and wire hangup + loopback.
-      const sess = new NativeSession(channel.id);
+      // Create session and wire hangup + loopback.
+      const sess = new NativeSession(channelId);
       sess._listenForHangup();
       sess._connectLoopback();
 
-      // Step 4: notify callee — mirrors video-call.js: wait for callee to appear
-      // in the channel members list, then send call-request so their call.Manager
-      // fires the incoming-call SSE → showIncomingCall modal.
-      this._notifyCallee(channel.id, peerId);
+      // Send call-request to callee via MQ.
+      this._notifyCallee(channelId, peerId);
 
       return sess;
     }
 
     /**
-     * Watch the realtime channel for the callee joining, then send call-request.
-     * Falls back after 5 s in case the callee joined before we subscribed.
+     * Send a call-request message to the callee via MQ.
      */
     _notifyCallee(channelId, peerId) {
-      let done = false;
+      log('info', 'sending call-request to ' + peerId + ' on ' + channelId);
       const send = () => {
-        if (done) return;
-        done = true;
-        log('info', 'sending call-request to ' + peerId + ' on ' + channelId);
-        fetch('/api/realtime/send', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ channel_id: channelId, payload: { type: 'call-request' } }),
-        }).catch(() => {});
+        if (!window.Goop || !window.Goop.mq) {
+          setTimeout(send, 200);
+          return;
+        }
+        window.Goop.mq.send(peerId, 'call:' + channelId, { type: 'call-request' }).catch(() => {
+          // MQ will retry automatically from outbox.
+        });
       };
-
-      const timer = setTimeout(() => { es.close(); send(); }, 5000);
-
-      const es = new EventSource('/api/realtime/events?channel=' + encodeURIComponent(channelId));
-      es.addEventListener('message', e => {
-        try {
-          const env   = JSON.parse(e.data);
-          const members = env.payload && env.payload.members;
-          if (Array.isArray(members) && members.some(m => m.peer_id === peerId)) {
-            clearTimeout(timer);
-            es.close();
-            send();
-          }
-        } catch (_) {}
-      });
-      es.onerror = () => { clearTimeout(timer); es.close(); send(); };
+      send();
     }
 
     /**

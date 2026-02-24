@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/fsnotify/fsnotify v1.9.0
+	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/ipfs/go-log/v2 v2.5.1
 	github.com/libp2p/go-libp2p v0.34.0
@@ -11,6 +12,7 @@ require (
 	github.com/multiformats/go-multiaddr v0.12.4
 	github.com/pion/interceptor v0.1.42
 	github.com/pion/mediadevices v0.9.4
+	github.com/pion/rtcp v1.2.16
 	github.com/pion/rtp v1.8.26
 	github.com/pion/webrtc/v4 v4.1.8
 	github.com/tdewolff/minify/v2 v2.24.8
@@ -43,7 +45,6 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/pprof v0.0.0-20250317173921-a4b03ec1a45e // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/ipfs/go-cid v0.4.1 // indirect
@@ -98,7 +99,6 @@ require (
 	github.com/pion/mdns v0.0.12 // indirect
 	github.com/pion/mdns/v2 v2.1.0 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
-	github.com/pion/rtcp v1.2.16 // indirect
 	github.com/pion/sctp v1.8.41 // indirect
 	github.com/pion/sdp/v3 v3.0.16 // indirect
 	github.com/pion/srtp/v2 v2.0.18 // indirect

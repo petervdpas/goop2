@@ -47,66 +47,44 @@
       currentPeerPage = pathMatch[1];
     }
 
+    function showChatToast(from, content) {
+      if (!window.Goop || !window.Goop.toast) return;
+      if (from === selfID || from === currentPeerPage) return;
+
+      var avatarUrl = '/api/avatar/peer/' + encodeURIComponent(from);
+      var avatarImg = '<img src="' + avatarUrl + '" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">';
+      var preview = content && content.length > 60 ? content.substring(0, 60) + '...' : (content || '');
+
+      function show(label) {
+        window.Goop.toast({
+          icon: avatarImg,
+          title: label,
+          message: '<div>' + preview.replace(/</g, '&lt;') + '</div>',
+          onClick: function() { window.location.href = '/peer/' + from; },
+          duration: 8000
+        });
+      }
+
+      fetch('/api/peers').then(function(r){ return r.json(); }).then(function(peers) {
+        var label = from.substring(0, 8) + '...';
+        if (Array.isArray(peers)) {
+          var found = peers.find(function(p){ return p.ID === from; });
+          if (found && found.Content) label = found.Content;
+        }
+        show(label);
+      }).catch(function() { show(from.substring(0, 8) + '...'); });
+    }
+
+    // Subscribe to incoming chat messages via MQ (replaces /api/chat/events SSE).
     function initChatNotifications() {
-      if (!window.Goop || !window.Goop.toast) {
+      if (!window.Goop || !window.Goop.mq) {
         setTimeout(initChatNotifications, 100);
         return;
       }
-
-      var eventSource = new EventSource('/api/chat/events');
-
-      eventSource.addEventListener('message', function(e) {
-        try {
-          var msg = JSON.parse(e.data);
-          var msgType = msg.type || 'direct';
-
-          if (msgType === 'direct' && msg.from && msg.from !== selfID && msg.from !== currentPeerPage) {
-            var avatarUrl = '/api/avatar/peer/' + encodeURIComponent(msg.from);
-            var avatarImg = '<img src="' + avatarUrl + '" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">';
-
-            fetch('/api/peers').then(function(r){ return r.json(); }).then(function(peers) {
-              var label = msg.from.substring(0, 8) + '...';
-              if (Array.isArray(peers)) {
-                var found = peers.find(function(p){ return p.ID === msg.from; });
-                if (found && found.Content) label = found.Content;
-              }
-
-              var preview = msg.content;
-              if (preview.length > 60) preview = preview.substring(0, 60) + '...';
-
-              window.Goop.toast({
-                icon: avatarImg,
-                title: label,
-                message: '<div>' + preview.replace(/</g,'&lt;') + '</div>',
-                onClick: function() {
-                  window.location.href = '/peer/' + msg.from;
-                },
-                duration: 8000
-              });
-            }).catch(function() {
-              var shortID = msg.from.substring(0, 8) + '...';
-              var preview = msg.content;
-              if (preview.length > 60) preview = preview.substring(0, 60) + '...';
-
-              window.Goop.toast({
-                icon: avatarImg,
-                title: shortID,
-                message: '<div>' + preview.replace(/</g,'&lt;') + '</div>',
-                onClick: function() {
-                  window.location.href = '/peer/' + msg.from;
-                },
-                duration: 8000
-              });
-            });
-          }
-        } catch (err) {
-          console.error('Failed to parse chat message:', err);
-        }
+      window.Goop.mq.subscribe('chat', function(from, _topic, payload, ack) {
+        showChatToast(from, payload && payload.content);
+        ack();
       });
-
-      eventSource.onerror = function(err) {
-        console.error('Chat SSE error:', err);
-      };
     }
 
     initChatNotifications();
