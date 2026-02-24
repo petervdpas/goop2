@@ -278,6 +278,11 @@
       let sb;
       try {
         sb = ms.addSourceBuffer(mimeType);
+        // Sequence mode: MSE plays clusters in arrival order, ignoring absolute
+        // timecodes.  Without this, VP8 RTP-derived timecodes (large random
+        // initial values) would place data millions of ms into the future and
+        // the video element would show black (nothing buffered at currentTime=0).
+        sb.mode = 'sequence';
       } catch (e) {
         log('warn', 'MSE addSourceBuffer failed: ' + e);
         this._emitState('connected');
@@ -306,6 +311,14 @@
         if (!connectedEmitted && ms.readyState === 'open') {
           connectedEmitted = true;
           this._emitState('connected');
+        }
+        // Trim old buffered data to prevent QuotaExceededError on long calls.
+        // Keep only the last 30 s; remove() is async and fires updateend again.
+        if (!sb.updating && sb.buffered.length > 0 && ms.readyState === 'open') {
+          const s0 = sb.buffered.start(0), e0 = sb.buffered.end(0);
+          if (e0 - s0 > 30) {
+            try { sb.remove(s0, e0 - 30); return; } catch (_) {}
+          }
         }
         tryAppend();
       });

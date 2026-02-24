@@ -249,6 +249,15 @@ type webmSession struct {
 
 	// Subscriber channels: each receives binary WebSocket messages
 	subs map[chan []byte]struct{}
+
+	// Timestamp normalization: first frame of each track becomes t=0.
+	// VP8 and Opus RTP clocks start at independent random values; without
+	// normalization the cluster timecodes are huge (hours) and audio relMs
+	// values are millions of ms off, causing silent MSE rejection.
+	baseVideoMs  int64
+	baseVideoSet bool
+	baseAudioMs  int64
+	baseAudioSet bool
 }
 
 type webmAudioFrame struct {
@@ -309,10 +318,20 @@ func (ws *webmSession) subscribeMedia() (<-chan []byte, func()) {
 }
 
 // handleVideoFrame is called from the VP8 streaming goroutine.
-// It assembles clusters and broadcasts them to subscribers.
+// One cluster per frame, flushed immediately — keeps per-frame latency at zero
+// and WebKitGTK MSE in sequence mode handles P-frame clusters correctly.
 func (ws *webmSession) handleVideoFrame(timecodeMs int64, keyframe bool, data []byte) {
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
+
+	// Normalize so the first video frame is at t=0ms.  VP8 RTP timestamps
+	// start at a large random value; without this the cluster timecodes would
+	// be millions of ms into the future and MSE would silently discard all data.
+	if !ws.baseVideoSet {
+		ws.baseVideoMs = timecodeMs
+		ws.baseVideoSet = true
+	}
+	tsMs := timecodeMs - ws.baseVideoMs
 
 	// Extract video dimensions from the first VP8 keyframe header.
 	if !ws.dimKnown && keyframe && len(data) >= 10 {
@@ -337,36 +356,31 @@ func (ws *webmSession) handleVideoFrame(timecodeMs int64, keyframe bool, data []
 		ws.broadcastLocked(ws.initSeg)
 	}
 
-	// Flush the previous cluster when a new keyframe arrives.
-	// This ensures each cluster starts at a seekable point.
+	// Start a new cluster at each keyframe (seekable boundary point).
 	if keyframe && ws.clusterOpen {
 		ws.flushClusterLocked()
 	}
 
-	// Open a new cluster if needed.
 	if !ws.clusterOpen {
-		ws.clusterStartMs = timecodeMs
+		ws.clusterStartMs = tsMs
 		ws.clusterOpen = true
 		ws.clusterBlocks.Reset()
 
-		// Drain queued audio frames that belong in this cluster.
+		// Drain queued audio frames into this cluster.
 		newQ := ws.audioQ[:0]
 		for _, af := range ws.audioQ {
 			rel := af.timecodeMs - ws.clusterStartMs
 			if rel < -30000 || rel > 30000 {
-				continue // too far out of range, discard
+				continue
 			}
-			relMs := int16(rel)
-			ws.clusterBlocks.Write(webmSimpleBlock(2, relMs, false, af.data))
+			ws.clusterBlocks.Write(webmSimpleBlock(2, int16(rel), false, af.data))
 		}
 		ws.audioQ = newQ
 	}
 
-	// Write the video SimpleBlock into the current cluster.
-	relMs := int16(timecodeMs - ws.clusterStartMs)
+	// Write the video SimpleBlock and flush immediately for low per-frame latency.
+	relMs := int16(tsMs - ws.clusterStartMs)
 	ws.clusterBlocks.Write(webmSimpleBlock(1, relMs, keyframe, data))
-
-	// Flush immediately so the browser gets frames as they arrive.
 	ws.flushClusterLocked()
 }
 
@@ -375,17 +389,26 @@ func (ws *webmSession) handleAudioFrame(timecodeMs int64, data []byte) {
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
 
+	// Normalize so the first audio frame is at t=0ms.  Opus and VP8 RTP clocks
+	// have independent random starting offsets; both are normalized to 0 so that
+	// relMs values within a cluster are small (within a frame interval).
+	if !ws.baseAudioSet {
+		ws.baseAudioMs = timecodeMs
+		ws.baseAudioSet = true
+	}
+	tsMs := timecodeMs - ws.baseAudioMs
+
 	if ws.initSeg == nil || !ws.clusterOpen {
 		// Cluster not open yet — queue audio (bounded).
 		if len(ws.audioQ) < 200 {
-			ws.audioQ = append(ws.audioQ, webmAudioFrame{timecodeMs, data})
+			ws.audioQ = append(ws.audioQ, webmAudioFrame{tsMs, data})
 		} else {
 			log.Printf("CALL [%s]: WebM audio queue full (200 frames) — dropping audio frame", ws.channelID)
 		}
 		return
 	}
 
-	relMs := int16(timecodeMs - ws.clusterStartMs)
+	relMs := int16(tsMs - ws.clusterStartMs)
 	ws.clusterBlocks.Write(webmSimpleBlock(2, relMs, false, data))
 }
 

@@ -280,25 +280,21 @@ func (s *Session) streamVideoTrack(track *webrtc.TrackRemote) {
 	sendPLI()
 	log.Printf("CALL [%s]: PLI sent — requesting initial VP8 keyframe", s.channelID)
 
-	// Keep requesting keyframes every 2 s until the WebM init segment is ready,
-	// then stop.  Bounded to 10 s to avoid hammering a stalled remote encoder.
+	// Steady PLI every 2 s for the lifetime of the call.  Before init: retries
+	// request the first keyframe.  After init: maintains keyframe cadence for
+	// packet-loss recovery and quality maintenance.
 	go func() {
 		ticker := time.NewTicker(2 * time.Second)
-		deadline := time.NewTimer(10 * time.Second)
 		defer ticker.Stop()
-		defer deadline.Stop()
 		for {
 			select {
 			case <-s.hangupCh:
 				return
-			case <-deadline.C:
-				return
 			case <-ticker.C:
-				if s.webm.hasInitSeg() {
-					return
-				}
 				sendPLI()
-				log.Printf("CALL [%s]: PLI retry — still waiting for VP8 keyframe", s.channelID)
+				if !s.webm.hasInitSeg() {
+					log.Printf("CALL [%s]: PLI retry — still waiting for VP8 keyframe", s.channelID)
+				}
 			}
 		}
 	}()

@@ -252,7 +252,7 @@
     var hangupBtn   = parts.hangupBtn;
     var videoBtn    = parts.videoBtn;
 
-    // Show local video
+    // Show local video (self-view inset).
     if (session.localStream) {
       localVideo.srcObject = session.localStream;
     }
