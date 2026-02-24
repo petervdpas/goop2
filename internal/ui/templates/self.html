@@ -151,6 +151,19 @@
             </div>
           </div>
 
+          <div class="grid2">
+            <div class="field">
+              <label>Peer offline grace period</label>
+              <input type="number" name="viewer_peer_offline_grace_min"
+                     min="1" max="60"
+                     value="{{if .Cfg.Viewer.PeerOfflineGraceMin}}{{.Cfg.Viewer.PeerOfflineGraceMin}}{{else}}15{{end}}">
+              <div class="hint">
+                Minutes to keep an offline non-favorite before pruning (1–60). Adds to the ~{{.Cfg.Presence.TTLSec}}s heartbeat timeout.
+              </div>
+            </div>
+            <div class="field"></div>
+          </div>
+
         </div>
 
         <!-- Splash -->

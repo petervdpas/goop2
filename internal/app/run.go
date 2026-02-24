@@ -375,6 +375,9 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 					mqMgr.PublishLocal("peer:gone", "", map[string]any{
 						"peerID": evt.PeerID,
 					})
+					// Sync DB cache with in-memory prune: delete from _peer_cache.
+					// Favorites survive in _favorites; non-favorites are gone for good.
+					go db.DeleteCachedPeer(evt.PeerID)
 				}
 			}
 		}
@@ -673,17 +676,32 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		}
 	}()
 
-	const peerOfflineGrace = 2 * time.Hour
 	go func() {
 		t := time.NewTicker(1 * time.Second)
 		defer t.Stop()
+		graceMin := cfg.Viewer.PeerOfflineGraceMin
+		if graceMin < 1 || graceMin > 60 {
+			graceMin = 15
+		}
+		var graceRefresh int
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-t.C:
+				// Re-read grace period from config once every 5 minutes.
+				graceRefresh++
+				if graceRefresh >= 300 {
+					graceRefresh = 0
+					if live, err := config.LoadPartial(o.CfgPath); err == nil {
+						v := live.Viewer.PeerOfflineGraceMin
+						if v >= 1 && v <= 60 {
+							graceMin = v
+						}
+					}
+				}
 				ttlCutoff := time.Now().Add(-time.Duration(cfg.Presence.TTLSec) * time.Second)
-				graceCutoff := time.Now().Add(-peerOfflineGrace)
+				graceCutoff := time.Now().Add(-time.Duration(graceMin) * time.Minute)
 				peers.PruneStale(ttlCutoff, graceCutoff)
 			}
 		}

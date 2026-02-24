@@ -132,6 +132,7 @@ type Viewer struct {
 	ActiveTemplate     string `json:"active_template"`     // dir name of currently applied template
 	OpenSitesExternal  bool   `json:"open_sites_external"` // true = open peer sites in system browser, false = embedded tabs
 	Splash             string `json:"splash"`              // splash image filename for peers page
+	PeerOfflineGraceMin int   `json:"peer_offline_grace_min"` // minutes before an offline non-favorite is pruned (1–60)
 }
 
 type Lua struct {
@@ -180,10 +181,11 @@ func Default() Config {
 			Label: "hello",
 		},
 		Viewer: Viewer{
-			HTTPAddr: "",
-			Debug:    false,
-			Theme:    "dark",
-			Splash:   "goop2-splash2.png",
+			HTTPAddr:            "",
+			Debug:               false,
+			Theme:               "dark",
+			Splash:              "goop2-splash2.png",
+			PeerOfflineGraceMin: 15,
 		},
 		Lua: Lua{
 			Enabled:          false,

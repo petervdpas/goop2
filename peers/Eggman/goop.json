@@ -56,7 +56,8 @@
     "hide_unverified": false,
     "active_template": "blog",
     "open_sites_external": false,
-    "splash": "goop2-splash3.png"
+    "splash": "goop2-splash.png",
+    "peer_offline_grace_min": 20
   },
   "lua": {
     "enabled": true,
