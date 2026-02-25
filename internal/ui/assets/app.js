@@ -20,13 +20,10 @@
     "/assets/js/groups.js",
   ];
 
-  // Viewer-only call layer.
-  // call-native.js loads after call-ui.js and replaces Goop.call when
-  // the server is running in native (Go/Pion) mode.
+  // Viewer-only call layer — single unified file handles both browser and native modes.
   const callFiles = [
-    "/assets/js/video-call.js",
+    "/assets/js/call.js",
     "/assets/js/call-ui.js",
-    "/assets/js/call-native.js",
   ];
 
   const pageFiles = [
