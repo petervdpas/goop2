@@ -119,7 +119,7 @@ var (
 var opusHead = []byte{
 	'O', 'p', 'u', 's', 'H', 'e', 'a', 'd', // magic
 	0x01,                   // version = 1
-	0x02,                   // channels = 2
+	0x01,                   // channels = 1 (mono)
 	0x38, 0x01,             // pre-skip = 312 (LE)
 	0x80, 0xBB, 0x00, 0x00, // input sample rate = 48000 (LE)
 	0x00, 0x00,             // output gain = 0 (LE)
@@ -177,7 +177,7 @@ func webmInitSegment(videoW, videoH uint16, withAudio bool) []byte {
 		binary.BigEndian.PutUint32(freqBytes, math.Float32bits(48000.0))
 		audioBody := ebmlConcat(
 			ebmlElem(idSampFreq, freqBytes),
-			ebmlElem(idChannels, ebmlUint(2)),
+			ebmlElem(idChannels, ebmlUint(1)),
 		)
 		audioEntry := ebmlConcat(
 			ebmlElem(idTrackNum, ebmlUint(2)),
@@ -400,10 +400,10 @@ func (ws *webmSession) handleAudioFrame(timecodeMs int64, data []byte) {
 
 	if ws.initSeg == nil || !ws.clusterOpen {
 		// Cluster not open yet — queue audio (bounded).
-		if len(ws.audioQ) < 200 {
+		if len(ws.audioQ) < 5 {
 			ws.audioQ = append(ws.audioQ, webmAudioFrame{tsMs, data})
 		} else {
-			log.Printf("CALL [%s]: WebM audio queue full (200 frames) — dropping audio frame", ws.channelID)
+			log.Printf("CALL [%s]: WebM audio queue full (5 frames) — dropping audio frame", ws.channelID)
 		}
 		return
 	}
