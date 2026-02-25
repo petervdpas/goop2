@@ -282,12 +282,8 @@
     pc.onicecandidate = function (e) {
       if (!e.candidate) return;
       _sendMQ(self.remotePeerId, self.channelId, {
-        type: 'ice-candidate',
-        candidate: {
-          candidate:     e.candidate.candidate,
-          sdpMid:        e.candidate.sdpMid,
-          sdpMLineIndex: e.candidate.sdpMLineIndex,
-        },
+        type:      'ice-candidate',
+        candidate: e.candidate.toJSON(),
       });
     };
 
@@ -314,6 +310,21 @@
 
   CallSession.prototype._connectNative = async function () {
     this._emitState('connecting');
+
+    // Best-effort self-preview — Go/Pion owns the actual capture device,
+    // but the browser can still open its own stream for the local inset.
+    // If the camera is exclusively locked by Go (rare on most platforms),
+    // this fails silently and the inset is simply absent.
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        var constraints = await _buildConstraints(this.mediaType);
+        var selfStream = await navigator.mediaDevices.getUserMedia(constraints);
+        this._emitLocalStream(selfStream);
+      } catch (e) {
+        log('info', 'Native self-preview unavailable: ' + e);
+      }
+    }
+
     if (typeof RTCPeerConnection === 'undefined') {
       // WebKitGTK/Wails: no RTCPeerConnection — use WebM/MSE over WebSocket.
       await this._connectMSE();
