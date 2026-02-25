@@ -444,9 +444,11 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	grpMgr := group.New(node.Host, db, mqMgr)
 	log.Printf("👥 Group manager enabled (MQ transport)")
 
-	// ── Native call manager (Go/Pion WebRTC — Linux only, experimental)
+	// ── Native call manager (Go/Pion WebRTC — Linux only)
+	// Mode is determined by platform: Linux uses Go/Pion (WebKitGTK has no RTCPeerConnection),
+	// all other platforms use browser-native WebRTC. No config toggle needed.
 	var callMgr *call.Manager
-	if cfg.Viewer.ExperimentalCalls {
+	if runtime.GOOS == "linux" {
 		sigAdapter := &mqSignalerAdapter{mqMgr: mqMgr, peers: make(map[string]string)}
 		// callLogFn publishes structured log events from the call layer (e.g. hardware
 		// capture errors) to the MQ bus so they appear in the browser's Video log tab.

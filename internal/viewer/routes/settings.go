@@ -110,7 +110,6 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		cfg.Viewer.HTTPAddr = getTrimmedPostFormValue(r.PostForm, "viewer_http_addr")
 		cfg.Viewer.Debug = formBool(r.PostForm, "viewer_debug")
 		cfg.Viewer.VideoDisabled = formBool(r.PostForm, "viewer_video_disabled")
-		cfg.Viewer.ExperimentalCalls = formBool(r.PostForm, "viewer_experimental_calls")
 		cfg.Viewer.HideUnverified = formBool(r.PostForm, "viewer_hide_unverified")
 		cfg.Viewer.OpenSitesExternal = formBool(r.PostForm, "viewer_open_sites_external")
 		if v := atoiOrNeg(getTrimmedPostFormValue(r.PostForm, "viewer_peer_offline_grace_min")); v >= 1 && v <= 60 {

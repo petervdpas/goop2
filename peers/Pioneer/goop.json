@@ -52,7 +52,6 @@
     "preferred_cam": "",
     "preferred_mic": "",
     "video_disabled": false,
-    "experimental_calls": true,
     "hide_unverified": false,
     "active_template": "",
     "open_sites_external": false,

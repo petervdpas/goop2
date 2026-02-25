@@ -53,7 +53,7 @@ type Viewer struct {
 	EnsureLua func()
 
 	// Call manager for native Go/Pion WebRTC (nil = use browser WebRTC).
-	// Set when cfg.Viewer.ExperimentalCalls is true.
+	// Set automatically on Linux; nil on all other platforms.
 	Call *call.Manager
 }
 

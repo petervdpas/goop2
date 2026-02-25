@@ -127,7 +127,6 @@ type Viewer struct {
 	PreferredCam       string `json:"preferred_cam"`
 	PreferredMic       string `json:"preferred_mic"`
 	VideoDisabled        bool   `json:"video_disabled"`        // Disable video/audio calls (e.g., Linux WebKitGTK limitation)
-	ExperimentalCalls    bool   `json:"experimental_calls"`    // Use Go/Pion WebRTC instead of browser (Linux: bypasses WebKitGTK)
 	HideUnverified       bool   `json:"hide_unverified"`       // Hide unverified peers from the peer list
 	ActiveTemplate     string `json:"active_template"`     // dir name of currently applied template
 	OpenSitesExternal  bool   `json:"open_sites_external"` // true = open peer sites in system browser, false = embedded tabs
