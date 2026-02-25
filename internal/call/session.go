@@ -227,9 +227,10 @@ func (s *Session) initExternalPC() {
 		_ = s.sig.Send(s.channelID, map[string]any{
 			"type": "ice-candidate",
 			"candidate": map[string]any{
-				"candidate":     init.Candidate,
-				"sdpMid":        sdpMid,
-				"sdpMLineIndex": sdpMLineIndex,
+				"candidate":        init.Candidate,
+				"sdpMid":           sdpMid,
+				"sdpMLineIndex":    sdpMLineIndex,
+				"usernameFragment": init.UsernameFragment,
 			},
 		})
 	})

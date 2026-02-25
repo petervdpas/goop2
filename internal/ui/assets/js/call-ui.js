@@ -1,6 +1,6 @@
 //
 // call-ui.js — incoming call modal and active call overlay for the goop2 viewer.
-// This is a viewer-only file. Requires video-call.js to be loaded first.
+// This is a viewer-only file. Requires call.js to be loaded first.
 //
 (() => {
   window.Goop = window.Goop || {};

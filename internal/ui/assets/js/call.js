@@ -222,7 +222,9 @@
 
   CallSession.prototype._addIceCandidate = function (c) {
     if (!c || !c.candidate) return;
-    if (this.pc && this.pc.remoteDescription && this.pc.remoteDescription.type) {
+    var rd = this.pc && this.pc.remoteDescription && this.pc.remoteDescription.type;
+    var ld = this.pc && this.pc.localDescription  && this.pc.localDescription.type;
+    if (rd && ld) {
       this.pc.addIceCandidate(new RTCIceCandidate(c)).catch(function () {});
     } else {
       this._pendingICE.push(c);
@@ -526,9 +528,9 @@
     }
     try {
       await this.pc.setRemoteDescription({ type: 'offer', sdp: sdp });
-      this._flushPendingICE();
       var answer = await this.pc.createAnswer();
       await this.pc.setLocalDescription(answer);
+      this._flushPendingICE();
       await _sendMQ(this.remotePeerId, this.channelId, {
         type: 'call-answer',
         sdp:  answer.sdp,
