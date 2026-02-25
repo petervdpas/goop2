@@ -13,15 +13,16 @@ import (
 // Camera/mic capture via pion/mediadevices requires platform-specific drivers
 // (V4L2/malgo on Linux); on Windows/macOS the browser WebRTC path handles media.
 // logFn is unused on non-Linux — no hardware capture is attempted here.
-func initMediaPC(channelID string, _ func(level, msg string)) (*webrtc.PeerConnection, func(), error) {
+// SelfViewSource is always nil on non-Linux (no local camera capture).
+func initMediaPC(channelID string, _ func(level, msg string)) (*webrtc.PeerConnection, func(), SelfViewSource, error) {
 	mediaEngine := &webrtc.MediaEngine{}
 	if err := mediaEngine.RegisterDefaultCodecs(); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	interceptorRegistry := &interceptor.Registry{}
 	if err := webrtc.RegisterDefaultInterceptors(mediaEngine, interceptorRegistry); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	api := webrtc.NewAPI(
@@ -35,12 +36,12 @@ func initMediaPC(channelID string, _ func(level, msg string)) (*webrtc.PeerConne
 		},
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// Add recvonly transceivers so SDP has valid m-lines with ICE credentials.
 	addRecvOnlyTransceivers(channelID, pc)
 
 	log.Printf("CALL [%s]: ExternalPC ready (receive-only, no local media on this platform)", channelID)
-	return pc, nil, nil
+	return pc, nil, nil, nil
 }

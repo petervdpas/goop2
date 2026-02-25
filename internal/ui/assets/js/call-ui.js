@@ -253,12 +253,22 @@
     var videoBtn    = parts.videoBtn;
 
     // Show local video (self-view inset).
-    // onLocalStream uses replay-on-subscribe so it fires immediately if already
-    // available (browser path) or when getUserMedia resolves later (W2W async).
+    // Browser path: getUserMedia MediaStream → srcObject.
+    // Native path: Go self-view WebM stream → src (MSE).
     if (typeof session.onLocalStream === 'function') {
       session.onLocalStream(function(stream) { localVideo.srcObject = stream; });
     } else if (session.localStream) {
       localVideo.srcObject = session.localStream;
+    }
+    if (typeof session.onLocalVideoSrc === 'function') {
+      session.onLocalVideoSrc(function(url) {
+        log('info', 'Self-view MSE src received');
+        localVideo.srcObject = null;
+        localVideo.src = url;
+        localVideo.play().catch(function(e) {
+          log('warn', 'Self-view autoplay: ' + e.message);
+        });
+      });
     }
 
     // Show remote video when available (browser RTCPeerConnection path)
@@ -368,6 +378,12 @@
   if (Goop.call) {
     Goop.call.onIncoming(function(info) {
       showIncomingCall(info);
+    });
+    // Restore the call overlay when navigating back to any page mid-call.
+    // Go keeps the Pion session alive; JS just re-wires the UI to the session.
+    Goop.call.onRestore(function(session) {
+      log('info', 'Restoring call overlay for channel: ' + session.channelId);
+      showActiveCall(session);
     });
   }
 

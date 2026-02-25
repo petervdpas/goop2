@@ -55,6 +55,10 @@ type Session struct {
 	// webm manages the live WebM stream sent to the browser via WebSocket.
 	// Browser uses MSE to display the received VP8/Opus stream.
 	webm *webmSession
+
+	// selfWebm streams the locally-captured camera back to the browser
+	// for the self-view inset (Linux native mode only).
+	selfWebm *webmSession
 }
 
 // SessionStatus is the snapshot returned by /api/call/debug.
@@ -96,6 +100,7 @@ func newSession(channelID, remotePeer string, sig Signaler, isCaller bool, logFn
 		hangupCh:   make(chan struct{}),
 		mediaReady: make(chan struct{}),
 		webm:       newWebmSession(channelID),
+		selfWebm:   newWebmSession(channelID + ":self"),
 	}
 	go s.initExternalPC()
 
@@ -129,6 +134,43 @@ func newSession(channelID, remotePeer string, sig Signaler, isCaller bool, logFn
 // The caller must invoke the returned cancel function when done.
 func (s *Session) SubscribeMedia() (<-chan []byte, func()) {
 	return s.webm.subscribeMedia()
+}
+
+// SelfSubscribeMedia returns a channel for the browser self-view WebM stream
+// (local camera, video-only).  Only produces data on Linux when camera capture
+// succeeded.  The caller must invoke the returned cancel function when done.
+func (s *Session) SelfSubscribeMedia() (<-chan []byte, func()) {
+	return s.selfWebm.subscribeMedia()
+}
+
+// streamSelfVideoTrack reads VP8 frames from the local camera via the
+// SelfViewSource and feeds them to selfWebm for browser self-view display.
+func (s *Session) streamSelfVideoTrack(src SelfViewSource) {
+	defer src.Close()
+	log.Printf("CALL [%s]: self-view streaming started", s.channelID)
+	start := time.Now()
+	for {
+		select {
+		case <-s.hangupCh:
+			log.Printf("CALL [%s]: self-view streaming stopped", s.channelID)
+			return
+		default:
+		}
+		data, release, err := src.ReadFrame()
+		if release != nil {
+			release()
+		}
+		if err != nil {
+			log.Printf("CALL [%s]: self-view read error: %v", s.channelID, err)
+			return
+		}
+		if len(data) == 0 {
+			continue
+		}
+		tsMs := time.Since(start).Milliseconds()
+		keyframe := (data[0] & 0x01) == 0
+		s.selfWebm.handleVideoFrame(tsMs, keyframe, data)
+	}
 }
 
 // HangupCh returns a channel closed when the call ends (either peer hung up).
@@ -198,7 +240,7 @@ func (s *Session) cleanup() {
 func (s *Session) initExternalPC() {
 	defer close(s.mediaReady)
 
-	pc, closeFn, err := initMediaPC(s.channelID, s.logFn)
+	pc, closeFn, selfSrc, err := initMediaPC(s.channelID, s.logFn)
 	if err != nil {
 		log.Printf("CALL [%s]: PeerConnection create error: %v", s.channelID, err)
 		return
@@ -208,6 +250,11 @@ func (s *Session) initExternalPC() {
 	s.externalPC = pc
 	s.mediaClose = closeFn
 	s.mu.Unlock()
+
+	// Stream local camera to browser self-view (Linux native mode).
+	if selfSrc != nil {
+		go s.streamSelfVideoTrack(selfSrc)
+	}
 
 	// ── PC callbacks ─────────────────────────────────────────────────────────
 

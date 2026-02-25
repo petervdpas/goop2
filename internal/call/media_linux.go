@@ -14,23 +14,39 @@ import (
 	"github.com/pion/webrtc/v4"
 )
 
+// vp8SelfView wraps a mediadevices VP8 EncodedReadCloser as a SelfViewSource.
+type vp8SelfView struct{ r mediadevices.EncodedReadCloser }
+
+func (s *vp8SelfView) ReadFrame() ([]byte, func(), error) {
+	buf, rel, err := s.r.Read()
+	if err != nil {
+		return nil, nil, err
+	}
+	data := make([]byte, len(buf.Data))
+	copy(data, buf.Data)
+	return data, rel, nil
+}
+
+func (s *vp8SelfView) Close() error { return s.r.Close() }
+
 // initMediaPC creates the ExternalPC with VP8+Opus codecs and attempts to
 // capture local camera/mic via pion/mediadevices (V4L2 + malgo on Linux).
-// Returns the PC, a cleanup func for local media (may be nil), and any error.
+// Returns the PC, a cleanup func for local media (may be nil), a SelfViewSource
+// for browser self-preview (non-nil when video capture succeeded), and any error.
 // logFn, if non-nil, is called with (level, msg) for hardware errors that
 // should appear in the browser's Video log tab via MQ. May be nil.
-func initMediaPC(channelID string, logFn func(level, msg string)) (*webrtc.PeerConnection, func(), error) {
+func initMediaPC(channelID string, logFn func(level, msg string)) (*webrtc.PeerConnection, func(), SelfViewSource, error) {
 	// ── Codec selector ───────────────────────────────────────────────────────
 
 	vpxParams, err := vpx.NewVP8Params()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	vpxParams.BitRate = 1_500_000 // 1.5 Mbps
 
 	opusParams, err := opus.NewParams()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	codecSelector := mediadevices.NewCodecSelector(
@@ -45,7 +61,7 @@ func initMediaPC(channelID string, logFn func(level, msg string)) (*webrtc.PeerC
 
 	interceptorRegistry := &interceptor.Registry{}
 	if err := webrtc.RegisterDefaultInterceptors(mediaEngine, interceptorRegistry); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	api := webrtc.NewAPI(
@@ -59,7 +75,7 @@ func initMediaPC(channelID string, logFn func(level, msg string)) (*webrtc.PeerC
 		},
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// ── Enumerate available media devices (diagnostics) ──────────────────────
@@ -112,7 +128,9 @@ func initMediaPC(channelID string, logFn func(level, msg string)) (*webrtc.PeerC
 			continue
 		}
 
-		for _, track := range stream.GetTracks() {
+		tracks := stream.GetTracks()
+		var selfSrc SelfViewSource
+		for _, track := range tracks {
 			track.OnEnded(func(err error) {
 				if err != nil {
 					log.Printf("CALL [%s]: local track ended: %v", channelID, err)
@@ -121,15 +139,27 @@ func initMediaPC(channelID string, logFn func(level, msg string)) (*webrtc.PeerC
 			if _, err := pc.AddTrack(track); err != nil {
 				log.Printf("CALL [%s]: AddTrack error: %v", channelID, err)
 			}
+			// Create an independent VP8 reader for browser self-view.
+			// pion/mediadevices broadcasts raw frames to multiple consumers;
+			// this encoder runs in parallel to the one Pion uses for RTP.
+			if track.Kind() == webrtc.RTPCodecTypeVideo {
+				r, err := track.NewEncodedReader(webrtc.MimeTypeVP8)
+				if err == nil {
+					selfSrc = &vp8SelfView{r: r}
+					log.Printf("CALL [%s]: self-view VP8 reader ready", channelID)
+				} else {
+					log.Printf("CALL [%s]: self-view VP8 reader error: %v", channelID, err)
+				}
+			}
 		}
 
-		log.Printf("CALL [%s]: local media captured (%s) — %d tracks", channelID, a.label, len(stream.GetTracks()))
+		log.Printf("CALL [%s]: local media captured (%s) — %d tracks", channelID, a.label, len(tracks))
 		closeFn := func() {
-			for _, t := range stream.GetTracks() {
+			for _, t := range tracks {
 				t.Close()
 			}
 		}
-		return pc, closeFn, nil
+		return pc, closeFn, selfSrc, nil
 	}
 
 	// All attempts failed — fall back to receive-only so the call can still
@@ -140,5 +170,5 @@ func initMediaPC(channelID string, logFn func(level, msg string)) (*webrtc.PeerC
 		logFn("warn", msg)
 	}
 	addRecvOnlyTransceivers(channelID, pc)
-	return pc, nil, nil
+	return pc, nil, nil, nil
 }

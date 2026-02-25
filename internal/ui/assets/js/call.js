@@ -42,6 +42,7 @@
 
   var _sessions     = {};  // channelId → CallSession
   var _incomingCbs  = [];
+  var _restoreCbs   = [];
   var _mqSubscribed = false;
 
   // ── Logging ──────────────────────────────────────────────────────────────────
@@ -90,6 +91,9 @@
     // Browser WebRTC path
     this.pc           = null;
     this._pendingICE  = [];    // ICE candidates buffered before remoteDescription is set
+    this._localVideoSrc  = null;    // MediaSource URL for native self-view (replay-on-subscribe)
+    this._localVideoSrcCbs = [];
+    this._selfWs      = null;      // WebSocket for self-view stream
     this._pendingOffer = null; // SDP offer buffered before PC is ready (callee race)
 
     // Native path handles
@@ -107,6 +111,11 @@
   CallSession.prototype.onLocalStream = function (cb) {
     this._localStreamCbs.push(cb);
     if (this.localStream) { try { cb(this.localStream); } catch (_) {} }
+  };
+
+  CallSession.prototype.onLocalVideoSrc = function (cb) {
+    this._localVideoSrcCbs.push(cb);
+    if (this._localVideoSrc !== null) { try { cb(this._localVideoSrc); } catch (_) {} }
   };
 
   CallSession.prototype.onRemoteStream = function (cb) {
@@ -127,6 +136,11 @@
   CallSession.prototype._emitLocalStream = function (s) {
     this.localStream = s;
     this._localStreamCbs.forEach(function (cb) { try { cb(s); } catch (_) {} });
+  };
+
+  CallSession.prototype._emitLocalVideoSrc = function (url) {
+    this._localVideoSrc = url;
+    this._localVideoSrcCbs.forEach(function (cb) { try { cb(url); } catch (_) {} });
   };
 
   CallSession.prototype._emitRemoteStream = function (s) {
@@ -186,6 +200,7 @@
   // ── Hangup ──
 
   CallSession.prototype.hangup = function () {
+    _clearCallFromSession();
     this._cleanup();
     if (_mode === 'native') {
       fetch('/api/call/hangup', {
@@ -202,6 +217,7 @@
   };
 
   CallSession.prototype._handleRemoteHangup = function () {
+    _clearCallFromSession();
     this._cleanup();
     this._emitHangup();
     delete _sessions[this.channelId];
@@ -211,12 +227,33 @@
     if (this._loopbackIceUnsub) { this._loopbackIceUnsub(); this._loopbackIceUnsub = null; }
     if (this._loopbackPc) { this._loopbackPc.close(); this._loopbackPc = null; }
     if (this._mediaWs)    { this._mediaWs.close();    this._mediaWs    = null; }
+    if (this._selfWs)     { this._selfWs.close();     this._selfWs     = null; }
     if (this.pc)          { this.pc.close();           this.pc          = null; }
     if (this.localStream) {
       this.localStream.getTracks().forEach(function (t) { t.stop(); });
       this.localStream = null;
     }
   };
+
+  // ── Browser call persistence across page navigation ──────────────────────────
+  //
+  // sessionStorage keeps {channelId, remotePeer, isCaller, mediaType} across
+  // full-page navigations so the W2W overlay can be restored on any page.
+
+  function _saveCallToSession(sess) {
+    try {
+      sessionStorage.setItem('goop_active_call', JSON.stringify({
+        channelId:  sess.channelId,
+        remotePeer: sess.remotePeerId,
+        isCaller:   sess.isCaller,
+        mediaType:  sess.mediaType,
+      }));
+    } catch (_) {}
+  }
+
+  function _clearCallFromSession() {
+    try { sessionStorage.removeItem('goop_active_call'); } catch (_) {}
+  }
 
   // ── ICE candidate buffering ──────────────────────────────────────────────────
 
@@ -297,9 +334,11 @@
       var s = pc.connectionState;
       log('info', 'PC state: ' + s);
       self._emitState(s);
-      if (s === 'failed' || s === 'disconnected') {
+      if (s === 'failed') {
         self.hangup();
       }
+      // 'disconnected' is NOT an immediate hangup — remote peer may be navigating
+      // and will send call-reconnect within the ICE timeout window (~30s).
     };
 
     return true;
@@ -313,18 +352,23 @@
   CallSession.prototype._connectNative = async function () {
     this._emitState('connecting');
 
-    // Best-effort self-preview — Go/Pion owns the actual capture device,
-    // but the browser can still open its own stream for the local inset.
-    // If the camera is exclusively locked by Go (rare on most platforms),
-    // this fails silently and the inset is simply absent.
+    // Self-preview: try browser getUserMedia first (works if V4L2 allows multi-open).
+    // If it fails (Go holds the camera exclusively), fall back to the Go self-view
+    // WebM stream at /api/call/self/{channel} — fire and forget so wireSession()
+    // can register onLocalVideoSrc before _connectSelfMSE emits the URL.
+    var gotSelfPreview = false;
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       try {
         var constraints = await _buildConstraints(this.mediaType);
         var selfStream = await navigator.mediaDevices.getUserMedia(constraints);
         this._emitLocalStream(selfStream);
+        gotSelfPreview = true;
       } catch (e) {
-        log('info', 'Native self-preview unavailable: ' + e);
+        log('info', 'Native getUserMedia unavailable: ' + e);
       }
+    }
+    if (!gotSelfPreview) {
+      this._connectSelfMSE(); // fire and forget
     }
 
     if (typeof RTCPeerConnection === 'undefined') {
@@ -387,6 +431,88 @@
       log('warn', 'loopback setup error: ' + err);
       this._emitState('error');
     }
+  };
+
+  // _connectSelfMSE opens the Go self-view WebSocket (/api/call/self/{channel})
+  // and feeds localVideo via MSE.  Used in native mode when getUserMedia is
+  // unavailable (Go holds the V4L2 device).  Fire-and-forget — do not await.
+  CallSession.prototype._connectSelfMSE = async function () {
+    if (typeof MediaSource === 'undefined') return;
+    var mimeType = 'video/webm; codecs="vp8"';
+    if (!MediaSource.isTypeSupported(mimeType)) {
+      log('warn', 'VP8 WebM not supported for self-view');
+      return;
+    }
+
+    var ms  = new MediaSource();
+    var url = URL.createObjectURL(ms);
+    this._emitLocalVideoSrc(url);
+
+    var self = this;
+    var sourceOpenOk = await new Promise(function (resolve) {
+      var timeout = setTimeout(function () {
+        log('warn', 'self-view sourceopen timeout');
+        resolve(false);
+      }, 4000);
+      ms.addEventListener('sourceopen', function () { clearTimeout(timeout); resolve(true); }, { once: true });
+    });
+
+    if (!sourceOpenOk || ms.readyState !== 'open') {
+      log('warn', 'self-view MSE not ready');
+      return;
+    }
+
+    var sb;
+    try {
+      sb = ms.addSourceBuffer(mimeType);
+      sb.mode = 'sequence';
+    } catch (e) {
+      log('warn', 'self-view MSE addSourceBuffer failed: ' + e);
+      return;
+    }
+
+    var queue     = [];
+    var appending = false;
+
+    function tryAppend() {
+      if (appending || queue.length === 0 || sb.updating || ms.readyState !== 'open') return;
+      appending = true;
+      try {
+        sb.appendBuffer(queue.shift());
+      } catch (e) {
+        log('warn', 'self-view MSE appendBuffer error: ' + e);
+        appending = false;
+      }
+    }
+
+    sb.addEventListener('updateend', function () {
+      appending = false;
+      if (!sb.updating && sb.buffered.length > 0 && ms.readyState === 'open') {
+        var s0 = sb.buffered.start(0), e0 = sb.buffered.end(0);
+        if (e0 - s0 > 60) {
+          try { sb.remove(s0, e0 - 60); return; } catch (_) {}
+        }
+      }
+      tryAppend();
+    });
+
+    var wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    var wsUrl   = wsProto + '//' + window.location.host + '/api/call/self/' + this.channelId;
+    log('info', 'Opening self-view WebSocket: ' + wsUrl);
+
+    var ws = new WebSocket(wsUrl);
+    this._selfWs   = ws;
+    ws.binaryType  = 'arraybuffer';
+    ws.onopen    = function () { log('info', 'Self-view WebSocket connected'); };
+    ws.onmessage = function (e) { queue.push(new Uint8Array(e.data)); tryAppend(); };
+    ws.onerror   = function () { log('warn', 'Self-view WebSocket error'); };
+    ws.onclose   = function () {
+      log('info', 'Self-view WebSocket closed');
+      self._selfWs = null;
+      if (ms.readyState === 'open') {
+        try { ms.endOfStream(); } catch (_) {}
+      }
+    };
   };
 
   CallSession.prototype._connectMSE = async function () {
@@ -603,14 +729,108 @@
       return;
     }
 
+    // call-reconnect: remote peer navigated and is re-establishing the call.
+    // Handled outside the sess lookup because it creates a new session.
+    if (type === 'call-reconnect') {
+      _handleReconnect(from, channelId, payload);
+      return;
+    }
+
     var sess = _sessions[channelId];
     if (!sess) return;
 
-    if      (type === 'call-ack')       { sess._handleCallAck(payload); }
-    else if (type === 'call-offer')     { sess._handleOffer(payload.sdp); }
-    else if (type === 'call-answer')    { sess._handleAnswer(payload.sdp); }
-    else if (type === 'ice-candidate')  { sess._addIceCandidate(payload.candidate); }
-    else if (type === 'call-hangup')    { sess._handleRemoteHangup(); }
+    if      (type === 'call-ack')           { sess._handleCallAck(payload); }
+    else if (type === 'call-reconnect-ack') { sess._handleCallAck(payload); } // same flow as ack
+    else if (type === 'call-offer')         { sess._handleOffer(payload.sdp); }
+    else if (type === 'call-answer')        { sess._handleAnswer(payload.sdp); }
+    else if (type === 'ice-candidate')      { sess._addIceCandidate(payload.candidate); }
+    else if (type === 'call-hangup')        { sess._handleRemoteHangup(); }
+  }
+
+  // ── Reconnect handling (browser mode, page navigation) ───────────────────────
+  //
+  // _handleReconnect: remote peer navigated mid-call and is re-establishing.
+  // We silently set up a fresh RTCPeerConnection and send call-reconnect-ack.
+  // The reconnecting peer receives the ack, calls _handleCallAck → createOffer
+  // → normal offer/answer/ICE flow.
+  //
+  // _restoreBrowserCall: we navigated mid-call. sessionStorage has the state.
+  // Set up a fresh PC, send call-reconnect to the remote peer, show the overlay.
+
+  function _handleReconnect(from, channelId, payload) {
+    log('info', 'call-reconnect from ' + from + ' on ' + channelId);
+    // Clean up any existing session for this channel — the old RTCPeerConnection
+    // is dead (remote peer's JS context was destroyed on navigate). Don't emit
+    // hangup; we want the overlay to transition, not close.
+    var existing = _sessions[channelId];
+    if (existing) {
+      existing._cleanup();
+      delete _sessions[channelId];
+    }
+
+    var mediaType = payload.mediaType || 'video';
+    var sess = new CallSession(channelId, from, false, mediaType);
+    _sessions[channelId] = sess;
+    sess.onHangup(function () { _clearCallFromSession(); delete _sessions[channelId]; });
+
+    _ensureMQSubscription();
+
+    sess._setupBrowserPC().then(function (ok) {
+      if (!ok) { delete _sessions[channelId]; return; }
+      _saveCallToSession(sess);
+      _sendMQ(from, channelId, {
+        type:     'call-reconnect-ack',
+        mode:     'browser',
+        platform: _platform,
+      });
+      // Re-wire the overlay (prepareOverlay removes the old one automatically).
+      _restoreCbs.forEach(function (cb) {
+        try { cb(sess); } catch (e) { log('error', 'reconnect cb error: ' + e); }
+      });
+    });
+  }
+
+  // _restoreBrowserCall: called on page load when sessionStorage has a pending
+  // call. Sets up a fresh PC, signals the remote peer, and fires restoreCbs so
+  // call-ui.js can recreate the overlay on the new page.
+  function _restoreBrowserCall() {
+    var stored;
+    try {
+      var raw = sessionStorage.getItem('goop_active_call');
+      if (!raw) return;
+      stored = JSON.parse(raw);
+    } catch (_) { return; }
+    if (!stored || !stored.channelId || !stored.remotePeer) return;
+
+    log('info', 'Restoring browser call: ' + stored.channelId + ' → ' + stored.remotePeer);
+    _ensureMQSubscription();
+
+    var sess = new CallSession(stored.channelId, stored.remotePeer, stored.isCaller, stored.mediaType || 'video');
+    _sessions[stored.channelId] = sess;
+    sess.onHangup(function () {
+      _clearCallFromSession();
+      delete _sessions[stored.channelId];
+    });
+
+    sess._setupBrowserPC().then(function (ok) {
+      if (!ok) {
+        _clearCallFromSession();
+        delete _sessions[stored.channelId];
+        return;
+      }
+      // Signal the remote peer that we've navigated and are ready for a fresh
+      // offer/answer.  They respond with call-reconnect-ack → _handleCallAck
+      // → createOffer → normal ICE/SDP flow.
+      _sendMQ(stored.remotePeer, stored.channelId, {
+        type:      'call-reconnect',
+        channelId: stored.channelId,
+        mediaType: stored.mediaType,
+      });
+      // Show the overlay on the new page.
+      _restoreCbs.forEach(function (cb) {
+        try { cb(sess); } catch (e) { log('error', 'restore cb error: ' + e); }
+      });
+    });
   }
 
   // ── Incoming call handling ────────────────────────────────────────────────────
@@ -648,8 +868,12 @@
             body:    JSON.stringify({ channel_id: channelId, remote_peer: fromPeer }),
           });
           if (!res.ok) throw new Error('accept failed: ' + res.status);
-          // Connect MSE to receive remote video from Go.
-          await sess._connectNative();
+          // Start native media setup in the background — wireSession() must be
+          // called first to register onRemoteVideoSrc before _connectMSE() emits
+          // the MediaSource URL and waits for sourceopen. Awaiting here would
+          // deadlock: sourceopen needs video.src set by wireSession, but wireSession
+          // runs after info.accept() returns.
+          sess._connectNative();
         } else {
           // Browser mode: set up getUserMedia + RTCPeerConnection.
           var ok = await sess._setupBrowserPC();
@@ -660,6 +884,8 @@
             mode:     'browser',
             platform: _platform,
           });
+          // Persist so the overlay survives page navigation (browser mode).
+          _saveCallToSession(sess);
           // Flush any offer that arrived while _setupBrowserPC was running.
           if (sess._pendingOffer) {
             var sdp = sess._pendingOffer;
@@ -746,6 +972,8 @@
           platform:  _platform,
           mediaType: mediaType,
         });
+        // Persist so the overlay survives page navigation (browser mode).
+        _saveCallToSession(sess);
         // _handleCallAck() will call createOffer() once callee sends call-ack.
       }
 
@@ -759,6 +987,16 @@
     onIncoming: function (cb) {
       _incomingCbs.push(cb);
       _ensureMQSubscription();
+    },
+
+    /**
+     * Register a handler for restored calls (active call detected on page load).
+     * cb is called with a live CallSession — the same object passed to showActiveCall.
+     * Native mode: fires when Go reports an active Pion session (/api/call/active).
+     * Browser mode: fires when sessionStorage has a call and the fresh PC is ready.
+     */
+    onRestore: function (cb) {
+      _restoreCbs.push(cb);
     },
 
     /**
@@ -783,8 +1021,42 @@
         _mode     = j.mode     || 'browser';
         _platform = j.platform || 'unknown';
         log('info', 'mode=' + _mode + ' platform=' + _platform);
+        // Restore any active call sessions after page navigation.
+        // Native: Go keeps Pion alive — query /api/call/active and re-attach UI.
+        // Browser: RTCPeerConnections are destroyed on navigate — use sessionStorage
+        //          to remember the call and MQ to signal a fresh offer/answer.
+        if (_mode === 'native') {
+          _restoreActiveCalls();
+        } else {
+          _restoreBrowserCall();
+        }
       })
       .catch(function () { /* endpoint unavailable — stay in browser mode */ });
+  }
+
+  // _restoreActiveCalls queries Go for active sessions and re-attaches the UI.
+  // Called once after mode resolves.  Fires _restoreCbs (e.g. showActiveCall in
+  // call-ui.js) for each session so the call overlay reappears after navigation.
+  function _restoreActiveCalls() {
+    fetch('/api/call/active')
+      .then(function (res) { return res.ok ? res.json() : []; })
+      .then(function (sessions) {
+        if (!sessions || !sessions.length) return;
+        _ensureMQSubscription();
+        sessions.forEach(function (s) {
+          if (_sessions[s.channel_id]) return; // already tracked
+          log('info', 'restoring call session: ' + s.channel_id + ' remote=' + s.remote_peer);
+          var sess = new CallSession(s.channel_id, s.remote_peer, s.is_caller, 'video');
+          _sessions[s.channel_id] = sess;
+          sess.onHangup(function () { delete _sessions[s.channel_id]; });
+          // Reconnect native media (fire and forget — restoreCbs register callbacks first).
+          sess._connectNative();
+          _restoreCbs.forEach(function (cb) {
+            try { cb(sess); } catch (e) { log('error', 'restore cb error: ' + e); }
+          });
+        });
+      })
+      .catch(function (e) { log('warn', 'active call check failed: ' + e); });
   }
 
   if (document.readyState === 'loading') {

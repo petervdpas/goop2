@@ -50,6 +50,17 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager, mqMgr *mq.Manager) 
 		return
 	}
 
+	// GET /api/call/active — returns active call sessions so JS can restore
+	// the call overlay after a page navigation (native mode only).
+	handleGet(mux, "/api/call/active", func(w http.ResponseWriter, r *http.Request) {
+		sessions := callMgr.AllSessions()
+		statuses := make([]call.SessionStatus, 0, len(sessions))
+		for _, s := range sessions {
+			statuses = append(statuses, s.Status())
+		}
+		writeJSON(w, statuses)
+	})
+
 	// GET /api/call/debug — live session status for testing without a UI.
 	// Returns all active sessions with their PC state and RTP stats.
 	handleGet(mux, "/api/call/debug", func(w http.ResponseWriter, r *http.Request) {
@@ -139,6 +150,62 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager, mqMgr *mq.Manager) 
 			return
 		}
 		writeJSON(w, map[string]bool{"disabled": sess.ToggleVideo()})
+	})
+
+	// GET /api/call/self/{channel} — WebSocket: self-view WebM stream (local camera, Linux only).
+	// Same protocol as /api/call/media/ but streams locally-captured VP8 frames.
+	mux.HandleFunc("/api/call/self/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		channelID := strings.TrimPrefix(r.URL.Path, "/api/call/self/")
+		channelID = strings.TrimSuffix(channelID, "/")
+		if channelID == "" {
+			http.Error(w, "missing channel id", http.StatusBadRequest)
+			return
+		}
+
+		sess, ok := callMgr.GetSession(channelID)
+		if !ok {
+			http.Error(w, "session not found", http.StatusNotFound)
+			return
+		}
+
+		conn, err := wsUpgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Printf("CALL [%s]: self-view WebSocket upgrade error: %v", channelID, err)
+			return
+		}
+		defer conn.Close()
+		log.Printf("CALL [%s]: self-view WebSocket connected", channelID)
+
+		dataCh, cancel := sess.SelfSubscribeMedia()
+		defer cancel()
+
+		go func() {
+			for {
+				if _, _, err := conn.ReadMessage(); err != nil {
+					return
+				}
+			}
+		}()
+
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-sess.HangupCh():
+				return
+			case data, ok := <-dataCh:
+				if !ok {
+					return
+				}
+				if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
+					return
+				}
+			}
+		}
 	})
 
 	// GET /api/call/media/{channel} — WebSocket: live WebM stream for Phase 4 browser display.
