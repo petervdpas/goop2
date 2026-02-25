@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -457,7 +458,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 				"ts":     time.Now().UnixMilli(),
 			})
 		}
-		callMgr = call.New(sigAdapter, node.ID(), callLogFn)
+		callMgr = call.New(sigAdapter, node.ID(), callLogFn, runtime.GOOS)
 		defer callMgr.Close()
 		log.Printf("📞 Experimental native call stack enabled (Go/Pion WebRTC)")
 	}

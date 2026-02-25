@@ -11,9 +11,10 @@ import (
 
 // Manager owns active call sessions and bridges realtime signaling to them.
 type Manager struct {
-	sig    Signaler
-	selfID string
-	logFn  func(level, msg string) // publishes structured log events to the browser
+	sig      Signaler
+	selfID   string
+	platform string              // runtime.GOOS — included in call-ack so the caller knows the constellation
+	logFn    func(level, msg string) // publishes structured log events to the browser
 
 	mu           sync.RWMutex
 	sessions     map[string]*Session
@@ -26,10 +27,13 @@ type Manager struct {
 // signaling messages immediately.
 // logFn, if non-nil, is called for structured log events (e.g. hardware errors)
 // that should appear in the browser's Video log tab via MQ. May be nil.
-func New(sig Signaler, selfID string, logFn func(level, msg string)) *Manager {
+// platform should be runtime.GOOS — it is sent in call-ack so the caller can
+// determine the call constellation (W2W vs native Pion) before connecting media.
+func New(sig Signaler, selfID string, logFn func(level, msg string), platform string) *Manager {
 	m := &Manager{
 		sig:          sig,
 		selfID:       selfID,
+		platform:     platform,
 		logFn:        logFn,
 		sessions:     make(map[string]*Session),
 		pendingCalls: make(map[string]string),
@@ -59,9 +63,11 @@ func (m *Manager) AcceptCall(ctx context.Context, channelID, remotePeer string) 
 	delete(m.pendingCalls, channelID)
 	m.mu.Unlock()
 	// Notify the caller that we accepted — they can proceed with SDP exchange.
+	// Include our platform so the caller can determine the call constellation
+	// (W2W browser WebRTC vs native Pion path) before connecting media.
 	// If the channel is already closed (caller hung up before we accepted), log
 	// the error so it's visible in the Logs → Video tab, then clean up immediately.
-	if err := m.sig.Send(channelID, map[string]any{"type": "call-ack"}); err != nil {
+	if err := m.sig.Send(channelID, map[string]any{"type": "call-ack", "platform": m.platform}); err != nil {
 		log.Printf("CALL: accepted %s but call-ack send failed (%v) — channel likely closed, aborting", channelID, err)
 		m.removeSession(channelID)
 		sess.Hangup()

@@ -253,7 +253,11 @@
     var videoBtn    = parts.videoBtn;
 
     // Show local video (self-view inset).
-    if (session.localStream) {
+    // onLocalStream uses replay-on-subscribe so it fires immediately if already
+    // available (browser path) or when getUserMedia resolves later (W2W async).
+    if (typeof session.onLocalStream === 'function') {
+      session.onLocalStream(function(stream) { localVideo.srcObject = stream; });
+    } else if (session.localStream) {
       localVideo.srcObject = session.localStream;
     }
 

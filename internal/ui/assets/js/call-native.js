@@ -1,5 +1,5 @@
 /**
- * call-native.js — Native Go/Pion WebRTC call stack (Phase 2: signaling bridge).
+ * call-native.js — Native Go/Pion WebRTC call stack, platform-aware.
  *
  * Load order: video-call.js → call-ui.js → call-native.js (see app.js)
  *
@@ -9,15 +9,28 @@
  *   browser modal), Goop.call is replaced with NativeCallManager, and call-ui.js's
  *   incoming handler is re-registered on the new manager.
  *
- * Phase 2 capability:
- *   - Incoming call modal rings ✓
- *   - Accept / Reject works ✓
- *   - Hangup cleans up both sides ✓
- *   - Toggle audio/video updates Go state ✓
- *   - call-ui.js showActiveCall overlay shows "Connected" (no video until Phase 4) ✓
+ * Platform-aware call constellations:
+ *   W2W (both non-Linux): browser getUserMedia + RTCPeerConnection, bidirectional.
+ *     Signaling uses custom types "browser-offer" / "browser-answer" / "browser-ice"
+ *     over MQ so Go's Pion SDP exchange (which runs in parallel but harmlessly) doesn't
+ *     interfere.  Both browsers have full WebRTC (WebView2/Chromium on Windows).
  *
- * Phase 4 will wire the loopback RTCPeerConnection so the browser gets a real
- * MediaStream from Go's LocalPC without needing getUserMedia.
+ *   L2L, L2W, W2L: native Pion path.  Linux Go captures camera/mic, streams via
+ *     ExternalPC.  Browser receives remote video via WebM/MSE over WebSocket
+ *     (/api/call/media/{channel}).  Local self-view deferred to Phase 5.
+ *
+ * Constellation detection:
+ *   1. Local platform comes from /api/call/mode response ("platform" field = runtime.GOOS).
+ *   2. Remote platform is exchanged in MQ payloads:
+ *      - call-request carries caller's platform (caller → callee)
+ *      - call-ack carries callee's platform (callee → caller, sent by Go AcceptCall)
+ *   3. Both sides therefore know the constellation before connecting media.
+ *
+ * MQ topic: "call:{channelID}" — all signals share one topic.
+ * Signal types handled by JS: call-request, call-ack, call-hangup,
+ *                              browser-offer, browser-answer, browser-ice.
+ * Signal types handled by Go:  call-ack (→ Pion SDP), call-offer, call-answer,
+ *                              ice-candidate (Pion ICE), call-hangup.
  */
 (function () {
   "use strict";
@@ -35,26 +48,30 @@
   //
   // Mirrors the CallSession API that call-ui.js expects:
   //   session.channelId          string
-  //   session.localStream        MediaStream | null  (null until Phase 3)
-  //   session.onRemoteStream(cb) register callback
+  //   session.localStream        MediaStream | null
+  //   session.onLocalStream(cb)  fires when getUserMedia resolves (W2W)
+  //   session.onRemoteStream(cb) fires when remote track arrives (W2W)
+  //   session.onRemoteVideoSrc(cb) fires with MSE blob URL (native Pion path)
   //   session.onHangup(cb)       register callback
   //   session.onStateChange(cb)  register callback
-  //   session.toggleAudio()      → bool (enabled, sync) — call-ui.js reads this sync
+  //   session.toggleAudio()      → bool (enabled, sync)
   //   session.toggleVideo()      → bool (enabled, sync)
   //   session.hangup()           void
 
   class NativeSession {
-    constructor(channelId) {
-      this.channelId  = channelId;
-      this.isNative   = true;
-      this.localStream = null; // Go captures camera/mic — Phase 3+
+    constructor(channelId, remotePeerId) {
+      this.channelId    = channelId;
+      this.remotePeerId = remotePeerId;
+      this.isNative     = true;
+      this.localStream  = null; // set by _emitLocalStream when getUserMedia resolves
 
-      this._remoteStreamCbs = [];
-      this._hangupCbs       = [];
-      this._stateCbs        = [];
+      this._remoteStreamCbs   = [];
+      this._hangupCbs         = [];
+      this._stateCbs          = [];
+      this._localStreamCbs    = [];
 
-      // Phase 4: remote video src (MSE blob URL) callbacks.
-      // Uses replay-on-subscribe so late registrations still receive the URL.
+      // Phase 4 / native path: remote video src (MSE blob URL).
+      // Replay-on-subscribe so late registrations still receive the URL.
       this._remoteVideoSrcCbs = [];
       this._remoteVideoSrc    = null;
 
@@ -62,26 +79,38 @@
       this._audioEnabled = true;
       this._videoEnabled = true;
 
-      this._loopbackPc      = null;
-      this._loopbackIceUnsub = null; // Phase 4: unsubscribe for MQ loopback ICE
-      this._mediaWs          = null; // Phase 4: WebM/MSE WebSocket
+      // Native Pion path (L2L, L2W, W2L)
+      this._loopbackPc       = null;
+      this._loopbackIceUnsub = null;
+      this._mediaWs          = null;
+
+      // W2W browser path
+      this._browserPc          = null;
+      this._pendingBrowserSignal = null; // resolve fn for incoming browser-offer / browser-answer
     }
 
-    onRemoteStream(cb) { this._remoteStreamCbs.push(cb); }
-    onHangup(cb)       { this._hangupCbs.push(cb); }
-    onStateChange(cb)  { this._stateCbs.push(cb); }
+    // ── Callbacks ──
 
-    // Phase 4: subscribe to remote video src URL (MSE WebM stream).
-    // Fires immediately if the URL is already known (replay-on-subscribe).
-    onRemoteVideoSrc(cb) {
-      this._remoteVideoSrcCbs.push(cb);
-      if (this._remoteVideoSrc !== null) {
-        try { cb(this._remoteVideoSrc); } catch (_) {}
+    onRemoteStream(cb)   { this._remoteStreamCbs.push(cb); }
+    onHangup(cb)         { this._hangupCbs.push(cb); }
+    onStateChange(cb)    { this._stateCbs.push(cb); }
+
+    onLocalStream(cb) {
+      this._localStreamCbs.push(cb);
+      if (this.localStream) {
+        try { cb(this.localStream); } catch(_) {}
       }
     }
 
-    // Sync-compatible toggle: update local state immediately, fire async in background.
-    // call-ui.js does:  var enabled = session.toggleAudio();  muteBtn.toggle(!enabled);
+    onRemoteVideoSrc(cb) {
+      this._remoteVideoSrcCbs.push(cb);
+      if (this._remoteVideoSrc !== null) {
+        try { cb(this._remoteVideoSrc); } catch(_) {}
+      }
+    }
+
+    // ── Sync-compatible toggles ──
+
     toggleAudio() {
       this._audioEnabled = !this._audioEnabled;
       fetch('/api/call/toggle-audio', {
@@ -89,7 +118,7 @@
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ channel_id: this.channelId }),
       }).catch(() => {});
-      return this._audioEnabled; // bool: true = audio on (not muted)
+      return this._audioEnabled;
     }
 
     toggleVideo() {
@@ -99,13 +128,13 @@
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ channel_id: this.channelId }),
       }).catch(() => {});
-      return this._videoEnabled; // bool: true = video on (not disabled)
+      return this._videoEnabled;
     }
+
+    // ── Hangup ──
 
     hangup() {
       this._cleanup();
-      // keepalive: true ensures the request survives the page reload that
-      // call-ui.js triggers synchronously from the onHangup callback below.
       fetch('/api/call/hangup', {
         method:    'POST',
         headers:   { 'Content-Type': 'application/json' },
@@ -115,12 +144,41 @@
       this._emitHangup();
     }
 
-    // ── Internal ──
+    // ── Internal emit helpers ──
+
+    _emitLocalStream(stream) {
+      this.localStream = stream;
+      this._localStreamCbs.forEach(cb => { try { cb(stream); } catch(_) {} });
+    }
+
+    _emitRemoteStream(stream) {
+      this._remoteStreamCbs.forEach(cb => cb(stream));
+    }
+
+    _emitHangup() {
+      this._hangupCbs.forEach(cb => cb());
+    }
+
+    _emitState(state) {
+      this._stateCbs.forEach(cb => cb(state));
+    }
+
+    _emitRemoteVideoSrc(src) {
+      this._remoteVideoSrc = src;
+      this._remoteVideoSrcCbs.forEach(cb => { try { cb(src); } catch(_) {} });
+    }
+
+    // ── Cleanup ──
 
     _cleanup() {
       if (this._loopbackIceUnsub) { this._loopbackIceUnsub(); this._loopbackIceUnsub = null; }
       if (this._loopbackPc)       { this._loopbackPc.close(); this._loopbackPc = null; }
       if (this._mediaWs)          { this._mediaWs.close();    this._mediaWs = null; }
+      if (this._browserPc)        { this._browserPc.close();  this._browserPc = null; }
+      if (this.localStream) {
+        this.localStream.getTracks().forEach(t => t.stop());
+        this.localStream = null;
+      }
     }
 
     // Called by NativeCallManager when a call-hangup arrives on this channel via MQ.
@@ -129,35 +187,139 @@
       this._emitHangup();
     }
 
-    _emitRemoteStream(stream) { this._remoteStreamCbs.forEach(cb => cb(stream)); }
-    _emitHangup()             { this._hangupCbs.forEach(cb => cb()); }
-    _emitState(state)         { this._stateCbs.forEach(cb => cb(state)); }
-    _emitRemoteVideoSrc(src)  {
-      this._remoteVideoSrc = src;
-      this._remoteVideoSrcCbs.forEach(cb => { try { cb(src); } catch (_) {} });
+    // ── W2W browser-to-browser WebRTC ──────────────────────────────────────────
+    //
+    // Both peers have full browser WebRTC (WebView2/Chromium on Windows).
+    // Go's ExternalPC still runs (receive-only, no media) but is harmless.
+    // Browser signals use "browser-offer" / "browser-answer" / "browser-ice" so
+    // they don't collide with Go's "call-offer" / "call-answer" / "ice-candidate".
+    //
+    // role: 'caller' → creates offer  |  'callee' → waits for offer
+
+    async _connectBrowserWebRTC(role) {
+      this._emitState('connecting');
+
+      if (typeof RTCPeerConnection === 'undefined' || !navigator.mediaDevices) {
+        log('warn', 'browser WebRTC not available — W2W cannot connect');
+        this._emitState('error');
+        return;
+      }
+
+      // Acquire local media.
+      let localStream;
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      } catch (e) {
+        log('warn', 'getUserMedia (video+audio) failed: ' + e + ' — trying audio-only');
+        try {
+          localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+        } catch (e2) {
+          log('warn', 'getUserMedia (audio-only) failed: ' + e2);
+          this._emitState('error');
+          return;
+        }
+      }
+      this._emitLocalStream(localStream);
+
+      const pc = new RTCPeerConnection({ iceServers: [] });
+      this._browserPc = pc;
+
+      localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+
+      // Remote track → emit to call-ui.js.
+      pc.ontrack = e => {
+        if (e.streams && e.streams[0]) {
+          this._emitRemoteStream(e.streams[0]);
+          this._emitState('connected');
+        }
+      };
+
+      // Trickle ICE to the remote browser via MQ "browser-ice".
+      pc.onicecandidate = e => {
+        if (!e.candidate || !window.Goop || !window.Goop.mq) return;
+        window.Goop.mq.sendCall(this.remotePeerId, this.channelId, {
+          type: 'browser-ice',
+          candidate: {
+            candidate:     e.candidate.candidate,
+            sdpMid:        e.candidate.sdpMid,
+            sdpMLineIndex: e.candidate.sdpMLineIndex,
+          },
+        }).catch(() => {});
+      };
+
+      pc.onconnectionstatechange = () => {
+        log('info', 'browser PC state: ' + pc.connectionState);
+      };
+
+      try {
+        if (role === 'caller') {
+          // Create offer → send "browser-offer" → wait for "browser-answer".
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          window.Goop.mq.sendCall(this.remotePeerId, this.channelId, {
+            type: 'browser-offer',
+            sdp:  offer.sdp,
+          }).catch(() => {});
+          log('info', 'browser-offer sent, waiting for browser-answer');
+
+          const answerPayload = await new Promise(resolve => {
+            this._pendingBrowserSignal = resolve;
+          });
+          await pc.setRemoteDescription({ type: 'answer', sdp: answerPayload.sdp });
+          log('info', 'browser WebRTC answer set — ICE connecting');
+
+        } else {
+          // Callee: wait for "browser-offer" → create answer → send "browser-answer".
+          log('info', 'waiting for browser-offer from caller');
+          const offerPayload = await new Promise(resolve => {
+            this._pendingBrowserSignal = resolve;
+          });
+          await pc.setRemoteDescription({ type: 'offer', sdp: offerPayload.sdp });
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          window.Goop.mq.sendCall(this.remotePeerId, this.channelId, {
+            type: 'browser-answer',
+            sdp:  answer.sdp,
+          }).catch(() => {});
+          log('info', 'browser-answer sent');
+        }
+      } catch (err) {
+        log('warn', 'browser WebRTC setup error: ' + err);
+        this._emitState('error');
+      }
     }
 
-    /**
-     * Phase 4: deliver remote media to the browser.
-     *
-     * Two paths depending on browser capability:
-     *   A) RTCPeerConnection available (macOS/Windows browser, or WebKitGTK with
-     *      WebRTC enabled): loopback PeerConnection — Go's LocalPC relays tracks.
-     *   B) RTCPeerConnection unavailable (WebKitGTK/Wails on Linux): WebM/MSE
-     *      streaming — Go encodes VP8+Opus into a live WebM and streams it over
-     *      a WebSocket to the browser's MediaSource API.
-     */
+    // Called by NativeCallManager._ensureEventSource when a browser-* signal arrives.
+    _handleBrowserSignal(type, payload) {
+      if ((type === 'browser-offer' || type === 'browser-answer') && this._pendingBrowserSignal) {
+        const resolve = this._pendingBrowserSignal;
+        this._pendingBrowserSignal = null;
+        resolve(payload);
+      } else if (type === 'browser-ice' && this._browserPc) {
+        const c = payload && payload.candidate;
+        if (c && c.candidate) {
+          this._browserPc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+        }
+      }
+    }
+
+    // ── Native Pion path (L2L, L2W, W2L) ──────────────────────────────────────
+    //
+    // Two paths depending on browser capability:
+    //   A) RTCPeerConnection available (macOS/Windows): loopback PeerConnection — Go LocalPC.
+    //      (Currently a stub at /api/call/loopback — Phase 4 LocalPC not yet wired.)
+    //   B) RTCPeerConnection unavailable (WebKitGTK/Wails on Linux): WebM/MSE streaming.
+
     async _connectLoopback() {
       this._emitState('connecting');
 
-      // Path B — WebKitGTK/Wails on Linux: no RTCPeerConnection.
       if (typeof RTCPeerConnection === 'undefined') {
         log('info', 'RTCPeerConnection unavailable — using WebM/MSE stream');
         await this._connectMSE();
         return;
       }
 
-      // Path A — standard browser RTCPeerConnection loopback.
+      // Path A — RTCPeerConnection loopback to Go's LocalPC (stub until Phase 5).
       try {
         const pc = new RTCPeerConnection({ iceServers: [] });
         this._loopbackPc = pc;
@@ -169,7 +331,6 @@
           }
         };
 
-        // Trickle our ICE candidates to Go's LocalPC.
         pc.onicecandidate = e => {
           if (!e.candidate) return;
           fetch(`/api/call/loopback/${this.channelId}/ice`, {
@@ -183,13 +344,10 @@
           }).catch(() => {});
         };
 
-        // Subscribe to Go's LocalPC ICE candidates via MQ (Phase 4).
-        // Go publishes on "call:loopback:{channelId}" via mqMgr.PublishLoopbackICE().
         this._loopbackIceUnsub = window.Goop.mq.onLoopbackICE(this.channelId, candidate => {
           pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
         });
 
-        // Ask Go to receive our offer and return an SDP answer.
         const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
         await pc.setLocalDescription(offer);
 
@@ -200,22 +358,16 @@
         });
         if (!resp.ok) {
           log('warn', 'loopback offer rejected: ' + resp.status);
-          iceEs.close();
-          this._loopbackIceEs = null;
           return;
         }
 
         const { sdp } = await resp.json();
         if (sdp) {
-          // Phase 4: real SDP answer from Go's LocalPC.
           await pc.setRemoteDescription({ type: 'answer', sdp });
         } else {
-          // Phase 2/3 stub: no LocalPC yet — pretend connected so the overlay
-          // shows "Connected" rather than "Connecting..." indefinitely.
-          iceEs.close();
-          this._loopbackIceEs = null;
+          // Stub: no LocalPC yet — mark connected so overlay shows correctly.
           this._emitState('connected');
-          log('info', 'loopback stub active (Go LocalPC wired in Phase 4)');
+          log('info', 'loopback stub active (Go LocalPC not yet wired)');
         }
       } catch (err) {
         log('warn', 'loopback setup error: ' + err);
@@ -223,17 +375,7 @@
       }
     }
 
-    /**
-     * Phase 4 (MSE path): receive remote video as a live WebM stream over WebSocket.
-     *
-     * Go encodes the remote VP8 video and Opus audio into WebM clusters and
-     * sends them as binary WebSocket messages.  The browser feeds these into a
-     * MediaSource so <video>.src just works — no RTCPeerConnection needed.
-     *
-     * Message layout:
-     *   - First message: EBML header + Segment(unknown-size) + Info + Tracks  (init segment)
-     *   - Subsequent messages: Cluster elements  (one per video keyframe interval)
-     */
+    // Phase 4 MSE path — WebKitGTK/Wails Linux: receive remote video via WebM/WebSocket.
     async _connectMSE() {
       if (typeof MediaSource === 'undefined') {
         log('warn', 'MSE not available — remote video will not display');
@@ -254,13 +396,8 @@
       const url = URL.createObjectURL(ms);
 
       // Emit early — call-ui.js sets video.src = url, which triggers 'sourceopen'.
-      // Uses replay-on-subscribe so this is safe even if the callback isn't registered yet.
       this._emitRemoteVideoSrc(url);
 
-      // Wait for the video element to connect to the MediaSource.
-      // Add a 4-second timeout: if WebKitGTK never fires sourceopen (e.g. the
-      // video element isn't rendering), bail so the WebSocket still opens and
-      // we at least get audio/connection state — better than hanging forever.
       const sourceOpenOk = await new Promise(resolve => {
         const timeout = setTimeout(() => {
           log('warn', 'sourceopen timeout — MSE may not be supported or video is not rendered');
@@ -278,10 +415,6 @@
       let sb;
       try {
         sb = ms.addSourceBuffer(mimeType);
-        // Sequence mode: MSE plays clusters in arrival order, ignoring absolute
-        // timecodes.  Without this, VP8 RTP-derived timecodes (large random
-        // initial values) would place data millions of ms into the future and
-        // the video element would show black (nothing buffered at currentTime=0).
         sb.mode = 'sequence';
       } catch (e) {
         log('warn', 'MSE addSourceBuffer failed: ' + e);
@@ -289,7 +422,6 @@
         return;
       }
 
-      // Sequential append queue — MSE requires one appendBuffer at a time.
       const queue = [];
       let   appending = false;
       let   connectedEmitted = false;
@@ -307,15 +439,10 @@
 
       sb.addEventListener('updateend', () => {
         appending = false;
-        // Emit "connected" once the first chunk has been buffered.
         if (!connectedEmitted && ms.readyState === 'open') {
           connectedEmitted = true;
           this._emitState('connected');
         }
-        // Trim old buffered data to prevent QuotaExceededError on very long calls.
-        // Threshold: 120 s (~18 MB at 1.5 Mbps VP8) — aggressive trimming (30 s) can
-        // cause WebKitGTK to enter a waiting/stalled state and show black video.
-        // remove() is async and fires updateend again when complete.
         if (!sb.updating && sb.buffered.length > 0 && ms.readyState === 'open') {
           const s0 = sb.buffered.start(0), e0 = sb.buffered.end(0);
           if (e0 - s0 > 120) {
@@ -325,7 +452,6 @@
         tryAppend();
       });
 
-      // Connect WebSocket — same host as the page (viewer HTTP server).
       const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl   = wsProto + '//' + window.location.host + '/api/call/media/' + this.channelId;
       log('info', 'Opening media WebSocket: ' + wsUrl);
@@ -334,16 +460,10 @@
       this._mediaWs  = ws;
       ws.binaryType  = 'arraybuffer';
 
-      ws.onopen = () => log('info', 'Media WebSocket connected');
-
-      ws.onmessage = e => {
-        queue.push(new Uint8Array(e.data));
-        tryAppend();
-      };
-
-      ws.onerror = () => log('warn', 'Media WebSocket error');
-
-      ws.onclose = () => {
+      ws.onopen    = () => log('info', 'Media WebSocket connected');
+      ws.onmessage = e => { queue.push(new Uint8Array(e.data)); tryAppend(); };
+      ws.onerror   = () => log('warn', 'Media WebSocket error');
+      ws.onclose   = () => {
         log('info', 'Media WebSocket closed');
         this._mediaWs = null;
         if (ms.readyState === 'open') {
@@ -362,6 +482,7 @@
 
   class NativeCallManager {
     constructor() {
+      this._platform    = 'linux'; // set from /api/call/mode "platform" field
       this._incomingCbs = [];
       this._evtSource   = null;
       this._sessions    = {}; // channelId → NativeSession
@@ -369,19 +490,15 @@
 
     /**
      * Initiate an outbound call to peerId.
-     * 1. Create a realtime channel (invites the peer via the group protocol).
-     * 2. Tell Go's call manager about the session.
-     * 3. Return a NativeSession — call-ui.js shows the active-call overlay.
-     * 4. In background: watch for callee to join, then send call-request signal.
+     * _connectLoopback / _connectBrowserWebRTC is deferred to _handleCallAck
+     * so we know the remote platform before choosing the media path.
      */
-    async start(peerId /*, constraints — ignored; Go handles media in Phase 3+ */) {
+    async start(peerId /*, constraints — ignored; Go handles media in Pion path */) {
       log('info', 'starting call to ' + peerId);
 
-      // Create a virtual MQ channel ID (no server-side registration needed).
       const channelId = 'nc-' + Math.random().toString(36).slice(2, 10);
       log('info', 'MQ channel id: ' + channelId);
 
-      // Register session with Go's call manager.
       const startRes = await fetch('/api/call/start', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -390,93 +507,135 @@
       if (!startRes.ok) throw new Error('call start failed: ' + startRes.status);
       log('info', 'Go call session started, channel=' + channelId);
 
-      // Create session, register it, then wire loopback.
-      const sess = new NativeSession(channelId);
+      const sess = new NativeSession(channelId, peerId);
       this._sessions[channelId] = sess;
       sess.onHangup(() => { delete this._sessions[channelId]; });
-      sess._connectLoopback();
 
-      // Send call-request to callee via MQ.
+      // Media connection deferred: _handleCallAck chooses the path once we
+      // know both platforms from the call-ack payload.
       this._notifyCallee(channelId, peerId);
 
       return sess;
     }
 
     /**
-     * Send a call-request message to the callee via MQ.
+     * Send call-request with local platform so the callee can determine constellation.
      */
     _notifyCallee(channelId, peerId) {
-      log('info', 'sending call-request to ' + peerId + ' on ' + channelId);
       const send = () => {
-        if (!window.Goop || !window.Goop.mq) {
-          setTimeout(send, 200);
-          return;
-        }
-        window.Goop.mq.sendCallRequest(peerId, channelId).catch(() => {
-          // MQ will retry automatically from outbox.
-        });
+        if (!window.Goop || !window.Goop.mq) { setTimeout(send, 200); return; }
+        window.Goop.mq.sendCall(peerId, channelId, {
+          type:     window.Goop.mq.CALL_TYPES.REQUEST,
+          platform: this._platform,
+        }).catch(() => {});
       };
       send();
     }
 
     /**
      * Register a handler for incoming calls.
-     * Subscribes to 'call:*' via Goop.mq.  call-ui.js calls this at load time
-     * on the original browser Goop.call; call-native.js re-registers on the
-     * new NativeCallManager after replacing Goop.call.
      */
     onIncoming(cb) {
       this._incomingCbs.push(cb);
       this._ensureEventSource();
     }
 
-    // Stub required by peer.js and peers.js autorefresh check.
-    // Native mode tracks sessions server-side; return empty for now.
+    // Stub required by peer.js / peers.js autorefresh check.
     activeCalls() { return []; }
 
-    // ── MQ subscription ──
+    // ── MQ subscription ──────────────────────────────────────────────────────
 
     _ensureEventSource() {
       if (this._evtSource) return;
-      this._evtSource = true; // prevent double-init
+      this._evtSource = true;
       const init = () => {
         if (!window.Goop || !window.Goop.mq) { setTimeout(init, 100); return; }
-        window.Goop.mq.onCall( (from, topic, payload, ack) => {
+        window.Goop.mq.onCall((from, topic, payload, ack) => {
           ack();
           if (!payload) return;
-          const channelId = topic.slice(5); // strip 'call:' prefix
-          if (payload.type === 'call-request') {
-            this._handleIncoming({ channel_id: channelId, remote_peer: from });
-          } else if (payload.type === 'call-hangup') {
+          const channelId = topic.slice(5); // strip "call:" prefix
+          if (channelId.startsWith('loopback:')) return; // handled by onLoopbackICE
+
+          const type = payload.type;
+          if (type === 'call-request') {
+            this._handleIncoming({
+              channel_id:      channelId,
+              remote_peer:     from,
+              caller_platform: payload.platform || 'linux',
+            });
+          } else if (type === 'call-ack') {
+            this._handleCallAck(channelId, from, payload);
+          } else if (type === 'call-hangup') {
             const sess = this._sessions[channelId];
             if (sess) sess._handleRemoteHangup();
+          } else if (type === 'browser-offer' || type === 'browser-answer' || type === 'browser-ice') {
+            const sess = this._sessions[channelId];
+            if (sess) sess._handleBrowserSignal(type, payload);
           }
+          // call-offer, call-answer, ice-candidate handled by Go's Pion path — ignored in JS.
         });
       };
       init();
     }
 
-    _handleIncoming({ channel_id: channelId, remote_peer: remotePeerId }) {
-      log('info', 'incoming call from ' + remotePeerId + ' on channel ' + channelId);
-      // Build an "info" object that matches what call-ui.js's showIncomingCall expects.
-      // call-ui.js uses info.peerId and info.channelId.
+    /**
+     * call-ack received: callee accepted.
+     * payload.platform tells us the callee's OS.
+     * Determine constellation and connect media accordingly.
+     */
+    _handleCallAck(channelId, from, payload) {
+      const sess = this._sessions[channelId];
+      if (!sess) {
+        log('warn', 'call-ack for unknown session ' + channelId);
+        return;
+      }
+      const calleePlatform = payload.platform || 'linux';
+      const isW2W = this._platform !== 'linux' && calleePlatform !== 'linux';
+      log('info', 'call-ack: local=' + this._platform + ' remote=' + calleePlatform + ' W2W=' + isW2W);
+
+      if (isW2W) {
+        log('info', 'W2W constellation → browser WebRTC (getUserMedia + RTCPeerConnection)');
+        sess._connectBrowserWebRTC('caller');
+      } else {
+        log('info', 'native Pion constellation → Go ExternalPC + WebM/MSE');
+        sess._connectLoopback();
+      }
+    }
+
+    /**
+     * Incoming call-request received.
+     * caller_platform tells us the caller's OS.
+     * The accept() closure uses constellation info to pick the right media path.
+     */
+    _handleIncoming({ channel_id: channelId, remote_peer: remotePeerId, caller_platform: callerPlatform }) {
+      log('info', 'incoming call from ' + remotePeerId + ' (' + callerPlatform + ') on ' + channelId);
+      const isW2W = this._platform !== 'linux' && callerPlatform !== 'linux';
+
       const incoming = {
         channelId,
-        peerId:      remotePeerId, // ← call-ui.js uses info.peerId in the modal
-        remotePeerId,              //   (kept for API completeness)
+        peerId:       remotePeerId,
+        remotePeerId,
 
         accept: async () => {
-          log('info', 'accepting call on channel ' + channelId);
+          log('info', 'accepting call on channel ' + channelId + ' (W2W=' + isW2W + ')');
           const res = await fetch('/api/call/accept', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({ channel_id: channelId, remote_peer: remotePeerId }),
           });
           if (!res.ok) throw new Error('accept failed: ' + res.status);
-          const sess = new NativeSession(channelId);
+
+          const sess = new NativeSession(channelId, remotePeerId);
           this._sessions[channelId] = sess;
           sess.onHangup(() => { delete this._sessions[channelId]; });
-          sess._connectLoopback();
+
+          if (isW2W) {
+            log('info', 'W2W constellation → browser WebRTC (getUserMedia + RTCPeerConnection)');
+            sess._connectBrowserWebRTC('callee');
+          } else {
+            log('info', 'native Pion constellation → Go ExternalPC + WebM/MSE');
+            sess._connectLoopback();
+          }
           return sess;
         },
 
@@ -498,28 +657,35 @@
   // ── Bootstrap ──────────────────────────────────────────────────────────────
 
   async function init() {
-    let mode = 'browser', first = false;
+    let mode = 'browser', first = false, platform = 'linux';
     try {
       const res = await fetch('/api/call/mode');
-      if (res.ok) { const j = await res.json(); mode = j.mode || 'browser'; first = !!j.first; }
+      if (res.ok) {
+        const j = await res.json();
+        mode     = j.mode     || 'browser';
+        first    = !!j.first;
+        platform = j.platform || 'linux';
+      }
     } catch (_) { /* endpoint unavailable — stay in browser mode */ }
 
     if (mode !== 'native') {
       return;
     }
 
-    // Set the suppression flag BEFORE registering the new manager so that any
-    // call-request that arrives on the realtime SSE during the tiny init window
-    // is already suppressed in video-call.js.notifyIncoming.
+    if (first) {
+      log('info', 'mode=native platform=' + platform + ' — Go/Pion call stack active');
+    }
+
+    // Set suppression flag BEFORE registering the new manager so that any
+    // call-request that arrives during the tiny init window is already suppressed
+    // in video-call.js.notifyIncoming.
     window._callNativeMode = true;
 
     window.Goop = window.Goop || {};
     Goop.call = new NativeCallManager();
+    Goop.call._platform = platform;
 
     // Re-register call-ui.js's incoming handler on the new native manager.
-    // call-ui.js already ran Goop.call.onIncoming(showIncomingCall) on the old
-    // browser manager — that registration is now stale.  Re-wire it here using
-    // the Goop.callUI.showIncoming bridge we added to call-ui.js.
     Goop.call.onIncoming(function (info) {
       if (Goop.callUI && typeof Goop.callUI.showIncoming === 'function') {
         Goop.callUI.showIncoming(info);

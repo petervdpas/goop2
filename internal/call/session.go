@@ -459,6 +459,10 @@ func (s *Session) handleSignal(msgType string, payload map[string]any) {
 			log.Printf("CALL [%s]: remote hangup from %s", s.channelID, s.remotePeer)
 		}
 
+	case "browser-offer", "browser-answer", "browser-ice":
+		// W2W browser-to-browser WebRTC signaling — handled entirely in JS.
+		// Go's dispatchLoop also receives these via SubscribeTopic; ignore silently.
+
 	default:
 		log.Printf("CALL [%s]: unknown signal %q from %s", s.channelID, msgType, s.remotePeer)
 	}

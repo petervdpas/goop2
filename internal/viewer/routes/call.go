@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"runtime"
 	"strings"
 
 	"github.com/gorilla/websocket"
@@ -42,7 +43,7 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager, mqMgr *mq.Manager) 
 				log.Printf("[info] [call-native] mode=native — Go/Pion call stack active")
 			}
 		}
-		writeJSON(w, map[string]any{"mode": mode, "first": first})
+		writeJSON(w, map[string]any{"mode": mode, "first": first, "platform": runtime.GOOS})
 	})
 
 	if callMgr == nil {
