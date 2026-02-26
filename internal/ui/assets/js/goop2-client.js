@@ -194,6 +194,12 @@
         delete:        function (p) { return _post('/api/data/delete', p); },
       },
 
+      // ── Chat ──────────────────────────────────────────────────────────────────
+      chat: {
+        history: function (peerId) { return _get('/api/chat/history?peer_id=' + encodeURIComponent(peerId)); },
+        clear:   function (peerId) { return _delete('/api/chat/history?peer_id=' + encodeURIComponent(peerId)); },
+      },
+
       // ── Avatar ────────────────────────────────────────────────────────────────
       avatar: {
         url:     function ()   { return baseURL + '/api/avatar'; },

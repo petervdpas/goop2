@@ -174,12 +174,13 @@
     return window.Goop && window.Goop.emoji ? window.Goop.emoji.isEmojiOnly(text) : false;
   }
 
-  // Load any messages received while we were on a different page.
-  try {
-    var key = 'goop:chat:' + peerID;
-    var cached = JSON.parse(sessionStorage.getItem(key) || '[]');
-    cached.forEach(function(msg) { _messages.push(msg); });
-    sessionStorage.removeItem(key);
-  } catch (_) {}
-  renderMessages(_messages);
+  // Load persistent chat history from the backend.
+  Goop.api.chat.history(peerID).then(function(msgs) {
+    if (Array.isArray(msgs)) {
+      msgs.forEach(function(msg) { _messages.push(msg); });
+    }
+    renderMessages(_messages);
+  }).catch(function() {
+    renderMessages(_messages);
+  });
 })();

@@ -1054,3 +1054,24 @@ func swagAvatarDelete() {}
 //	@Success	200	{string}	string	"Image data"
 //	@Router		/api/avatar/peer/{id} [get]
 func swagAvatarPeer() {}
+
+// ── Chat ─────────────────────────────────────────────────────────────────────
+
+// swagChatHistory is a documentation stub for GET /api/chat/history.
+//
+//	@Summary	Get chat history with a peer
+//	@Tags		chat
+//	@Produce	json
+//	@Param		peer_id	query		string				true	"Peer ID"
+//	@Success	200		{array}		storage.ChatMessage
+//	@Router		/api/chat/history [get]
+func swagChatHistory() {}
+
+// swagChatClear is a documentation stub for DELETE /api/chat/history.
+//
+//	@Summary	Clear chat history with a peer
+//	@Tags		chat
+//	@Param		peer_id	query		string				true	"Peer ID"
+//	@Success	200		{object}	statusOK
+//	@Router		/api/chat/history [delete]
+func swagChatClear() {}

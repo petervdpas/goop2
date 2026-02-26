@@ -102,7 +102,8 @@ func Start(addr string, v Viewer) error {
 
 	// Register MQ endpoints
 	if v.MQ != nil {
-		routes.RegisterMQ(mux, v.MQ)
+		routes.RegisterMQ(mux, v.MQ, v.DB, v.Node.ID())
+		routes.RegisterChat(mux, v.DB, v.MQ, v.Node.ID())
 	}
 
 	// Register data/storage endpoints if DB is available

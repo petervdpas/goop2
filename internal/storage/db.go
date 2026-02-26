@@ -158,6 +158,22 @@ func Open(configDir string) (*DB, error) {
 	// Migration: add protocols column to existing databases.
 	db.Exec(`ALTER TABLE _peer_cache ADD COLUMN protocols TEXT NOT NULL DEFAULT '[]'`)
 
+	// Chat message history — persists direct chat messages per peer conversation.
+	// peer_id = remote peer; from_id = sender (self or remote); ts = Unix ms.
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS _chat_messages (
+			id      INTEGER PRIMARY KEY AUTOINCREMENT,
+			peer_id TEXT NOT NULL,
+			from_id TEXT NOT NULL,
+			content TEXT NOT NULL,
+			ts      INTEGER NOT NULL
+		);
+		CREATE INDEX IF NOT EXISTS _chat_messages_peer ON _chat_messages(peer_id, ts DESC);
+	`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("create chat messages table: %w", err)
+	}
+
 	// Separate table for favorites — stores favorite peers with their metadata.
 	// Favorites are never pruned by TTL, so metadata is always available even if peer goes offline.
 	if _, err := db.Exec(`
@@ -921,6 +937,80 @@ func (d *DB) DumpSQL() (string, error) {
 	}
 
 	return buf.String(), nil
+}
+
+// ChatMessage is a single chat history entry returned by GetChatHistory.
+type ChatMessage struct {
+	From      string `json:"from"`
+	Content   string `json:"content"`
+	Timestamp int64  `json:"timestamp"`
+}
+
+const chatHistoryCap = 200
+
+// StoreChatMessage persists one chat message.
+// peerID is the remote peer in the conversation; fromID is who sent it.
+func (d *DB) StoreChatMessage(peerID, fromID, content string, ts int64) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if _, err := d.db.Exec(
+		`INSERT INTO _chat_messages (peer_id, from_id, content, ts) VALUES (?, ?, ?, ?)`,
+		peerID, fromID, content, ts,
+	); err != nil {
+		return err
+	}
+
+	// FIFO cap: keep only the newest chatHistoryCap messages per peer.
+	_, err := d.db.Exec(`
+		DELETE FROM _chat_messages
+		WHERE peer_id = ? AND id NOT IN (
+			SELECT id FROM _chat_messages WHERE peer_id = ? ORDER BY id DESC LIMIT ?
+		)`, peerID, peerID, chatHistoryCap)
+	return err
+}
+
+// GetChatHistory returns the last limit messages for a peer conversation,
+// ordered oldest-first so the UI can render them top-to-bottom.
+func (d *DB) GetChatHistory(peerID string, limit int) ([]ChatMessage, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if limit <= 0 {
+		limit = chatHistoryCap
+	}
+
+	rows, err := d.db.Query(`
+		SELECT from_id, content, ts FROM (
+			SELECT from_id, content, ts FROM _chat_messages
+			WHERE peer_id = ?
+			ORDER BY id DESC LIMIT ?
+		) ORDER BY ts ASC`, peerID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var msgs []ChatMessage
+	for rows.Next() {
+		var m ChatMessage
+		if err := rows.Scan(&m.From, &m.Content, &m.Timestamp); err != nil {
+			return nil, err
+		}
+		msgs = append(msgs, m)
+	}
+	if msgs == nil {
+		msgs = []ChatMessage{}
+	}
+	return msgs, rows.Err()
+}
+
+// ClearChatHistory deletes all stored messages for a peer conversation.
+func (d *DB) ClearChatHistory(peerID string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	_, err := d.db.Exec(`DELETE FROM _chat_messages WHERE peer_id = ?`, peerID)
+	return err
 }
 
 // sqlEscapeValue converts a Go value to a SQL literal for use in INSERT statements.

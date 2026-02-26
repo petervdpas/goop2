@@ -75,28 +75,15 @@
       }).catch(function() { show(from.substring(0, 8) + '...'); });
     }
 
-    // Session cache for incoming direct chat messages.
-    // Uses sessionStorage so it survives full page navigations within the tab.
-    // Key: "goop:chat:<peerID>", value: JSON array of {from,content,timestamp}.
-    function cacheChatMsg(from, content) {
-      try {
-        var key = 'goop:chat:' + from;
-        var existing = JSON.parse(sessionStorage.getItem(key) || '[]');
-        existing.push({ from: from, content: content, timestamp: Date.now() });
-        if (existing.length > 50) existing.shift();
-        sessionStorage.setItem(key, JSON.stringify(existing));
-      } catch (_) {}
-    }
-
     // Subscribe to incoming chat messages via MQ.
+    // Storage is handled by Go (RegisterChat subscribes server-side); we just show the toast.
     function initChatNotifications() {
       if (!window.Goop || !window.Goop.mq) {
         setTimeout(initChatNotifications, 100);
         return;
       }
-      window.Goop.mq.onChat( function(from, _topic, payload, ack) {
+      window.Goop.mq.onChat(function(from, _topic, payload, ack) {
         var content = (payload && payload.content) || '';
-        if (from) cacheChatMsg(from, content);
         showChatToast(from, content);
         ack();
       });
