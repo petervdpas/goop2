@@ -45,6 +45,19 @@
   var _restoreCbs   = [];
   var _mqSubscribed = false;
 
+  // ── Call state store ─────────────────────────────────────────────────────────
+  // Exposes call phase to the rest of the app via Goop.callState.watch('phase', fn).
+  // Phases: 'idle' → 'requesting' → 'connecting' → 'connected' → 'idle'
+  //         'idle' → 'incoming'   → 'connecting' → 'connected' → 'idle'
+  var _callStore = null;
+
+  function _setCallState(phase, channelId, peerID) {
+    if (!_callStore) return;
+    _callStore.set('phase',     phase);
+    _callStore.set('channelId', channelId || null);
+    _callStore.set('peerID',    peerID    || null);
+  }
+
   // ── Logging ──────────────────────────────────────────────────────────────────
 
   function log(level, msg) {
@@ -158,6 +171,7 @@
   };
 
   CallSession.prototype._emitState = function (s) {
+    _setCallState(s, this.channelId, this.remotePeerId);
     this._stateCbs.forEach(function (cb) { try { cb(s); } catch (_) {} });
   };
 
@@ -192,6 +206,7 @@
   // ── Hangup ──
 
   CallSession.prototype.hangup = function () {
+    _setCallState('idle', null, null);
     _clearCallFromSession();
     this._cleanup();
     if (_mode === 'native') {
@@ -204,6 +219,7 @@
   };
 
   CallSession.prototype._handleRemoteHangup = function () {
+    _setCallState('idle', null, null);
     _clearCallFromSession();
     this._cleanup();
     this._emitHangup();
@@ -797,6 +813,7 @@
     var mediaType      = payload.mediaType || 'video';
     log('info', 'Incoming ' + mediaType + ' call from ' + fromPeer +
         ' [origin: ' + originMode + '/' + originPlatform + '] on ' + channelId);
+    _setCallState('incoming', channelId, fromPeer);
 
     var info = {
       channelId:    channelId,
@@ -889,6 +906,7 @@
       var sess = new CallSession(channelId, peerId, true, mediaType);
       _sessions[channelId] = sess;
       sess.onHangup(function () { delete _sessions[channelId]; });
+      _setCallState('requesting', channelId, peerId);
 
       if (_mode === 'native') {
         // Register Go session first, then invite target.
@@ -961,6 +979,13 @@
   // between the async fetch and a user clicking a call button immediately after load.
 
   function _init() {
+    // Initialise call state store synchronously so any page can watch it
+    // before the async mode fetch resolves.
+    if (window.Goop && window.Goop.store) {
+      _callStore = window.Goop.store({ phase: 'idle', channelId: null, peerID: null });
+      window.Goop.callState = _callStore;
+    }
+
     _modePromise = Goop.api.call.mode()
       .catch(function () { return {}; })
       .then(function (j) {
@@ -995,6 +1020,7 @@
           var sess = new CallSession(s.channel_id, s.remote_peer, s.is_origin, 'video');
           _sessions[s.channel_id] = sess;
           sess.onHangup(function () { delete _sessions[s.channel_id]; });
+          _setCallState('connected', s.channel_id, s.remote_peer);
           // Reconnect native media (fire and forget — restoreCbs register callbacks first).
           sess._connectNative();
           _restoreCbs.forEach(function (cb) {

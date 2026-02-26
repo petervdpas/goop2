@@ -351,11 +351,26 @@
       });
     }
 
-    session.onStateChange(function(state) {
-      statusEl.textContent = state === "connected" ? "Connected" :
-                             state === "connecting" ? "Connecting\u2026" :
-                             state;
-    });
+    // Drive status text from the call store so all phase transitions are visible,
+    // including 'requesting' (waiting for remote to accept) which fires before
+    // the session emits its own 'connecting' state.
+    var _phaseLabels = {
+      requesting:  'Calling\u2026',
+      incoming:    'Incoming\u2026',
+      connecting:  'Connecting\u2026',
+      connected:   'Connected',
+      idle:        '',
+    };
+    if (window.Goop && window.Goop.callState) {
+      Goop.callState.watch('phase', function(phase) {
+        statusEl.textContent = _phaseLabels[phase] || phase;
+      }, true /* immediate */);
+    } else {
+      // Fallback: direct session callback when store is unavailable.
+      session.onStateChange(function(state) {
+        statusEl.textContent = _phaseLabels[state] || state;
+      });
+    }
 
     session.onHangup(function() {
       removeOverlay();
@@ -413,6 +428,18 @@
       log('info', 'Restoring call overlay for channel: ' + session.channelId);
       showActiveCall(session);
     });
+  }
+
+  // Gate all [data-call] buttons on call phase — disabled while a call is active.
+  // Any button with data-call="start" is auto-managed reactively.
+  if (window.Goop && window.Goop.callState) {
+    Goop.callState.watch('phase', function(phase) {
+      var busy = phase !== 'idle';
+      document.querySelectorAll('[data-call="start"]').forEach(function(btn) {
+        btn.disabled = busy;
+        btn.title = busy ? 'Call in progress' : '';
+      });
+    }, true /* immediate */);
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────

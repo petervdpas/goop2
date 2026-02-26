@@ -26,37 +26,31 @@ func RegisterChat(mux *http.ServeMux, db *storage.DB, mqMgr *mq.Manager, selfID 
 		}
 	})
 
-	// GET /api/chat/history?peer_id=X
-	handleGet(mux, "/api/chat/history", func(w http.ResponseWriter, r *http.Request) {
-		peerID := r.URL.Query().Get("peer_id")
-		if peerID == "" {
-			http.Error(w, "missing peer_id", http.StatusBadRequest)
-			return
-		}
-		msgs, err := db.GetChatHistory(peerID, 200)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		writeJSON(w, msgs)
-	})
-
-	// DELETE /api/chat/history?peer_id=X
+	// GET /api/chat/history?peer_id=X   — fetch last 200 messages
+	// DELETE /api/chat/history?peer_id=X — clear history
 	mux.HandleFunc("/api/chat/history", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodDelete {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
 		peerID := r.URL.Query().Get("peer_id")
 		if peerID == "" {
 			http.Error(w, "missing peer_id", http.StatusBadRequest)
 			return
 		}
-		if err := db.ClearChatHistory(peerID); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+		switch r.Method {
+		case http.MethodGet:
+			msgs, err := db.GetChatHistory(peerID, 200)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, msgs)
+		case http.MethodDelete:
+			if err := db.ClearChatHistory(peerID); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, map[string]string{"status": "ok"})
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
-		writeJSON(w, map[string]string{"status": "ok"})
 	})
 }
 
