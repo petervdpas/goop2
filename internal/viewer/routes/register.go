@@ -59,6 +59,7 @@ func Register(mux *http.ServeMux, d Deps) {
 	csrf := newToken(32)
 
 	RegisterOpenRoute(mux)
+	RegisterOpenAPI(mux)
 
 	registerAPILogRoutes(mux, d)
 
@@ -100,6 +101,7 @@ func RegisterMinimal(mux *http.ServeMux, d Deps) {
 	})
 
 	RegisterOpenRoute(mux)
+	RegisterOpenAPI(mux)
 	registerAPILogRoutes(mux, d)
 	registerSelfRoutes(mux, d, csrf)
 	registerSettingsRoutes(mux, d, csrf)

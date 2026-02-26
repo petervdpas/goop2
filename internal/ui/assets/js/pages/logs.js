@@ -11,17 +11,57 @@
   var lineCount = 0;
 
   // ── Tab filtering ──────────────────────────────────────────────────────────
+  var swaggerPanel = document.getElementById('swagger-panel');
+  var swaggerReady = false;
+
+  function initSwaggerUI() {
+    if (swaggerReady) return;
+    swaggerReady = true;
+    // Load Swagger UI from CDN — pinned to a stable release
+    var cssLink = document.createElement('link');
+    cssLink.rel = 'stylesheet';
+    cssLink.href = 'https://unpkg.com/swagger-ui-dist@5.18.2/swagger-ui.css';
+    document.head.appendChild(cssLink);
+
+    var script = document.createElement('script');
+    script.src = 'https://unpkg.com/swagger-ui-dist@5.18.2/swagger-ui-bundle.js';
+    script.onload = function() {
+      SwaggerUIBundle({
+        url:           '/api/openapi.json',
+        dom_id:        '#swagger-panel',
+        presets:       [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
+        layout:        'BaseLayout',
+        deepLinking:   true,
+        tryItOutEnabled: true,
+      });
+    };
+    script.onerror = function() {
+      swaggerPanel.innerHTML = '<p style="padding:16px;color:#c00">Swagger UI could not be loaded (no internet access?). The raw spec is at <a href="/api/openapi.json">/api/openapi.json</a></p>';
+    };
+    document.body.appendChild(script);
+  }
+
   document.querySelectorAll('.log-tab').forEach(function(btn) {
     btn.addEventListener('click', function() {
       document.querySelectorAll('.log-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       var tab = btn.dataset.tab;
-      if (tab === 'all') {
-        box.removeAttribute('data-tab');
+      if (tab === 'api') {
+        box.style.display = 'none';
+        if (copyBtn) copyBtn.style.display = 'none';
+        swaggerPanel.style.display = '';
+        initSwaggerUI();
       } else {
-        box.setAttribute('data-tab', tab);
+        box.style.display = '';
+        if (copyBtn) copyBtn.style.display = '';
+        swaggerPanel.style.display = 'none';
+        if (tab === 'all') {
+          box.removeAttribute('data-tab');
+        } else {
+          box.setAttribute('data-tab', tab);
+        }
+        box.scrollTop = box.scrollHeight;
       }
-      box.scrollTop = box.scrollHeight;
     });
   });
 

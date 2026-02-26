@@ -1,6 +1,14 @@
 // main.go
 package main
 
+//	@title			goop2 Viewer API
+//	@version		1.0.0
+//	@description	All HTTP + MQ endpoints exposed by the goop2 viewer.\n\nAll peer-to-peer signaling travels through MQ (POST /api/mq/send → P2P → /api/mq/events SSE).\nSee x-mq-topics in the raw spec (/api/openapi.json) for the full topic contract.
+//	@BasePath		/
+//	@schemes		http
+
+//go:generate swag init -g main.go -d ./,./internal/viewer/routes -o ./docs --parseInternal
+
 import (
 	"context"
 	"embed"
