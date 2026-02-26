@@ -176,9 +176,11 @@
   }
 
   // Load any messages received while we were on a different page.
-  if (window.Goop && window.Goop._chatCache && window.Goop._chatCache[peerID]) {
-    window.Goop._chatCache[peerID].forEach(function(msg) { _messages.push(msg); });
-    delete window.Goop._chatCache[peerID];
-  }
+  try {
+    var key = 'goop:chat:' + peerID;
+    var cached = JSON.parse(sessionStorage.getItem(key) || '[]');
+    cached.forEach(function(msg) { _messages.push(msg); });
+    sessionStorage.removeItem(key);
+  } catch (_) {}
   renderMessages(_messages);
 })();

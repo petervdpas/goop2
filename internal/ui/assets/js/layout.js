@@ -75,24 +75,29 @@
       }).catch(function() { show(from.substring(0, 8) + '...'); });
     }
 
-    // Session cache for incoming direct chat messages: peerID → [{from,content,timestamp}]
-    window.Goop._chatCache = window.Goop._chatCache || {};
+    // Session cache for incoming direct chat messages.
+    // Uses sessionStorage so it survives full page navigations within the tab.
+    // Key: "goop:chat:<peerID>", value: JSON array of {from,content,timestamp}.
+    function cacheChatMsg(from, content) {
+      try {
+        var key = 'goop:chat:' + from;
+        var existing = JSON.parse(sessionStorage.getItem(key) || '[]');
+        existing.push({ from: from, content: content, timestamp: Date.now() });
+        if (existing.length > 50) existing.shift();
+        sessionStorage.setItem(key, JSON.stringify(existing));
+      } catch (_) {}
+    }
 
-    // Subscribe to incoming chat messages via MQ (replaces /api/chat/events SSE).
+    // Subscribe to incoming chat messages via MQ.
     function initChatNotifications() {
       if (!window.Goop || !window.Goop.mq) {
         setTimeout(initChatNotifications, 100);
         return;
       }
       window.Goop.mq.onChat( function(from, _topic, payload, ack) {
-        // Cache the message so peer.js can load it when navigating to that peer's page.
-        if (from) {
-          var cache = window.Goop._chatCache;
-          if (!cache[from]) cache[from] = [];
-          cache[from].push({ from: from, content: (payload && payload.content) || '', timestamp: Date.now() });
-          if (cache[from].length > 50) cache[from].shift();
-        }
-        showChatToast(from, payload && payload.content);
+        var content = (payload && payload.content) || '';
+        if (from) cacheChatMsg(from, content);
+        showChatToast(from, content);
         ack();
       });
     }
