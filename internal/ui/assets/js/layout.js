@@ -90,6 +90,7 @@
           var cache = window.Goop._chatCache;
           if (!cache[from]) cache[from] = [];
           cache[from].push({ from: from, content: (payload && payload.content) || '', timestamp: Date.now() });
+          if (cache[from].length > 50) cache[from].shift();
         }
         showChatToast(from, payload && payload.content);
         ack();
