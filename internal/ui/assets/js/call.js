@@ -351,33 +351,11 @@
 
   CallSession.prototype._connectNative = async function () {
     this._emitState('connecting');
-
-    // Self-preview: try browser getUserMedia first (works if V4L2 allows multi-open).
-    // If it fails (Go holds the camera exclusively), fall back to the Go self-view
-    // WebM stream at /api/call/self/{channel} — fire and forget so wireSession()
-    // can register onLocalVideoSrc before _connectSelfMSE emits the URL.
-    var gotSelfPreview = false;
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      try {
-        var constraints = await _buildConstraints(this.mediaType);
-        var selfStream = await navigator.mediaDevices.getUserMedia(constraints);
-        this._emitLocalStream(selfStream);
-        gotSelfPreview = true;
-      } catch (e) {
-        log('info', 'Native getUserMedia unavailable: ' + e);
-      }
-    }
-    if (!gotSelfPreview) {
-      this._connectSelfMSE(); // fire and forget
-    }
-
-    if (typeof RTCPeerConnection === 'undefined') {
-      // WebKitGTK/Wails: no RTCPeerConnection — use WebM/MSE over WebSocket.
-      await this._connectMSE();
-      return;
-    }
-    // RTCPeerConnection available (loopback to Go LocalPC — Phase 5 stub).
-    await this._connectLoopback();
+    // Go owns the camera via V4L2 — never call getUserMedia here (blocks WebKitGTK).
+    // Self-view comes from Go's /api/call/self/{channel} WebM stream.
+    this._connectSelfMSE(); // fire and forget
+    // Remote video from Go's /api/call/media/{channel} WebM stream via MSE.
+    await this._connectMSE();
   };
 
   CallSession.prototype._connectLoopback = async function () {

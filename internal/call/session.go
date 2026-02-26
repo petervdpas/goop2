@@ -293,6 +293,13 @@ func (s *Session) initExternalPC() {
 		}
 	})
 
+	// Always enable audio before registering OnTrack. Pion fires OnTrack on the
+	// first RTP packet per track — video arrives first. If the first VP8 keyframe
+	// assembles before the audio OnTrack fires, the WebM init segment is generated
+	// with hasAudio=false. MSE then rejects the subsequent audio SimpleBlocks
+	// (undeclared track 2) and the video dies after the first frame.
+	s.webm.enableAudio()
+
 	// Phase 4: stream remote tracks to the browser via WebM/MSE.
 	pc.OnTrack(func(track *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
 		log.Printf("CALL [%s]: remote track — kind=%s codec=%s ssrc=%d",
@@ -301,7 +308,6 @@ func (s *Session) initExternalPC() {
 		case webrtc.RTPCodecTypeVideo:
 			go s.streamVideoTrack(track)
 		case webrtc.RTPCodecTypeAudio:
-			s.webm.enableAudio()
 			go s.streamAudioTrack(track)
 		}
 	})

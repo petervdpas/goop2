@@ -111,6 +111,9 @@ type Node struct {
 	// triggering it to refresh its relay reservation.
 	pulseFn func(ctx context.Context, peerID string) error
 
+	// mdnsService is the mDNS discovery service.  Stored here so StartDiscovery()
+	// can start it after all protocol handlers have been registered.
+	mdnsService mdns.Service
 }
 
 type mdnsNotifee struct {
@@ -212,17 +215,15 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 		_, _ = s.Write([]byte(content + "\n"))
 	})
 
-	// LAN discovery via mDNS (API matches your version)
 	var mdnsSw *swarm.Swarm
 	if s, ok := h.Network().(*swarm.Swarm); ok {
 		mdnsSw = s
 	}
+	// mDNS service is created here but NOT started yet.
+	// Call node.StartDiscovery() after all protocol handlers are registered
+	// (MQ, group, listen, docs, etc.) so no LAN peer can complete Identify
+	// before those handlers are in place.
 	md := mdns.NewMdnsService(h, proto.MdnsTag, &mdnsNotifee{h: h, sw: mdnsSw})
-	if err := md.Start(); err != nil {
-		_ = h.Close()
-		return nil, err
-	}
-	_ = md
 
 	ps, err := pubsub.NewGossipSub(ctx, h)
 	if err != nil {
@@ -256,6 +257,7 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 		diagLogs:           make([]string, 0, 200),
 		diagMax:            200,
 		startTime:          time.Now(),
+		mdnsService:        md,
 	}
 
 	// Store relay peer info for recovery after connection drops.
@@ -507,23 +509,26 @@ func dirString(d network.Direction) string {
 	}
 }
 
-// SetPeerProtocols pre-populates the peerstore with a cached protocol list for a peer.
-// Called on startup to restore protocol knowledge from the DB across restarts.
-// Skips peers with an empty protocol list (nothing to seed).
-func (n *Node) SetPeerProtocols(peerID string, protocols []string) {
-	if len(protocols) == 0 {
-		return
+// StartDiscovery starts LAN peer discovery via mDNS.
+// Must be called AFTER all libp2p stream handlers are registered (MQ, group,
+// listen, docs, etc.).  Starting mDNS before handler registration lets LAN peers
+// connect and complete Identify in a window where handlers are missing, which
+// poisons the peerstore with an incomplete protocol list and breaks NewStream.
+func (n *Node) StartDiscovery() error {
+	if err := n.mdnsService.Start(); err != nil {
+		return fmt.Errorf("mDNS start: %w", err)
 	}
-	pid, err := peer.Decode(peerID)
-	if err != nil {
-		return
-	}
-	protos := make([]protocol.ID, len(protocols))
-	for i, p := range protocols {
-		protos[i] = protocol.ID(p)
-	}
-	_ = n.Host.Peerstore().SetProtocols(pid, protos...)
+	log.Printf("🔍 mDNS discovery started")
+	return nil
 }
+
+// SetPeerProtocols is kept for backward compatibility but is now a no-op.
+// Pre-populating the peerstore with cached protocol lists causes false
+// "protocol not supported" failures when the cached list is stale (e.g.,
+// from a session before MQ was added or before a peer was upgraded).
+// libp2p's inline protocol negotiation in NewStream handles this correctly
+// without peerstore pre-population.
+func (n *Node) SetPeerProtocols(_ string, _ []string) {}
 
 // SubscribeIdentify registers a callback that fires whenever a peer's supported
 // protocol list is learned via the libp2p Identify exchange. Used to persist

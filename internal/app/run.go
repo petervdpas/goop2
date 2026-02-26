@@ -488,6 +488,15 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		log.Printf("📄 File sharing enabled: /goop/docs/1.0.0")
 	}
 
+	// ── Start LAN discovery AFTER all protocol handlers are registered.
+	// mDNS can trigger immediate peer connections + Identify. If handlers
+	// (MQ, group, listen, docs) are not yet registered, the remote peer's
+	// Identify response excludes them, poisoning the peerstore for the
+	// lifetime of that connection and breaking all MQ sends.
+	if err := node.StartDiscovery(); err != nil {
+		log.Printf("WARNING: mDNS start failed: %v", err)
+	}
+
 	for _, c := range rvClients {
 		cc := c
 		go cc.SubscribeEvents(ctx, func(pm proto.PresenceMsg) {
