@@ -175,5 +175,10 @@
     return window.Goop && window.Goop.emoji ? window.Goop.emoji.isEmojiOnly(text) : false;
   }
 
-  renderMessages([]);
+  // Load any messages received while we were on a different page.
+  if (window.Goop && window.Goop._chatCache && window.Goop._chatCache[peerID]) {
+    window.Goop._chatCache[peerID].forEach(function(msg) { _messages.push(msg); });
+    delete window.Goop._chatCache[peerID];
+  }
+  renderMessages(_messages);
 })();

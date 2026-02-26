@@ -75,6 +75,9 @@
       }).catch(function() { show(from.substring(0, 8) + '...'); });
     }
 
+    // Session cache for incoming direct chat messages: peerID → [{from,content,timestamp}]
+    window.Goop._chatCache = window.Goop._chatCache || {};
+
     // Subscribe to incoming chat messages via MQ (replaces /api/chat/events SSE).
     function initChatNotifications() {
       if (!window.Goop || !window.Goop.mq) {
@@ -82,6 +85,12 @@
         return;
       }
       window.Goop.mq.onChat( function(from, _topic, payload, ack) {
+        // Cache the message so peer.js can load it when navigating to that peer's page.
+        if (from) {
+          var cache = window.Goop._chatCache;
+          if (!cache[from]) cache[from] = [];
+          cache[from].push({ from: from, content: (payload && payload.content) || '', timestamp: Date.now() });
+        }
         showChatToast(from, payload && payload.content);
         ack();
       });
