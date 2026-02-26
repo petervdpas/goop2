@@ -455,8 +455,7 @@
       tryAppend();
     });
 
-    var wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    var wsUrl   = wsProto + '//' + window.location.host + '/api/call/self/' + this.channelId;
+    var wsUrl = Goop.api.call.selfWsUrl(this.channelId);
     log('info', 'Opening self-view WebSocket: ' + wsUrl);
 
     var ws = new WebSocket(wsUrl);
@@ -551,8 +550,7 @@
       tryAppend();
     });
 
-    var wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    var wsUrl   = wsProto + '//' + window.location.host + '/api/call/media/' + this.channelId;
+    var wsUrl = Goop.api.call.mediaWsUrl(this.channelId);
     log('info', 'Opening media WebSocket: ' + wsUrl);
 
     var ws = new WebSocket(wsUrl);

@@ -28,6 +28,10 @@
       return ct.includes('application/json') ? r.json() : null;
     });
   }
+  function _wsUrl(path) {
+    var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return proto + '//' + window.location.host + path;
+  }
   function _upload(url, formData) {
     return new Promise(function (resolve, reject) {
       var xhr = new XMLHttpRequest();
@@ -70,8 +74,8 @@
       loopbackOffer: function (ch, p)  { return _post('/api/call/loopback/' + ch + '/offer', p); },
       loopbackIce:   function (ch, p)  { return _post('/api/call/loopback/' + ch + '/ice', p); },
       // WebSocket URLs — pass to new WebSocket(url) or MSE adapter
-      mediaWsUrl:    function (ch)     { return '/api/call/media/' + ch; },
-      selfWsUrl:     function (ch)     { return '/api/call/self/' + ch; },
+      mediaWsUrl:    function (ch)     { return _wsUrl('/api/call/media/' + ch); },
+      selfWsUrl:     function (ch)     { return _wsUrl('/api/call/self/' + ch); },
     },
 
     // ── Groups ─────────────────────────────────────────────────────────────────
