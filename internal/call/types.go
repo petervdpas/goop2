@@ -9,6 +9,11 @@ type Signaler interface {
 	RegisterChannel(channelID, peerID string)
 	Send(channelID string, payload any) error
 	Subscribe() (ch chan *Envelope, cancel func())
+	// PublishLocal delivers a call message directly to the local browser via
+	// the MQ SSE bus, without sending it to any remote peer.  Used by Hangup()
+	// so the browser cleans up the overlay immediately when Go ends the call,
+	// rather than waiting for the next page navigation to find the session gone.
+	PublishLocal(channelID string, payload any)
 }
 
 // Envelope is a copy of realtime.Envelope — avoids importing internal/realtime.

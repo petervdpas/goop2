@@ -124,6 +124,10 @@ func initMediaPC(channelID string, logFn func(level, msg string)) (*webrtc.PeerC
 					frame.FormatI444,
 					frame.FormatRGBA,
 				}
+				// Cap at 640×480 — higher resolutions increase VP8 encoding
+				// latency and can cause WebKitGTK MSE to stall on large frames.
+				c.Width = prop.IntRanged{Max: 640}
+				c.Height = prop.IntRanged{Max: 480}
 			}
 		}
 		if a.audio {

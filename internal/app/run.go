@@ -58,6 +58,10 @@ func (a *mqSignalerAdapter) Send(channelID string, payload any) error {
 	return err
 }
 
+func (a *mqSignalerAdapter) PublishLocal(channelID string, payload any) {
+	a.mqMgr.PublishLocal("call:"+channelID, "", payload)
+}
+
 func (a *mqSignalerAdapter) Subscribe() (chan *call.Envelope, func()) {
 	callCh := make(chan *call.Envelope, 64)
 	unsub := a.mqMgr.SubscribeTopic("call:", func(from, topic string, payload any) {

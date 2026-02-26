@@ -51,6 +51,7 @@ func (m *Manager) StartCall(ctx context.Context, channelID, remotePeer string) (
 	m.mu.Lock()
 	m.sessions[channelID] = sess
 	m.mu.Unlock()
+	go func() { <-sess.HangupCh(); m.removeSession(channelID) }()
 	log.Printf("CALL: started %s → %s", channelID, remotePeer)
 	return sess, nil
 }
@@ -75,6 +76,7 @@ func (m *Manager) AcceptCall(ctx context.Context, channelID, remotePeer string) 
 		sess.Hangup()
 		return nil, err
 	}
+	go func() { <-sess.HangupCh(); m.removeSession(channelID) }()
 	log.Printf("CALL: accepted %s from %s — call-ack sent, waiting for SDP offer", channelID, remotePeer)
 	return sess, nil
 }
@@ -87,13 +89,17 @@ func (m *Manager) GetSession(channelID string) (*Session, bool) {
 	return s, ok
 }
 
-// AllSessions returns a snapshot of all active sessions (for the debug endpoint).
+// AllSessions returns a snapshot of active, non-hung sessions.
+// Hung sessions are excluded so /api/call/active never causes the browser
+// to restore a call overlay for a call that has already ended.
 func (m *Manager) AllSessions() []*Session {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	out := make([]*Session, 0, len(m.sessions))
 	for _, s := range m.sessions {
-		out = append(out, s)
+		if !s.Status().Hung {
+			out = append(out, s)
+		}
 	}
 	return out
 }

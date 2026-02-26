@@ -239,6 +239,12 @@ type webmSession struct {
 	// Init segment (nil until first keyframe with known dimensions)
 	initSeg []byte
 
+	// Last keyframe cluster — replayed to new subscribers so they always
+	// start from a clean VP8 decode state instead of receiving P-frames
+	// mid-stream and producing garbled video.
+	lastKeyCluster []byte
+	clusterIsKey   bool // true when current open cluster started with a keyframe
+
 	// Cluster accumulation
 	clusterStartMs int64
 	clusterBlocks  bytes.Buffer
@@ -302,6 +308,16 @@ func (ws *webmSession) subscribeMedia() (<-chan []byte, func()) {
 		case ch <- ws.initSeg:
 		default:
 		}
+		// Also replay the last keyframe cluster so the VP8 decoder starts from
+		// a clean reference frame.  Without this, subscribers that join
+		// mid-stream (page navigations, WebSocket reconnects) receive P-frames
+		// and the video is garbled until the next natural keyframe arrives.
+		if ws.lastKeyCluster != nil {
+			select {
+			case ch <- ws.lastKeyCluster:
+			default:
+			}
+		}
 	}
 	ws.subs[ch] = struct{}{}
 	n := len(ws.subs)
@@ -364,6 +380,7 @@ func (ws *webmSession) handleVideoFrame(timecodeMs int64, keyframe bool, data []
 	if !ws.clusterOpen {
 		ws.clusterStartMs = tsMs
 		ws.clusterOpen = true
+		ws.clusterIsKey = keyframe
 		ws.clusterBlocks.Reset()
 
 		// Drain queued audio frames into this cluster.
@@ -420,7 +437,14 @@ func (ws *webmSession) flushClusterLocked() {
 		return
 	}
 	cluster := webmCluster(ws.clusterStartMs, ws.clusterBlocks.Bytes())
+	// Cache keyframe clusters so new subscribers (page navigations, reconnects)
+	// always start from a clean VP8 decode state instead of receiving P-frames
+	// and producing garbled video.
+	if ws.clusterIsKey {
+		ws.lastKeyCluster = cluster
+	}
 	ws.clusterOpen = false
+	ws.clusterIsKey = false
 	ws.clusterBlocks.Reset()
 	ws.broadcastLocked(cluster)
 }

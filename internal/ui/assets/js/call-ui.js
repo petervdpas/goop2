@@ -44,14 +44,23 @@
       "  animation: goop-call-appear 0.18s ease-out forwards;",
       "}",
       ".goop-call-videos { position: relative; }",
-      ".goop-call-videos video {",
-      "  border-radius: 8px; background: #000; object-fit: cover;",
+      // border-radius must NOT be on the <video> element directly in WebKitGTK —
+      // it prevents the video compositor layer from being painted (black box).
+      // Use overflow:hidden on a wrapper div instead.
+      ".goop-call-remote-wrap {",
+      "  width: 240px; height: 180px; border-radius: 8px; overflow: hidden;",
+      "  background: #000; flex-shrink: 0;",
       "}",
-      ".goop-call-remote { width: 240px; height: 180px; }",
-      ".goop-call-local {",
+      ".goop-call-local-wrap {",
       "  width: 80px; height: 60px; position: absolute; bottom: 8px; right: 6px;",
-      "  border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; z-index: 1;",
+      "  border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; overflow: hidden;",
+      "  background: #000; z-index: 1;",
       "}",
+      ".goop-call-videos video {",
+      "  width: 100%; height: 100%; object-fit: cover; display: block;",
+      "}",
+      ".goop-call-remote { width: 100%; height: 100%; }",
+      ".goop-call-local { width: 100%; height: 100%; }",
       ".goop-call-controls {",
       "  display: flex; gap: 8px; justify-content: center; padding-top: 4px;",
       "}",
@@ -190,8 +199,12 @@
     el.className = "goop-call-overlay";
     el.innerHTML =
       '<div class="goop-call-videos" style="position:relative;">' +
-        '<video class="goop-call-remote" autoplay playsinline></video>' +
-        '<video class="goop-call-local" autoplay playsinline muted></video>' +
+        '<div class="goop-call-remote-wrap">' +
+          '<video class="goop-call-remote" autoplay playsinline muted></video>' +
+        '</div>' +
+        '<div class="goop-call-local-wrap">' +
+          '<video class="goop-call-local" autoplay playsinline muted></video>' +
+        '</div>' +
       '</div>' +
       '<div class="goop-call-status">Connecting\u2026</div>' +
       '<div class="goop-call-controls">' +
@@ -228,14 +241,15 @@
 
     overlayEl = el;
     document.body.appendChild(el);
+
     return {
       el:          el,
-      remoteVideo: el.querySelector(".goop-call-remote"),
-      localVideo:  el.querySelector(".goop-call-local"),
-      statusEl:    el.querySelector(".goop-call-status"),
-      muteBtn:     el.querySelector(".goop-call-btn-mute"),
-      hangupBtn:   el.querySelector(".goop-call-btn-hangup"),
-      videoBtn:    el.querySelector(".goop-call-btn-video"),
+      remoteVideo: el.querySelector('.goop-call-remote'),
+      localVideo:  el.querySelector('.goop-call-local'),
+      statusEl:    el.querySelector('.goop-call-status'),
+      muteBtn:     el.querySelector('.goop-call-btn-mute'),
+      hangupBtn:   el.querySelector('.goop-call-btn-hangup'),
+      videoBtn:    el.querySelector('.goop-call-btn-video'),
     };
   }
 
@@ -265,6 +279,13 @@
         log('info', 'Self-view MSE src received');
         localVideo.srcObject = null;
         localVideo.src = url;
+        localVideo.onloadedmetadata = function() {
+          log('info', 'Self-view metadata: ' + localVideo.videoWidth + 'x' + localVideo.videoHeight);
+        };
+        localVideo.oncanplay = function() { log('info', 'Self-view canplay'); };
+        localVideo.addEventListener('playing', function() { log('info', 'Self-view playing'); }, { once: true });
+        localVideo.addEventListener('waiting', function() { localVideo.play().catch(function() {}); });
+        localVideo.addEventListener('stalled', function() { localVideo.play().catch(function() {}); });
         localVideo.play().catch(function(e) {
           log('warn', 'Self-view autoplay: ' + e.message);
         });
@@ -301,23 +322,30 @@
         log('info', 'Remote video src received (MSE WebM stream)');
         remoteVideo.srcObject = null;
         remoteVideo.src = src;
-        remoteVideo.play().catch(function(e) {
-          log('warn', 'MSE video autoplay: ' + e.message);
-        });
         remoteVideo.onloadedmetadata = function() {
           log('info', 'MSE video metadata: ' + remoteVideo.videoWidth + 'x' + remoteVideo.videoHeight);
         };
+        remoteVideo.oncanplay = function() {
+          log('info', 'MSE video canplay');
+        };
+        // Unmute once the first frame actually renders.  The element was created
+        // muted so WebKitGTK's autoplay policy allows play() without a gesture.
+        remoteVideo.addEventListener('playing', function() {
+          log('info', 'MSE video playing — unmuting');
+          remoteVideo.muted = false;
+        }, { once: true });
         remoteVideo.onerror = function() {
           log('error', 'MSE video error: ' + (remoteVideo.error ? remoteVideo.error.message : 'unknown'));
         };
+        remoteVideo.play().catch(function(e) {
+          log('warn', 'MSE video autoplay: ' + e.message);
+        });
         // WebKitGTK can enter a stalled/waiting state (shows black) when the MSE
         // buffer is trimmed or after long playback. Recover by calling play().
         remoteVideo.addEventListener('waiting', function() {
-          log('warn', 'MSE video waiting — attempting play() recovery');
           remoteVideo.play().catch(function() {});
         });
         remoteVideo.addEventListener('stalled', function() {
-          log('warn', 'MSE video stalled — attempting play() recovery');
           remoteVideo.play().catch(function() {});
         });
       });

@@ -212,6 +212,10 @@ func (s *Session) Hangup() {
 
 	s.cleanup()
 	_ = s.sig.Send(s.channelID, map[string]any{"type": "call-hangup"})
+	// Also signal the local browser so it removes the overlay immediately —
+	// without this, the browser only learns the call ended on the next page
+	// navigation when _restoreActiveCalls() finds the session gone.
+	s.sig.PublishLocal(s.channelID, map[string]any{"type": "call-hangup"})
 	log.Printf("CALL [%s]: hangup sent to %s", s.channelID, s.remotePeer)
 }
 
@@ -251,13 +255,17 @@ func (s *Session) initExternalPC() {
 	s.mediaClose = closeFn
 	s.mu.Unlock()
 
-	// Enable audio on selfWebm before the streaming goroutine starts, so the
-	// WebM init segment declares an audio track.  No audio SimpleBlocks are
-	// ever sent (self-view is video-only), but the MIME type on the browser
-	// side is "vp8,opus" — matching what WebKitGTK's MSE actually supports.
-	// (WebKitGTK may return false for isTypeSupported("vp8") while "vp8,opus"
-	// is accepted, causing _connectSelfMSE to bail silently.)
-	s.selfWebm.enableAudio()
+	// Do NOT call s.selfWebm.enableAudio() here.
+	//
+	// selfWebm is video-only — no Opus SimpleBlocks are ever sent.  If we
+	// declare an audio track in the init segment, WebKitGTK's MSE stalls the
+	// video renderer indefinitely waiting for audio data that never arrives,
+	// producing a permanently black self-view inset.
+	//
+	// The browser side uses MIME "vp8,opus" for the SourceBuffer so that
+	// isTypeSupported() returns true on WebKitGTK (it returns false for bare
+	// "vp8").  A video-only init segment is valid inside a vp8+opus
+	// SourceBuffer — the MIME declares codec capability, not required tracks.
 
 	// Stream local camera to browser self-view (Linux native mode).
 	if selfSrc != nil {
