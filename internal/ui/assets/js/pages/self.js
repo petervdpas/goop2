@@ -5,7 +5,6 @@
   if (!page) return;
 
   var core = window.Goop && window.Goop.core || {};
-  var api = core.api;
 
   var csrf = page.dataset.csrf || '';
   var bridgeURL = page.dataset.bridgeUrl || '';
@@ -56,7 +55,7 @@
     if (statusEl) { statusEl.textContent = '...'; statusEl.className = 'svc-status'; }
     if (btn) { btn.disabled = true; btn.textContent = '...'; }
 
-    api('/api/services/check?type=' + encodeURIComponent(cfg.key) + '&url=' + encodeURIComponent(svcURL))
+    Goop.api.settings.checkService(svcURL, cfg.key)
       .then(function(data) {
         if (!statusEl) return;
         if (data.ok) {
@@ -157,13 +156,9 @@
           }
 
           var fd = new FormData();
-          fd.append('avatar', blob, 'avatar.png');
+          fd.append('file', blob, 'avatar.png');
 
-          fetch('/api/avatar/upload', { method: 'POST', body: fd })
-            .then(function(r) {
-              if (!r.ok) throw new Error('Upload failed');
-              return r.json();
-            })
+          Goop.api.avatar.upload(blob)
             .then(function(data) {
               preview.src = '/api/avatar?v=' + data.hash;
               if (!removeBtn) {
@@ -181,14 +176,9 @@
 
   if (removeBtn) {
     removeBtn.addEventListener('click', function() {
-      fetch('/api/avatar/delete', { method: 'POST' })
-        .then(function(r) {
-          if (!r.ok) throw new Error('Delete failed');
-          window.location.reload();
-        })
-        .catch(function(err) {
-          alert('Delete failed: ' + err.message);
-        });
+      Goop.api.avatar.delete()
+        .then(function() { window.location.reload(); })
+        .catch(function(err) { alert('Delete failed: ' + err.message); });
     });
   }
 

@@ -35,11 +35,7 @@
 
   async function saveThemeToConfig(theme) {
     try {
-      await fetch("/api/settings/quick", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ theme }),
-      });
+      await Goop.api.settings.save({ theme });
     } catch {
       // ignore: best-effort
     }

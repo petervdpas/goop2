@@ -2,6 +2,7 @@
   // Viewer UI utilities — no SDK dependency.
   const sharedFiles = [
     "/assets/js/core.js",
+    "/assets/js/api.js",
     "/assets/js/mq/base.js",
     "/assets/js/mq/topics.js",
     "/assets/js/mq/peers.js",

@@ -8,7 +8,6 @@
   if (!core) return;
 
   var escapeHtml = core.escapeHtml;
-  var api = core.api;
   var toast = core.toast;
   var on = core.on;
 
@@ -74,7 +73,7 @@
     popup.style.right = (window.innerWidth - rect.right) + 'px';
     document.body.appendChild(popup);
 
-    api('/api/peers').then(function(peers) {
+    Goop.api.peers.list().then(function(peers) {
       if (!peers || peers.length === 0) {
         popup.innerHTML = '<div class="groups-invite-empty">No peers online</div>';
         return;
@@ -94,7 +93,7 @@
           var peerId = peerBtn.getAttribute('data-peer');
           peerBtn.textContent = 'Inviting...';
           peerBtn.disabled = true;
-          api('/api/groups/invite', { group_id: groupId, peer_id: peerId }).then(function() {
+          Goop.api.groups.invite({ group_id: groupId, peer_id: peerId }).then(function() {
             toast('Invite sent to ' + shortId(peerId));
             popup.remove();
           }).catch(function(err) {
@@ -124,7 +123,7 @@
     var showMgmt = !!opts.showMgmt;
 
     cleanupListenSubs();
-    api('/api/groups').then(function(groups) {
+    Goop.api.groups.list().then(function(groups) {
       if (!groups || groups.length === 0) {
         containerEl.innerHTML = '<p class="groups-empty">' +
           (showMgmt ? 'No hosted groups. Go to Create &gt; Groups to create one.' : 'No hosted groups yet.') +
@@ -200,7 +199,7 @@
       // Bind join/leave
       containerEl.querySelectorAll('.grph-joinown-btn').forEach(function(btn) {
         on(btn, 'click', function() {
-          api('/api/groups/join-own', { group_id: btn.getAttribute('data-id') }).then(function() {
+          Goop.api.groups.joinOwn({ group_id: btn.getAttribute('data-id') }).then(function() {
             toast('Joined group');
             renderHostedGroups(containerEl, opts);
           }).catch(function(err) { toast('Failed to join: ' + err.message, true); });
@@ -208,7 +207,7 @@
       });
       containerEl.querySelectorAll('.grph-leaveown-btn').forEach(function(btn) {
         on(btn, 'click', function() {
-          api('/api/groups/leave-own', { group_id: btn.getAttribute('data-id') }).then(function() {
+          Goop.api.groups.leaveOwn({ group_id: btn.getAttribute('data-id') }).then(function() {
             toast('Left group');
             renderHostedGroups(containerEl, opts);
           }).catch(function(err) { toast('Failed to leave: ' + err.message, true); });
@@ -231,7 +230,7 @@
           function doClose() {
             var p = isListenClose && window.Goop && window.Goop.listen
               ? window.Goop.listen.close()
-              : api('/api/groups/close', { group_id: id });
+              : Goop.api.groups.close({ group_id: id });
             p.then(function() {
               toast('Group closed');
               renderHostedGroups(containerEl, opts);
@@ -251,7 +250,7 @@
             var input = containerEl.querySelector('.groups-maxmembers-input[data-id="' + groupId + '"]');
             var max = input ? parseInt(input.value, 10) : 0;
             if (isNaN(max) || max < 0) max = 0;
-            api('/api/groups/max-members', { group_id: groupId, max_members: max }).then(function() {
+            Goop.api.groups.setMaxMembers({ group_id: groupId, max_members: max }).then(function() {
               toast('Max members updated');
               renderHostedGroups(containerEl, opts);
             }).catch(function(err) { toast('Update failed: ' + err.message, true); });
@@ -259,7 +258,7 @@
         });
         containerEl.querySelectorAll('.groups-kick-btn').forEach(function(btn) {
           on(btn, 'click', function() {
-            api('/api/groups/kick', { group_id: btn.getAttribute('data-group'), peer_id: btn.getAttribute('data-peer') }).then(function() {
+            Goop.api.groups.kick({ group_id: btn.getAttribute('data-group'), peer_id: btn.getAttribute('data-peer') }).then(function() {
               toast('Member removed');
               renderHostedGroups(containerEl, opts);
             }).catch(function(err) { toast('Kick failed: ' + err.message, true); });
@@ -292,7 +291,7 @@
 
   // -------- renderSubscriptions --------
   function renderSubscriptions(containerEl) {
-    api('/api/groups/subscriptions').then(function(data) {
+    Goop.api.groups.subscriptions().then(function(data) {
       var subs = data.subscriptions;
       if (!subs || subs.length === 0) {
         containerEl.innerHTML = '<p class="groups-empty">No subscriptions. Use Goop.group.join() from a peer\'s site to join a group.</p>';
@@ -345,7 +344,7 @@
           var groupId = btn.getAttribute('data-group');
           btn.textContent = 'Leaving...';
           btn.disabled = true;
-          api('/api/groups/leave', { group_id: groupId }).then(function() {
+          Goop.api.groups.leave({ group_id: groupId }).then(function() {
             toast('Left group');
             renderSubscriptions(containerEl);
           }).catch(function(err) {
@@ -360,7 +359,7 @@
         on(btn, 'click', function() {
           btn.textContent = 'Joining...';
           btn.disabled = true;
-          api('/api/groups/rejoin', {
+          Goop.api.groups.rejoin({
             host_peer_id: btn.getAttribute('data-host'),
             group_id: btn.getAttribute('data-group')
           }).then(function() {
@@ -376,7 +375,7 @@
 
       containerEl.querySelectorAll('.grph-remove-sub-btn').forEach(function(btn) {
         on(btn, 'click', function() {
-          api('/api/groups/subscriptions/remove', {
+          Goop.api.groups.removeSubscription({
             host_peer_id: btn.getAttribute('data-host'),
             group_id: btn.getAttribute('data-group')
           }).then(function() {

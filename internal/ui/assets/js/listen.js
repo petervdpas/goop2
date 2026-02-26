@@ -16,83 +16,19 @@
   }
 
   // ── HTTP API ─────────────────────────────────────────────────────────────────
+  // All HTTP calls delegate to Goop.api.listen (typed contract client).
+  // Wrapper signatures kept for backward-compat with renderHostPlayer callers.
 
   var api = {
-    create: function (name) {
-      return fetch("/api/listen/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name }),
-      }).then(function (r) {
-        if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
-        return r.json();
-      });
-    },
-    close: function () {
-      return fetch("/api/listen/close", { method: "POST" }).then(function (r) {
-        if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
-        return r.json();
-      });
-    },
-    load: function (filePath) {
-      return fetch("/api/listen/load", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ file_path: filePath }),
-      }).then(function (r) {
-        if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
-        return r.json();
-      });
-    },
-    loadQueue: function (filePaths) {
-      return fetch("/api/listen/load", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ file_paths: filePaths }),
-      }).then(function (r) {
-        if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
-        return r.json();
-      });
-    },
-    addToQueue: function (filePaths) {
-      return fetch("/api/listen/queue/add", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ file_paths: filePaths }),
-      }).then(function (r) {
-        if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
-        return r.json();
-      });
-    },
-    control: function (action, position, index) {
-      return fetch("/api/listen/control", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: action, position: position || 0, index: index || 0 }),
-      }).then(function (r) {
-        if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
-        return r.json();
-      });
-    },
-    join: function (hostPeerId, groupId) {
-      return fetch("/api/listen/join", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ host_peer_id: hostPeerId, group_id: groupId }),
-      }).then(function (r) {
-        if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
-        return r.json();
-      });
-    },
-    leave: function () {
-      return fetch("/api/listen/leave", { method: "POST" }).then(function (r) {
-        if (!r.ok) return r.text().then(function (t) { throw new Error(t); });
-        return r.json();
-      });
-    },
-    state: function () {
-      return fetch("/api/listen/state").then(function (r) { return r.json(); });
-    },
+    create:     function (name)            { return Goop.api.listen.create({ name: name }); },
+    close:      function ()                { return Goop.api.listen.close(); },
+    load:       function (filePath)        { return Goop.api.listen.load({ file_path: filePath }); },
+    loadQueue:  function (filePaths)       { return Goop.api.listen.load({ file_paths: filePaths }); },
+    addToQueue: function (filePaths)       { return Goop.api.listen.queueAdd({ file_paths: filePaths }); },
+    control:    function (action, pos, idx){ return Goop.api.listen.control({ action: action, position: pos || 0, index: idx || 0 }); },
+    join:       function (hostPeerId, gid) { return Goop.api.listen.join({ host_peer_id: hostPeerId, group_id: gid }); },
+    leave:      function ()                { return Goop.api.listen.leave(); },
+    state:      function ()                { return Goop.api.listen.state(); },
 
     // subscribe(callback) — MQ subscription for peer sites.
     // callback receives the group object (or null) on every state change.
@@ -115,7 +51,7 @@
 
     // streamURL() — returns the audio stream URL for use in <audio> elements.
     streamURL: function () {
-      return "/api/listen/stream";
+      return Goop.api.listen.streamUrl();
     },
   };
 
@@ -429,7 +365,7 @@
     if (playBtn) {
       on(playBtn, 'click', function() {
         var audio = ensureAudioEl();
-        audio.src = '/api/listen/stream';
+        audio.src = Goop.api.listen.streamUrl();
         audio.volume = volEl ? volEl.value / 100 : 0.8;
         audio.load();
         audio.play().catch(function(e) { log('warn', 'host play failed: ' + e); });
@@ -476,7 +412,7 @@
     if (g && g.play_state && g.play_state.playing) {
       var audio = ensureAudioEl();
       if (audio.paused || !audio.src) {
-        audio.src = '/api/listen/stream';
+        audio.src = Goop.api.listen.streamUrl();
         audio.volume = volEl ? volEl.value / 100 : 0.8;
         audio.play().catch(function(e) { log('warn', 'host autoplay failed: ' + e); });
         startStallMonitor();
@@ -582,7 +518,7 @@
         var playFallback = wrapperEl.querySelector('.glisten-play-fallback');
         if (!audio.src || audio.networkState !== 2) {
           audio.src = '';
-          audio.src = '/api/listen/stream';
+          audio.src = Goop.api.listen.streamUrl();
           audio.volume = 0.8;
           audio.play().catch(function(e) {
             log('warn', 'autoplay blocked: ' + e);

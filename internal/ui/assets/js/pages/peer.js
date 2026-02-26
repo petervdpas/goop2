@@ -25,8 +25,7 @@
 
   // Load peer name
   var peerNameEl = document.getElementById('peer-name');
-  fetch('/api/peer/content?id=' + encodeURIComponent(peerID))
-    .then(function(res) { return res.json(); })
+  Goop.api.peers.content(peerID)
     .then(function(data) {
       peerNameEl.textContent = data.content || peerID;
     })

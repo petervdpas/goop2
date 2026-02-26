@@ -202,7 +202,7 @@
     if (!gsel()) return;
 
     // First fetch settings to check if video is disabled
-    fetch('/api/settings/quick/get').then(function(r) { return r.json(); }).catch(function() { return {}; })
+    Goop.api.settings.get().catch(function() { return {}; })
       .then(function(cfg) {
         // Disable devices section if video is disabled
         if (cfg.video_disabled) {
@@ -271,12 +271,7 @@
     };
 
     // Save all to peer config — close popup only after success
-    fetch('/api/settings/quick', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    }).then(function(res) {
-      if (!res.ok) return res.text().then(function(t) { throw new Error(t); });
+    Goop.api.settings.save(payload).then(function() {
 
       // Update navbar name
       var meLabel = document.querySelector('.me-label');

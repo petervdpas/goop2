@@ -23,11 +23,7 @@
 
     // Send each log entry
     var promises = batch.map(function(entry) {
-      return fetch('/api/logs/client', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(entry)
-      }).catch(function() { /* ignore send failures */ });
+      return Goop.api.logs.client(entry).catch(function() { /* ignore send failures */ });
     });
 
     Promise.all(promises).then(function() {

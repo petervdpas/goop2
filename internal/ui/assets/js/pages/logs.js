@@ -4,7 +4,6 @@
   if (!box) return;
 
   var core = window.Goop && window.Goop.core || {};
-  var api = core.api;
 
   const copyBtn = document.getElementById("copyLogsBtn");
   const MAX_LINES = 2000;
@@ -223,10 +222,10 @@
   initCallLog();
 
   // ── Load snapshot then stream ──────────────────────────────────────────────
-  api("/api/logs")
+  Goop.api.logs.snapshot()
     .then(items => {
       if (items.length > 0) loadSnapshot(items);
-      const es = new EventSource("/api/logs/stream");
+      const es = Goop.api.logs.stream();
       es.addEventListener("message", (ev) => {
         try {
           const it = JSON.parse(ev.data);

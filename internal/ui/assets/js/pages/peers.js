@@ -4,7 +4,6 @@
   if (!peersPage) return;
 
   var core = window.Goop && window.Goop.core || {};
-  var api = core.api;
 
   var selfID = peersPage.dataset.selfId || '';
   var selfName = peersPage.dataset.selfName || '';
@@ -177,7 +176,7 @@
   }
 
   // Initial peer list via REST, then live updates via MQ peer:announce / peer:gone.
-  api('/api/peers').then(function(peers) {
+  Goop.api.peers.list().then(function(peers) {
     if (peers) renderPeersList(peers);
   }).catch(function() {});
 
@@ -281,7 +280,7 @@
         if (!ctxMenuTarget) return;
 
         var isFav = action === 'favorite';
-        api('/api/peers/favorite', { peer_id: ctxMenuTarget, favorite: isFav })
+        Goop.api.peers.favorite({ peer_id: ctxMenuTarget, favorite: isFav })
           .then(function() {
             // Update local peer state immediately
             var idx = currentPeers.findIndex(function(p) { return p.ID === ctxMenuTarget; });
@@ -504,7 +503,7 @@
   function triggerProbe() {
     if (probing) return;
     probing = true;
-    api('/api/peers/probe', {})
+    Goop.api.peers.probe()
       .then(function(peers) { if (peers) renderPeersList(peers); })
       .catch(function() {})
       .then(function() { probing = false; });

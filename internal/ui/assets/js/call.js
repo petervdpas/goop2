@@ -166,11 +166,7 @@
   CallSession.prototype.toggleAudio = function () {
     if (_mode === 'native') {
       this._audioEnabled = !this._audioEnabled;
-      fetch('/api/call/toggle-audio', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channel_id: this.channelId }),
-      }).catch(function () {});
+      Goop.api.call.toggleAudio({ channel_id: this.channelId }).catch(function () {});
       return this._audioEnabled;
     }
     if (!this.localStream) return false;
@@ -183,11 +179,7 @@
   CallSession.prototype.toggleVideo = function () {
     if (_mode === 'native') {
       this._videoEnabled = !this._videoEnabled;
-      fetch('/api/call/toggle-video', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channel_id: this.channelId }),
-      }).catch(function () {});
+      Goop.api.call.toggleVideo({ channel_id: this.channelId }).catch(function () {});
       return this._videoEnabled;
     }
     if (!this.localStream) return false;
@@ -203,12 +195,7 @@
     _clearCallFromSession();
     this._cleanup();
     if (_mode === 'native') {
-      fetch('/api/call/hangup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channel_id: this.channelId }),
-        keepalive: true,
-      }).catch(function () {});
+      Goop.api.call.hangup({ channel_id: this.channelId }).catch(function () {});
     } else {
       _sendMQ(this.remotePeerId, this.channelId, { type: 'call-hangup' });
     }
@@ -373,14 +360,10 @@
 
       pc.onicecandidate = function (e) {
         if (!e.candidate) return;
-        fetch('/api/call/loopback/' + self.channelId + '/ice', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            candidate:     e.candidate.candidate,
-            sdpMid:        e.candidate.sdpMid,
-            sdpMLineIndex: e.candidate.sdpMLineIndex,
-          }),
+        Goop.api.call.loopbackIce(self.channelId, {
+          candidate:     e.candidate.candidate,
+          sdpMid:        e.candidate.sdpMid,
+          sdpMLineIndex: e.candidate.sdpMLineIndex,
         }).catch(function () {});
       };
 
@@ -391,14 +374,8 @@
       var offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
       await pc.setLocalDescription(offer);
 
-      var resp = await fetch('/api/call/loopback/' + this.channelId + '/offer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sdp: offer.sdp }),
-      });
-      if (!resp.ok) { log('warn', 'loopback offer rejected: ' + resp.status); return; }
-
-      var data = await resp.json();
+      var data = await Goop.api.call.loopbackOffer(this.channelId, { sdp: offer.sdp });
+      if (!data) { log('warn', 'loopback offer rejected'); return; }
       if (data.sdp) {
         await pc.setRemoteDescription({ type: 'answer', sdp: data.sdp });
       } else {
@@ -673,8 +650,7 @@
   async function _buildConstraints(mediaType) {
     var c = { audio: true, video: mediaType === 'video' };
     try {
-      var res = await fetch('/api/settings/quick/get');
-      var cfg = await res.json();
+      var cfg = await Goop.api.settings.get();
       if (cfg.preferred_cam && c.video) {
         c.video = { deviceId: { ideal: cfg.preferred_cam } };
       }
@@ -844,12 +820,7 @@
 
         if (_mode === 'native') {
           // Register Go session → Go sends call-ack → Go handles SDP.
-          var res = await fetch('/api/call/accept', {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ channel_id: channelId, remote_peer: fromPeer }),
-          });
-          if (!res.ok) throw new Error('accept failed: ' + res.status);
+          await Goop.api.call.accept({ channel_id: channelId, remote_peer: fromPeer });
           // Start native media setup in the background — wireSession() must be
           // called first to register onRemoteVideoSrc before _connectMSE() emits
           // the MediaSource URL and waits for sourceopen. Awaiting here would
@@ -923,15 +894,10 @@
 
       if (_mode === 'native') {
         // Register Go session first, then invite target.
-        var startRes = await fetch('/api/call/start', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ channel_id: channelId, remote_peer: peerId }),
-        });
-        if (!startRes.ok) {
+        await Goop.api.call.start({ channel_id: channelId, remote_peer: peerId }).catch(function (e) {
           delete _sessions[channelId];
-          throw new Error('call start failed: ' + startRes.status);
-        }
+          throw e;
+        });
         _sendMQ(peerId, channelId, {
           type:      'call-request',
           mode:      _mode,
@@ -997,8 +963,8 @@
   // between the async fetch and a user clicking a call button immediately after load.
 
   function _init() {
-    _modePromise = fetch('/api/call/mode')
-      .then(function (res) { return res.ok ? res.json() : {}; })
+    _modePromise = Goop.api.call.mode()
+      .catch(function () { return {}; })
       .then(function (j) {
         _mode     = j.mode     || 'browser';
         _platform = j.platform || 'unknown';
@@ -1020,8 +986,8 @@
   // Called once after mode resolves.  Fires _restoreCbs (e.g. showActiveCall in
   // call-ui.js) for each session so the call overlay reappears after navigation.
   function _restoreActiveCalls() {
-    fetch('/api/call/active')
-      .then(function (res) { return res.ok ? res.json() : []; })
+    Goop.api.call.active()
+      .catch(function () { return []; })
       .then(function (sessions) {
         if (!sessions || !sessions.length) return;
         _ensureMQSubscription();

@@ -1,6 +1,7 @@
 // Full-featured SQLite database editor
 (() => {
-  const { qs, qsa, on, setHidden, escapeHtml, api, toast, safeLocalStorageGet, safeLocalStorageSet } = window.Goop.core;
+  const { qs, qsa, on, setHidden, escapeHtml, toast, safeLocalStorageGet, safeLocalStorageSet } = window.Goop.core;
+  const api = window.Goop.api.data;
   const gsel = window.Goop.select;
 
   // Only activate on database page
@@ -64,7 +65,7 @@
   // -------- Table list --------
   async function loadTables(selectName) {
     try {
-      const tables = await api("/api/data/tables") || [];
+      const tables = await api.tables() || [];
       // Cache table metadata
       tablesMeta = {};
       tables.forEach(function(t) { tablesMeta[t.name] = { insert_policy: t.insert_policy || "owner" }; });
@@ -124,8 +125,8 @@
     try {
       // Fetch schema and first page in parallel
       const [cols, rows] = await Promise.all([
-        api("/api/data/tables/describe", { table: name }),
-        api("/api/data/query", { table: name, limit: pageSize, offset: 0 }),
+        api.describeTable({ table: name }),
+        api.query({ table: name, limit: pageSize, offset: 0 }),
       ]);
       columns = cols || [];
       currentOffset = 0;
@@ -232,7 +233,7 @@
 
     currentOffset = 0;
     try {
-      var rows = await api("/api/data/query", buildSearchBody(0));
+      var rows = await api.query(buildSearchBody(0));
       hasMore = (rows || []).length >= pageSize;
       renderDataGrid(rows || [], false);
     } catch (err) {
@@ -246,7 +247,7 @@
 
     var nextOffset = currentOffset + pageSize;
     try {
-      var rows = await api("/api/data/query", buildSearchBody(nextOffset));
+      var rows = await api.query(buildSearchBody(nextOffset));
       if (!rows || rows.length === 0) {
         hasMore = false;
       } else {
@@ -441,7 +442,7 @@
       const data = {};
       // Send empty string as null
       data[colName] = newValue === "" ? null : newValue;
-      await api("/api/data/update", { table: currentTable, id: rowId, data: data });
+      await api.update({ table: currentTable, id: rowId, data: data });
       // If value is null, render as NULL span
       if (newValue === "") {
         td.innerHTML = '<span class="db-cell-null">NULL</span>';
@@ -481,7 +482,7 @@
     }
 
     try {
-      await api("/api/data/delete", { table: currentTable, id: rowId });
+      await api.delete({ table: currentTable, id: rowId });
       toast("Row deleted");
       selectTable(currentTable);
     } catch (err) {
@@ -605,10 +606,10 @@
     var policy = gsel.val(qs("#db-new-policy")) || "owner";
 
     try {
-      await api("/api/data/tables/create", { name: name, columns: cols });
+      await api.createTable({ name: name, columns: cols });
       // Set the insert policy if not the default
       if (policy !== "owner") {
-        await api("/api/data/tables/set-policy", { table: name, policy: policy });
+        await api.setPolicy({ table: name, policy: policy });
       }
       setHidden(createFormEl, true);
       toast("Table " + name + " created");
@@ -640,7 +641,7 @@
     }
 
     try {
-      await api("/api/data/tables/delete", { table: tableName });
+      await api.dropTable({ table: tableName });
       toast("Table " + tableName + " dropped");
       currentTable = null;
       tableTitleEl.textContent = "Select a table";
@@ -696,7 +697,7 @@
     });
 
     try {
-      await api("/api/data/insert", { table: currentTable, data: data });
+      await api.insert({ table: currentTable, data: data });
       setHidden(insertFormEl, true);
       toast("Row inserted");
       selectTable(currentTable);
@@ -772,7 +773,7 @@
     on(qs("#db-policy-btn"), "click", async function() {
       var newPolicy = gsel.val(qs("#db-policy-select"));
       try {
-        await api("/api/data/tables/set-policy", { table: currentTable, policy: newPolicy });
+        await api.setPolicy({ table: currentTable, policy: newPolicy });
         currentPolicy = newPolicy;
         tablesMeta[currentTable] = { insert_policy: newPolicy };
         toast("Insert policy set to " + newPolicy);
@@ -796,7 +797,7 @@
         return;
       }
       try {
-        await api("/api/data/tables/rename", { old_name: currentTable, new_name: newName });
+        await api.renameTable({ old_name: currentTable, new_name: newName });
         toast("Table renamed to " + newName);
         currentTable = newName;
         await loadTables(newName);
@@ -825,7 +826,7 @@
           }
         }
         try {
-          await api("/api/data/tables/drop-column", { table: currentTable, column: colName });
+          await api.dropColumn({ table: currentTable, column: colName });
           toast("Column " + colName + " dropped");
           await selectTable(currentTable);
           showAlterForm(); // Re-render alter form with updated schema
@@ -845,7 +846,7 @@
         return;
       }
       try {
-        await api("/api/data/tables/add-column", {
+        await api.addColumn({
           table: currentTable,
           column: { name: colName, type: colType }
         });

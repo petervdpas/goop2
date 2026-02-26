@@ -7,7 +7,7 @@
   var on = core.on;
   var escapeHtml = core.escapeHtml;
   var setHidden = core.setHidden;
-  var api = core.api;
+  var api = window.Goop.api;
   var toast = core.toast;
 
   var docsPage = qs("#docs-page");
@@ -97,17 +97,7 @@
           : "Uploading...";
       }
 
-      var formData = new FormData();
-      formData.append("group_id", currentGroupID);
-      formData.append("file", files[idx]);
-
-      fetch("/api/docs/upload", {
-        method: "POST",
-        body: formData
-      }).then(function(r) {
-        if (!r.ok) return r.text().then(function(t) { throw new Error(t); });
-        return r.json();
-      }).then(function(data) {
+      api.docs.upload(currentGroupID, files[idx]).then(function(data) {
         toast("Uploaded: " + data.filename);
         uploadNext(idx + 1);
       }).catch(function(err) {
@@ -167,8 +157,8 @@
   function loadGroups() {
     // Fetch both hosted groups and subscriptions, filter to "files" type only
     Promise.all([
-      api("/api/groups").catch(function() { return []; }),
-      api("/api/groups/subscriptions").catch(function() { return { subscriptions: [] }; })
+      api.groups.list().catch(function() { return []; }),
+      api.groups.subscriptions().catch(function() { return { subscriptions: [] }; })
     ]).then(function(results) {
       var hosted = (results[0] || []).filter(function(g) { return g.app_type === "files"; });
       var subsData = results[1] || {};
@@ -217,7 +207,7 @@
     myList.innerHTML = '<p class="docs-empty">Loading...</p>';
     peersList.innerHTML = '<p class="docs-empty">Loading...</p>';
 
-    api("/api/docs/browse?group_id=" + encodeURIComponent(currentGroupID))
+    api.docs.browse(currentGroupID)
       .then(function(data) {
         var peers = data.peers || [];
 
@@ -494,7 +484,7 @@
   }
 
   function deleteFile(filename) {
-    api("/api/docs/delete", { group_id: currentGroupID, filename: filename })
+    api.docs.delete({ group_id: currentGroupID, filename: filename })
       .then(function() {
         toast("Deleted: " + filename);
         loadBrowse();

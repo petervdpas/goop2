@@ -7,7 +7,6 @@
   var gsel = window.Goop && window.Goop.select;
   if (!g || !core || !gsel) return;
 
-  var api = core.api;
   var toast = core.toast;
 
   var hostedListEl = document.getElementById('cg-hosted-list');
@@ -32,7 +31,7 @@
     if (appType === 'listen' && window.Goop && window.Goop.listen) {
       p = window.Goop.listen.create(name);
     } else {
-      p = api('/api/groups', { name: name, app_type: appType, max_members: maxMembers });
+      p = Goop.api.groups.create({ name: name, app_type: appType, max_members: maxMembers });
     }
 
     p.then(function() {

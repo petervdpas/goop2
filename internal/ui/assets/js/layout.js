@@ -65,7 +65,7 @@
         });
       }
 
-      fetch('/api/peers').then(function(r){ return r.json(); }).then(function(peers) {
+      Goop.api.peers.list().then(function(peers) {
         var label = from.substring(0, 8) + '...';
         if (Array.isArray(peers)) {
           var found = peers.find(function(p){ return p.ID === from; });
