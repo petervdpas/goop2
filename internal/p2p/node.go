@@ -1082,11 +1082,9 @@ func (n *Node) ProbePeer(ctx context.Context, rawID string) {
 }
 
 // SubscribeConnectionEvents watches for new peer connections (e.g. mDNS)
-// and re-probes any peer that is currently marked unreachable. This fixes
-// the race where GossipSub delivers the presence message before mDNS has
-// connected the LAN peers — the initial probe fails (hairpin NAT), but
-// once mDNS connects them we re-probe and mark them reachable.
-func (n *Node) SubscribeConnectionEvents(ctx context.Context) {
+// and re-probes any peer that is currently marked unreachable. onConnect, if
+// non-nil, is called with the peer ID for every newly connected peer.
+func (n *Node) SubscribeConnectionEvents(ctx context.Context, onConnect func(peerID string)) {
 	sub, err := n.Host.EventBus().Subscribe(new(event.EvtPeerConnectednessChanged))
 	if err != nil {
 		log.Printf("probe: failed to subscribe to connection events: %v", err)
@@ -1107,6 +1105,9 @@ func (n *Node) SubscribeConnectionEvents(ctx context.Context) {
 				sp, known := n.peers.Get(rawID)
 				if known && !sp.Reachable {
 					go n.ProbePeer(ctx, rawID)
+				}
+				if onConnect != nil {
+					go onConnect(rawID)
 				}
 			}
 		}

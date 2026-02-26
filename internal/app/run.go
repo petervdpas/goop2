@@ -14,6 +14,7 @@ import (
 	"github.com/petervdpas/goop2/internal/config"
 	"github.com/petervdpas/goop2/internal/content"
 	"github.com/petervdpas/goop2/internal/docs"
+	"github.com/petervdpas/goop2/internal/entangle"
 	"github.com/petervdpas/goop2/internal/group"
 	"github.com/petervdpas/goop2/internal/listen"
 	luapkg "github.com/petervdpas/goop2/internal/lua"
@@ -299,12 +300,20 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	}
 	defer node.Close()
 
-	// Register MQ stream handler immediately after the host is created — before
-	// any peer can connect and run Identify. If MQ is registered late, mDNS peers
-	// (which connect in milliseconds) complete Identify without /goop/mq/1.0.0 in
-	// their protocol list, causing peerSupportsMQ() to wrongly fast-fail all sends.
+	// Register all stream handlers immediately after the host is created,
+	// before any peer can connect and run Identify.
 	mqMgr := mq.New(node.Host)
 	log.Printf("📨 MQ enabled: message queue via /goop/mq/1.0.0")
+
+	// Entangle handler registered here so the protocol appears in Identify
+	// from the very first connection. The Connect() calls come later (after
+	// peer cache load), but the handler must be ready immediately.
+	entMgr := entangle.New(node.Host,
+		func(peerID string) { peers.SetReachable(peerID, true) },
+		func(peerID string) { peers.MarkOffline(peerID) },
+	)
+	defer entMgr.Close()
+	log.Printf("🔗 Entangle enabled: persistent peer threads via /goop/entangle/1.0.0")
 
 	node.EnableSite(util.ResolvePath(o.PeerDir, cfg.Paths.SiteRoot))
 
@@ -488,6 +497,16 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		log.Printf("📄 File sharing enabled: /goop/docs/1.0.0")
 	}
 
+	// Entangle all peers already in the table at startup.
+	for _, peerID := range peers.IDs() {
+		go entMgr.Connect(ctx, peerID)
+	}
+
+	// Entangle whenever libp2p establishes a new connection (mDNS, relay, direct).
+	node.SubscribeConnectionEvents(ctx, func(peerID string) {
+		go entMgr.Connect(ctx, peerID)
+	})
+
 	for _, c := range rvClients {
 		cc := c
 		go cc.SubscribeEvents(ctx, func(pm proto.PresenceMsg) {
@@ -509,13 +528,12 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 					Addrs:          pm.Addrs,
 				})
 				node.AddPeerAddrs(pm.PeerID, pm.Addrs)
-				// Probe on first sight (TypeOnline/TypeUpdate for unknown peer) OR when
-				// a known-unreachable peer sends TypeUpdate — their relay circuit may have
-				// just been established, so an immediate probe avoids waiting up to 5s
-				// for the next periodic browser probe round.
+				// Probe on first sight or when a known-unreachable peer reappears.
 				if !known || (pm.Type == proto.TypeUpdate && !sp.Reachable) {
 					go node.ProbePeer(ctx, pm.PeerID)
 				}
+				// Entangle: open (or reuse) the persistent heartbeat stream.
+				go entMgr.Connect(ctx, pm.PeerID)
 			case proto.TypeOffline:
 				peers.MarkOffline(pm.PeerID)
 			}
@@ -662,7 +680,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	node.SubscribeAddressChanges(ctx, func() {
 		publish(ctx, proto.TypeUpdate)
 	})
-	node.SubscribeConnectionEvents(ctx)
+	node.SubscribeConnectionEvents(ctx, nil)
 	if relayInfo != nil {
 		// Periodically refresh the relay connection to prevent stale state.
 		// This ensures the relay reservation stays active even when the TCP

@@ -33,6 +33,9 @@ const (
 
 	// libp2p stream protocol ID for the message queue transport
 	MQProtoID = "/goop/mq/1.0.0"
+
+	// libp2p stream protocol ID for the persistent peer entanglement heartbeat
+	EntangleProtoID = "/goop/entangle/1.0.0"
 )
 
 const (
