@@ -13,12 +13,12 @@ import (
 type Manager struct {
 	sig      Signaler
 	selfID   string
-	platform string              // runtime.GOOS — included in call-ack so the caller knows the constellation
+	platform string              // runtime.GOOS — included in call-ack so the origin knows the constellation
 	logFn    func(level, msg string) // publishes structured log events to the browser
 
 	mu           sync.RWMutex
 	sessions     map[string]*Session
-	pendingCalls map[string]string // channelID → caller peerID (call-request received, not yet accepted)
+	pendingCalls map[string]string // channelID → origin peerID (call-request received, not yet accepted)
 
 	done chan struct{}
 }
@@ -27,7 +27,7 @@ type Manager struct {
 // signaling messages immediately.
 // logFn, if non-nil, is called for structured log events (e.g. hardware errors)
 // that should appear in the browser's Video log tab via MQ. May be nil.
-// platform should be runtime.GOOS — it is sent in call-ack so the caller can
+// platform should be runtime.GOOS — it is sent in call-ack so the origin can
 // determine the call constellation (W2W vs native Pion) before connecting media.
 func New(sig Signaler, selfID string, logFn func(level, msg string), platform string) *Manager {
 	m := &Manager{
@@ -44,6 +44,7 @@ func New(sig Signaler, selfID string, logFn func(level, msg string), platform st
 }
 
 // StartCall creates a new outbound call session on channelID to remotePeer.
+// The local peer is the origin (isOrigin=true).
 func (m *Manager) StartCall(ctx context.Context, channelID, remotePeer string) (*Session, error) {
 	m.sig.RegisterChannel(channelID, remotePeer)
 	sess := newSession(channelID, remotePeer, m.sig, true, m.logFn)
@@ -54,7 +55,8 @@ func (m *Manager) StartCall(ctx context.Context, channelID, remotePeer string) (
 	return sess, nil
 }
 
-// AcceptCall creates a session for an incoming call and sends call-ack to the caller.
+// AcceptCall creates a session for an incoming call and sends call-ack to the origin.
+// The local peer is the target (isOrigin=false).
 func (m *Manager) AcceptCall(ctx context.Context, channelID, remotePeer string) (*Session, error) {
 	m.sig.RegisterChannel(channelID, remotePeer)
 	sess := newSession(channelID, remotePeer, m.sig, false, m.logFn)
@@ -62,10 +64,10 @@ func (m *Manager) AcceptCall(ctx context.Context, channelID, remotePeer string) 
 	m.sessions[channelID] = sess
 	delete(m.pendingCalls, channelID)
 	m.mu.Unlock()
-	// Notify the caller that we accepted — they can proceed with SDP exchange.
-	// Include our platform so the caller can determine the call constellation
+	// Notify the origin that we accepted — they can proceed with SDP exchange.
+	// Include our platform so the origin can determine the call constellation
 	// (W2W browser WebRTC vs native Pion path) before connecting media.
-	// If the channel is already closed (caller hung up before we accepted), log
+	// If the channel is already closed (origin hung up before we accepted), log
 	// the error so it's visible in the Logs → Video tab, then clean up immediately.
 	if err := m.sig.Send(channelID, map[string]any{"type": "call-ack", "platform": m.platform}); err != nil {
 		log.Printf("CALL: accepted %s but call-ack send failed (%v) — channel likely closed, aborting", channelID, err)
@@ -163,7 +165,7 @@ func (m *Manager) dispatch(env *Envelope) {
 		}
 		m.pendingCalls[env.Channel] = env.From
 		m.mu.Unlock()
-		log.Printf("CALL: incoming call-request on channel %s from %s", env.Channel, env.From)
+		log.Printf("CALL: incoming call-request on channel %s from origin %s", env.Channel, env.From)
 		return
 	}
 
@@ -174,7 +176,7 @@ func (m *Manager) dispatch(env *Envelope) {
 	if !ok {
 		// Only warn for meaningful signal types — ice-candidate noise would flood logs.
 		if msgType == "call-ack" || msgType == "call-offer" || msgType == "call-answer" {
-			log.Printf("CALL: received %q on %s but no session found — caller may not have called /api/call/start", msgType, env.Channel)
+			log.Printf("CALL: received %q on %s but no session found — origin may not have called /api/call/start", msgType, env.Channel)
 		}
 		return
 	}

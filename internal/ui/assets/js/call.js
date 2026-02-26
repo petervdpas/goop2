@@ -5,21 +5,21 @@
  * Path is determined by the local peer's mode, fetched once from /api/call/mode:
  *
  *   mode === 'native'  (Linux / Go / Pion)
- *     Caller: POST /api/call/start, send call-request via MQ, connect MSE on call-ack.
- *     Callee: POST /api/call/accept (Go sends call-ack), connect MSE.
+ *     Origin: POST /api/call/start, send call-request via MQ, connect MSE on call-ack.
+ *     Target: POST /api/call/accept (Go sends call-ack), connect MSE.
  *     Go's Pion handles all SDP exchange and WebM encoding.
  *     MSE receives remote video via WebSocket /api/call/media/{channelId}.
  *
  *   mode === 'browser'  (Windows / WebView2 / standard WebRTC)
- *     Caller: getUserMedia + RTCPeerConnection, send call-request, create offer on call-ack.
- *     Callee: getUserMedia + RTCPeerConnection, send call-ack, handle offer.
+ *     Origin: getUserMedia + RTCPeerConnection, send call-request, create offer on call-ack.
+ *     Target: getUserMedia + RTCPeerConnection, send call-ack, handle offer.
  *     Standard trickle ICE via MQ ice-candidate signals.
  *
  * MQ signal types (all on topic "call:{channelId}"):
- *   call-request   caller → callee    invite
- *   call-ack       callee → caller    accepted (Go sends in native mode, JS sends in browser mode)
- *   call-offer     caller → callee    SDP offer  (browser mode only)
- *   call-answer    callee → caller    SDP answer (browser mode only)
+ *   call-request   origin → target    invite
+ *   call-ack       target → origin    accepted (Go sends in native mode, JS sends in browser mode)
+ *   call-offer     origin → target    SDP offer  (browser mode only)
+ *   call-answer    target → origin    SDP answer (browser mode only)
  *   ice-candidate  either direction   trickle ICE (browser mode only)
  *   call-hangup    either direction   end call
  *
@@ -70,11 +70,11 @@
   //   session.toggleVideo()       → bool
   //   session.hangup()
 
-  function CallSession(channelId, remotePeerId, isCaller, mediaType) {
+  function CallSession(channelId, remotePeerId, isOrigin, mediaType) {
     this.channelId    = channelId;
     this.remotePeerId = remotePeerId;
     this.remotePeer   = remotePeerId; // alias — peer.js checks remotePeer
-    this.isCaller     = isCaller;
+    this.isOrigin     = isOrigin;
     this.mediaType    = mediaType;    // 'audio' | 'video'
     this.localStream  = null;
     this.remoteStream = null;
@@ -94,7 +94,7 @@
     this._localVideoSrc  = null;    // MediaSource URL for native self-view (replay-on-subscribe)
     this._localVideoSrcCbs = [];
     this._selfWs      = null;      // WebSocket for self-view stream
-    this._pendingOffer = null; // SDP offer buffered before PC is ready (callee race)
+    this._pendingOffer = null; // SDP offer buffered before PC is ready (target race)
 
     // Native path handles
     this._mediaWs          = null;
@@ -237,7 +237,7 @@
 
   // ── Browser call persistence across page navigation ──────────────────────────
   //
-  // sessionStorage keeps {channelId, remotePeer, isCaller, mediaType} across
+  // sessionStorage keeps {channelId, remotePeer, isOrigin, mediaType} across
   // full-page navigations so the W2W overlay can be restored on any page.
 
   function _saveCallToSession(sess) {
@@ -245,7 +245,7 @@
       sessionStorage.setItem('goop_active_call', JSON.stringify({
         channelId:  sess.channelId,
         remotePeer: sess.remotePeerId,
-        isCaller:   sess.isCaller,
+        isOrigin:   sess.isOrigin,
         mediaType:  sess.mediaType,
       }));
     } catch (_) {}
@@ -346,7 +346,7 @@
 
   // ── Native path (Linux / Go / Pion) ─────────────────────────────────────────
   //
-  // Called by both caller (on call-ack) and callee (after /api/call/accept).
+  // Called by both origin (on call-ack) and target (after /api/call/accept).
   // Connects MSE for displaying the remote video stream encoded by Go.
 
   CallSession.prototype._connectNative = async function () {
@@ -591,13 +591,13 @@
 
   // ── Signal handlers (called from _dispatch) ──────────────────────────────────
 
-  // call-ack received by caller — callee accepted.
-  // payload carries callee's mode/platform (JS browser callee) or just platform (Go native callee).
+  // call-ack received by origin — target accepted.
+  // payload carries target's mode/platform (JS browser target) or just platform (Go native target).
   CallSession.prototype._handleCallAck = function (payload) {
-    var calleeMode     = payload.mode     || 'native'; // Go omits mode → native
-    var calleePlatform = payload.platform || 'unknown';
+    var targetMode     = payload.mode     || 'native'; // Go omits mode → native
+    var targetPlatform = payload.platform || 'unknown';
     log('info', 'call-ack on ' + this.channelId +
-        ' [callee: ' + calleeMode + '/' + calleePlatform +
+        ' [target: ' + targetMode + '/' + targetPlatform +
         ', self: ' + _mode + '/' + _platform + ']');
 
     if (_mode === 'native') {
@@ -624,7 +624,7 @@
       });
   };
 
-  // call-offer received by callee (browser mode).
+  // call-offer received by target (browser mode).
   CallSession.prototype._handleOffer = async function (sdp) {
     if (!this.pc) {
       this._pendingOffer = sdp; // PC not ready yet — will be handled after _setupBrowserPC
@@ -645,7 +645,7 @@
     }
   };
 
-  // call-answer received by caller (browser mode).
+  // call-answer received by origin (browser mode).
   CallSession.prototype._handleAnswer = async function (sdp) {
     if (!this.pc) return;
     try {
@@ -783,7 +783,7 @@
     log('info', 'Restoring browser call: ' + stored.channelId + ' → ' + stored.remotePeer);
     _ensureMQSubscription();
 
-    var sess = new CallSession(stored.channelId, stored.remotePeer, stored.isCaller, stored.mediaType || 'video');
+    var sess = new CallSession(stored.channelId, stored.remotePeer, stored.isOrigin, stored.mediaType || 'video');
     _sessions[stored.channelId] = sess;
     sess.onHangup(function () {
       _clearCallFromSession();
@@ -814,11 +814,11 @@
   // ── Incoming call handling ────────────────────────────────────────────────────
 
   function _handleIncoming(channelId, fromPeer, payload) {
-    var callerMode     = payload.mode     || 'browser';
-    var callerPlatform = payload.platform || 'unknown';
+    var originMode     = payload.mode     || 'browser';
+    var originPlatform = payload.platform || 'unknown';
     var mediaType      = payload.mediaType || 'video';
     log('info', 'Incoming ' + mediaType + ' call from ' + fromPeer +
-        ' [caller: ' + callerMode + '/' + callerPlatform + '] on ' + channelId);
+        ' [origin: ' + originMode + '/' + originPlatform + '] on ' + channelId);
 
     var info = {
       channelId:    channelId,
@@ -831,7 +831,7 @@
         await _modePromise;
 
         log('info', 'accepting ' + channelId +
-            ' [caller: ' + callerMode + '/' + callerPlatform +
+            ' [origin: ' + originMode + '/' + originPlatform +
             ', self: ' + _mode + '/' + _platform + ']');
 
         var sess = new CallSession(channelId, fromPeer, false, mediaType);
@@ -856,7 +856,7 @@
           // Browser mode: set up getUserMedia + RTCPeerConnection.
           var ok = await sess._setupBrowserPC();
           if (!ok) throw new Error('getUserMedia failed');
-          // Send call-ack so caller knows we're ready.
+          // Send call-ack so origin knows we're ready.
           _sendMQ(fromPeer, channelId, {
             type:     'call-ack',
             mode:     'browser',
@@ -918,7 +918,7 @@
       sess.onHangup(function () { delete _sessions[channelId]; });
 
       if (_mode === 'native') {
-        // Register Go session first, then invite callee.
+        // Register Go session first, then invite target.
         var startRes = await fetch('/api/call/start', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -934,7 +934,7 @@
           platform:  _platform,
           mediaType: mediaType,
         });
-        // _handleCallAck() will call _connectNative() when callee accepts.
+        // _handleCallAck() will call _connectNative() when target accepts.
 
       } else {
         // Browser mode: set up PC before inviting so we're ready the moment
@@ -952,7 +952,7 @@
         });
         // Persist so the overlay survives page navigation (browser mode).
         _saveCallToSession(sess);
-        // _handleCallAck() will call createOffer() once callee sends call-ack.
+        // _handleCallAck() will call createOffer() once target sends call-ack.
       }
 
       return sess;
@@ -1024,7 +1024,7 @@
         sessions.forEach(function (s) {
           if (_sessions[s.channel_id]) return; // already tracked
           log('info', 'restoring call session: ' + s.channel_id + ' remote=' + s.remote_peer);
-          var sess = new CallSession(s.channel_id, s.remote_peer, s.is_caller, 'video');
+          var sess = new CallSession(s.channel_id, s.remote_peer, s.is_origin, 'video');
           _sessions[s.channel_id] = sess;
           sess.onHangup(function () { delete _sessions[s.channel_id]; });
           // Reconnect native media (fire and forget — restoreCbs register callbacks first).

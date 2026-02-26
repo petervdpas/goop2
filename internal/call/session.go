@@ -27,7 +27,7 @@ type Session struct {
 	channelID  string
 	remotePeer string
 	sig        Signaler
-	isCaller   bool // true = created by StartCall; false = created by AcceptCall
+	isOrigin   bool // true = created by StartCall (origin); false = created by AcceptCall (target)
 	logFn      func(level, msg string) // may be nil; publishes structured logs to browser
 
 	mu         sync.Mutex
@@ -65,7 +65,7 @@ type Session struct {
 type SessionStatus struct {
 	ChannelID  string `json:"channel_id"`
 	RemotePeer string `json:"remote_peer"`
-	IsCaller   bool   `json:"is_caller"`
+	IsOrigin   bool   `json:"is_origin"`
 	PCState    string `json:"pc_state"`
 	AudioOn    bool   `json:"audio_on"`
 	VideoOn    bool   `json:"video_on"`
@@ -79,7 +79,7 @@ func (s *Session) Status() SessionStatus {
 	return SessionStatus{
 		ChannelID:  s.channelID,
 		RemotePeer: s.remotePeer,
-		IsCaller:   s.isCaller,
+		IsOrigin:   s.isOrigin,
 		PCState:    s.pcState.String(),
 		AudioOn:    s.audioOn,
 		VideoOn:    s.videoOn,
@@ -88,12 +88,12 @@ func (s *Session) Status() SessionStatus {
 }
 
 // newSession creates a Session and kicks off background PC + media initialisation.
-func newSession(channelID, remotePeer string, sig Signaler, isCaller bool, logFn func(level, msg string)) *Session {
+func newSession(channelID, remotePeer string, sig Signaler, isOrigin bool, logFn func(level, msg string)) *Session {
 	s := &Session{
 		channelID:  channelID,
 		remotePeer: remotePeer,
 		sig:        sig,
-		isCaller:   isCaller,
+		isOrigin:   isOrigin,
 		logFn:      logFn,
 		audioOn:    true,
 		videoOn:    true,
@@ -104,12 +104,12 @@ func newSession(channelID, remotePeer string, sig Signaler, isCaller bool, logFn
 	}
 	go s.initExternalPC()
 
-	// Callee-side watchdog: if no call-offer arrives within 10 s after the
+	// Target-side watchdog: if no call-offer arrives within 10 s after the
 	// session is created (i.e. after call-ack was sent), log a clear warning.
 	// This fires only when something is wrong with the signaling chain so the
 	// problem appears in the Video log tab without requiring Eggman's full
 	// Go stdout to be captured.
-	if !isCaller {
+	if !isOrigin {
 		go func() {
 			select {
 			case <-s.hangupCh:
@@ -120,7 +120,7 @@ func newSession(channelID, remotePeer string, sig Signaler, isCaller bool, logFn
 				started := s.remoteDescSet
 				s.mu.Unlock()
 				if !started {
-					log.Printf("CALL [%s]: WARNING — no call-offer received from %s within 10 s; check caller signaling", channelID, remotePeer)
+					log.Printf("CALL [%s]: WARNING — no call-offer received from %s within 10 s; check origin signaling", channelID, remotePeer)
 				}
 			}
 		}()
@@ -287,8 +287,11 @@ func (s *Session) initExternalPC() {
 		s.pcState = state
 		s.mu.Unlock()
 		log.Printf("CALL [%s]: PC state → %s", s.channelID, state)
-		if state == webrtc.PeerConnectionStateFailed ||
-			state == webrtc.PeerConnectionStateDisconnected {
+		// Only hang up on Failed — Disconnected is a transient, recoverable
+		// ICE state (NAT rebinding, brief network hiccup) and must NOT trigger
+		// hangup.  Hanging up on Disconnected causes the call to end the moment
+		// ICE temporarily loses a path, before it has a chance to recover.
+		if state == webrtc.PeerConnectionStateFailed {
 			s.Hangup()
 		}
 	})
@@ -449,18 +452,18 @@ func (s *Session) streamAudioTrack(track *webrtc.TrackRemote) {
 func (s *Session) handleSignal(msgType string, payload map[string]any) {
 	switch msgType {
 	case "call-ack":
-		// Callee accepted → caller creates and sends offer.
-		if !s.isCaller {
-			log.Printf("CALL [%s]: unexpected call-ack on callee side", s.channelID)
+		// Target accepted → origin creates and sends offer.
+		if !s.isOrigin {
+			log.Printf("CALL [%s]: unexpected call-ack on target side", s.channelID)
 			return
 		}
 		log.Printf("CALL [%s]: call-ack received — starting SDP offer", s.channelID)
 		go s.createAndSendOffer()
 
 	case "call-offer":
-		// Caller sent offer → callee creates and sends answer.
-		if s.isCaller {
-			log.Printf("CALL [%s]: unexpected call-offer on caller side", s.channelID)
+		// Origin sent offer → target creates and sends answer.
+		if s.isOrigin {
+			log.Printf("CALL [%s]: unexpected call-offer on origin side", s.channelID)
 			return
 		}
 		sdp, _ := payload["sdp"].(string)
@@ -472,9 +475,9 @@ func (s *Session) handleSignal(msgType string, payload map[string]any) {
 		go s.handleOffer(sdp)
 
 	case "call-answer":
-		// Callee sent answer → caller sets remote description.
-		if !s.isCaller {
-			log.Printf("CALL [%s]: unexpected call-answer on callee side", s.channelID)
+		// Target sent answer → origin sets remote description.
+		if !s.isOrigin {
+			log.Printf("CALL [%s]: unexpected call-answer on target side", s.channelID)
 			return
 		}
 		sdp, _ := payload["sdp"].(string)
@@ -522,7 +525,7 @@ func (s *Session) handleSignal(msgType string, payload map[string]any) {
 	}
 }
 
-// createAndSendOffer waits for media to be ready, then negotiates as the caller.
+// createAndSendOffer waits for media to be ready, then negotiates as the origin.
 func (s *Session) createAndSendOffer() {
 	log.Printf("CALL [%s]: createAndSendOffer: waiting for media to be ready", s.channelID)
 	<-s.mediaReady
@@ -588,7 +591,7 @@ func (s *Session) handleOffer(sdp string) {
 	log.Printf("CALL [%s]: answer sent to %s", s.channelID, s.remotePeer)
 }
 
-// handleAnswer sets the remote description from the callee's SDP answer.
+// handleAnswer sets the remote description from the target's SDP answer.
 func (s *Session) handleAnswer(sdp string) {
 	s.mu.Lock()
 	pc := s.externalPC

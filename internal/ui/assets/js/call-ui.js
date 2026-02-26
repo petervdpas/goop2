@@ -147,7 +147,7 @@
           // Show a brief error in the status area of the overlay if it still exists,
           // or surface via notify if available.
           if (window.Goop && Goop.notify) {
-            Goop.notify('Call failed — caller may have already hung up', 'error');
+            Goop.notify('Call failed — remote peer may have already hung up', 'error');
           }
         }
       }
