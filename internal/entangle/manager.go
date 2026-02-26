@@ -74,8 +74,19 @@ func New(h host.Host, onConnect, onDisconnect func(peerID string)) *Manager {
 
 // Connect opens an entangle stream to peerID if one is not already open.
 // Safe to call concurrently and repeatedly — duplicate calls are no-ops.
+//
+// Only the peer with the lexicographically lower ID initiates the stream.
+// When both peers discover each other simultaneously and both call Connect,
+// having both sides dial causes each handleIncoming to reset the other's
+// outbound stream → runLoop dies → onDisconnect fires → infinite reset loop.
+// With this rule exactly one side dials; the other just waits for the
+// incoming stream (handleIncoming).
 func (m *Manager) Connect(ctx context.Context, peerID string) {
 	if peerID == m.selfID {
+		return
+	}
+	if m.selfID > peerID {
+		// The remote peer has the lower ID and will dial us.
 		return
 	}
 	m.mu.Lock()

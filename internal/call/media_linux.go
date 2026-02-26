@@ -11,6 +11,8 @@ import (
 	"github.com/pion/mediadevices/pkg/codec/vpx"
 	_ "github.com/pion/mediadevices/pkg/driver/camera"
 	_ "github.com/pion/mediadevices/pkg/driver/microphone"
+	"github.com/pion/mediadevices/pkg/frame"
+	"github.com/pion/mediadevices/pkg/prop"
 	"github.com/pion/webrtc/v4"
 )
 
@@ -112,7 +114,17 @@ func initMediaPC(channelID string, logFn func(level, msg string)) (*webrtc.PeerC
 	} {
 		constraints := mediadevices.MediaStreamConstraints{Codec: codecSelector}
 		if a.video {
-			constraints.Video = func(_ *mediadevices.MediaTrackConstraints) {}
+			constraints.Video = func(c *mediadevices.MediaTrackConstraints) {
+				// Exclude MJPEG — some cameras expose an MJPEG V4L2 node that
+				// produces malformed JPEG frames, which poisons the VP8 encoder
+				// and causes SetRemoteDescription to fail.  Raw formats only.
+				c.FrameFormat = prop.FrameFormatOneOf{
+					frame.FormatYUYV,
+					frame.FormatI420,
+					frame.FormatI444,
+					frame.FormatRGBA,
+				}
+			}
 		}
 		if a.audio {
 			constraints.Audio = func(_ *mediadevices.MediaTrackConstraints) {}
@@ -130,6 +142,7 @@ func initMediaPC(channelID string, logFn func(level, msg string)) (*webrtc.PeerC
 
 		tracks := stream.GetTracks()
 		var selfSrc SelfViewSource
+		brokenVideo := false
 		for _, track := range tracks {
 			track.OnEnded(func(err error) {
 				if err != nil {
@@ -148,9 +161,24 @@ func initMediaPC(channelID string, logFn func(level, msg string)) (*webrtc.PeerC
 					selfSrc = &vp8SelfView{r: r}
 					log.Printf("CALL [%s]: self-view VP8 reader ready", channelID)
 				} else {
-					log.Printf("CALL [%s]: self-view VP8 reader error: %v", channelID, err)
+					// Broken video encoder (e.g. malformed MJPEG from camera).
+					// Close all tracks and fall through to the next attempt —
+					// a poisoned VP8 encoder would cause SetRemoteDescription to
+					// fail and break SDP negotiation entirely.
+					msg := "video track broken, skipping attempt (" + a.label + "): " + err.Error()
+					log.Printf("CALL [%s]: %s", channelID, msg)
+					if logFn != nil {
+						logFn("warn", msg)
+					}
+					brokenVideo = true
 				}
 			}
+		}
+		if brokenVideo {
+			for _, t := range tracks {
+				t.Close()
+			}
+			continue
 		}
 
 		log.Printf("CALL [%s]: local media captured (%s) — %d tracks", channelID, a.label, len(tracks))

@@ -251,6 +251,14 @@ func (s *Session) initExternalPC() {
 	s.mediaClose = closeFn
 	s.mu.Unlock()
 
+	// Enable audio on selfWebm before the streaming goroutine starts, so the
+	// WebM init segment declares an audio track.  No audio SimpleBlocks are
+	// ever sent (self-view is video-only), but the MIME type on the browser
+	// side is "vp8,opus" — matching what WebKitGTK's MSE actually supports.
+	// (WebKitGTK may return false for isTypeSupported("vp8") while "vp8,opus"
+	// is accepted, causing _connectSelfMSE to bail silently.)
+	s.selfWebm.enableAudio()
+
 	// Stream local camera to browser self-view (Linux native mode).
 	if selfSrc != nil {
 		go s.streamSelfVideoTrack(selfSrc)

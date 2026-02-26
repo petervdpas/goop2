@@ -416,9 +416,13 @@
   // unavailable (Go holds the V4L2 device).  Fire-and-forget — do not await.
   CallSession.prototype._connectSelfMSE = async function () {
     if (typeof MediaSource === 'undefined') return;
-    var mimeType = 'video/webm; codecs="vp8"';
+    // Use vp8,opus to match the remote-stream MIME type — WebKitGTK may return
+    // false for isTypeSupported("vp8") while accepting "vp8,opus".
+    // The Go side declares an audio track in the init segment (selfWebm.enableAudio)
+    // but sends no audio SimpleBlocks; MSE plays video-only silently.
+    var mimeType = 'video/webm; codecs="vp8,opus"';
     if (!MediaSource.isTypeSupported(mimeType)) {
-      log('warn', 'VP8 WebM not supported for self-view');
+      log('warn', 'VP8+Opus WebM not supported for self-view');
       return;
     }
 
