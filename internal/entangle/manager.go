@@ -30,6 +30,7 @@ import (
 const (
 	ProtoID      = "/goop/entangle/1.0.0"
 	pingInterval = 30 * time.Second
+	pongTimeout  = 15 * time.Second // max wait for pong after each ping
 	dialTimeout  = 15 * time.Second
 )
 
@@ -116,6 +117,7 @@ func (m *Manager) Connect(ctx context.Context, peerID string) {
 			delete(m.conns, peerID)
 			m.mu.Unlock()
 			log.Printf("entangle: → %s dial failed: %v", peerID[:8], err)
+			go m.scheduleReconnect(peerID)
 			return
 		}
 
@@ -183,11 +185,18 @@ func (m *Manager) runLoop(ctx context.Context, c *entConn) {
 		if m.onDisconnect != nil {
 			go m.onDisconnect(c.peerID)
 		}
+		// If we are the lower-ID peer, schedule reconnect attempts so a
+		// relay-circuit drop or transient network blip does not leave the
+		// peer permanently offline.
+		if m.selfID < c.peerID {
+			go m.scheduleReconnect(c.peerID)
+		}
 	}()
 
 	enc := json.NewEncoder(c.stream)
 	dec := json.NewDecoder(c.stream)
 
+	pongCh  := make(chan struct{}, 1)
 	readErr := make(chan error, 1)
 	go func() {
 		for {
@@ -196,13 +205,19 @@ func (m *Manager) runLoop(ctx context.Context, c *entConn) {
 				readErr <- err
 				return
 			}
-			if in.Type == "ping" {
+			switch in.Type {
+			case "ping":
 				_ = c.stream.SetWriteDeadline(time.Now().Add(10 * time.Second))
 				if err := enc.Encode(msg{Type: "pong"}); err != nil {
 					readErr <- err
 					return
 				}
 				_ = c.stream.SetWriteDeadline(time.Time{})
+			case "pong":
+				select {
+				case pongCh <- struct{}{}:
+				default:
+				}
 			}
 		}
 	}()
@@ -226,7 +241,35 @@ func (m *Manager) runLoop(ctx context.Context, c *entConn) {
 				return
 			}
 			_ = c.stream.SetWriteDeadline(time.Time{})
+			// Expect a pong within pongTimeout. Setting a read deadline
+			// unblocks the reader goroutine if the peer goes silent,
+			// catching stale TCP connections that a write-only ping cannot.
+			_ = c.stream.SetReadDeadline(time.Now().Add(pongTimeout))
+			select {
+			case <-pongCh:
+				_ = c.stream.SetReadDeadline(time.Time{})
+			case <-ctx.Done():
+				return
+			case err := <-readErr:
+				if err != nil {
+					log.Printf("entangle: %s pong timeout: %v", c.peerID[:8], err)
+				}
+				return
+			}
 		}
+	}
+}
+
+// scheduleReconnect retries Connect() with increasing delays after a stream
+// dies or a dial fails. Only called when selfID < peerID (we initiate).
+// IsConnected() at each step short-circuits if an incoming connection arrived.
+func (m *Manager) scheduleReconnect(peerID string) {
+	for _, delay := range []time.Duration{5 * time.Second, 30 * time.Second, 90 * time.Second} {
+		time.Sleep(delay)
+		if m.IsConnected(peerID) {
+			return
+		}
+		m.Connect(context.Background(), peerID)
 	}
 }
 

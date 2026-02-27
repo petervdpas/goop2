@@ -265,7 +265,7 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 		n.relayCleanupDelay = durOrDefault(relayInfo.CleanupDelaySec, 3*time.Second)
 		n.relayPollDeadline = durOrDefault(relayInfo.PollDeadlineSec, 25*time.Second)
 		n.relayConnectTimeout = durOrDefault(relayInfo.ConnectTimeoutSec, 15*time.Second)
-		n.relayRecoveryGrace = durOrDefault(relayInfo.RecoveryGraceSec, 5*time.Second)
+		n.relayRecoveryGrace = durOrDefault(relayInfo.RecoveryGraceSec, 2*time.Second)
 	}
 
 	// Diagnostic protocol — the rendezvous server queries this via
@@ -720,6 +720,8 @@ func (n *Node) SubscribeAddressChanges(ctx context.Context, onChange func()) {
 //
 // Caller MUST hold relayRecoveryMu.
 func (n *Node) refreshRelay(ctx context.Context, label string) bool {
+	start := time.Now()
+	log.Printf("relay [%s]: starting recovery", label)
 	conns := n.Host.Network().ConnsToPeer(n.relayPeer.ID)
 	if len(conns) > 0 {
 		n.diag("relay [%s]: closing %d relay connections", label, len(conns))
@@ -772,10 +774,12 @@ func (n *Node) refreshRelay(ctx context.Context, label string) bool {
 		select {
 		case <-deadline:
 			n.diag("relay [%s]: reservation NOT restored after %s", label, n.relayPollDeadline)
+			log.Printf("relay [%s]: recovery FAILED after %s", label, time.Since(start).Truncate(time.Millisecond))
 			return false
 		case <-tick.C:
 			if n.hasCircuitAddr() {
 				n.diag("relay [%s]: reservation confirmed", label)
+				log.Printf("relay [%s]: recovered in %s", label, time.Since(start).Truncate(time.Millisecond))
 				return true
 			}
 		case <-ctx.Done():
@@ -807,7 +811,22 @@ func (n *Node) recoverRelay(ctx context.Context) {
 		return
 	}
 	defer n.relayRecoveryMu.Unlock()
-	n.refreshRelay(ctx, "recover")
+
+	if n.refreshRelay(ctx, "recover") {
+		return
+	}
+	// First attempt failed — relay server may still be recovering.
+	// Wait 30s and try once more before giving up.
+	n.diag("relay: first recovery failed, retrying in 30s")
+	log.Printf("relay: first recovery failed, retrying in 30s")
+	select {
+	case <-time.After(30 * time.Second):
+	case <-ctx.Done():
+		return
+	}
+	if !n.hasCircuitAddr() {
+		n.refreshRelay(ctx, "recover-retry")
+	}
 }
 
 // StartRelayRefresh periodically checks the relay reservation and forces
@@ -904,7 +923,7 @@ func (n *Node) injectRelayAddrs(pid peer.ID, logIt bool) {
 		if logIt {
 			n.diag("relay: injecting circuit addr for %s: %s", pid.ShortString(), circuitAddr)
 		}
-		n.Host.Peerstore().AddAddr(pid, circuitAddr, 2*time.Minute)
+		n.Host.Peerstore().AddAddr(pid, circuitAddr, 10*time.Minute)
 	}
 }
 

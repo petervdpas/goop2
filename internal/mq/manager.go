@@ -24,8 +24,12 @@ const (
 	// the browser SSE listener connects and drains the buffer.
 	inboxCap = 200
 
-	// ackTimeout is how long Send() waits for a transport ACK from the remote
-	// peer before returning an error to the caller.
+	// listenerCap is the channel buffer size per SSE listener connection.
+	// Sized for ICE-candidate bursts (20-30 msgs) plus concurrent peer/group
+	// traffic with plenty of headroom.
+	listenerCap = 256
+
+	// ackTimeout is how long a single send attempt waits for a transport ACK.
 	ackTimeout = 10 * time.Second
 )
 
@@ -80,8 +84,25 @@ func New(h host.Host) *Manager {
 
 // Send opens (or reuses) a stream to peerID, writes a message with the given
 // topic and payload, and waits up to ackTimeout for a transport ACK.
-// Returns the message ID and nil on success, or an error if the send or ACK fails.
+// On transient failure it retries once after a short pause so a momentary
+// relay-circuit blip does not permanently drop a call signal.
+// Returns the message ID and nil on success, or an error if both attempts fail.
 func (m *Manager) Send(ctx context.Context, peerID, topic string, payload any) (string, error) {
+	id, err := m.sendOnce(ctx, peerID, topic, payload)
+	if err == nil {
+		return id, nil
+	}
+	// Retry once if the caller context still has budget.
+	select {
+	case <-ctx.Done():
+		return "", err
+	case <-time.After(300 * time.Millisecond):
+	}
+	return m.sendOnce(ctx, peerID, topic, payload)
+}
+
+// sendOnce is a single send attempt without retry logic.
+func (m *Manager) sendOnce(ctx context.Context, peerID, topic string, payload any) (string, error) {
 	pid, err := peer.Decode(peerID)
 	if err != nil {
 		return "", fmt.Errorf("mq: invalid peer id %q: %w", peerID, err)
@@ -207,20 +228,24 @@ func (m *Manager) handleIncoming(stream network.Stream) {
 		From: remotePeer,
 	}
 
-	// Deliver to SSE listeners, or buffer for later.
+	// Deliver to SSE listeners. Track whether any listener's channel was full.
 	m.listenerMu.RLock()
 	n := len(m.listeners)
+	anyDropped := false
 	for ch := range m.listeners {
 		select {
 		case ch <- evt:
 		default:
-			log.Printf("MQ: SSE listener full, dropping msg %s", msg.ID[:8])
+			anyDropped = true
+			log.Printf("MQ: SSE listener full, buffering msg %s (topic=%s from=%s)", msg.ID[:8], msg.Topic, remotePeer[:8])
 		}
 	}
 	m.listenerMu.RUnlock()
 
-	if n == 0 {
-		// No browser connected yet — buffer the message.
+	// Buffer to inbox when no listener is connected OR when any listener
+	// dropped the message. On the next Subscribe() (browser reconnect) the
+	// inbox is replayed, so no message is permanently lost.
+	if n == 0 || anyDropped {
 		m.inboxMu.Lock()
 		buf := m.inbox[remotePeer]
 		if len(buf) >= inboxCap {
@@ -251,7 +276,7 @@ func (m *Manager) NotifyDelivered(msgID string) {
 // On subscribe, all buffered inbox messages (across all peers) are replayed
 // immediately so the browser never misses a message.
 func (m *Manager) Subscribe() (<-chan mqEvent, func()) {
-	ch := make(chan mqEvent, 128)
+	ch := make(chan mqEvent, listenerCap)
 
 	m.listenerMu.Lock()
 	m.listeners[ch] = struct{}{}
