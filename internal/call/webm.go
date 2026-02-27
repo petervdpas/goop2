@@ -250,7 +250,8 @@ type webmSession struct {
 	clusterBlocks  bytes.Buffer
 	clusterOpen    bool
 
-	// Audio frames queued until the next video cluster
+	// Audio frames queued between video frames; drained into each video cluster.
+	// Unbounded — ensures no audio is dropped regardless of camera frame rate.
 	audioQ []webmAudioFrame
 
 	// Subscriber channels: each receives binary WebSocket messages
@@ -334,8 +335,9 @@ func (ws *webmSession) subscribeMedia() (<-chan []byte, func()) {
 }
 
 // handleVideoFrame is called from the VP8 streaming goroutine.
-// One cluster per frame, flushed immediately — keeps per-frame latency at zero
-// and WebKitGTK MSE in sequence mode handles P-frame clusters correctly.
+// One cluster per frame, flushed immediately.  Any audio frames that arrived
+// since the last flush are drained from the queue into the cluster before the
+// video block, so GStreamer always receives a well-formed audio+video cluster.
 func (ws *webmSession) handleVideoFrame(timecodeMs int64, keyframe bool, data []byte) {
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
@@ -378,7 +380,14 @@ func (ws *webmSession) handleVideoFrame(timecodeMs int64, keyframe bool, data []
 	}
 
 	if !ws.clusterOpen {
+		// Anchor the cluster to the earliest queued audio frame so that all
+		// audio SimpleBlocks have positive (or zero) relative timecodes.
+		// GStreamer/WebKitGTK handles positive-relative audio better than
+		// large negative values that predate the cluster's video timestamp.
 		ws.clusterStartMs = tsMs
+		if len(ws.audioQ) > 0 && ws.audioQ[0].timecodeMs < tsMs {
+			ws.clusterStartMs = ws.audioQ[0].timecodeMs
+		}
 		ws.clusterOpen = true
 		ws.clusterIsKey = keyframe
 		ws.clusterBlocks.Reset()
@@ -395,7 +404,6 @@ func (ws *webmSession) handleVideoFrame(timecodeMs int64, keyframe bool, data []
 		ws.audioQ = newQ
 	}
 
-	// Write the video SimpleBlock and flush immediately for low per-frame latency.
 	relMs := int16(tsMs - ws.clusterStartMs)
 	ws.clusterBlocks.Write(webmSimpleBlock(1, relMs, keyframe, data))
 	ws.flushClusterLocked()
@@ -415,18 +423,11 @@ func (ws *webmSession) handleAudioFrame(timecodeMs int64, data []byte) {
 	}
 	tsMs := timecodeMs - ws.baseAudioMs
 
-	if ws.initSeg == nil || !ws.clusterOpen {
-		// Cluster not open yet — queue audio (bounded).
-		if len(ws.audioQ) < 5 {
-			ws.audioQ = append(ws.audioQ, webmAudioFrame{tsMs, data})
-		} else {
-			log.Printf("CALL [%s]: WebM audio queue full (5 frames) — dropping audio frame", ws.channelID)
-		}
-		return
-	}
-
-	relMs := int16(tsMs - ws.clusterStartMs)
-	ws.clusterBlocks.Write(webmSimpleBlock(2, relMs, false, data))
+	// Queue audio until the next video frame opens a cluster and drains it.
+	// No cap — at any video fps, all audio is preserved and delivered as part
+	// of the next video cluster.  GStreamer always sees video+audio clusters,
+	// which prevents stalls on the video track regardless of camera frame rate.
+	ws.audioQ = append(ws.audioQ, webmAudioFrame{tsMs, data})
 }
 
 // flushClusterLocked builds a Cluster message from accumulated blocks and
