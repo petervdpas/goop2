@@ -419,12 +419,14 @@ func (ws *webmSession) handleVideoFrame(timecodeMs int64, keyframe bool, data []
 		if !ws.dimKnown || !keyframe {
 			return // wait for a keyframe so we know dimensions and MSE can start
 		}
-		if ws.hasAudio && len(ws.audioQ) == 0 {
+		if ws.hasAudio && len(ws.audioQ) == 0 && tsMs < 1000 {
 			// No audio yet.  Save the keyframe; handleAudioFrame will call
 			// generateInitLocked once the first Opus packet arrives.  This
 			// guarantees the first cluster always contains audio data, which
 			// prevents WebKitGTK/GStreamer from stalling the video pipeline
 			// while waiting for audio on a declared-but-empty audio track.
+			// After 1 s (wall-clock), stop waiting — audio is very late or
+			// missing.  Video starts immediately; audio joins when it arrives.
 			ws.pendingKeyframe = &webmPendingFrame{tsMs, data}
 			return
 		}

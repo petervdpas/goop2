@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/petervdpas/goop2/internal/call"
@@ -201,6 +202,7 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager, mqMgr *mq.Manager) 
 				if !ok {
 					return
 				}
+				_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 				if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
 					return
 				}
@@ -260,6 +262,7 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager, mqMgr *mq.Manager) 
 				if !ok {
 					return
 				}
+				_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 				if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
 					return
 				}
