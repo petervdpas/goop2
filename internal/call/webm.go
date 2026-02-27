@@ -19,7 +19,6 @@ import (
 	"log"
 	"math"
 	"sync"
-	"time"
 )
 
 // ─── EBML encoding helpers ───────────────────────────────────────────────────
@@ -255,37 +254,20 @@ type webmSession struct {
 	// Unbounded — ensures no audio is dropped regardless of camera frame rate.
 	audioQ []webmAudioFrame
 
-	// pendingKeyframe holds the first VP8 keyframe when it arrives before any
-	// audio data.  generateInitLocked is called from handleAudioFrame once the
-	// first Opus packet arrives, ensuring the very first cluster always contains
-	// both video and audio — preventing WebKitGTK/GStreamer from stalling the
-	// video pipeline while waiting for audio data on a declared audio track.
-	pendingKeyframe *webmPendingFrame
-
 	// Subscriber channels: each receives binary WebSocket messages
 	subs map[chan []byte]struct{}
 
-	// Wall-clock reference shared by both tracks.
-	// Both VP8 and Opus are normalized relative to the first frame received
-	// (whichever track arrives first).  Using wall-clock time — not independent
-	// per-track RTP normalization — ensures audio and video in-cluster relative
-	// timecodes stay accurate to each other regardless of when each OnTrack
-	// fires.  Independent normalization would give video relMs of 200–500 ms
-	// inside each cluster (equal to the audio OnTrack delay), causing
-	// GStreamer/WebKitGTK to buffer video while waiting for audio to "catch up",
-	// eventually stalling the pipeline and freezing the display.
-	// This mirrors how streamSelfVideoTrack uses time.Since(start) — wall clock
-	// from a single reference, not per-track RTP offsets.
-	startTime    time.Time
-	startTimeSet bool
+	// Timestamp normalization: first frame of each track becomes t=0.
+	// VP8 and Opus RTP clocks start at independent random values; without
+	// normalization the cluster timecodes are huge (hours) and audio relMs
+	// values are millions of ms off, causing silent MSE rejection.
+	baseVideoMs  int64
+	baseVideoSet bool
+	baseAudioMs  int64
+	baseAudioSet bool
 }
 
 type webmAudioFrame struct {
-	timecodeMs int64
-	data       []byte
-}
-
-type webmPendingFrame struct {
 	timecodeMs int64
 	data       []byte
 }
@@ -393,14 +375,12 @@ func (ws *webmSession) handleVideoFrame(timecodeMs int64, keyframe bool, data []
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
 
-	// Wall-clock time from the first frame of either track.
-	// See startTime field comment for why we use wall clock, not per-track
-	// RTP normalization.
-	if !ws.startTimeSet {
-		ws.startTime = time.Now()
-		ws.startTimeSet = true
+	// Normalize so the first video frame is at t=0ms.
+	if !ws.baseVideoSet {
+		ws.baseVideoMs = timecodeMs
+		ws.baseVideoSet = true
 	}
-	tsMs := time.Since(ws.startTime).Milliseconds()
+	tsMs := timecodeMs - ws.baseVideoMs
 
 	// Extract video dimensions from the first VP8 keyframe header.
 	if !ws.dimKnown && keyframe && len(data) >= 10 {
@@ -418,17 +398,6 @@ func (ws *webmSession) handleVideoFrame(timecodeMs int64, keyframe bool, data []
 	if ws.initSeg == nil {
 		if !ws.dimKnown || !keyframe {
 			return // wait for a keyframe so we know dimensions and MSE can start
-		}
-		if ws.hasAudio && len(ws.audioQ) == 0 && tsMs < 1000 {
-			// No audio yet.  Save the keyframe; handleAudioFrame will call
-			// generateInitLocked once the first Opus packet arrives.  This
-			// guarantees the first cluster always contains audio data, which
-			// prevents WebKitGTK/GStreamer from stalling the video pipeline
-			// while waiting for audio on a declared-but-empty audio track.
-			// After 1 s (wall-clock), stop waiting — audio is very late or
-			// missing.  Video starts immediately; audio joins when it arrives.
-			ws.pendingKeyframe = &webmPendingFrame{tsMs, data}
-			return
 		}
 		ws.generateInitLocked(tsMs, data)
 		return // first cluster already flushed inside generateInitLocked
@@ -474,27 +443,18 @@ func (ws *webmSession) handleAudioFrame(timecodeMs int64, data []byte) {
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
 
-	// Wall-clock time from the first frame of either track (shared reference).
-	if !ws.startTimeSet {
-		ws.startTime = time.Now()
-		ws.startTimeSet = true
+	// Normalize so the first audio frame is at t=0ms.
+	if !ws.baseAudioSet {
+		ws.baseAudioMs = timecodeMs
+		ws.baseAudioSet = true
 	}
-	tsMs := time.Since(ws.startTime).Milliseconds()
+	tsMs := timecodeMs - ws.baseAudioMs
 
 	// Queue audio until the next video frame opens a cluster and drains it.
 	// No cap — at any video fps, all audio is preserved and delivered as part
 	// of the next video cluster.  GStreamer always sees video+audio clusters,
 	// which prevents stalls on the video track regardless of camera frame rate.
 	ws.audioQ = append(ws.audioQ, webmAudioFrame{tsMs, data})
-
-	// If a VP8 keyframe arrived before this audio packet, it was saved in
-	// pendingKeyframe.  Now that we have audio, generate the init segment and
-	// flush the first cluster (keyframe + this audio frame).
-	if ws.initSeg == nil && ws.pendingKeyframe != nil {
-		pk := ws.pendingKeyframe
-		ws.pendingKeyframe = nil
-		ws.generateInitLocked(pk.timecodeMs, pk.data)
-	}
 }
 
 // flushClusterLocked builds a Cluster message from accumulated blocks and

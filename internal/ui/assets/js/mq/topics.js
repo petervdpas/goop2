@@ -57,6 +57,7 @@
     CHAT_BROADCAST:        "chat.broadcast",
     LOG_MQ:                "log:mq",
     LOG_CALL:              "log:call",
+    RELAY_STATUS:          "relay:status",
   });
 
   // ── Call signal type constants ────────────────────────────────────────────────
@@ -121,6 +122,14 @@
 
   /** log:call — call-layer structured log event (hardware errors, media state) */
   mq.onLogCall = function (fn) { return mq.subscribe(mq.TOPICS.LOG_CALL, fn); };
+
+  /**
+   * onRelayStatus(fn) — relay circuit state changes from Go.
+   * fn(from, topic, payload, ack) — payload: { status, msg }
+   *   status: "waiting" | "connected" | "timeout" | "lost" | "recovered"
+   *   msg: human-readable description
+   */
+  mq.onRelayStatus = function (fn) { return mq.subscribe(mq.TOPICS.RELAY_STATUS, fn); };
 
   // ── Typed send helpers — call protocol ───────────────────────────────────────
 

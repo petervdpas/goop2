@@ -672,8 +672,24 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 
 	// Wait for relay circuit address before first publish so remote peers
 	// receive our circuit address immediately (avoids backoff race).
+	// Notify the browser about relay state so the user knows why WAN
+	// connections may not be available yet.
 	if relayInfo != nil {
-		node.WaitForRelay(ctx, 15*time.Second)
+		mqMgr.PublishLocal("relay:status", "", map[string]any{
+			"status": "waiting",
+			"msg":    "Connecting to relay — WAN peers require a relay circuit",
+		})
+		if node.WaitForRelay(ctx, 15*time.Second) {
+			mqMgr.PublishLocal("relay:status", "", map[string]any{
+				"status": "connected",
+				"msg":    "Relay connected — WAN peers are reachable",
+			})
+		} else {
+			mqMgr.PublishLocal("relay:status", "", map[string]any{
+				"status": "timeout",
+				"msg":    "Relay unavailable — WAN connections will not work until relay recovers",
+			})
+		}
 	}
 
 	publish(ctx, proto.TypeOnline)
@@ -683,6 +699,18 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	// relay is configured — so LAN↔WAN transitions trigger probes.
 	node.SubscribeAddressChanges(ctx, func() {
 		publish(ctx, proto.TypeUpdate)
+	}, func(hasCircuit bool) {
+		if hasCircuit {
+			mqMgr.PublishLocal("relay:status", "", map[string]any{
+				"status": "recovered",
+				"msg":    "Relay circuit restored — WAN peers are reachable again",
+			})
+		} else {
+			mqMgr.PublishLocal("relay:status", "", map[string]any{
+				"status": "lost",
+				"msg":    "Relay circuit lost — recovering...",
+			})
+		}
 	})
 	node.SubscribeConnectionEvents(ctx, nil)
 	if relayInfo != nil {
