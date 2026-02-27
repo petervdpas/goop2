@@ -4,6 +4,7 @@ package call
 
 import (
 	"log"
+	"time"
 
 	"github.com/pion/interceptor"
 	"github.com/pion/webrtc/v4"
@@ -25,9 +26,13 @@ func initMediaPC(channelID string, _ func(level, msg string)) (*webrtc.PeerConne
 		return nil, nil, nil, err
 	}
 
+	se := webrtc.SettingEngine{}
+	se.SetICETimeouts(30*time.Second, 120*time.Second, 2*time.Second)
+
 	api := webrtc.NewAPI(
 		webrtc.WithMediaEngine(mediaEngine),
 		webrtc.WithInterceptorRegistry(interceptorRegistry),
+		webrtc.WithSettingEngine(se),
 	)
 
 	pc, err := api.NewPeerConnection(webrtc.Configuration{

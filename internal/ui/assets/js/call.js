@@ -114,6 +114,10 @@
     this._loopbackPc       = null;
     this._loopbackIceUnsub = null;
 
+    // Set to true in _cleanup so WS onclose handlers know the call ended
+    // intentionally and should call ms.endOfStream() rather than reconnect.
+    this._ending = false;
+
     // Toggle state (native mode — Go owns the tracks)
     this._audioEnabled = true;
     this._videoEnabled = true;
@@ -227,6 +231,7 @@
   };
 
   CallSession.prototype._cleanup = function () {
+    this._ending = true; // tell WS onclose handlers not to reconnect
     if (this._loopbackIceUnsub) { this._loopbackIceUnsub(); this._loopbackIceUnsub = null; }
     if (this._loopbackPc) { this._loopbackPc.close(); this._loopbackPc = null; }
     if (this._mediaWs)    { this._mediaWs.close();    this._mediaWs    = null; }
@@ -471,22 +476,45 @@
       tryAppend();
     });
 
-    var wsUrl = Goop.api.call.selfWsUrl(this.channelId);
-    log('info', 'Opening self-view WebSocket: ' + wsUrl);
+    var wsUrl      = Goop.api.call.selfWsUrl(self.channelId);
+    var retries    = 0;
+    var maxRetries = 5;
+    var skipInit   = false; // true after first init segment processed
 
-    var ws = new WebSocket(wsUrl);
-    this._selfWs   = ws;
-    ws.binaryType  = 'arraybuffer';
-    ws.onopen    = function () { log('info', 'Self-view WebSocket connected'); };
-    ws.onmessage = function (e) { queue.push(new Uint8Array(e.data)); tryAppend(); };
-    ws.onerror   = function () { log('warn', 'Self-view WebSocket error'); };
-    ws.onclose   = function () {
-      log('info', 'Self-view WebSocket closed');
-      self._selfWs = null;
-      if (ms.readyState === 'open') {
-        try { ms.endOfStream(); } catch (_) {}
-      }
-    };
+    function openSelfWs() {
+      if (self._ending) return;
+      log('info', 'Opening self-view WebSocket: ' + wsUrl);
+      var ws = new WebSocket(wsUrl);
+      self._selfWs  = ws;
+      ws.binaryType = 'arraybuffer';
+      ws.onopen    = function () { retries = 0; log('info', 'Self-view WebSocket connected'); };
+      ws.onmessage = function (e) {
+        var data = new Uint8Array(e.data);
+        // On reconnect skip the EBML init segment — the SourceBuffer already has
+        // the track info; re-appending causes a decode error in WebKitGTK/GStreamer.
+        if (skipInit && sb.buffered.length > 0 &&
+            data.length >= 4 && data[0] === 0x1A && data[1] === 0x45 && data[2] === 0xDF && data[3] === 0xA3) {
+          log('info', 'Self-view WebSocket reconnect: skipping EBML init segment');
+          return;
+        }
+        if (!skipInit) skipInit = true;
+        queue.push(data);
+        tryAppend();
+      };
+      ws.onerror = function () { log('warn', 'Self-view WebSocket error'); };
+      ws.onclose = function () {
+        log('info', 'Self-view WebSocket closed');
+        self._selfWs = null;
+        if (self._ending || retries >= maxRetries) {
+          if (ms.readyState === 'open') { try { ms.endOfStream(); } catch (_) {} }
+          return;
+        }
+        retries++;
+        log('info', 'Self-view WebSocket reconnecting (' + retries + '/' + maxRetries + ')...');
+        setTimeout(openSelfWs, 1000);
+      };
+    }
+    openSelfWs();
   };
 
   CallSession.prototype._connectMSE = async function () {
@@ -566,22 +594,45 @@
       tryAppend();
     });
 
-    var wsUrl = Goop.api.call.mediaWsUrl(this.channelId);
-    log('info', 'Opening media WebSocket: ' + wsUrl);
+    var wsUrl      = Goop.api.call.mediaWsUrl(self.channelId);
+    var retries    = 0;
+    var maxRetries = 5;
+    var skipInit   = false; // true after first init segment processed
 
-    var ws = new WebSocket(wsUrl);
-    this._mediaWs  = ws;
-    ws.binaryType  = 'arraybuffer';
-    ws.onopen    = function () { log('info', 'Media WebSocket connected'); };
-    ws.onmessage = function (e) { queue.push(new Uint8Array(e.data)); tryAppend(); };
-    ws.onerror   = function () { log('warn', 'Media WebSocket error'); };
-    ws.onclose   = function () {
-      log('info', 'Media WebSocket closed');
-      self._mediaWs = null;
-      if (ms.readyState === 'open') {
-        try { ms.endOfStream(); } catch (_) {}
-      }
-    };
+    function openMediaWs() {
+      if (self._ending) return;
+      log('info', 'Opening media WebSocket: ' + wsUrl);
+      var ws = new WebSocket(wsUrl);
+      self._mediaWs = ws;
+      ws.binaryType = 'arraybuffer';
+      ws.onopen    = function () { retries = 0; log('info', 'Media WebSocket connected'); };
+      ws.onmessage = function (e) {
+        var data = new Uint8Array(e.data);
+        // On reconnect skip the EBML init segment — the SourceBuffer already has
+        // the track info; re-appending causes a decode error in WebKitGTK/GStreamer.
+        if (skipInit && sb.buffered.length > 0 &&
+            data.length >= 4 && data[0] === 0x1A && data[1] === 0x45 && data[2] === 0xDF && data[3] === 0xA3) {
+          log('info', 'Media WebSocket reconnect: skipping EBML init segment');
+          return;
+        }
+        if (!skipInit) skipInit = true;
+        queue.push(data);
+        tryAppend();
+      };
+      ws.onerror = function () { log('warn', 'Media WebSocket error'); };
+      ws.onclose = function () {
+        log('info', 'Media WebSocket closed');
+        self._mediaWs = null;
+        if (self._ending || retries >= maxRetries) {
+          if (ms.readyState === 'open') { try { ms.endOfStream(); } catch (_) {} }
+          return;
+        }
+        retries++;
+        log('info', 'Media WebSocket reconnecting (' + retries + '/' + maxRetries + ')...');
+        setTimeout(openMediaWs, 1000);
+      };
+    }
+    openMediaWs();
   };
 
   // ── Signal handlers (called from _dispatch) ──────────────────────────────────

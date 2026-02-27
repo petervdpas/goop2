@@ -2,6 +2,7 @@ package call
 
 import (
 	"log"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -312,14 +313,13 @@ func (s *Session) initExternalPC() {
 		}
 	})
 
-	// Always enable audio before registering OnTrack. Pion fires OnTrack on the
-	// first RTP packet per track — video arrives first. If the first VP8 keyframe
-	// assembles before the audio OnTrack fires, the WebM init segment is generated
-	// with hasAudio=false. MSE then rejects the subsequent audio SimpleBlocks
-	// (undeclared track 2) and the video dies after the first frame.
-	s.webm.enableAudio()
-
 	// Phase 4: stream remote tracks to the browser via WebM/MSE.
+	// NOTE: s.webm.enableAudio() is NOT called here unconditionally.
+	// It is called from handleOffer / handleAnswer after parsing the remote SDP,
+	// so it is only set when the remote peer actually sends an audio track.
+	// Unconditionally enabling audio caused GStreamer to stall indefinitely when
+	// the remote had no microphone — the init segment declared an audio track
+	// but no Opus SimpleBlocks ever arrived.
 	pc.OnTrack(func(track *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
 		log.Printf("CALL [%s]: remote track — kind=%s codec=%s ssrc=%d",
 			s.channelID, track.Kind(), track.Codec().MimeType, track.SSRC())
@@ -541,6 +541,25 @@ func (s *Session) handleSignal(msgType string, payload map[string]any) {
 	}
 }
 
+// audioInSDP returns true when the SDP contains an active audio m-line
+// (port ≠ 0). Used to decide whether to declare an audio track in the
+// WebM init segment — if the remote has no audio, declaring it causes
+// GStreamer/WebKitGTK to stall indefinitely waiting for Opus frames.
+func audioInSDP(sdp string) bool {
+	for _, line := range strings.Split(sdp, "\n") {
+		line = strings.TrimRight(line, "\r")
+		if !strings.HasPrefix(line, "m=audio ") {
+			continue
+		}
+		// "m=audio <port> <proto> <fmt>" — port=0 means rejected/inactive.
+		fields := strings.Fields(line)
+		if len(fields) >= 2 && fields[1] != "0" {
+			return true
+		}
+	}
+	return false
+}
+
 // createAndSendOffer waits for media to be ready, then negotiates as the origin.
 func (s *Session) createAndSendOffer() {
 	log.Printf("CALL [%s]: createAndSendOffer: waiting for media to be ready", s.channelID)
@@ -583,6 +602,17 @@ func (s *Session) handleOffer(sdp string) {
 		return
 	}
 
+	// Enable audio in the WebM stream only if the remote offer includes an active
+	// audio track. Unconditional enableAudio() caused GStreamer to stall when the
+	// remote (browser mode) had no microphone — init segment declared audio but
+	// no Opus packets ever arrived, and GStreamer blocked waiting for them.
+	if audioInSDP(sdp) {
+		s.webm.enableAudio()
+		log.Printf("CALL [%s]: remote offer has audio — WebM audio track enabled", s.channelID)
+	} else {
+		log.Printf("CALL [%s]: remote offer has no audio — WebM video-only", s.channelID)
+	}
+
 	if err := pc.SetRemoteDescription(webrtc.SessionDescription{
 		Type: webrtc.SDPTypeOffer, SDP: sdp,
 	}); err != nil {
@@ -615,6 +645,15 @@ func (s *Session) handleAnswer(sdp string) {
 	if pc == nil {
 		log.Printf("CALL [%s]: handleAnswer: no PC available", s.channelID)
 		return
+	}
+
+	// Enable audio in the WebM stream only if the answer includes an active audio track.
+	// Same rationale as handleOffer: avoid GStreamer stall when remote has no mic.
+	if audioInSDP(sdp) {
+		s.webm.enableAudio()
+		log.Printf("CALL [%s]: remote answer has audio — WebM audio track enabled", s.channelID)
+	} else {
+		log.Printf("CALL [%s]: remote answer has no audio — WebM video-only", s.channelID)
 	}
 
 	if err := pc.SetRemoteDescription(webrtc.SessionDescription{
