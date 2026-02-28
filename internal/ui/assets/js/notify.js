@@ -10,16 +10,33 @@
     Goop.mq.onGroupInvite(function(from, topic, payload, ack) {
       var p = (payload && payload.payload) || {};
       var name = p.group_name || p.group_id || 'a group';
+      var href = (p.app_type === 'files' && p.group_id)
+        ? '/documents?group_id=' + encodeURIComponent(p.group_id)
+        : '/self/groups';
       if (window.Goop && window.Goop.toast) {
         window.Goop.toast({
           icon: '👥',
           title: 'Group Invite',
           message: 'You were invited to: ' + name + '. Click to view.',
           duration: 8000,
-          onClick: function() { window.location.href = '/self/groups'; }
+          onClick: function() { window.location.href = href; }
         });
       }
       ack();
+    });
+
+    // ── Group error toast (e.g. group full) ──────────────────────────────────
+    Goop.mq.onGroup(function(from, topic, payload, ack) {
+      ack();
+      if (!payload || payload.type !== 'error') return;
+      var p = payload.payload || {};
+      if (!window.Goop || !window.Goop.toast) return;
+      window.Goop.toast({
+        icon: '⚠️',
+        title: 'Group error',
+        message: p.message || 'Unknown group error',
+        duration: 5000,
+      });
     });
 
     // ── Relay status toast ────────────────────────────────────────────────────

@@ -17,7 +17,7 @@
 
     function _get(path) {
       return fetch(baseURL + path).then(function (r) {
-        if (!r.ok) return r.text().then(function (t) { throw new Error(t || r.statusText); });
+        if (!r.ok) return r.text().then(function (t) { throw new Error(t.trim() || r.statusText); });
         var ct = r.headers.get('Content-Type') || '';
         return ct.includes('application/json') ? r.json() : null;
       });
@@ -29,7 +29,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body !== undefined ? body : {}),
       }).then(function (r) {
-        if (!r.ok) return r.text().then(function (t) { throw new Error(t || r.statusText); });
+        if (!r.ok) return r.text().then(function (t) { throw new Error(t.trim() || r.statusText); });
         var ct = r.headers.get('Content-Type') || '';
         return ct.includes('application/json') ? r.json() : null;
       });
@@ -37,7 +37,7 @@
 
     function _delete(path) {
       return fetch(baseURL + path, { method: 'DELETE' }).then(function (r) {
-        if (!r.ok) return r.text().then(function (t) { throw new Error(t || r.statusText); });
+        if (!r.ok) return r.text().then(function (t) { throw new Error(t.trim() || r.statusText); });
         var ct = r.headers.get('Content-Type') || '';
         return ct.includes('application/json') ? r.json() : null;
       });

@@ -16,6 +16,7 @@
   var gsel = window.Goop.select;
   var groupSelect = qs("#docs-group-select");
   var refreshBtn = qs("#docs-refresh-btn");
+  var inviteBtn = qs("#docs-invite-btn");
   var uploadArea = qs("#docs-upload-area");
   var fileInput = qs("#docs-file-input");
   var uploadBtn = qs("#docs-upload-btn");
@@ -31,6 +32,7 @@
 
   var urlParams = new URLSearchParams(window.location.search);
   var currentGroupID = urlParams.get("group_id") || "";
+  var hostedGroupIDs = {};
 
   // File type detection
   var IMAGE_RE  = /\.(png|jpe?g|gif|webp|svg|bmp|ico|tiff?)$/i;
@@ -47,11 +49,13 @@
       setHidden(uploadArea, false);
       setHidden(mySection, false);
       setHidden(peersSection, false);
+      setHidden(inviteBtn, !hostedGroupIDs[currentGroupID]);
       loadBrowse();
     } else {
       setHidden(uploadArea, true);
       setHidden(mySection, true);
       setHidden(peersSection, true);
+      setHidden(inviteBtn, true);
     }
   });
 
@@ -60,6 +64,13 @@
 
   on(refreshBtn, "click", function() {
     if (currentGroupID) loadBrowse();
+  });
+
+  on(inviteBtn, "click", function(e) {
+    e.stopPropagation();
+    if (currentGroupID && window.Goop && window.Goop.groups) {
+      window.Goop.groups.showInvitePopup(currentGroupID, inviteBtn);
+    }
   });
 
   on(fileInput, "change", function() {
@@ -164,6 +175,9 @@
       var subsData = results[1] || {};
       var subs = (subsData.subscriptions || []).filter(function(s) { return s.app_type === "files"; });
 
+      hostedGroupIDs = {};
+      hosted.forEach(function(g) { hostedGroupIDs[g.id] = true; });
+
       var groups = [];
 
       if (hosted.length > 0) {
@@ -194,6 +208,7 @@
           setHidden(uploadArea, false);
           setHidden(mySection, false);
           setHidden(peersSection, false);
+          setHidden(inviteBtn, !hostedGroupIDs[currentGroupID]);
           loadBrowse();
         }
       }
@@ -396,7 +411,24 @@
                     throw new Error("marked.js not available (window.marked=" + typeof window.marked + ")");
                   }
                 }
-                mdDiv.innerHTML = markedFn(text);
+                var parsed   = parseFrontmatter(text);
+                var bodyHtml = markedFn(parsed.body);
+                var tocHtml  = parsed.meta.toc === 'true' ? buildTOC(bodyHtml, parsed.meta['toc-title']) : '';
+                mdDiv.innerHTML = frontmatterBlock(parsed.meta) + tocHtml + bodyHtml;
+
+                // Wire TOC links: use heading index + manual scrollTop to scroll
+                // within the overflow:auto container reliably.
+                mdDiv.querySelectorAll('.docs-toc-link').forEach(function(a) {
+                  a.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    var idx = parseInt(a.getAttribute('data-toc-idx'), 10);
+                    var headings = mdDiv.querySelectorAll('h1,h2,h3,h4,h5,h6');
+                    var target = headings[idx];
+                    if (!target) return;
+                    wrap.scrollTop += target.getBoundingClientRect().top - wrap.getBoundingClientRect().top;
+                  });
+                });
+
                 wrap.appendChild(mdDiv);
               } catch (e) {
                 throw new Error("Markdown render error: " + e.message);
@@ -434,6 +466,72 @@
         };
       }
     }
+  }
+
+  // Parse YAML frontmatter (--- ... ---) from markdown text.
+  // Returns { meta: {key: value, ...}, body: remainingText }.
+  // Only simple scalar values are kept; lists and objects are ignored.
+  function parseFrontmatter(text) {
+    if (!text.startsWith('---')) return { meta: {}, body: text };
+    var nl = text.indexOf('\n');
+    if (nl === -1) return { meta: {}, body: text };
+    var rest = text.slice(nl + 1);
+    var end = rest.search(/^---[ \t]*$/m);
+    if (end === -1) return { meta: {}, body: text };
+    var fmLines = rest.slice(0, end).split('\n');
+    var body = rest.slice(end).replace(/^---[ \t]*\n?/, '');
+    var meta = {};
+    fmLines.forEach(function(line) {
+      var m = line.match(/^([\w-]+)\s*:\s*(.+)$/);
+      if (!m) return;
+      var val = m[2].trim();
+      if (val.startsWith('[') || val.startsWith('{')) return; // skip lists/maps
+      meta[m[1].toLowerCase()] = val.replace(/^["']|["']$/g, '');
+    });
+    return { meta: meta, body: body };
+  }
+
+  // Build an HTML header block from known frontmatter fields.
+  // Returns empty string if none of the known fields are present.
+  var FM_FIELDS = ['title', 'subtitle', 'date', 'author'];
+  function frontmatterBlock(meta) {
+    if (!FM_FIELDS.some(function(k) { return !!meta[k]; })) return '';
+    var html = '<div class="docs-fm">';
+    if (meta.title)    html += '<div class="docs-fm-title">'    + escapeHtml(meta.title)    + '</div>';
+    if (meta.subtitle) html += '<div class="docs-fm-subtitle">' + escapeHtml(meta.subtitle) + '</div>';
+    var parts = [];
+    if (meta.author) parts.push('<span class="docs-fm-author">' + escapeHtml(meta.author) + '</span>');
+    if (meta.date)   parts.push('<span class="docs-fm-date">'   + escapeHtml(meta.date)   + '</span>');
+    if (parts.length) html += '<div class="docs-fm-meta">' + parts.join('') + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  // Build a TOC from already-rendered HTML.
+  // Uses data-toc-idx (heading position) instead of ID-based anchors — marked
+  // does not reliably add id attributes in all versions, and href="#id" doesn't
+  // scroll inside an overflow:auto container anyway.
+  // Returns empty string if there are fewer than 2 headings.
+  function buildTOC(renderedHtml, title) {
+    var tmp = document.createElement('div');
+    tmp.innerHTML = renderedHtml;
+    var headings = Array.from(tmp.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+    if (headings.length < 2) return '';
+
+    var minLevel = headings.reduce(function(min, h) {
+      return Math.min(min, parseInt(h.tagName[1]));
+    }, 6);
+
+    var label = title || 'Table of Contents';
+    var html = '<div class="docs-toc"><div class="docs-toc-title">' + escapeHtml(label) + '</div><ul class="docs-toc-list">';
+    headings.forEach(function(h, idx) {
+      var depth = parseInt(h.tagName[1]) - minLevel;
+      html += '<li class="docs-toc-item docs-toc-d' + depth + '">' +
+        '<a class="docs-toc-link" href="#" data-toc-idx="' + idx + '">' + escapeHtml(h.textContent) + '</a>' +
+        '</li>';
+    });
+    html += '</ul></div>';
+    return html;
   }
 
   function buildPreviewBody(name, size, downloadUrl) {

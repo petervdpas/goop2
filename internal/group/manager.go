@@ -51,9 +51,9 @@ type Manager struct {
 	// Client-side: outbound connections keyed by groupID (one per group).
 	activeConns map[string]*clientConn
 
-	// Pending join channels: groupID -> channel waiting for welcome
+	// Pending join channels: groupID -> channel waiting for welcome or error
 	pendingJoinsMu sync.Mutex
-	pendingJoins   map[string]chan WelcomePayload
+	pendingJoins   map[string]chan joinResult
 
 	// Type-specific event handlers keyed by app_type.
 	handlers map[string]Handler
@@ -66,6 +66,11 @@ type Manager struct {
 type memberMeta struct {
 	peerID   string
 	joinedAt int64
+}
+
+type joinResult struct {
+	welcome WelcomePayload
+	err     error
 }
 
 type hostedGroup struct {
@@ -100,7 +105,7 @@ func New(h host.Host, db *storage.DB, mqMgr *mq.Manager) *Manager {
 		selfID:       h.ID().String(),
 		groups:       make(map[string]*hostedGroup),
 		activeConns:  make(map[string]*clientConn),
-		pendingJoins: make(map[string]chan WelcomePayload),
+		pendingJoins: make(map[string]chan joinResult),
 		handlers:     make(map[string]Handler),
 	}
 
@@ -159,6 +164,8 @@ func (m *Manager) handleMQMessage(from, groupID, msgType string, payload any) {
 		m.handleHostMessage(from, hg, groupID, msgType, payload)
 	case pendingCh != nil && msgType == TypeWelcome:
 		m.handleWelcomeForPendingJoin(groupID, payload, pendingCh)
+	case pendingCh != nil && msgType == TypeError:
+		m.handleErrorForPendingJoin(payload, pendingCh)
 	case cc != nil:
 		m.handleMemberMessage(from, cc, groupID, msgType, payload)
 	default:
@@ -178,7 +185,11 @@ func (m *Manager) handleHostMessage(from string, hg *hostedGroup, groupID, msgTy
 	switch msgType {
 	case TypeJoin:
 		hg.mu.Lock()
-		if hg.info.MaxMembers > 0 && len(hg.members) >= hg.info.MaxMembers {
+		currentCount := len(hg.members)
+		if hg.hostJoined {
+			currentCount++
+		}
+		if hg.info.MaxMembers > 0 && currentCount >= hg.info.MaxMembers {
 			hg.mu.Unlock()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -308,7 +319,7 @@ func (m *Manager) handleMemberMessage(from string, cc *clientConn, groupID, msgT
 }
 
 // handleWelcomeForPendingJoin delivers the welcome payload to a waiting JoinRemoteGroup call.
-func (m *Manager) handleWelcomeForPendingJoin(groupID string, payload any, ch chan WelcomePayload) {
+func (m *Manager) handleWelcomeForPendingJoin(groupID string, payload any, ch chan joinResult) {
 	b, err := json.Marshal(payload)
 	if err != nil {
 		return
@@ -318,7 +329,22 @@ func (m *Manager) handleWelcomeForPendingJoin(groupID string, payload any, ch ch
 		return
 	}
 	select {
-	case ch <- wp:
+	case ch <- joinResult{welcome: wp}:
+	default:
+	}
+}
+
+// handleErrorForPendingJoin cancels a waiting JoinRemoteGroup call with an error from the host.
+func (m *Manager) handleErrorForPendingJoin(payload any, ch chan joinResult) {
+	b, _ := json.Marshal(payload)
+	var ep ErrorPayload
+	_ = json.Unmarshal(b, &ep)
+	msg := ep.Message
+	if msg == "" {
+		msg = "join rejected by host"
+	}
+	select {
+	case ch <- joinResult{err: fmt.Errorf("%s", msg)}:
 	default:
 	}
 }
@@ -588,12 +614,28 @@ func (m *Manager) JoinOwnGroup(groupID string) error {
 		hg.mu.Unlock()
 		return fmt.Errorf("host already in group")
 	}
+	// If the group is at capacity, expand by one slot to accommodate the host.
+	var newMax int
+	if hg.info.MaxMembers > 0 && len(hg.members)+1 > hg.info.MaxMembers {
+		hg.info.MaxMembers++
+		newMax = hg.info.MaxMembers
+	}
 	hg.hostJoined = true
 	hg.hostJoinedAt = nowMillis()
 	memberList := hg.memberList(m.selfID)
+	var meta MetaPayload
+	if newMax > 0 {
+		meta = MetaPayload{GroupName: hg.info.Name, AppType: hg.info.AppType, MaxMembers: newMax}
+	}
 	hg.mu.Unlock()
 
 	_ = m.db.SetHostJoined(groupID, true)
+	if newMax > 0 {
+		_ = m.db.SetMaxMembers(groupID, newMax)
+		m.broadcastToGroup(hg, groupID, TypeMeta, meta, "")
+		m.notifyListeners(&Event{Type: TypeMeta, Group: groupID, Payload: meta})
+		log.Printf("GROUP: Host joining full group %s, max_members bumped to %d", groupID, newMax)
+	}
 
 	// Broadcast updated member list to all connected peers
 	m.broadcastToGroup(hg, groupID, TypeMembers, MembersPayload{Members: memberList}, "")
@@ -672,10 +714,10 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 	}
 	_ = m.host.Connect(ctx, peer.AddrInfo{ID: pid})
 
-	// Register pending welcome channel before sending join
-	welcomeCh := make(chan WelcomePayload, 1)
+	// Register pending result channel before sending join
+	resultCh := make(chan joinResult, 1)
 	m.pendingJoinsMu.Lock()
-	m.pendingJoins[groupID] = welcomeCh
+	m.pendingJoins[groupID] = resultCh
 	m.pendingJoinsMu.Unlock()
 
 	defer func() {
@@ -693,13 +735,17 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 		return fmt.Errorf("join send failed: %w", err)
 	}
 
-	// Wait for welcome (delivered via MQ subscription → handleWelcomeForPendingJoin)
-	var wp WelcomePayload
+	// Wait for welcome or error (delivered via MQ subscription)
+	var r joinResult
 	select {
-	case wp = <-welcomeCh:
+	case r = <-resultCh:
 	case <-joinCtx.Done():
 		return fmt.Errorf("timed out waiting for welcome from %s", shortID(hostPeerID))
 	}
+	if r.err != nil {
+		return r.err
+	}
+	wp := r.welcome
 
 	cc := &clientConn{
 		hostPeerID: hostPeerID,
@@ -1047,10 +1093,14 @@ func (m *Manager) handleInvite(from string, payload any) {
 	m.mq.PublishLocal("group.invite", "", evt)
 
 	// Auto-join for app types that require it
-	if inv.AppType == "realtime" || inv.AppType == "template" {
+	if inv.AppType == "realtime" || inv.AppType == "template" || inv.AppType == "files" {
 		go func() {
 			if err := m.JoinRemoteGroup(context.Background(), inv.HostPeerID, inv.GroupID); err != nil {
 				log.Printf("GROUP: Auto-join %s group %s failed: %v", inv.AppType, inv.GroupID, err)
+				m.notifyListeners(&Event{Type: TypeError, Group: inv.GroupID, Payload: map[string]any{
+					"code":    "join_failed",
+					"message": err.Error(),
+				}})
 			}
 		}()
 	}

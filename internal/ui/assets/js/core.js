@@ -54,7 +54,7 @@
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     if (!resp.ok) {
-      var text = await resp.text();
+      var text = (await resp.text()).trim();
       throw new Error(text || resp.statusText);
     }
     var ct = resp.headers.get("Content-Type") || "";
