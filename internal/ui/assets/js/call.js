@@ -355,15 +355,42 @@
   // ── Native path (Linux / Go / Pion) ─────────────────────────────────────────
   //
   // Called by both origin (on call-ack) and target (after /api/call/accept).
-  // Connects MSE for displaying the remote video stream encoded by Go.
+  // On Linux: HTTP chunked streaming — video.src points directly at Go's WebM
+  // endpoint; WebKitGTK uses GStreamer's souphttpsrc, which reliably parses the
+  // WebM Tracks element and fires loadedmetadata with correct dimensions.
+  // The MSE path had a ~50% loadedmetadata:0x0 failure on page-nav reconnects
+  // caused by a GStreamer-MSE pipeline init race in non-interaction context.
 
   CallSession.prototype._connectNative = async function () {
     this._emitState('connecting');
-    // Go owns the camera via V4L2 — never call getUserMedia here (blocks WebKitGTK).
-    // Self-view comes from Go's /api/call/self/{channel} WebM stream.
-    this._connectSelfMSE(); // fire and forget
-    // Remote video from Go's /api/call/media/{channel} WebM stream via MSE.
-    await this._connectMSE();
+    if (_platform === 'linux') {
+      // HTTP streaming: set video.src to the Go endpoint URL.  No SourceBuffer,
+      // no appendBuffer, no WebSocket reconnect logic needed — GStreamer handles
+      // the stream natively.  On page nav, _restoreActiveCalls creates a fresh
+      // CallSession which opens a new HTTP request via _connectHTTP().
+      this._connectSelfHTTP();
+      this._connectHTTP(); // also emits 'connected'
+    } else {
+      // Non-Linux native: MSE path (Windows/WebView2 does not have this issue).
+      this._connectSelfMSE(); // fire and forget
+      await this._connectMSE();
+    }
+  };
+
+  // _connectHTTP: emit an absolute HTTP URL for Go's chunked WebM video stream.
+  // WebKitGTK assigns this to <video>.src and GStreamer fetches it via souphttpsrc.
+  CallSession.prototype._connectHTTP = function () {
+    var url = Goop.api.call.videoUrl(this.channelId);
+    log('info', 'HTTP video stream: ' + url);
+    this._emitRemoteVideoSrc(url);
+    this._emitState('connected');
+  };
+
+  // _connectSelfHTTP: emit the self-view URL for Go's chunked self-view stream.
+  CallSession.prototype._connectSelfHTTP = function () {
+    var url = Goop.api.call.selfVideoUrl(this.channelId);
+    log('info', 'HTTP self-view stream: ' + url);
+    this._emitLocalVideoSrc(url);
   };
 
   CallSession.prototype._connectLoopback = async function () {

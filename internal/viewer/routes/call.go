@@ -270,6 +270,110 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager, mqMgr *mq.Manager) 
 		}
 	})
 
+	// GET /api/call/video/{channel} — HTTP chunked WebM stream (Linux native mode).
+	// WebKitGTK's <video src> uses GStreamer's native souphttpsrc pipeline, which
+	// reliably parses WebM video dimensions from the Tracks element.  Replaces the
+	// WebSocket+MSE path that suffered a ~50% loadedmetadata:0x0 race on page-nav.
+	mux.HandleFunc("/api/call/video/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		channelID := strings.TrimPrefix(r.URL.Path, "/api/call/video/")
+		channelID = strings.TrimSuffix(channelID, "/")
+		if channelID == "" {
+			http.Error(w, "missing channel id", http.StatusBadRequest)
+			return
+		}
+
+		sess, ok := callMgr.GetSession(channelID)
+		if !ok {
+			http.Error(w, "session not found", http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", "video/webm")
+		w.Header().Set("Cache-Control", "no-cache, no-store")
+		w.Header().Set("Accept-Ranges", "none")
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming not supported", http.StatusInternalServerError)
+			return
+		}
+
+		dataCh, cancel := sess.SubscribeMedia()
+		defer cancel()
+		log.Printf("CALL [%s]: HTTP video stream connected", channelID)
+
+		for {
+			select {
+			case <-r.Context().Done():
+				log.Printf("CALL [%s]: HTTP video stream disconnected", channelID)
+				return
+			case <-sess.HangupCh():
+				return
+			case data, ok := <-dataCh:
+				if !ok {
+					return
+				}
+				if _, err := w.Write(data); err != nil {
+					return
+				}
+				flusher.Flush()
+			}
+		}
+	})
+
+	// GET /api/call/selfvideo/{channel} — HTTP chunked self-view WebM stream.
+	mux.HandleFunc("/api/call/selfvideo/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		channelID := strings.TrimPrefix(r.URL.Path, "/api/call/selfvideo/")
+		channelID = strings.TrimSuffix(channelID, "/")
+		if channelID == "" {
+			http.Error(w, "missing channel id", http.StatusBadRequest)
+			return
+		}
+
+		sess, ok := callMgr.GetSession(channelID)
+		if !ok {
+			http.Error(w, "session not found", http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", "video/webm")
+		w.Header().Set("Cache-Control", "no-cache, no-store")
+		w.Header().Set("Accept-Ranges", "none")
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming not supported", http.StatusInternalServerError)
+			return
+		}
+
+		dataCh, cancel := sess.SelfSubscribeMedia()
+		defer cancel()
+		log.Printf("CALL [%s]: HTTP self-view stream connected", channelID)
+
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-sess.HangupCh():
+				return
+			case data, ok := <-dataCh:
+				if !ok {
+					return
+				}
+				if _, err := w.Write(data); err != nil {
+					return
+				}
+				flusher.Flush()
+			}
+		}
+	})
+
 	// Loopback signaling routes — browser ↔ Go localhost WebRTC (Phase 4).
 	// POST /api/call/loopback/{channel}/offer   → browser SDP offer; Go returns SDP answer
 	// POST /api/call/loopback/{channel}/ice      → browser ICE candidates → Go LocalPC

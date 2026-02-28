@@ -76,6 +76,9 @@
       // WebSocket URLs — pass to new WebSocket(url) or MSE adapter
       mediaWsUrl:    function (ch)     { return _wsUrl('/api/call/media/' + ch); },
       selfWsUrl:     function (ch)     { return _wsUrl('/api/call/self/' + ch); },
+      // HTTP chunked stream URLs — set as video.src for native Linux path
+      videoUrl:      function (ch)     { return window.location.protocol + '//' + window.location.host + '/api/call/video/'     + ch; },
+      selfVideoUrl:  function (ch)     { return window.location.protocol + '//' + window.location.host + '/api/call/selfvideo/' + ch; },
     },
 
     // ── Groups ─────────────────────────────────────────────────────────────────
