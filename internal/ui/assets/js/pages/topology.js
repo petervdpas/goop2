@@ -16,9 +16,13 @@
   var _dragStart = null;
   var _panStart = null;
 
+  // Node dragging.
+  var _dragNode = null;    // node being dragged (from canvas._nodes)
+  var _manualPos = {};     // peer id → {x, y} — manually placed nodes
+
   window._topologyStart = function() {
     _topologyStop();
-    _zoom = 1; _panX = 0; _panY = 0;
+    _zoom = 1; _panX = 0; _panY = 0; _manualPos = {};
     fetchData();
     _timer = setInterval(fetchData, 10000);
     _pulse = 0;
@@ -120,11 +124,12 @@
     var connectedPeers = directPeers.concat(relayPeers);
     var connectedPos = layoutCircle(connectedPeers.length, selfX, selfY, orbitR);
 
-    // Offline peers in a smaller arc below.
-    var offlineOrbit = orbitR * 0.55;
-    var offlineY = selfY + orbitR * 0.4;
-    var offlinePos = layoutArc(offlinePeers.length, selfX, offlineY, offlineOrbit,
-      Math.PI * 0.15, Math.PI * 0.85);
+    // Apply manual positions (from drag).
+    if (_manualPos['self']) { selfX = _manualPos['self'].x; selfY = _manualPos['self'].y; }
+    if (hasRelay && _manualPos[data.relay.id]) { relayX = _manualPos[data.relay.id].x; relayY = _manualPos[data.relay.id].y; }
+    connectedPeers.forEach(function(p, i) {
+      if (_manualPos[p.id]) { connectedPos[i] = _manualPos[p.id]; }
+    });
 
     var nodes = [];
 
@@ -137,11 +142,6 @@
     ctx.beginPath();
     ctx.arc(selfX, selfY, orbitR, 0, Math.PI * 2);
     ctx.stroke();
-    if (offlinePeers.length > 0) {
-      ctx.beginPath();
-      ctx.arc(selfX, offlineY, offlineOrbit, 0, Math.PI * 2);
-      ctx.stroke();
-    }
     ctx.restore();
 
     // ── Edges ───────────────────────────────────────────────────────────
@@ -158,12 +158,6 @@
       var col = p.connection === 'direct' ? colDirect : colRelay;
       var dashed = p.connection === 'relay';
       drawCurvedEdge(ctx, selfX, selfY, pos.x, pos.y, col, dashed, 1.5);
-    });
-
-    // Self → offline (faint).
-    offlinePeers.forEach(function(p, i) {
-      var pos = offlinePos[i];
-      drawCurvedEdge(ctx, selfX, selfY, pos.x, pos.y, colNone, true, 0.8);
     });
 
     // ── Relay → relay peers (secondary edges) ───────────────────────────
@@ -202,15 +196,6 @@
       drawBadge(ctx, pos.x, pos.y - nodeR - 6, badge,
         p.connection === 'direct' ? colDirect : colRelay, colBg);
       nodes.push({ x: pos.x, y: pos.y, r: nodeR, peer: p, type: p.connection });
-    });
-
-    // ── Draw offline peers ──────────────────────────────────────────────
-    offlinePeers.forEach(function(p, i) {
-      var pos = offlinePos[i];
-      var r = 16;
-      drawGlowNode(ctx, pos.x, pos.y, r, colNone, 'circle');
-      drawNodeLabel(ctx, truncLabel(p.label, 10), pos.x, pos.y + r + 8, colMuted, 10);
-      nodes.push({ x: pos.x, y: pos.y, r: r, peer: p, type: 'none' });
     });
 
     // ── Self node (pulsing) ─────────────────────────────────────────────
@@ -271,22 +256,13 @@
     }
 
     // ── Legend (bottom-left) ────────────────────────────────────────────
-    var lx = 16, ly = H - 62;
+    var lx = 16, ly = H - 44;
     drawLegend(ctx, lx, ly, colDirect, false, 'Direct', colText);
     drawLegend(ctx, lx, ly + 18, colRelay, true, 'Relay', colText);
-    drawLegend(ctx, lx, ly + 36, colNone, true, 'Offline', colMuted);
 
     // ── Hover tooltip (screen-space) ────────────────────────────────────
-    if (_hover) {
-      // Convert screen coords → world coords for hit-testing.
-      var wx = (_hover.x - W / 2 - _panX) / _zoom + W / 2;
-      var wy = (_hover.y - H / 2 - _panY) / _zoom + H / 2;
-      var hit = null;
-      for (var i = nodes.length - 1; i >= 0; i--) {
-        var n = nodes[i];
-        var dx = wx - n.x, dy = wy - n.y;
-        if (dx * dx + dy * dy <= (n.r + 6) * (n.r + 6)) { hit = n; break; }
-      }
+    if (_hover && !_dragNode) {
+      var hit = hitNode(_hover.x, _hover.y);
       if (hit) {
         var lines = [hit.peer.label || hit.peer.id];
         if (hit.peer.id) lines.push(hit.peer.id.slice(0, 16) + '...');
@@ -503,21 +479,65 @@
     ctx.restore();
   }
 
-  // ── Mouse: hover, drag-to-pan, wheel-to-zoom ─────────────────────────
+  // ── Screen → world coordinate conversion ─────────────────────────────
+  function screenToWorld(sx, sy) {
+    var rect = canvas.getBoundingClientRect();
+    var W = rect.width, H = rect.height;
+    return {
+      x: (sx - W / 2 - _panX) / _zoom + W / 2,
+      y: (sy - H / 2 - _panY) / _zoom + H / 2
+    };
+  }
+
+  // Hit-test nodes at screen coordinates. Returns node or null.
+  function hitNode(sx, sy) {
+    if (!canvas._nodes) return null;
+    var w = screenToWorld(sx, sy);
+    for (var i = canvas._nodes.length - 1; i >= 0; i--) {
+      var n = canvas._nodes[i];
+      var dx = w.x - n.x, dy = w.y - n.y;
+      if (dx * dx + dy * dy <= (n.r + 6) * (n.r + 6)) return n;
+    }
+    return null;
+  }
+
+  // ── Mouse: hover, drag nodes, drag-to-pan, wheel-to-zoom ─────────────
   canvas.addEventListener('mousemove', function(e) {
     var rect = canvas.getBoundingClientRect();
-    _hover = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    if (_dragging && _dragStart) {
+    var sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    _hover = { x: sx, y: sy };
+
+    if (_dragNode) {
+      // Dragging a node — update its manual position in world coords.
+      var w = screenToWorld(sx, sy);
+      var id = _dragNode.peer.id || (_dragNode.type === 'self' ? 'self' : '');
+      if (id) _manualPos[id] = { x: w.x, y: w.y };
+    } else if (_dragging && _dragStart) {
+      // Panning the canvas.
       _panX = _panStart.px + (e.clientX - _dragStart.x);
       _panY = _panStart.py + (e.clientY - _dragStart.y);
+    } else {
+      // Hover cursor hint.
+      canvas.style.cursor = hitNode(sx, sy) ? 'grab' : '';
     }
   });
   canvas.addEventListener('mouseleave', function() {
     _hover = null;
     _dragging = false;
+    _dragNode = null;
+    canvas.style.cursor = '';
   });
   canvas.addEventListener('mousedown', function(e) {
-    if (e.button === 0) {
+    if (e.button !== 0) return;
+    var rect = canvas.getBoundingClientRect();
+    var sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    var hit = hitNode(sx, sy);
+    if (hit) {
+      // Start dragging a node.
+      _dragNode = hit;
+      canvas.style.cursor = 'grabbing';
+    } else {
+      // Start panning.
       _dragging = true;
       _dragStart = { x: e.clientX, y: e.clientY };
       _panStart = { px: _panX, py: _panY };
@@ -526,6 +546,7 @@
   });
   canvas.addEventListener('mouseup', function() {
     _dragging = false;
+    _dragNode = null;
     canvas.style.cursor = '';
   });
   canvas.addEventListener('wheel', function(e) {
@@ -534,7 +555,6 @@
     var newZoom = _zoom * delta;
     if (newZoom < 0.3) newZoom = 0.3;
     if (newZoom > 4) newZoom = 4;
-    // Zoom toward mouse position.
     var rect = canvas.getBoundingClientRect();
     var mx = e.clientX - rect.left;
     var my = e.clientY - rect.top;
@@ -542,8 +562,8 @@
     _panY = my - (my - _panY) * (newZoom / _zoom);
     _zoom = newZoom;
   }, { passive: false });
-  // Double-click to reset zoom/pan.
+  // Double-click to reset zoom/pan and manual positions.
   canvas.addEventListener('dblclick', function() {
-    _zoom = 1; _panX = 0; _panY = 0;
+    _zoom = 1; _panX = 0; _panY = 0; _manualPos = {};
   });
 })();

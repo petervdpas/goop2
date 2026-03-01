@@ -49,8 +49,9 @@ type Manager struct {
 	host   host.Host
 	selfID string
 
-	mu    sync.Mutex
-	conns map[string]*entConn // peerID → active conn
+	mu          sync.Mutex
+	conns       map[string]*entConn // peerID → active conn
+	reconnecting map[string]bool    // peerID → true if a reconnect goroutine is active
 
 	// onConnect is called when an entangle stream is successfully established.
 	onConnect func(peerID string)
@@ -65,6 +66,7 @@ func New(h host.Host, onConnect, onDisconnect func(peerID string)) *Manager {
 		host:         h,
 		selfID:       h.ID().String(),
 		conns:        make(map[string]*entConn),
+		reconnecting: make(map[string]bool),
 		onConnect:    onConnect,
 		onDisconnect: onDisconnect,
 	}
@@ -117,7 +119,8 @@ func (m *Manager) Connect(ctx context.Context, peerID string) {
 			delete(m.conns, peerID)
 			m.mu.Unlock()
 			log.Printf("entangle: → %s dial failed: %v", peerID[:8], err)
-			go m.scheduleReconnect(peerID)
+			// Don't schedule reconnect here — let the caller (scheduleReconnect
+			// or external Connect) handle retries. This prevents cascading goroutines.
 			return
 		}
 
@@ -260,16 +263,40 @@ func (m *Manager) runLoop(ctx context.Context, c *entConn) {
 	}
 }
 
-// scheduleReconnect retries Connect() with increasing delays after a stream
-// dies or a dial fails. Only called when selfID < peerID (we initiate).
-// IsConnected() at each step short-circuits if an incoming connection arrived.
+// scheduleReconnect retries Connect() with exponential backoff after a stream
+// dies. Only called when selfID < peerID (we initiate). At most one reconnect
+// goroutine runs per peer — duplicate calls are no-ops.
 func (m *Manager) scheduleReconnect(peerID string) {
-	for _, delay := range []time.Duration{5 * time.Second, 30 * time.Second, 90 * time.Second} {
+	m.mu.Lock()
+	if m.reconnecting[peerID] {
+		m.mu.Unlock()
+		return // already a reconnect loop running for this peer
+	}
+	m.reconnecting[peerID] = true
+	m.mu.Unlock()
+
+	defer func() {
+		m.mu.Lock()
+		delete(m.reconnecting, peerID)
+		m.mu.Unlock()
+	}()
+
+	delay := 5 * time.Second
+	const maxDelay = 5 * time.Minute
+
+	for {
 		time.Sleep(delay)
 		if m.IsConnected(peerID) {
 			return
 		}
 		m.Connect(context.Background(), peerID)
+		// Wait briefly for the async Connect goroutine to complete.
+		time.Sleep(dialTimeout + 2*time.Second)
+		if m.IsConnected(peerID) {
+			return
+		}
+		// Exponential backoff, capped.
+		delay = min(delay*2, maxDelay)
 	}
 }
 
