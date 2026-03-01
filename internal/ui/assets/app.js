@@ -33,6 +33,7 @@
     "/assets/js/pages/editor.js",
     "/assets/js/pages/database.js",
     "/assets/js/pages/logs.js",
+    "/assets/js/pages/topology.js",
     "/assets/js/pages/lua.js",
     "/assets/js/pages/view.js",
     "/assets/js/pages/peer.js",

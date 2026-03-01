@@ -717,7 +717,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		// Periodically refresh the relay connection to prevent stale state.
 		// This ensures the relay reservation stays active even when the TCP
 		// connection to the relay silently degrades.
-		refreshInterval := 5 * time.Minute
+		refreshInterval := 90 * time.Second
 		if relayInfo.RefreshIntervalSec > 0 {
 			refreshInterval = time.Duration(relayInfo.RefreshIntervalSec) * time.Second
 		}

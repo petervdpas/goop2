@@ -525,6 +525,135 @@ func dirString(d network.Direction) string {
 	}
 }
 
+// TopologyPeer describes a peer in the topology graph.
+type TopologyPeer struct {
+	ID         string `json:"id"`
+	Label      string `json:"label"`
+	Reachable  bool   `json:"reachable"`
+	Connection string `json:"connection"` // "direct", "relay", or "none"
+	Addr       string `json:"addr"`
+	Age        string `json:"age"`
+	Streams    int    `json:"streams"`
+}
+
+// TopologyNode describes the self or relay node.
+type TopologyNode struct {
+	ID         string `json:"id"`
+	Label      string `json:"label"`
+	HasCircuit bool   `json:"has_circuit,omitempty"`
+	Addr       string `json:"addr,omitempty"`
+}
+
+// TopologyData is the full topology graph payload.
+type TopologyData struct {
+	Self  TopologyNode   `json:"self"`
+	Relay *TopologyNode  `json:"relay,omitempty"`
+	Peers []TopologyPeer `json:"peers"`
+}
+
+// Topology returns the network topology from this node's perspective.
+func (n *Node) Topology() TopologyData {
+	now := time.Now()
+
+	// Self node.
+	selfLabel := ""
+	if n.selfContent != nil {
+		selfLabel = n.selfContent()
+	}
+	data := TopologyData{
+		Self: TopologyNode{
+			ID:         n.Host.ID().String(),
+			Label:      selfLabel,
+			HasCircuit: n.hasCircuitAddr(),
+		},
+	}
+
+	// Relay node.
+	var relayPeerID peer.ID
+	if n.relayPeer != nil {
+		relayPeerID = n.relayPeer.ID
+		relayAddr := ""
+		if len(n.relayPeer.Addrs) > 0 {
+			relayAddr = n.relayPeer.Addrs[0].String()
+		}
+		data.Relay = &TopologyNode{
+			ID:    relayPeerID.String(),
+			Label: "Relay",
+			Addr:  relayAddr,
+		}
+	}
+
+	// Cross-reference with PeerTable for labels/reachable.
+	snapshot := n.peers.Snapshot()
+
+	// Connected peers.
+	seen := make(map[peer.ID]bool)
+	for _, pid := range n.Host.Network().Peers() {
+		if pid == relayPeerID {
+			continue // skip relay itself — shown separately
+		}
+		seen[pid] = true
+
+		conns := n.Host.Network().ConnsToPeer(pid)
+		connType := "none"
+		bestAddr := ""
+		var bestAge time.Duration
+		totalStreams := 0
+		for _, c := range conns {
+			addr := c.RemoteMultiaddr()
+			age := now.Sub(c.Stat().Opened)
+			totalStreams += len(c.GetStreams())
+			if isCircuitAddr(addr) {
+				if connType != "direct" {
+					connType = "relay"
+					bestAddr = addr.String()
+					bestAge = age
+				}
+			} else {
+				connType = "direct"
+				bestAddr = addr.String()
+				bestAge = age
+			}
+		}
+
+		sp := snapshot[pid.String()]
+		label := sp.Content
+		if label == "" {
+			label = pid.String()[:8]
+		}
+
+		data.Peers = append(data.Peers, TopologyPeer{
+			ID:         pid.String(),
+			Label:      label,
+			Reachable:  sp.Reachable,
+			Connection: connType,
+			Addr:       bestAddr,
+			Age:        bestAge.Truncate(time.Second).String(),
+			Streams:    totalStreams,
+		})
+	}
+
+	// Add known-but-not-connected peers (offline or pending).
+	for pidStr, sp := range snapshot {
+		pid, err := peer.Decode(pidStr)
+		if err != nil || seen[pid] || pid == relayPeerID {
+			continue
+		}
+		label := sp.Content
+		if label == "" {
+			label = pidStr[:8]
+		}
+		data.Peers = append(data.Peers, TopologyPeer{
+			ID:         pidStr,
+			Label:      label,
+			Reachable:  sp.Reachable,
+			Connection: "none",
+		})
+	}
+
+	return data
+}
+
 // SetPeerProtocols pre-populates the peerstore with a cached protocol list for a peer.
 // Called on startup to restore protocol knowledge from the DB across restarts.
 // Skips peers with an empty protocol list (nothing to seed).

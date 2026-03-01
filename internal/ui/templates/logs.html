@@ -8,9 +8,11 @@
   <a class="log-tab create-tab log-tab--data" data-tab="data">Data</a>
   <a class="log-tab create-tab log-tab--group" data-tab="group">Group</a>
   <a class="log-tab create-tab" data-tab="api">API</a>
+  <a class="log-tab create-tab" data-tab="topology">Topology</a>
   <button id="copyLogsBtn" class="btn btn-sm" style="margin-left:auto;align-self:center;" title="Copy logs to clipboard">Copy</button>
 </div>
 
 <pre id="logbox" class="content"></pre>
 <div id="swagger-panel" style="display:none;height:calc(100vh - 120px);overflow:auto;background:#fff;"></div>
+<canvas id="topology-canvas" style="display:none;width:100%;height:calc(100vh - 140px);"></canvas>
 {{end}}

@@ -40,20 +40,29 @@
     document.body.appendChild(script);
   }
 
+  var topoCanvas = document.getElementById('topology-canvas');
+
   document.querySelectorAll('.log-tab').forEach(function(btn) {
     btn.addEventListener('click', function() {
       document.querySelectorAll('.log-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       var tab = btn.dataset.tab;
+      // Hide all panels first.
+      box.style.display = 'none';
+      if (copyBtn) copyBtn.style.display = 'none';
+      swaggerPanel.style.display = 'none';
+      if (topoCanvas) topoCanvas.style.display = 'none';
+      if (window._topologyStop) window._topologyStop();
+
       if (tab === 'api') {
-        box.style.display = 'none';
-        if (copyBtn) copyBtn.style.display = 'none';
         swaggerPanel.style.display = '';
         initSwaggerUI();
+      } else if (tab === 'topology') {
+        if (topoCanvas) { topoCanvas.style.display = ''; }
+        if (window._topologyStart) window._topologyStart();
       } else {
         box.style.display = '';
         if (copyBtn) copyBtn.style.display = '';
-        swaggerPanel.style.display = 'none';
         if (tab === 'all') {
           box.removeAttribute('data-tab');
         } else {

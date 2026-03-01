@@ -98,14 +98,31 @@ func (n *Node) SubscribeAddressChanges(ctx context.Context, onChange func(), onC
 				if hasCircuit != hadCircuit {
 					if hasCircuit {
 						log.Printf("relay: circuit address appeared, re-publishing")
+						hadCircuit = true
+						onChange()
+						if onCircuit != nil {
+							onCircuit(true)
+						}
 					} else {
 						log.Printf("relay: circuit address lost, recovering...")
-						n.recoverRelay(ctx)
-					}
-					hadCircuit = hasCircuit
-					onChange()
-					if onCircuit != nil {
-						onCircuit(hasCircuit)
+						hadCircuit = false
+						go func() {
+							n.recoverRelay(ctx)
+							// Debounce: only notify "lost" if still missing
+							// after recovery grace period. Transient address
+							// reshuffles resolve within seconds.
+							select {
+							case <-time.After(n.relayRecoveryGrace + 3*time.Second):
+							case <-ctx.Done():
+								return
+							}
+							if !n.hasCircuitAddr() {
+								onChange()
+								if onCircuit != nil {
+									onCircuit(false)
+								}
+							}
+						}()
 					}
 				}
 			}
@@ -211,21 +228,31 @@ func (n *Node) recoverRelay(ctx context.Context) {
 	}
 	defer n.relayRecoveryMu.Unlock()
 
-	if n.refreshRelay(ctx, "recover") {
-		return
+	// Retry with exponential backoff: 10s, 20s, 40s
+	delays := []time.Duration{0, 10 * time.Second, 20 * time.Second, 40 * time.Second}
+	for i, delay := range delays {
+		if delay > 0 {
+			n.diag("relay: attempt %d failed, retrying in %s", i, delay)
+			log.Printf("relay: attempt %d failed, retrying in %s", i, delay)
+			select {
+			case <-time.After(delay):
+			case <-ctx.Done():
+				return
+			}
+			if n.hasCircuitAddr() {
+				n.diag("relay: recovered between retries")
+				return
+			}
+		}
+		label := "recover"
+		if i > 0 {
+			label = fmt.Sprintf("recover-%d", i)
+		}
+		if n.refreshRelay(ctx, label) {
+			return
+		}
 	}
-	// First attempt failed — relay server may still be recovering.
-	// Wait 30s and try once more before giving up.
-	n.diag("relay: first recovery failed, retrying in 30s")
-	log.Printf("relay: first recovery failed, retrying in 30s")
-	select {
-	case <-time.After(30 * time.Second):
-	case <-ctx.Done():
-		return
-	}
-	if !n.hasCircuitAddr() {
-		n.refreshRelay(ctx, "recover-retry")
-	}
+	log.Printf("relay: all recovery attempts exhausted")
 }
 
 // StartRelayRefresh periodically checks the relay reservation and forces
