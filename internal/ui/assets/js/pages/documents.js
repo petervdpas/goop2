@@ -27,8 +27,36 @@
   var peersSection = qs("#docs-peers-section");
   var peersList = qs("#docs-peers-list");
 
-  var previewEmpty = qs("#docs-preview-empty");
+  var previewPanel   = qs("#docs-preview");
+  var previewEmpty   = qs("#docs-preview-empty");
   var previewContent = qs("#docs-preview-content");
+  var isFullscreen   = false;
+  var _escListener   = null;
+
+  var _expandIcon   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>';
+  var _compressIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/></svg>';
+
+  function _enterFullscreen() {
+    isFullscreen = true;
+    previewPanel.classList.add('docs-fullscreen');
+    var btn = qs('#docs-fullscreen-btn');
+    if (btn) { btn.innerHTML = _compressIcon; btn.title = 'Exit fullscreen'; }
+    if (!_escListener) {
+      _escListener = function(e) { if (e.key === 'Escape') _exitFullscreen(); };
+      document.addEventListener('keydown', _escListener);
+    }
+  }
+
+  function _exitFullscreen() {
+    isFullscreen = false;
+    previewPanel.classList.remove('docs-fullscreen');
+    var btn = qs('#docs-fullscreen-btn');
+    if (btn) { btn.innerHTML = _expandIcon; btn.title = 'Fullscreen'; }
+    if (_escListener) {
+      document.removeEventListener('keydown', _escListener);
+      _escListener = null;
+    }
+  }
 
   var urlParams = new URLSearchParams(window.location.search);
   var currentGroupID = urlParams.get("group_id") || "";
@@ -351,6 +379,7 @@
     docsPage.querySelectorAll(".docs-data-row.docs-row-selected").forEach(function(r) {
       r.classList.remove("docs-row-selected");
     });
+    if (isFullscreen) _exitFullscreen();
     previewContent.innerHTML = "";
     setHidden(previewContent, true);
     setHidden(previewEmpty, false);
@@ -364,8 +393,13 @@
 
     var headerHtml =
       '<div class="docs-preview-header">' +
-        '<div class="docs-preview-filename">' + escapeHtml(name) + '</div>' +
-        '<div class="docs-preview-meta">' + formatSize(size) + (isSelf ? ' &middot; mine' : ' &middot; peer') + '</div>' +
+        '<div class="docs-preview-header-info">' +
+          '<div class="docs-preview-filename">' + escapeHtml(name) + '</div>' +
+          '<div class="docs-preview-meta">' + formatSize(size) + (isSelf ? ' &middot; mine' : ' &middot; peer') + '</div>' +
+        '</div>' +
+        '<button id="docs-fullscreen-btn" class="docs-fullscreen-btn" title="Fullscreen">' +
+          (isFullscreen ? _compressIcon : _expandIcon) +
+        '</button>' +
       '</div>';
 
     var bodyHtml = buildPreviewBody(name, size, downloadUrl);
@@ -378,6 +412,10 @@
     previewContent.innerHTML = headerHtml +
       '<div class="docs-preview-body">' + bodyHtml + '</div>' +
       footerHtml;
+
+    on(qs('#docs-fullscreen-btn'), 'click', function() {
+      isFullscreen ? _exitFullscreen() : _enterFullscreen();
+    });
 
     setHidden(previewEmpty, true);
     setHidden(previewContent, false);
@@ -412,7 +450,9 @@
                   }
                 }
                 var parsed   = parseFrontmatter(text);
-                var bodyHtml = markedFn(parsed.body);
+                // Strip common wiki-style TOC directives (GitLab [[_TOC_]], Confluence [[TOC]], etc.)
+                var cleanBody = parsed.body.replace(/\[\[_?TOC_?\]\]/gi, '').replace(/^\s*\n/gm, '\n');
+                var bodyHtml = markedFn(cleanBody);
                 var tocHtml  = parsed.meta.toc === 'true' ? buildTOC(bodyHtml, parsed.meta['toc-title']) : '';
                 mdDiv.innerHTML = frontmatterBlock(parsed.meta) + tocHtml + bodyHtml;
 
@@ -496,13 +536,14 @@
   var FM_FIELDS = ['title', 'subtitle', 'date', 'author'];
   function frontmatterBlock(meta) {
     if (!FM_FIELDS.some(function(k) { return !!meta[k]; })) return '';
+    var date = meta.date || new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
     var html = '<div class="docs-fm">';
     if (meta.title)    html += '<div class="docs-fm-title">'    + escapeHtml(meta.title)    + '</div>';
     if (meta.subtitle) html += '<div class="docs-fm-subtitle">' + escapeHtml(meta.subtitle) + '</div>';
     var parts = [];
     if (meta.author) parts.push('<span class="docs-fm-author">' + escapeHtml(meta.author) + '</span>');
-    if (meta.date)   parts.push('<span class="docs-fm-date">'   + escapeHtml(meta.date)   + '</span>');
-    if (parts.length) html += '<div class="docs-fm-meta">' + parts.join('') + '</div>';
+    parts.push('<span class="docs-fm-date">' + escapeHtml(date) + '</span>');
+    html += '<div class="docs-fm-meta">' + parts.join('') + '</div>';
     html += '</div>';
     return html;
   }

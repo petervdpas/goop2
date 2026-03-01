@@ -207,6 +207,30 @@
 }
 
 /* -----------------------------
+   Fullscreen toggle — icon only, no button chrome
+------------------------------ */
+.docs-fullscreen-btn {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  color: var(--muted);
+  line-height: 0;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+
+.docs-fullscreen-btn:hover {
+  color: var(--fg);
+}
+
+.docs-fullscreen-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* -----------------------------
    Action buttons
 ------------------------------ */
 .docs-action-btn {
@@ -284,9 +308,34 @@
 
 .docs-preview-header {
   flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--line);
   margin-bottom: 10px;
+}
+
+.docs-preview-header-info {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Fullscreen overlay — fills .content, nav and footer stay visible */
+.content:has(.docs-fullscreen) {
+  position: relative;
+}
+
+.content:has(.docs-fullscreen) .docs-browser {
+  display: none;
+}
+
+.docs-preview.docs-fullscreen {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  border-radius: 0;
+  padding: var(--content-pad);
 }
 
 .docs-preview-filename {
