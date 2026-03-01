@@ -473,6 +473,60 @@
                 }
             }
         },
+        "/api/chat/history": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat"
+                ],
+                "summary": "Get chat history with a peer",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Peer ID",
+                        "name": "peer_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/storage.ChatMessage"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "chat"
+                ],
+                "summary": "Clear chat history with a peer",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Peer ID",
+                        "name": "peer_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    }
+                }
+            }
+        },
         "/api/data/delete": {
             "post": {
                 "consumes": [
@@ -2180,6 +2234,32 @@
                     }
                 }
             }
+        },
+        "/api/topology": {
+            "get": {
+                "description": "Returns this peer's view of the network: self node, relay node (if configured), and all known peers with connection type (direct/relay/none).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "peers"
+                ],
+                "summary": "Network topology graph data",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.topologyResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "no p2p node",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -2741,6 +2821,91 @@
                 "status": {
                     "type": "string",
                     "example": "ok"
+                }
+            }
+        },
+        "routes.topologyNode": {
+            "type": "object",
+            "properties": {
+                "addr": {
+                    "type": "string",
+                    "example": "/ip4/1.2.3.4/tcp/4001"
+                },
+                "has_circuit": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "id": {
+                    "type": "string",
+                    "example": "12D3KooWXxx..."
+                },
+                "label": {
+                    "type": "string",
+                    "example": "EggMan"
+                }
+            }
+        },
+        "routes.topologyPeer": {
+            "type": "object",
+            "properties": {
+                "addr": {
+                    "type": "string",
+                    "example": "/ip4/192.168.1.42/tcp/4001"
+                },
+                "age": {
+                    "type": "string",
+                    "example": "3m24s"
+                },
+                "connection": {
+                    "type": "string",
+                    "example": "direct"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "12D3KooWXxx..."
+                },
+                "label": {
+                    "type": "string",
+                    "example": "Roadwarrior"
+                },
+                "reachable": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "streams": {
+                    "type": "integer",
+                    "example": 5
+                }
+            }
+        },
+        "routes.topologyResponse": {
+            "type": "object",
+            "properties": {
+                "peers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/routes.topologyPeer"
+                    }
+                },
+                "relay": {
+                    "$ref": "#/definitions/routes.topologyNode"
+                },
+                "self": {
+                    "$ref": "#/definitions/routes.topologyNode"
+                }
+            }
+        },
+        "storage.ChatMessage": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "from": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "integer"
                 }
             }
         }

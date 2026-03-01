@@ -723,6 +723,43 @@ func swagSelf() {}
 //	@Router		/api/peers/probe [post]
 func swagPeersProbe() {}
 
+// topologyPeer describes a peer in the topology response.
+type topologyPeer struct {
+	ID         string `json:"id"         example:"12D3KooWXxx..."`
+	Label      string `json:"label"      example:"Roadwarrior"`
+	Reachable  bool   `json:"reachable"  example:"true"`
+	Connection string `json:"connection" example:"direct"`
+	Addr       string `json:"addr"       example:"/ip4/192.168.1.42/tcp/4001"`
+	Age        string `json:"age"        example:"3m24s"`
+	Streams    int    `json:"streams"    example:"5"`
+}
+
+// topologyNode describes self or relay in the topology response.
+type topologyNode struct {
+	ID         string `json:"id"                    example:"12D3KooWXxx..."`
+	Label      string `json:"label"                 example:"EggMan"`
+	HasCircuit bool   `json:"has_circuit,omitempty"  example:"true"`
+	Addr       string `json:"addr,omitempty"         example:"/ip4/1.2.3.4/tcp/4001"`
+}
+
+// topologyResponse is the full topology payload.
+type topologyResponse struct {
+	Self  topologyNode    `json:"self"`
+	Relay *topologyNode   `json:"relay,omitempty"`
+	Peers []topologyPeer  `json:"peers"`
+}
+
+// swagTopology is a documentation stub for GET /api/topology.
+//
+//	@Summary	Network topology graph data
+//	@Description	Returns this peer's view of the network: self node, relay node (if configured), and all known peers with connection type (direct/relay/none).
+//	@Tags		peers
+//	@Produce	json
+//	@Success	200	{object}	topologyResponse
+//	@Failure	503	{string}	string	"no p2p node"
+//	@Router		/api/topology [get]
+func swagTopology() {}
+
 // swagPeersFavorite is a documentation stub for POST /api/peers/favorite.
 //
 //	@Summary	Toggle favorite flag for a peer
