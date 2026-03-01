@@ -198,7 +198,7 @@
       var shortLabel = truncLabel(p.label, 10);
       drawNodeLabel(ctx, shortLabel, pos.x, pos.y + nodeR + 10, colText, 11);
       // Connection type badge.
-      var badge = p.connection === 'direct' ? 'LAN' : 'relay';
+      var badge = p.connection === 'direct' ? (isPrivateAddr(p.addr) ? 'LAN' : 'direct') : 'relay';
       drawBadge(ctx, pos.x, pos.y - nodeR - 6, badge,
         p.connection === 'direct' ? colDirect : colRelay, colBg);
       nodes.push({ x: pos.x, y: pos.y, r: nodeR, peer: p, type: p.connection });
@@ -272,7 +272,7 @@
 
     // ── Legend (bottom-left) ────────────────────────────────────────────
     var lx = 16, ly = H - 62;
-    drawLegend(ctx, lx, ly, colDirect, false, 'Direct (LAN)', colText);
+    drawLegend(ctx, lx, ly, colDirect, false, 'Direct', colText);
     drawLegend(ctx, lx, ly + 18, colRelay, true, 'Relay', colText);
     drawLegend(ctx, lx, ly + 36, colNone, true, 'Offline', colMuted);
 
@@ -327,6 +327,20 @@
       out.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
     }
     return out;
+  }
+
+  // Check if a multiaddr points to a private/LAN IP.
+  function isPrivateAddr(addr) {
+    if (!addr) return false;
+    // Extract IP from multiaddr like /ip4/192.168.1.42/tcp/4001
+    var m = addr.match(/\/ip4\/([\d.]+)/);
+    if (!m) return false;
+    var ip = m[1];
+    // RFC 1918 + loopback
+    return ip.startsWith('10.') ||
+           ip.startsWith('192.168.') ||
+           ip.startsWith('127.') ||
+           /^172\.(1[6-9]|2\d|3[01])\./.test(ip);
   }
 
   function truncLabel(s, max) {
