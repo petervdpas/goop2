@@ -403,14 +403,16 @@
 .content:has(.peers-page) {
   overflow: hidden;
   padding: 0;
-  height: 100%;
 }
 
 .peers-page {
+  flex: 1 1 auto;
   display: grid;
   grid-template-columns: 1fr auto;
-  column-gap: 28px;
-  height: calc(100vh - var(--topbar-h) - var(--footer-h));
+  gap: 28px;
+  align-items: stretch;
+  min-height: 0;
+  min-width: 0;
 }
 
 .panel-col {
@@ -420,7 +422,7 @@
 }
 
 .peers-page > .panel-col {
-  padding: 28px 0 16px 32px;
+  padding: 22px 0 22px 22px;
 }
 
 .panel-col-content {
