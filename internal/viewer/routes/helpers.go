@@ -221,6 +221,22 @@ func formBool(form map[string][]string, key string) bool {
 	return false
 }
 
+// topologyHandler returns the handler for GET /api/topology.
+// Uses TopologyFunc if set, otherwise falls back to Node.Topology().
+func topologyHandler(d Deps) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if d.TopologyFunc != nil {
+			writeJSON(w, d.TopologyFunc())
+			return
+		}
+		if d.Node != nil {
+			writeJSON(w, d.Node.Topology())
+			return
+		}
+		http.Error(w, "no topology data", http.StatusServiceUnavailable)
+	}
+}
+
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(v)

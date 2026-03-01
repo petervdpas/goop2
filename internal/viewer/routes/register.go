@@ -45,6 +45,9 @@ type Deps struct {
 	// Wails bridge URL for native dialogs (empty when not running in Wails)
 	BridgeURL string
 
+	// TopologyFunc returns topology data for the graph. Set by p2p node or rendezvous.
+	TopologyFunc func() any
+
 	// Document sharing
 	DocsStore    *docs.Store
 	GroupManager *group.Manager
@@ -109,6 +112,9 @@ func RegisterMinimal(mux *http.ServeMux, d Deps) {
 		{"/logs", "Logs", "logs", "page.logs"},
 	})
 	registerAvatarRoutes(mux, d)
+
+	// Topology graph — uses TopologyFunc when wired from rendezvous.
+	handleGet(mux, "/api/topology", topologyHandler(d))
 
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")

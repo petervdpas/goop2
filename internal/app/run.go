@@ -248,6 +248,10 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 				rvURL = rv.URL()
 			}
 			avatarStore := avatar.NewStore(o.PeerDir)
+			var topoFn func() any
+			if rv != nil {
+				topoFn = func() any { return rv.Topology() }
+			}
 			go viewer.StartMinimal(addr, viewer.MinimalViewer{
 				SelfLabel:      selfContent,
 				SelfEmail:      selfEmail,
@@ -258,6 +262,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 				RendezvousURL:  rvURL,
 				AvatarStore:    avatarStore,
 				BridgeURL:      o.BridgeURL,
+				TopologyFunc:   topoFn,
 			})
 			log.Printf("📋 Settings viewer: %s", url)
 		}

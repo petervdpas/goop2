@@ -1024,6 +1024,65 @@ func (s *Server) snapshotPeers() []peerRow {
 	return out
 }
 
+// Topology returns the network topology from the rendezvous server's perspective.
+// The rendezvous is the center node; all registered peers are shown around it.
+func (s *Server) Topology() map[string]any {
+	peers := s.snapshotPeers()
+
+	selfLabel := "Rendezvous"
+	if s.externalURL != "" {
+		selfLabel = s.externalURL
+	}
+
+	self := map[string]any{
+		"id":          "rendezvous",
+		"label":       selfLabel,
+		"has_circuit": s.relayHost != nil,
+	}
+
+	var peerList []map[string]any
+	for _, p := range peers {
+		conn := "none"
+		if p.Type == proto.TypeOnline || p.Type == proto.TypeUpdate {
+			conn = "direct"
+			// Check if any address contains /p2p-circuit
+			for _, a := range p.Addrs {
+				if strings.Contains(a, "/p2p-circuit") {
+					conn = "relay"
+					break
+				}
+			}
+		}
+
+		addr := ""
+		if len(p.Addrs) > 0 {
+			addr = p.Addrs[0]
+		}
+
+		peerList = append(peerList, map[string]any{
+			"id":         p.PeerID,
+			"label":      p.Content,
+			"reachable":  p.Type == proto.TypeOnline || p.Type == proto.TypeUpdate,
+			"connection": conn,
+			"addr":       addr,
+		})
+	}
+
+	result := map[string]any{
+		"self":  self,
+		"peers": peerList,
+	}
+
+	if s.relayInfo != nil {
+		result["relay"] = map[string]any{
+			"id":    s.relayInfo.PeerID,
+			"label": "Relay",
+		}
+	}
+
+	return result
+}
+
 // cleanupStalePeers removes peers that haven't been seen in 30+ seconds
 func (s *Server) cleanupStalePeers(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Second)

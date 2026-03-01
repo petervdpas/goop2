@@ -69,13 +69,7 @@ func registerHomeRoutes(mux *http.ServeMux, d Deps) {
 	})
 
 	// JSON endpoint for network topology graph
-	handleGet(mux, "/api/topology", func(w http.ResponseWriter, r *http.Request) {
-		if d.Node == nil {
-			http.Error(w, "no p2p node", http.StatusServiceUnavailable)
-			return
-		}
-		writeJSON(w, d.Node.Topology())
-	})
+	handleGet(mux, "/api/topology", topologyHandler(d))
 
 	// JSON endpoint for self identity
 	handleGet(mux, "/api/self", func(w http.ResponseWriter, r *http.Request) {

@@ -219,7 +219,7 @@
   function markDelivered(msgId) {
     if (!msgId) return;
     dbDelete("outbox", msgId);
-    log("info", "delivered: " + msgId.substring(0, 8));
+    log("debug", "delivered: " + msgId.substring(0, 8));
   }
 
   var _onFailed = null;
