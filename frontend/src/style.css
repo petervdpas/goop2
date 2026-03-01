@@ -325,10 +325,13 @@ input[type="text"]:focus{
 }
 
 .launcher{
+  flex: 1 1 auto;
   display: grid;
   grid-template-columns: auto 1fr;
-  column-gap: 28px;
-  height: calc(100vh - var(--topbar-h) - var(--footer-h));
+  gap: 28px;
+  align-items: stretch;
+  min-height: 0;
+  min-width: 0;
 }
 
 .splash-col{
@@ -377,7 +380,7 @@ html[data-theme="light"] .splash-img-wrap img{
 }
 
 .launcher > .panel-col{
-  padding: 28px 32px 28px 0;
+  padding: 22px 22px 22px 0;
 }
 
 .panel-col .peersCard{
