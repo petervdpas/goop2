@@ -119,20 +119,24 @@ async function renderLauncher(host) {
   const launcher = div("launcher");
 
   // Left: splash image
-  const splash = div("launcher-splash");
+  const splash = div("splash-col");
+  const splashWrap = div("splash-img-wrap");
   const splashImg = document.createElement("img");
   splashImg.src = splash2Url;
   splashImg.alt = "Goop²";
-  splash.appendChild(splashImg);
+  splashWrap.appendChild(splashImg);
+  splash.appendChild(splashWrap);
   launcher.appendChild(splash);
 
   // Right: panel
-  const panel = div("launcher-panel");
+  const panel = div("panel-col");
+
+  const panelContent = div("panel-col-content");
 
   const top = div("top");
   top.appendChild(h1("Goop² - Launcher"));
   top.appendChild(p("Pick a peer, or create a new one."));
-  panel.appendChild(top);
+  panelContent.appendChild(top);
 
   // Create new peer card
   const createCard = div("card");
@@ -172,7 +176,7 @@ async function renderLauncher(host) {
   });
 
   createCard.appendChild(createBody);
-  panel.appendChild(createCard);
+  panelContent.appendChild(createCard);
 
   // Peers card
   const peersCard = div("card peersCard");
@@ -201,7 +205,8 @@ async function renderLauncher(host) {
   foot.appendChild(err);
   peersCard.appendChild(foot);
 
-  panel.appendChild(peersCard);
+  panelContent.appendChild(peersCard);
+  panel.appendChild(panelContent);
   launcher.appendChild(panel);
   host.appendChild(launcher);
 

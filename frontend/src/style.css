@@ -326,47 +326,68 @@ input[type="text"]:focus{
 
 .launcher{
   display: grid;
-  grid-template-columns: minmax(200px, 1fr) minmax(420px, 1.5fr);
+  grid-template-columns: auto 1fr;
+  column-gap: 28px;
   height: calc(100vh - var(--topbar-h) - var(--footer-h));
 }
 
-.launcher-splash{
+.splash-col{
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 28px 32px;
+  align-items: flex-start;
   overflow: hidden;
 }
 
-.launcher-splash img{
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
+.launcher > .splash-col{
+  padding: 28px 0 28px 28px;
+}
+
+.splash-img-wrap {
+  flex: 0 0 auto;
+}
+
+.splash-img-wrap img {
+  max-height: calc(100vh - var(--topbar-h) - var(--footer-h) - 56px);
+  max-width: 45vw;
+  height: auto;
+  width: auto;
+  display: block;
   border-radius: var(--radius);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-md);
 }
 
-html[data-theme="light"] .launcher-splash img{
+.panel-col-content {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+html[data-theme="light"] .splash-img-wrap img{
   opacity: 0.95;
   box-shadow: 0 8px 32px rgba(0,0,0,0.28);
 }
 
-.launcher-panel{
-  padding: 28px 32px;
+.panel-col{
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-.launcher-panel .peersCard{
+.launcher > .panel-col{
+  padding: 28px 32px 28px 0;
+}
+
+.panel-col .peersCard{
   flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 
-.launcher-panel .peersCard > .cardBody{
+.panel-col .peersCard > .cardBody{
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -557,10 +578,10 @@ html[data-theme="light"] .rv-badge{
   .launcher{
     grid-template-columns: 1fr;
   }
-  .launcher-splash{
+  .splash-col{
     display: none;
   }
-  .launcher-panel{
+  .panel-col{
     overflow-y: auto;
   }
 }

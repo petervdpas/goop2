@@ -1,6 +1,7 @@
 {{define "page.peers"}}
 <div class="peers-page" data-self-id="{{.SelfID}}" data-self-name="{{.SelfName}}" data-self-video-disabled="{{.SelfVideoDisabled}}" data-hide-unverified="{{.HideUnverified}}" data-base-url="{{.BaseURL}}">
-  <div class="peers-panel">
+  <div class="panel-col">
+    <div class="panel-col-content">
     <div class="peers-section">
       <h1 class="peers-header">
         <span>Peers <span class="peer-count muted" id="peer-count">({{len .Peers}})</span></span>
@@ -94,10 +95,13 @@
         </form>
       </div>
     </div>
+    </div>
   </div>
 
-  <div class="peers-splash">
-    <img src="/assets/images/{{.Splash}}" alt="Goop²">
+  <div class="splash-col">
+    <div class="splash-img-wrap">
+      <img src="/assets/images/{{.Splash}}" alt="Goop²">
+    </div>
   </div>
 
   <div id="peer-ctx-menu" class="view-ctx hidden">
