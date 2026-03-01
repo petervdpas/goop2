@@ -1,9 +1,4 @@
 {{define "page.logs"}}
-<div class="logs-header">
-  <h1>Logs</h1>
-  <button id="copyLogsBtn" class="btn btn-sm" title="Copy logs to clipboard">Copy</button>
-</div>
-
 <div class="log-tabs create-tabs">
   <a class="log-tab create-tab active" data-tab="all">All</a>
   <a class="log-tab create-tab log-tab--relay" data-tab="relay">Relay</a>
@@ -13,6 +8,7 @@
   <a class="log-tab create-tab log-tab--data" data-tab="data">Data</a>
   <a class="log-tab create-tab log-tab--group" data-tab="group">Group</a>
   <a class="log-tab create-tab" data-tab="api">API</a>
+  <button id="copyLogsBtn" class="btn btn-sm" style="margin-left:auto;align-self:center;" title="Copy logs to clipboard">Copy</button>
 </div>
 
 <pre id="logbox" class="content"></pre>
