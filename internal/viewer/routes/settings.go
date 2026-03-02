@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -32,6 +31,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		HideUnverified    *bool   `json:"hide_unverified"`
 		OpenSitesExternal *bool   `json:"open_sites_external"`
 		UseServices       *bool   `json:"use_services"`
+		BridgeToken       *string `json:"bridge_token"`
 	}) {
 		if !requireLocal(w, r) {
 			return
@@ -72,6 +72,9 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 		if req.UseServices != nil {
 			cfg.Presence.UseServices = *req.UseServices
+		}
+		if req.BridgeToken != nil {
+			cfg.Profile.BridgeToken = strings.TrimSpace(*req.BridgeToken)
 		}
 
 		if err := config.Save(d.CfgPath, cfg); err != nil {
@@ -254,26 +257,23 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			return
 		}
 
-		bridgeURL := strings.TrimSpace(cfg.Presence.BridgeURL)
-		if bridgeURL == "" {
-			writeJSON(w, map[string]string{"error": "no bridge URL configured"})
-			return
-		}
-		adminToken := strings.TrimSpace(cfg.Presence.BridgeAdminToken)
-		if adminToken == "" {
-			writeJSON(w, map[string]string{"error": "no bridge admin token configured"})
+		rvWAN := strings.TrimSpace(cfg.Presence.RendezvousWAN)
+		if rvWAN == "" {
+			writeJSON(w, map[string]string{"error": "no WAN rendezvous configured"})
 			return
 		}
 
-		body, _ := json.Marshal(map[string]string{"email": email})
+		body, _ := json.Marshal(map[string]string{
+			"email":              email,
+			"verification_token": cfg.Profile.VerificationToken,
+		})
 		req, err := http.NewRequestWithContext(r.Context(), http.MethodPost,
-			strings.TrimRight(bridgeURL, "/")+"/api/bridge/token", bytes.NewReader(body))
+			strings.TrimRight(rvWAN, "/")+"/api/bridge/request-token", strings.NewReader(string(body)))
 		if err != nil {
 			writeJSON(w, map[string]string{"error": fmt.Sprintf("failed to create request: %v", err)})
 			return
 		}
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer "+adminToken)
 
 		client := &http.Client{Timeout: 10 * time.Second}
 		resp, err := client.Do(req)

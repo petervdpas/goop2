@@ -270,14 +270,23 @@
             </div>
           </div>
 
-          {{if and .Cfg.Presence.BridgeURL .Cfg.Profile.Email .Cfg.Profile.VerificationToken}}
+          {{if and .Cfg.Presence.RendezvousWAN .Cfg.Profile.Email .Cfg.Profile.VerificationToken}}
           <div class="field" style="margin-top:10px">
             <label>Bridge Token</label>
-            <button type="button" class="btn secondary" id="request-bridge-token-btn"
-                    onclick="(function(btn){btn.disabled=true;btn.textContent='Requesting…';fetch('/api/bridge/request-token',{method:'POST'}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){Goop.toast({title:'Bridge Token',message:'Token sent to your email.',duration:5000})}else{Goop.toast({title:'Error',message:d.error||'Request failed',duration:6000})}}).catch(function(e){Goop.toast({title:'Error',message:e.message||'Request failed',duration:6000})}).finally(function(){btn.disabled=false;btn.textContent='Request Bridge Token'})})(this)">
-              Request Bridge Token
-            </button>
-            <div class="hint">A bridge token will be emailed to your registered address.</div>
+            <div class="token-field">
+              <input id="bridge-token-input" type="password"
+                     value="{{.Cfg.Profile.BridgeToken}}"
+                     placeholder="Paste your bridge token here"
+                     onchange="fetch('/api/settings/quick',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bridge_token:this.value})})">
+              <button type="button" class="btn token-btn"
+                      onclick="var i=document.getElementById('bridge-token-input');var show=i.type==='password';i.type=show?'text':'password';this.textContent=show?'Hide':'Show'"
+                      >Show</button>
+              <button type="button" class="btn token-btn" id="request-bridge-token-btn"
+                      onclick="(function(btn){btn.disabled=true;btn.textContent='Requesting…';fetch('/api/bridge/request-token',{method:'POST'}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){Goop.toast({title:'Bridge Token',message:'Check your inbox at {{.Cfg.Profile.Email}} for the bridge token.',duration:8000})}else{Goop.toast({title:'Error',message:d.error||'Request failed',duration:6000})}}).catch(function(e){Goop.toast({title:'Error',message:e.message||'Request failed',duration:6000})}).finally(function(){btn.disabled=false;btn.textContent='Request'})})(this)">
+                Request
+              </button>
+            </div>
+            <div class="hint">Paste the token from your email, or click Request to receive one.</div>
           </div>
           {{end}}
         </div>

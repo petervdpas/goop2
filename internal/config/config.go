@@ -120,6 +120,7 @@ type Profile struct {
 	Label             string `json:"label"`
 	Email             string `json:"email"`
 	VerificationToken string `json:"verification_token"`
+	BridgeToken       string `json:"bridge_token"`
 }
 
 type Viewer struct {

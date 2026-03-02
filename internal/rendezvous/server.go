@@ -90,7 +90,8 @@ type Server struct {
 	localTemplates      *LocalTemplateStore         // nil = no local template store
 
 	// Bridge (HTTPS bridge microservice)
-	bridgeURL string // URL of the bridge service; empty = disabled
+	bridgeURL        string // URL of the bridge service; empty = disabled
+	bridgeAdminToken string // admin Bearer token for bridge service
 
 	// Circuit relay v2
 	relayHost    host.Host  // nil when relay is disabled
@@ -434,8 +435,9 @@ func (s *Server) SetLocalTemplateStore(ts *LocalTemplateStore) {
 
 // SetBridgeURL configures the bridge service URL for health checks and
 // fetching virtual peers. Must be called before Start.
-func (s *Server) SetBridgeURL(bridgeURL string) {
+func (s *Server) SetBridgeURL(bridgeURL, adminToken string) {
 	s.bridgeURL = bridgeURL
+	s.bridgeAdminToken = adminToken
 }
 
 func (s *Server) Start(ctx context.Context) error {
@@ -563,6 +565,69 @@ func (s *Server) Start(ctx context.Context) error {
 		handleRelayInfo(w, r, s.relayInfo)
 	})
 
+	// Bridge token request — called by verified peers via their viewer.
+	// Proxies to the bridge service's POST /api/bridge/token with admin auth.
+	mux.HandleFunc("/api/bridge/request-token", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if s.bridgeURL == "" || s.bridgeAdminToken == "" {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"error": "bridge service not configured"})
+			return
+		}
+
+		var req struct {
+			Email             string `json:"email"`
+			VerificationToken string `json:"verification_token"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		if req.Email == "" || req.VerificationToken == "" {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"error": "email and verification token required"})
+			return
+		}
+
+		// Verify the peer is actually registered and verified
+		if s.registration != nil {
+			if !s.registration.IsEmailVerified(req.Email) {
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(map[string]string{"error": "email not verified"})
+				return
+			}
+		}
+
+		// Proxy to bridge service
+		body, _ := json.Marshal(map[string]string{"email": req.Email})
+		proxyReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost,
+			util.NormalizeURL(s.bridgeURL)+"/api/bridge/token", strings.NewReader(string(body)))
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"error": "internal error"})
+			return
+		}
+		proxyReq.Header.Set("Content-Type", "application/json")
+		proxyReq.Header.Set("Authorization", "Bearer "+s.bridgeAdminToken)
+
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Do(proxyReq)
+		if err != nil {
+			log.Printf("bridge token proxy error: %v", err)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"error": "bridge service unreachable"})
+			return
+		}
+		defer resp.Body.Close()
+
+		// Forward the bridge response as-is
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(resp.StatusCode)
+		io.Copy(w, resp.Body)
+	})
 
 	// Admin-protected endpoints
 	mux.HandleFunc("/admin", s.handleAdmin)
