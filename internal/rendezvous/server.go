@@ -90,8 +90,7 @@ type Server struct {
 	localTemplates      *LocalTemplateStore         // nil = no local template store
 
 	// Bridge (HTTPS bridge microservice)
-	bridgeURL        string // URL of the bridge service; empty = disabled
-	bridgeAdminToken string // admin Bearer token for bridge service
+	bridge *RemoteBridgeProvider // nil = bridge service not configured
 
 	// Circuit relay v2
 	relayHost    host.Host  // nil when relay is disabled
@@ -434,11 +433,10 @@ func (s *Server) SetLocalTemplateStore(ts *LocalTemplateStore) {
 	s.localTemplates = ts
 }
 
-// SetBridgeURL configures the bridge service URL for health checks and
-// fetching virtual peers. Must be called before Start.
-func (s *Server) SetBridgeURL(bridgeURL, adminToken string) {
-	s.bridgeURL = bridgeURL
-	s.bridgeAdminToken = adminToken
+// SetBridgeProvider configures a remote bridge service.
+// When set, bridge endpoints are proxied to the remote service.
+func (s *Server) SetBridgeProvider(bp *RemoteBridgeProvider) {
+	s.bridge = bp
 }
 
 func (s *Server) Start(ctx context.Context) error {
@@ -566,69 +564,10 @@ func (s *Server) Start(ctx context.Context) error {
 		handleRelayInfo(w, r, s.relayInfo)
 	})
 
-	// Bridge token request — called by verified peers via their viewer.
-	// Proxies to the bridge service's POST /api/bridge/token with admin auth.
-	mux.HandleFunc("/api/bridge/request-token", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		if s.bridgeURL == "" || s.bridgeAdminToken == "" {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"error": "bridge service not configured"})
-			return
-		}
-
-		var req struct {
-			Email             string `json:"email"`
-			VerificationToken string `json:"verification_token"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid json", http.StatusBadRequest)
-			return
-		}
-		if req.Email == "" || req.VerificationToken == "" {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"error": "email and verification token required"})
-			return
-		}
-
-		// Verify the peer is actually registered and verified
-		if s.registration != nil {
-			if !s.registration.IsEmailVerified(req.Email) {
-				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(map[string]string{"error": "email not verified"})
-				return
-			}
-		}
-
-		// Proxy to bridge service
-		body, _ := json.Marshal(map[string]string{"email": req.Email})
-		proxyReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost,
-			util.NormalizeURL(s.bridgeURL)+"/api/bridge/token", strings.NewReader(string(body)))
-		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"error": "internal error"})
-			return
-		}
-		proxyReq.Header.Set("Content-Type", "application/json")
-		proxyReq.Header.Set("Authorization", "Bearer "+s.bridgeAdminToken)
-
-		client := &http.Client{Timeout: 10 * time.Second}
-		resp, err := client.Do(proxyReq)
-		if err != nil {
-			log.Printf("bridge token proxy error: %v", err)
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"error": "bridge service unreachable"})
-			return
-		}
-		defer resp.Body.Close()
-
-		// Forward the bridge response as-is
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(resp.StatusCode)
-		io.Copy(w, resp.Body)
-	})
+	// Bridge endpoints (proxied to bridge service)
+	if s.bridge != nil {
+		s.bridge.RegisterRoutes(mux, s.registration)
+	}
 
 	// Admin-protected endpoints
 	mux.HandleFunc("/admin", s.handleAdmin)
@@ -1119,8 +1058,8 @@ func (s *Server) Topology() map[string]any {
 	}
 
 	// Include virtual peers from the bridge service
-	if s.bridgeURL != "" {
-		if vpeers := s.fetchBridgePeers(); len(vpeers) > 0 {
+	if s.bridge != nil {
+		if vpeers := s.bridge.FetchVirtualPeers(); len(vpeers) > 0 {
 			peerList = append(peerList, vpeers...)
 		}
 	}
@@ -1862,16 +1801,14 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		}
 		services = append(services, ss)
 	}
-	if s.bridgeURL != "" {
-		ss := serviceStatus{Name: "Bridge", URL: s.bridgeURL}
-		ss.OK = checkServiceHealth(s.bridgeURL)
+	if s.bridge != nil {
+		ss := serviceStatus{Name: "Bridge", URL: s.bridge.baseURL}
+		ss.OK = checkServiceHealth(s.bridge.baseURL)
 		if ss.OK {
-			if bs := fetchBridgeStatus(s.bridgeURL); bs != nil {
-				ss.DummyMode = bs.DummyMode
-				ss.Version = bs.Version
-				ss.APIVersion = bs.APIVersion
-				ss.APICompat = ss.APIVersion >= minBridgeAPI
-			}
+			ss.DummyMode = s.bridge.DummyMode()
+			ss.Version = s.bridge.Version()
+			ss.APIVersion = s.bridge.APIVersion()
+			ss.APICompat = ss.APIVersion >= minBridgeAPI
 		}
 		services = append(services, ss)
 	}
@@ -1972,65 +1909,6 @@ func checkServiceHealth(baseURL string) bool {
 	}
 	resp.Body.Close()
 	return resp.StatusCode == http.StatusOK
-}
-
-// bridgeStatusResult holds fields from GET /api/bridge/status.
-type bridgeStatusResult struct {
-	Version    string `json:"version"`
-	APIVersion int    `json:"api_version"`
-	DummyMode  bool   `json:"dummy_mode"`
-}
-
-// fetchBridgeStatus fetches version and status info from the bridge service.
-func fetchBridgeStatus(bridgeURL string) *bridgeStatusResult {
-	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get(util.NormalizeURL(bridgeURL) + "/api/bridge/status")
-	if err != nil {
-		return nil
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil
-	}
-	var result bridgeStatusResult
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil
-	}
-	return &result
-}
-
-// fetchBridgePeers queries the bridge service for virtual peers and returns
-// them in the same map format used by the topology response.
-func (s *Server) fetchBridgePeers() []map[string]any {
-	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get(util.NormalizeURL(s.bridgeURL) + "/api/bridge/peers")
-	if err != nil {
-		return nil
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil
-	}
-	var peers []struct {
-		PeerID   string `json:"peer_id"`
-		Label    string `json:"label"`
-		Platform string `json:"platform"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&peers); err != nil {
-		return nil
-	}
-	var out []map[string]any
-	for _, p := range peers {
-		out = append(out, map[string]any{
-			"id":         p.PeerID,
-			"label":      p.Label,
-			"reachable":  true,
-			"connection": "bridge",
-			"virtual":    true,
-			"platform":   p.Platform,
-		})
-	}
-	return out
 }
 
 // topologyPath returns the topology endpoint path for a given service name.

@@ -183,7 +183,8 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 					cfg.Presence.TemplatesURL, cfg.Presence.TemplatesAdminToken))
 			})
 			setupMicroService("Bridge", cfg.Presence.BridgeURL, func() {
-				rv.SetBridgeURL(cfg.Presence.BridgeURL, cfg.Presence.BridgeAdminToken)
+				rv.SetBridgeProvider(rendezvous.NewRemoteBridgeProvider(
+					cfg.Presence.BridgeURL, cfg.Presence.BridgeAdminToken))
 			})
 		}
 
