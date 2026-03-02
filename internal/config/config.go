@@ -101,6 +101,7 @@ type Presence struct {
 	RegistrationURL string `json:"registration_url"` // e.g., "http://localhost:8801"
 	EmailURL        string `json:"email_url"`        // e.g., "http://localhost:8802"
 	TemplatesURL    string `json:"templates_url"`    // e.g., "http://localhost:8803"
+	BridgeURL       string `json:"bridge_url"`       // e.g., "http://localhost:8804"
 
 	// Local template directory for the store (used when templates_url is empty).
 	// Each subdirectory needs a manifest.json. Relative to peer dir.

@@ -77,6 +77,7 @@
     var colPanel  = cs.getPropertyValue('--panel').trim() || '#151924';
     var colDirect = '#4ade80';
     var colRelay  = colAccent;
+    var colBridge = '#f59e0b';
     var colNone   = '#555b6e';
 
     ctx.fillStyle = colBg;
@@ -90,14 +91,15 @@
 
     var hasRelay = !!data.relay;
     var allPeers = data.peers || [];
-    var directPeers = [], relayPeers = [], offlinePeers = [];
+    var directPeers = [], relayPeers = [], bridgePeers = [], offlinePeers = [];
     allPeers.forEach(function(p) {
       if (p.connection === 'direct') directPeers.push(p);
       else if (p.connection === 'relay') relayPeers.push(p);
+      else if (p.connection === 'bridge') bridgePeers.push(p);
       else offlinePeers.push(p);
     });
 
-    var onlineCount = directPeers.length + relayPeers.length;
+    var onlineCount = directPeers.length + relayPeers.length + bridgePeers.length;
     var totalCount = allPeers.length;
 
     // ── Layout ──────────────────────────────────────────────────────────
@@ -121,7 +123,7 @@
     var relayR = 20;
 
     // Place all connected peers in a circle around self.
-    var connectedPeers = directPeers.concat(relayPeers);
+    var connectedPeers = directPeers.concat(relayPeers).concat(bridgePeers);
     var connectedPos = layoutCircle(connectedPeers.length, selfX, selfY, orbitR);
 
     // Apply manual positions (from drag).
@@ -155,8 +157,8 @@
     // Self → connected peers.
     connectedPeers.forEach(function(p, i) {
       var pos = connectedPos[i];
-      var col = p.connection === 'direct' ? colDirect : colRelay;
-      var dashed = p.connection === 'relay';
+      var col = p.connection === 'direct' ? colDirect : p.connection === 'bridge' ? colBridge : colRelay;
+      var dashed = p.connection !== 'direct';
       drawCurvedEdge(ctx, selfX, selfY, pos.x, pos.y, col, dashed, 1.5);
     });
 
@@ -186,15 +188,16 @@
     // ── Draw connected peers ────────────────────────────────────────────
     connectedPeers.forEach(function(p, i) {
       var pos = connectedPos[i];
-      var col = p.connection === 'direct' ? colDirect : colRelay;
-      drawGlowNode(ctx, pos.x, pos.y, nodeR, col, 'circle');
+      var col = p.connection === 'direct' ? colDirect : p.connection === 'bridge' ? colBridge : colRelay;
+      var shape = p.virtual ? 'diamond' : 'circle';
+      drawGlowNode(ctx, pos.x, pos.y, nodeR, col, shape);
       // Short label inside or below.
       var shortLabel = truncLabel(p.label, 10);
       drawNodeLabel(ctx, shortLabel, pos.x, pos.y + nodeR + 10, colText, 11);
       // Connection type badge.
-      var badge = p.connection === 'direct' ? (isPrivateAddr(p.addr) ? 'LAN' : 'direct') : 'relay';
-      drawBadge(ctx, pos.x, pos.y - nodeR - 6, badge,
-        p.connection === 'direct' ? colDirect : colRelay, colBg);
+      var badge = p.connection === 'bridge' ? 'bridge' :
+                  p.connection === 'direct' ? (isPrivateAddr(p.addr) ? 'LAN' : 'direct') : 'relay';
+      drawBadge(ctx, pos.x, pos.y - nodeR - 6, badge, col, colBg);
       nodes.push({ x: pos.x, y: pos.y, r: nodeR, peer: p, type: p.connection });
     });
 
@@ -256,9 +259,11 @@
     }
 
     // ── Legend (bottom-left) ────────────────────────────────────────────
-    var lx = 16, ly = H - 44;
+    var hasBridge = bridgePeers.length > 0;
+    var lx = 16, ly = H - (hasBridge ? 62 : 44);
     drawLegend(ctx, lx, ly, colDirect, false, 'Direct', colText);
     drawLegend(ctx, lx, ly + 18, colRelay, true, 'Relay', colText);
+    if (hasBridge) drawLegend(ctx, lx, ly + 36, colBridge, true, 'Bridge', colText);
 
     // ── Hover tooltip (screen-space) ────────────────────────────────────
     if (_hover && !_dragNode) {

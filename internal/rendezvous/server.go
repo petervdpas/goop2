@@ -90,6 +90,9 @@ type Server struct {
 	templates           *RemoteTemplatesProvider    // nil = templates service not configured
 	localTemplates      *LocalTemplateStore         // nil = no local template store
 
+	// Bridge (HTTPS bridge microservice)
+	bridgeURL string // URL of the bridge service; empty = disabled
+
 	// Circuit relay v2
 	relayHost    host.Host  // nil when relay is disabled
 	relayInfo    *RelayInfo // nil when relay is disabled
@@ -453,6 +456,12 @@ func (s *Server) SetLocalTemplateStore(ts *LocalTemplateStore) {
 	s.localTemplates = ts
 }
 
+// SetBridgeURL configures the bridge service URL for health checks and
+// fetching virtual peers. Must be called before Start.
+func (s *Server) SetBridgeURL(bridgeURL string) {
+	s.bridgeURL = bridgeURL
+}
+
 func (s *Server) Start(ctx context.Context) error {
 	// Start circuit relay v2 host if configured
 	if s.relayPort > 0 {
@@ -550,6 +559,8 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// Start peer cleanup goroutine
 	go s.cleanupStalePeers(ctx)
+
+
 
 	// Periodic sync from DB (catch peers from other instances)
 	if s.peerDB != nil {
@@ -1066,6 +1077,13 @@ func (s *Server) Topology() map[string]any {
 			"connection": conn,
 			"addr":       addr,
 		})
+	}
+
+	// Include virtual peers from the bridge service
+	if s.bridgeURL != "" {
+		if vpeers := s.fetchBridgePeers(); len(vpeers) > 0 {
+			peerList = append(peerList, vpeers...)
+		}
 	}
 
 	result := map[string]any{
@@ -1880,6 +1898,11 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		}
 		services = append(services, ss)
 	}
+	if s.bridgeURL != "" {
+		ss := serviceStatus{Name: "Bridge", URL: s.bridgeURL}
+		ss.OK = checkServiceHealth(s.bridgeURL)
+		services = append(services, ss)
+	}
 
 	// Fetch topology from each running service
 	var topologies []topologyInfo
@@ -1977,6 +2000,40 @@ func checkServiceHealth(baseURL string) bool {
 	}
 	resp.Body.Close()
 	return resp.StatusCode == http.StatusOK
+}
+
+// fetchBridgePeers queries the bridge service for virtual peers and returns
+// them in the same map format used by the topology response.
+func (s *Server) fetchBridgePeers() []map[string]any {
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get(util.NormalizeURL(s.bridgeURL) + "/api/bridge/peers")
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+	var peers []struct {
+		PeerID   string `json:"peer_id"`
+		Label    string `json:"label"`
+		Platform string `json:"platform"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&peers); err != nil {
+		return nil
+	}
+	var out []map[string]any
+	for _, p := range peers {
+		out = append(out, map[string]any{
+			"id":         p.PeerID,
+			"label":      p.Label,
+			"reachable":  true,
+			"connection": "bridge",
+			"virtual":    true,
+			"platform":   p.Platform,
+		})
+	}
+	return out
 }
 
 // topologyPath returns the topology endpoint path for a given service name.

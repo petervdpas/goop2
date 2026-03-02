@@ -182,6 +182,9 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 				rv.SetTemplatesProvider(rendezvous.NewRemoteTemplatesProvider(
 					cfg.Presence.TemplatesURL, cfg.Presence.TemplatesAdminToken))
 			})
+			setupMicroService("Bridge", cfg.Presence.BridgeURL, func() {
+				rv.SetBridgeURL(cfg.Presence.BridgeURL)
+			})
 		}
 
 		// Local template store fallback (works with or without services)
