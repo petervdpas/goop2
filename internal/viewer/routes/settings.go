@@ -229,6 +229,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			"credits":      fetchServiceHealth(client, cfg.Presence.CreditsURL, "/api/credits/store-data", []string{"dummy_mode"}),
 			"email":        fetchServiceHealth(client, cfg.Presence.EmailURL, "/api/email/status", []string{"dummy_mode"}),
 			"templates":    fetchServiceHealth(client, cfg.Presence.TemplatesURL, "/api/templates/status", []string{"dummy_mode"}),
+			"bridge":       fetchServiceHealth(client, cfg.Presence.BridgeURL, "/api/bridge/status", []string{"dummy_mode"}),
 		})
 	})
 
@@ -312,6 +313,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			"credits":      "/api/credits/store-data",
 			"email":        "/api/email/status",
 			"templates":    "/api/templates/status",
+			"bridge":       "/api/bridge/status",
 		}
 
 		client := &http.Client{Timeout: 3 * time.Second}

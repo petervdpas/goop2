@@ -167,6 +167,7 @@ const (
 	minCreditsAPI       = 1
 	minEmailAPI         = 1
 	minTemplatesAPI     = 1
+	minBridgeAPI        = 1
 )
 
 type serviceStatus struct {
@@ -1864,6 +1865,14 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	if s.bridgeURL != "" {
 		ss := serviceStatus{Name: "Bridge", URL: s.bridgeURL}
 		ss.OK = checkServiceHealth(s.bridgeURL)
+		if ss.OK {
+			if bs := fetchBridgeStatus(s.bridgeURL); bs != nil {
+				ss.DummyMode = bs.DummyMode
+				ss.Version = bs.Version
+				ss.APIVersion = bs.APIVersion
+				ss.APICompat = ss.APIVersion >= minBridgeAPI
+			}
+		}
 		services = append(services, ss)
 	}
 
@@ -1963,6 +1972,31 @@ func checkServiceHealth(baseURL string) bool {
 	}
 	resp.Body.Close()
 	return resp.StatusCode == http.StatusOK
+}
+
+// bridgeStatusResult holds fields from GET /api/bridge/status.
+type bridgeStatusResult struct {
+	Version    string `json:"version"`
+	APIVersion int    `json:"api_version"`
+	DummyMode  bool   `json:"dummy_mode"`
+}
+
+// fetchBridgeStatus fetches version and status info from the bridge service.
+func fetchBridgeStatus(bridgeURL string) *bridgeStatusResult {
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get(util.NormalizeURL(bridgeURL) + "/api/bridge/status")
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+	var result bridgeStatusResult
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil
+	}
+	return &result
 }
 
 // fetchBridgePeers queries the bridge service for virtual peers and returns
