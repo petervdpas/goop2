@@ -112,6 +112,7 @@ type Presence struct {
 	CreditsAdminToken      string `json:"credits_admin_token"`
 	RegistrationAdminToken string `json:"registration_admin_token"`
 	TemplatesAdminToken    string `json:"templates_admin_token"`
+	BridgeAdminToken       string `json:"bridge_admin_token"`
 
 }
 

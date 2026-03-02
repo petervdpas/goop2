@@ -26,10 +26,6 @@ type TablePolicy struct {
 type StorePageData struct {
 	// Banner is shown at the top of the store (e.g. balance, or "all free").
 	Banner template.HTML
-
-	// CreditPacks is the credit pack purchase section.
-	// Empty when credits are disabled.
-	CreditPacks template.HTML
 }
 
 // TemplateStoreInfo holds per-template credit information for the store page.

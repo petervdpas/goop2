@@ -75,7 +75,6 @@ type Server struct {
 	adminTmpl    *template.Template
 	docsTmpl     *template.Template
 	storeTmpl    *template.Template
-	creditsTmpl  *template.Template
 	registerTmpl *template.Template
 	style        []byte
 	docsCSS      []byte
@@ -159,23 +158,6 @@ type storeVM struct {
 	HasCredits           bool
 	RegistrationRequired bool
 	RegistrationCredits  int
-}
-
-type creditPackVM struct {
-	Name   string
-	Label  string
-	Amount int
-}
-
-type creditsVM struct {
-	Title                string
-	HasAdmin             bool
-	PeerID               string
-	Balance              int
-	CreditPacks          []creditPackVM
-	RegistrationRequired bool
-	RegistrationCredits  int
-	HasCredits           bool
 }
 
 // Minimum API versions that this build of goop2 requires.
@@ -295,11 +277,6 @@ func New(addr string, peerDBPath string, adminPassword string, externalURL strin
 		panic(err)
 	}
 
-	creditsTmpl, err := template.New("credits.html").Funcs(funcs).ParseFS(embedded, "assets/credits.html")
-	if err != nil {
-		creditsTmpl = nil
-	}
-
 	registerTmpl, err := template.New("register.html").Funcs(funcs).ParseFS(embedded, "assets/register.html")
 	if err != nil {
 		// Not fatal - registration template is optional
@@ -343,7 +320,6 @@ func New(addr string, peerDBPath string, adminPassword string, externalURL strin
 		adminTmpl:            adminTmpl,
 		docsTmpl:             docsTmpl,
 		storeTmpl:            storeTmpl,
-		creditsTmpl:          creditsTmpl,
 		registerTmpl:         registerTmpl,
 		style:                css,
 		docsCSS:              docsCSSData,
@@ -746,9 +722,6 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// Store page
 	mux.HandleFunc("/store", s.handleStore)
-
-	// Credits page
-	mux.HandleFunc("/credits", s.handleCredits)
 
 	// Credit provider routes (e.g. /api/credits/*)
 	s.credits.RegisterRoutes(mux)
@@ -1758,81 +1731,6 @@ func (s *Server) handleStore(w http.ResponseWriter, r *http.Request) {
 		RegistrationRequired: regRequired,
 		RegistrationCredits:  s.grantAmount(),
 	})
-}
-
-func (s *Server) handleCredits(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	if s.creditsTmpl == nil {
-		http.NotFound(w, r)
-		return
-	}
-
-	_, hasCredits := s.credits.(*RemoteCreditProvider)
-
-	regRequired := false
-	if s.registration != nil {
-		regRequired = s.registration.RegistrationRequired()
-	}
-
-	vm := creditsVM{
-		Title:                "Credits — Goop²",
-		HasAdmin:             s.adminPassword != "",
-		HasCredits:           hasCredits,
-		RegistrationRequired: regRequired,
-		RegistrationCredits:  s.grantAmount(),
-	}
-
-	// Fetch credit data from service
-	cp, ok := s.credits.(*RemoteCreditProvider)
-	if ok {
-		peerID := getPeerID(r)
-		vm.PeerID = peerID
-
-		reqURL := cp.baseURL + "/api/credits/store-data"
-		var token string
-		if peerID != "" {
-			if email := cp.emailResolver(peerID); email != "" {
-				reqURL += "?email=" + url.QueryEscape(email)
-			}
-			if cp.tokenResolver != nil {
-				token = cp.tokenResolver(peerID)
-			}
-		}
-
-		req, _ := http.NewRequest("GET", reqURL, nil)
-		if token != "" {
-			req.Header.Set("X-Verification-Token", token)
-		}
-		resp, err := cp.client.Do(req)
-		if err == nil {
-			defer resp.Body.Close()
-			var data struct {
-				Balance    int `json:"balance"`
-				CreditPacks []struct {
-					Amount int    `json:"amount"`
-					Name   string `json:"name"`
-					Label  string `json:"label"`
-				} `json:"credit_packs"`
-			}
-			if json.NewDecoder(resp.Body).Decode(&data) == nil {
-				vm.Balance = data.Balance
-				for _, pk := range data.CreditPacks {
-					vm.CreditPacks = append(vm.CreditPacks, creditPackVM{
-						Name:   pk.Name,
-						Label:  pk.Label,
-						Amount: pk.Amount,
-					})
-				}
-			}
-		}
-	}
-
-	w.Header().Set("content-type", "text/html; charset=utf-8")
-	_ = s.creditsTmpl.Execute(w, vm)
 }
 
 func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {

@@ -184,10 +184,12 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		cfg.Presence.RegistrationURL = getTrimmedPostFormValue(r.PostForm, "presence_registration_url")
 		cfg.Presence.EmailURL = getTrimmedPostFormValue(r.PostForm, "presence_email_url")
 		cfg.Presence.TemplatesURL = getTrimmedPostFormValue(r.PostForm, "presence_templates_url")
+		cfg.Presence.BridgeURL = getTrimmedPostFormValue(r.PostForm, "presence_bridge_url")
 		cfg.Presence.TemplatesDir = getTrimmedPostFormValue(r.PostForm, "presence_templates_dir")
 		cfg.Presence.CreditsAdminToken = getTrimmedPostFormValue(r.PostForm, "presence_credits_admin_token")
 		cfg.Presence.RegistrationAdminToken = getTrimmedPostFormValue(r.PostForm, "presence_registration_admin_token")
 		cfg.Presence.TemplatesAdminToken = getTrimmedPostFormValue(r.PostForm, "presence_templates_admin_token")
+		cfg.Presence.BridgeAdminToken = getTrimmedPostFormValue(r.PostForm, "presence_bridge_admin_token")
 
 		cfg.Lua.Enabled = formBool(r.PostForm, "lua_enabled")
 

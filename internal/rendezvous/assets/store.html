@@ -22,7 +22,6 @@
           <span class="theme-icon">🌙</span>
         </button>
         <a class="nav-link" href="/">Goop²</a>
-        {{if .HasCredits}}<a class="nav-link" href="/credits">🪙 Credits</a>{{end}}
         <a class="nav-link" href="/docs">Docs</a>
         {{if .HasAdmin}}<a class="nav-link" href="/admin">Admin</a>{{end}}
       </div>
@@ -33,7 +32,7 @@
 
     {{if .RegistrationRequired}}
     <div class="store-banner" style="background:var(--purple-dim,rgba(128,90,213,0.08));border:1px solid var(--border);color:var(--text-secondary,var(--muted));padding:0.75rem 1rem;border-radius:8px;margin-bottom:1rem">
-      <a href="/register">Register your email</a> to unlock template purchases{{if .RegistrationCredits}} and receive <strong>{{.RegistrationCredits}} free credits</strong>{{end}}.
+      <a href="/register">Register your email</a> to unlock premium templates{{if .RegistrationCredits}} and receive <strong>{{.RegistrationCredits}} free credits</strong>{{end}}.
     </div>
     {{end}}
 
@@ -61,17 +60,6 @@
     <div class="empty-state">
       <div class="empty-icon">📦</div>
       <p>No templates available on this server yet.</p>
-    </div>
-    {{end}}
-
-    {{if .HasCredits}}
-    <div class="store-promo glass" style="margin-top:24px">
-      <div class="store-promo-icon">🪙</div>
-      <div class="store-promo-body">
-        <h3>Credits</h3>
-        <p>Purchase credit packs to unlock premium templates.</p>
-      </div>
-      <a class="store-promo-link" href="/credits">Buy Credits →</a>
     </div>
     {{end}}
 

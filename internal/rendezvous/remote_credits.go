@@ -63,7 +63,6 @@ func (p *RemoteCreditProvider) resolveToken(r *http.Request) string {
 // before forwarding to the credits service.
 func (p *RemoteCreditProvider) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/credits/balance", p.proxyBalance)
-	mux.HandleFunc("/api/credits/purchase", p.proxyPurchase)
 	mux.HandleFunc("/api/credits/grant", p.proxyGrant)
 	mux.HandleFunc("/api/credits/spend", p.proxySpend)
 	mux.HandleFunc("/api/credits/access", p.proxyAccess)
@@ -120,16 +119,6 @@ func (p *RemoteCreditProvider) proxyPostJSON(w http.ResponseWriter, r *http.Requ
 	defer resp.Body.Close()
 	log.Printf("credits: POST %s → status %d", path, resp.StatusCode)
 	forwardResponse(w, resp)
-}
-
-// proxyPurchase translates peer_id→email for POST /api/credits/purchase
-func (p *RemoteCreditProvider) proxyPurchase(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Amount int `json:"amount"`
-	}
-	p.proxyPostJSON(w, r, "/api/credits/purchase", &req, func(email string) map[string]any {
-		return map[string]any{"email": email, "amount": req.Amount}
-	})
 }
 
 // proxyGrant translates peer_id→email for POST /api/credits/grant
@@ -296,11 +285,6 @@ func (p *RemoteCreditProvider) StorePageData(r *http.Request) StorePageData {
 		Email         string `json:"email"`
 		Balance       int    `json:"balance"`
 		AppName       string `json:"app_name"`
-		CreditPacks   []struct {
-			Amount int    `json:"amount"`
-			Name   string `json:"name"`
-			Label  string `json:"label"`
-		} `json:"credit_packs"`
 	}
 	if err := readJSON(resp, &data); err != nil {
 		return noCreditsStoreData()
@@ -310,27 +294,18 @@ func (p *RemoteCreditProvider) StorePageData(r *http.Request) StorePageData {
 		return noCreditsStoreData()
 	}
 
-	// Use the peer_id from the original request for display (user-facing)
-	peerID := r.Header.Get("X-Goop-Peer-ID")
-	if peerID == "" {
-		peerID = r.URL.Query().Get("peer_id")
-	}
-
 	var banner template.HTML
 	if data.Email == "" {
 		banner = `<div class="store-banner store-banner-credits">` +
 			`Credit system active. Add <code>?peer_id=YOUR_PEER_ID</code> to the URL to link your account. ` +
-			`Copy your Peer ID from <strong>Me → Settings</strong> in your Goop² viewer. ` +
-			`<a href="/credits">🪙 Buy Credits</a>` +
+			`Copy your Peer ID from <strong>Me → Settings</strong> in your Goop² viewer.` +
 			`</div>`
 	} else {
 		banner = template.HTML(fmt.Sprintf(
 			`<div class="store-banner store-banner-credits">`+
-				`<strong>%s</strong> — 🪙 <strong>%d credits</strong> — `+
-				`<a href="/credits?peer_id=%s">Buy more</a>`+
+				`<strong>%s</strong> — 🪙 <strong>%d credits</strong>`+
 				`</div>`,
-			template.HTMLEscapeString(data.Email), data.Balance,
-			url.QueryEscape(peerID)))
+			template.HTMLEscapeString(data.Email), data.Balance))
 	}
 
 	return StorePageData{

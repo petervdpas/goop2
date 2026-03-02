@@ -481,6 +481,7 @@
             <div class="svc-tab" data-svc="credits">Credits</div>
             <div class="svc-tab" data-svc="email">Email</div>
             <div class="svc-tab" data-svc="templates">Templates</div>
+            <div class="svc-tab" data-svc="bridge">Bridge</div>
           </div>
 
           <!-- Registration tab -->
@@ -590,6 +591,37 @@
               <div class="hint">
                 Set the same token as <code>admin_token</code> in the templates service's config.json.
                 Required for managing template prices.
+              </div>
+            </div>
+          </div>
+
+          <!-- Bridge tab -->
+          <div class="svc-tab-panel" data-svc="bridge">
+            <div class="field">
+              <label>Service URL <span id="svc-bridge-status" class="svc-status"></span></label>
+              <div class="token-field">
+                <input id="svc-bridge-url" name="presence_bridge_url"
+                       value="{{.Cfg.Presence.BridgeURL}}"
+                       placeholder="http://localhost:8804">
+                <button type="button" class="btn token-btn svc-check-btn" data-svc-check="bridge" style="display:none">Check</button>
+              </div>
+              <div class="hint">
+                HTTPS bridge for mobile, web, and remote clients.
+                Enables external clients to participate as virtual peers in the P2P network.
+              </div>
+            </div>
+            <div class="field" style="margin-top:10px">
+              <label>Admin Token</label>
+              <div class="token-field">
+                <input id="svc-bridge-token" name="presence_bridge_admin_token"
+                       value="{{.Cfg.Presence.BridgeAdminToken}}"
+                       placeholder="Bearer token for admin endpoints">
+                <button type="button" class="btn token-btn" onclick="generateToken('svc-bridge-token')" title="Generate random token">Generate</button>
+                <button type="button" class="btn token-btn" onclick="copyToken('svc-bridge-token')" title="Copy token to clipboard">Copy</button>
+              </div>
+              <div class="hint">
+                Set the same token as <code>admin_token</code> in the bridge service's config.json.
+                Also used to auto-generate the <code>auth_token</code> that clients use to connect.
               </div>
             </div>
           </div>
