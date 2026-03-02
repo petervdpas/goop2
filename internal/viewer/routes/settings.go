@@ -1,6 +1,9 @@
 package routes
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -224,6 +227,75 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			"email":        fetchServiceHealth(client, cfg.Presence.EmailURL, "/api/email/status", []string{"dummy_mode"}),
 			"templates":    fetchServiceHealth(client, cfg.Presence.TemplatesURL, "/api/templates/status", []string{"dummy_mode"}),
 		})
+	})
+
+	// Request a bridge token — peer must be verified.
+	mux.HandleFunc("/api/bridge/request-token", func(w http.ResponseWriter, r *http.Request) {
+		if !requireMethod(w, r, http.MethodPost) {
+			return
+		}
+		if !requireLocal(w, r) {
+			return
+		}
+
+		cfg, err := config.Load(d.CfgPath)
+		if err != nil {
+			http.Error(w, "failed to load config", http.StatusInternalServerError)
+			return
+		}
+
+		email := strings.TrimSpace(cfg.Profile.Email)
+		if email == "" {
+			writeJSON(w, map[string]string{"error": "no email configured"})
+			return
+		}
+		if strings.TrimSpace(cfg.Profile.VerificationToken) == "" {
+			writeJSON(w, map[string]string{"error": "email not verified — verify your email first"})
+			return
+		}
+
+		bridgeURL := strings.TrimSpace(cfg.Presence.BridgeURL)
+		if bridgeURL == "" {
+			writeJSON(w, map[string]string{"error": "no bridge URL configured"})
+			return
+		}
+		adminToken := strings.TrimSpace(cfg.Presence.BridgeAdminToken)
+		if adminToken == "" {
+			writeJSON(w, map[string]string{"error": "no bridge admin token configured"})
+			return
+		}
+
+		body, _ := json.Marshal(map[string]string{"email": email})
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodPost,
+			strings.TrimRight(bridgeURL, "/")+"/api/bridge/token", bytes.NewReader(body))
+		if err != nil {
+			writeJSON(w, map[string]string{"error": fmt.Sprintf("failed to create request: %v", err)})
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			writeJSON(w, map[string]string{"error": fmt.Sprintf("bridge request failed: %v", err)})
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK {
+			writeJSON(w, map[string]string{"status": "ok"})
+			return
+		}
+
+		var errBody struct {
+			Error string `json:"error"`
+		}
+		if json.NewDecoder(resp.Body).Decode(&errBody) == nil && errBody.Error != "" {
+			writeJSON(w, map[string]string{"error": errBody.Error})
+			return
+		}
+		writeJSON(w, map[string]string{"error": fmt.Sprintf("bridge returned %d", resp.StatusCode)})
 	})
 
 	// Single-service health check using a URL from the form (not saved config)
