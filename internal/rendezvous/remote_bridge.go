@@ -111,23 +111,28 @@ func (p *RemoteBridgeProvider) FetchVirtualPeers() []map[string]any {
 		return nil
 	}
 	var peers []struct {
-		PeerID   string `json:"peer_id"`
-		Label    string `json:"label"`
-		Platform string `json:"platform"`
+		PeerID    string `json:"peer_id"`
+		Label     string `json:"label"`
+		Platform  string `json:"platform"`
+		PublicKey string `json:"public_key"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&peers); err != nil {
 		return nil
 	}
 	var out []map[string]any
 	for _, peer := range peers {
-		out = append(out, map[string]any{
+		m := map[string]any{
 			"id":         peer.PeerID,
 			"label":      peer.Label,
 			"reachable":  true,
 			"connection": "bridge",
 			"virtual":    true,
 			"platform":   peer.Platform,
-		})
+		}
+		if peer.PublicKey != "" {
+			m["publicKey"] = peer.PublicKey
+		}
+		out = append(out, m)
 	}
 	return out
 }

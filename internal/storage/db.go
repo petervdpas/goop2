@@ -157,6 +157,8 @@ func Open(configDir string) (*DB, error) {
 	}
 	// Migration: add protocols column to existing databases.
 	db.Exec(`ALTER TABLE _peer_cache ADD COLUMN protocols TEXT NOT NULL DEFAULT '[]'`)
+	// Migration: add public_key column to existing databases.
+	db.Exec(`ALTER TABLE _peer_cache ADD COLUMN public_key TEXT NOT NULL DEFAULT ''`)
 
 	// Chat message history — persists direct chat messages per peer conversation.
 	// peer_id = remote peer; from_id = sender (self or remote); ts = Unix ms.
@@ -195,6 +197,8 @@ func Open(configDir string) (*DB, error) {
 	}
 	// Migration: add protocols column to existing databases.
 	db.Exec(`ALTER TABLE _favorites ADD COLUMN protocols TEXT NOT NULL DEFAULT '[]'`)
+	// Migration: add public_key column to existing databases.
+	db.Exec(`ALTER TABLE _favorites ADD COLUMN public_key TEXT NOT NULL DEFAULT ''`)
 
 	return &DB{db: db, path: dbPath}, nil
 }

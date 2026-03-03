@@ -329,7 +329,8 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	progress(step, total, "Creating P2P node")
 
 	keyPath := util.ResolvePath(o.PeerDir, cfg.Identity.KeyFile)
-	node, err := p2p.New(ctx, cfg.P2P.ListenPort, keyPath, peers, selfContent, selfEmail, selfVideoDisabled, selfActiveTemplate, relayInfo, time.Duration(cfg.Presence.TTLSec)*time.Second)
+	selfPublicKey := func() string { return cfg.P2P.NaClPublicKey }
+	node, err := p2p.New(ctx, cfg.P2P.ListenPort, keyPath, peers, selfContent, selfEmail, selfVideoDisabled, selfActiveTemplate, selfPublicKey, relayInfo, time.Duration(cfg.Presence.TTLSec)*time.Second)
 	if err != nil {
 		return err
 	}
@@ -371,7 +372,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 
 	if cachedPeers, err := db.ListCachedPeers(); err == nil {
 		for _, cp := range cachedPeers {
-			peers.Seed(cp.PeerID, cp.Content, cp.Email, cp.AvatarHash, cp.VideoDisabled, cp.ActiveTemplate, cp.Verified, cp.Favorite)
+			peers.Seed(cp.PeerID, cp.Content, cp.Email, cp.AvatarHash, cp.VideoDisabled, cp.ActiveTemplate, cp.PublicKey, cp.Verified, cp.Favorite)
 			if len(cp.Addrs) > 0 {
 				node.AddPeerAddrs(cp.PeerID, cp.Addrs)
 			}
@@ -410,6 +411,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 						AvatarHash:     evt.Peer.AvatarHash,
 						VideoDisabled:  evt.Peer.VideoDisabled,
 						ActiveTemplate: evt.Peer.ActiveTemplate,
+						PublicKey:      evt.Peer.PublicKey,
 						Verified:       evt.Peer.Verified,
 						Reachable:      evt.Peer.Reachable,
 						Offline:        !evt.Peer.OfflineSince.IsZero(),
@@ -551,7 +553,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			switch pm.Type {
 			case proto.TypeOnline, proto.TypeUpdate:
 				sp, known := peers.Get(pm.PeerID)
-				peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.Verified)
+				peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.PublicKey, pm.Verified)
 				go db.UpsertCachedPeer(storage.CachedPeer{
 					PeerID:         pm.PeerID,
 					Content:        pm.Content,
@@ -559,6 +561,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 					AvatarHash:     pm.AvatarHash,
 					VideoDisabled:  pm.VideoDisabled,
 					ActiveTemplate: pm.ActiveTemplate,
+					PublicKey:      pm.PublicKey,
 					Verified:       pm.Verified,
 					Addrs:          pm.Addrs,
 				})
@@ -584,16 +587,17 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 				ctx2, cancel := context.WithTimeout(pctx, util.ShortTimeout)
 				defer cancel()
 				_ = cc.Publish(ctx2, proto.PresenceMsg{
-					Type:           typ,
-					PeerID:         node.ID(),
-					Content:        selfContent(),
-					Email:          selfEmail(),
-					AvatarHash:     avatarStore.Hash(),
-					VideoDisabled:  selfVideoDisabled(),
+					Type:              typ,
+					PeerID:            node.ID(),
+					Content:           selfContent(),
+					Email:             selfEmail(),
+					AvatarHash:        avatarStore.Hash(),
+					VideoDisabled:     selfVideoDisabled(),
 					ActiveTemplate:    selfActiveTemplate(),
+					PublicKey:         selfPublicKey(),
 					VerificationToken: selfVerificationToken(),
 					Addrs:             addrs,
-					TS:             proto.NowMillis(),
+					TS:                proto.NowMillis(),
 				})
 			}()
 		}
@@ -652,6 +656,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 				AvatarHash:     m.AvatarHash,
 				VideoDisabled:  m.VideoDisabled,
 				ActiveTemplate: m.ActiveTemplate,
+				PublicKey:      m.PublicKey,
 				Verified:       sp.Verified,
 				Addrs:          m.Addrs,
 			})
@@ -670,6 +675,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 				AvatarHash:     m.AvatarHash,
 				VideoDisabled:  m.VideoDisabled,
 				ActiveTemplate: m.ActiveTemplate,
+				PublicKey:      m.PublicKey,
 				Verified:       sp.Verified,
 				Addrs:          m.Addrs,
 			})

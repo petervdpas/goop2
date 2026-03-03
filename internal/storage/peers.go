@@ -17,6 +17,7 @@ type CachedPeer struct {
 	VideoDisabled  bool
 	ActiveTemplate string
 	Verified       bool
+	PublicKey      string
 	Addrs          []string
 	LastSeen       time.Time
 	Favorite       bool
@@ -42,8 +43,8 @@ func (d *DB) UpsertCachedPeer(p CachedPeer) error {
 	// Update _peer_cache (protocols preserved via EXCLUDED pattern — not overwritten)
 	_, err := d.db.Exec(`
 		INSERT INTO _peer_cache
-			(peer_id, content, email, avatar_hash, video_disabled, active_template, verified, addrs, last_seen)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+			(peer_id, content, email, avatar_hash, video_disabled, active_template, verified, public_key, addrs, last_seen)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 		ON CONFLICT(peer_id) DO UPDATE SET
 			content         = excluded.content,
 			email           = excluded.email,
@@ -51,9 +52,10 @@ func (d *DB) UpsertCachedPeer(p CachedPeer) error {
 			video_disabled  = excluded.video_disabled,
 			active_template = excluded.active_template,
 			verified        = excluded.verified,
+			public_key      = excluded.public_key,
 			addrs           = CASE WHEN excluded.addrs = '[]' THEN _peer_cache.addrs ELSE excluded.addrs END,
 			last_seen       = CURRENT_TIMESTAMP`,
-		p.PeerID, p.Content, p.Email, p.AvatarHash, vd, p.ActiveTemplate, ver, string(addrs),
+		p.PeerID, p.Content, p.Email, p.AvatarHash, vd, p.ActiveTemplate, ver, p.PublicKey, string(addrs),
 	)
 	if err != nil {
 		return err
@@ -68,10 +70,11 @@ func (d *DB) UpsertCachedPeer(p CachedPeer) error {
 			video_disabled  = ?,
 			active_template = ?,
 			verified        = ?,
+			public_key      = ?,
 			addrs           = CASE WHEN ? = '[]' THEN _favorites.addrs ELSE ? END,
 			last_seen       = CURRENT_TIMESTAMP
 		WHERE peer_id = ?`,
-		p.Content, p.Email, p.AvatarHash, vd, p.ActiveTemplate, ver, string(addrs), string(addrs), p.PeerID,
+		p.Content, p.Email, p.AvatarHash, vd, p.ActiveTemplate, ver, p.PublicKey, string(addrs), string(addrs), p.PeerID,
 	)
 
 	return nil
@@ -113,19 +116,19 @@ func (d *DB) GetCachedPeer(peerID string) (CachedPeer, bool) {
 	// Try _peer_cache first (most current if online)
 	err := d.db.QueryRow(`
 		SELECT peer_id, content, email, avatar_hash, video_disabled,
-		       active_template, verified, addrs, last_seen, protocols
+		       active_template, verified, public_key, addrs, last_seen, protocols
 		FROM _peer_cache WHERE peer_id = ?`, peerID).
 		Scan(&p.PeerID, &p.Content, &p.Email, &p.AvatarHash, &vd,
-			&p.ActiveTemplate, &ver, &addrsJSON, &lastSeen, &protosJSON)
+			&p.ActiveTemplate, &ver, &p.PublicKey, &addrsJSON, &lastSeen, &protosJSON)
 
 	if err != nil {
 		// Fall back to _favorites if peer is offline/pruned
 		err = d.db.QueryRow(`
 			SELECT peer_id, content, email, avatar_hash, video_disabled,
-			       active_template, verified, addrs, last_seen, protocols
+			       active_template, verified, public_key, addrs, last_seen, protocols
 			FROM _favorites WHERE peer_id = ?`, peerID).
 			Scan(&p.PeerID, &p.Content, &p.Email, &p.AvatarHash, &vd,
-				&p.ActiveTemplate, &ver, &addrsJSON, &lastSeen, &protosJSON)
+				&p.ActiveTemplate, &ver, &p.PublicKey, &addrsJSON, &lastSeen, &protosJSON)
 		if err != nil {
 			return CachedPeer{}, false
 		}
@@ -164,7 +167,7 @@ func (d *DB) ListCachedPeers() ([]CachedPeer, error) {
 	// Get all peers from _peer_cache
 	rows, err := d.db.Query(`
 		SELECT peer_id, content, email, avatar_hash, video_disabled,
-		       active_template, verified, addrs, last_seen, protocols
+		       active_template, verified, public_key, addrs, last_seen, protocols
 		FROM _peer_cache ORDER BY last_seen DESC`)
 	if err != nil {
 		return nil, err
@@ -198,7 +201,7 @@ func (d *DB) ListCachedPeers() ([]CachedPeer, error) {
 		var vd, ver int
 		var addrsJSON, protosJSON, lastSeen string
 		if err := rows.Scan(&p.PeerID, &p.Content, &p.Email, &p.AvatarHash, &vd,
-			&p.ActiveTemplate, &ver, &addrsJSON, &lastSeen, &protosJSON); err != nil {
+			&p.ActiveTemplate, &ver, &p.PublicKey, &addrsJSON, &lastSeen, &protosJSON); err != nil {
 			return nil, err
 		}
 		p.VideoDisabled = vd != 0
@@ -225,10 +228,10 @@ func (d *DB) ListCachedPeers() ([]CachedPeer, error) {
 		var protosJSON string
 		err := d.db.QueryRow(`
 			SELECT peer_id, content, email, avatar_hash, video_disabled,
-			       active_template, verified, addrs, last_seen, protocols
+			       active_template, verified, public_key, addrs, last_seen, protocols
 			FROM _favorites WHERE peer_id = ?`, favID).
 			Scan(&p.PeerID, &p.Content, &p.Email, &p.AvatarHash, &vd,
-				&p.ActiveTemplate, &ver, &addrsJSON, &lastSeen, &protosJSON)
+				&p.ActiveTemplate, &ver, &p.PublicKey, &addrsJSON, &lastSeen, &protosJSON)
 		if err != nil {
 			continue // Skip if can't read
 		}
@@ -267,8 +270,8 @@ func (d *DB) SetFavorite(peerID string, favorite bool) error {
 	if favorite {
 		// Copy peer metadata from _peer_cache to _favorites (upsert)
 		_, err := d.db.Exec(`
-			INSERT INTO _favorites (peer_id, content, email, avatar_hash, video_disabled, active_template, verified, addrs, last_seen)
-			SELECT peer_id, content, email, avatar_hash, video_disabled, active_template, verified, addrs, last_seen
+			INSERT INTO _favorites (peer_id, content, email, avatar_hash, video_disabled, active_template, verified, public_key, addrs, last_seen)
+			SELECT peer_id, content, email, avatar_hash, video_disabled, active_template, verified, public_key, addrs, last_seen
 			FROM _peer_cache WHERE peer_id = ?
 			ON CONFLICT(peer_id) DO UPDATE SET
 				content         = excluded.content,
@@ -277,6 +280,7 @@ func (d *DB) SetFavorite(peerID string, favorite bool) error {
 				video_disabled  = excluded.video_disabled,
 				active_template = excluded.active_template,
 				verified        = excluded.verified,
+				public_key      = excluded.public_key,
 				addrs           = excluded.addrs,
 				last_seen       = excluded.last_seen`, peerID)
 		return err

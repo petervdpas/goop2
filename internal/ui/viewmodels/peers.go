@@ -15,6 +15,7 @@ type PeerRow struct {
 	AvatarHash     string    `json:"AvatarHash"`
 	VideoDisabled  bool      `json:"VideoDisabled"`
 	ActiveTemplate string    `json:"ActiveTemplate"`
+	PublicKey      string    `json:"PublicKey,omitempty"`
 	Verified       bool      `json:"Verified"`
 	Reachable      bool      `json:"Reachable"`
 	Offline        bool      `json:"Offline"`
@@ -38,6 +39,7 @@ func BuildPeerRow(id string, sp state.SeenPeer) PeerRow {
 		AvatarHash:     sp.AvatarHash,
 		VideoDisabled:  sp.VideoDisabled,
 		ActiveTemplate: sp.ActiveTemplate,
+		PublicKey:      sp.PublicKey,
 		Verified:       sp.Verified,
 		Reachable:      sp.Reachable,
 		Offline:        !sp.OfflineSince.IsZero(),

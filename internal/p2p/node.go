@@ -64,6 +64,7 @@ type Node struct {
 	selfEmail          func() string
 	selfVideoDisabled  func() bool
 	selfActiveTemplate func() string
+	selfPublicKey      func() string
 	peers              *state.PeerTable
 
 	// Presence TTL for direct peer addresses; circuit addresses use 10x this.
@@ -163,7 +164,7 @@ func loadOrCreateKey(keyFile string) (crypto.PrivKey, bool, error) {
 	return priv, true, nil
 }
 
-func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerTable, selfContent, selfEmail func() string, selfVideoDisabled func() bool, selfActiveTemplate func() string, relayInfo *rendezvous.RelayInfo, presenceTTL time.Duration) (*Node, error) {
+func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerTable, selfContent, selfEmail func() string, selfVideoDisabled func() bool, selfActiveTemplate, selfPublicKey func() string, relayInfo *rendezvous.RelayInfo, presenceTTL time.Duration) (*Node, error) {
 	priv, isNew, err := loadOrCreateKey(keyFile)
 	if err != nil {
 		return nil, err
@@ -269,6 +270,7 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 		selfEmail:          selfEmail,
 		selfVideoDisabled:  selfVideoDisabled,
 		selfActiveTemplate: selfActiveTemplate,
+		selfPublicKey:      selfPublicKey,
 		peers:              peers,
 		presenceTTL:        presenceTTL,
 		diagLogs:           make([]string, 0, 200),
@@ -746,6 +748,7 @@ func (n *Node) Publish(ctx context.Context, typ string) {
 		msg.AvatarHash = n.AvatarHash()
 		msg.VideoDisabled = n.selfVideoDisabled()
 		msg.ActiveTemplate = n.selfActiveTemplate()
+		msg.PublicKey = n.selfPublicKey()
 		msg.Addrs = n.WanAddrs()
 	}
 
@@ -878,7 +881,7 @@ func (n *Node) RunPresenceLoop(ctx context.Context, onEvent func(msg proto.Prese
 				// Preserve the Verified flag set by the rendezvous server — P2P gossip
 				// is not an authority on email verification.
 				existing, _ := n.peers.Get(pm.PeerID)
-				n.peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, existing.Verified)
+				n.peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.PublicKey, existing.Verified)
 				n.AddPeerAddrs(pm.PeerID, pm.Addrs)
 			case proto.TypeOffline:
 				n.peers.MarkOffline(pm.PeerID)

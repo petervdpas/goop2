@@ -12,6 +12,7 @@ type SeenPeer struct {
 	AvatarHash     string
 	VideoDisabled  bool
 	ActiveTemplate string
+	PublicKey      string
 	Verified       bool
 	Reachable      bool
 	LastSeen       time.Time
@@ -45,7 +46,7 @@ func NewPeerTable() *PeerTable {
 	}
 }
 
-func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled bool, activeTemplate string, verified bool) {
+func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled bool, activeTemplate string, publicKey string, verified bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	reachable := true
@@ -67,6 +68,7 @@ func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled 
 		AvatarHash:     avatarHash,
 		VideoDisabled:  videoDisabled,
 		ActiveTemplate: activeTemplate,
+		PublicKey:      publicKey,
 		Verified:       verified,
 		Reachable:      reachable,
 		LastSeen:       time.Now(),
@@ -78,7 +80,7 @@ func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled 
 	t.notifyListeners(PeerEvent{Type: "update", PeerID: id, Peer: &peer})
 }
 
-func (t *PeerTable) Seed(id, content, email, avatarHash string, videoDisabled bool, activeTemplate string, verified bool, favorite bool) {
+func (t *PeerTable) Seed(id, content, email, avatarHash string, videoDisabled bool, activeTemplate string, publicKey string, verified bool, favorite bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if _, ok := t.peers[id]; ok {
@@ -90,6 +92,7 @@ func (t *PeerTable) Seed(id, content, email, avatarHash string, videoDisabled bo
 		AvatarHash:     avatarHash,
 		VideoDisabled:  videoDisabled,
 		ActiveTemplate: activeTemplate,
+		PublicKey:      publicKey,
 		Verified:       verified,
 		Reachable:      false,
 		LastSeen:       time.Now(),
