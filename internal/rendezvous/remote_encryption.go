@@ -60,11 +60,8 @@ func (p *RemoteEncryptionProvider) RegisterRoutes(mux *http.ServeMux) {
 			return
 		}
 		proxyReq.Header.Set("Content-Type", "application/json")
-		if email := r.Header.Get("X-Goop-Email"); email != "" {
-			proxyReq.Header.Set("X-Goop-Email", email)
-		}
-		if token := r.Header.Get("X-Bridge-Token"); token != "" {
-			proxyReq.Header.Set("X-Bridge-Token", token)
+		if peerID := r.Header.Get("X-Goop-PeerID"); peerID != "" {
+			proxyReq.Header.Set("X-Goop-PeerID", peerID)
 		}
 		setAuthHeader(proxyReq, p.adminToken)
 
@@ -97,8 +94,8 @@ func (p *RemoteEncryptionProvider) RegisterRoutes(mux *http.ServeMux) {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		if email := r.Header.Get("X-Goop-Email"); email != "" {
-			proxyReq.Header.Set("X-Goop-Email", email)
+		if peerID := r.Header.Get("X-Goop-PeerID"); peerID != "" {
+			proxyReq.Header.Set("X-Goop-PeerID", peerID)
 		}
 
 		resp, err := p.client.Do(proxyReq)
@@ -119,13 +116,13 @@ func (p *RemoteEncryptionProvider) RegisterRoutes(mux *http.ServeMux) {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		email := strings.TrimPrefix(r.URL.Path, "/api/encryption/keys/")
-		if email == "" {
-			http.Error(w, "missing email", http.StatusBadRequest)
+		peerID := strings.TrimPrefix(r.URL.Path, "/api/encryption/keys/")
+		if peerID == "" {
+			http.Error(w, "missing peer_id", http.StatusBadRequest)
 			return
 		}
 
-		resp, err := p.client.Get(p.baseURL + "/api/encryption/keys/" + email)
+		resp, err := p.client.Get(p.baseURL + "/api/encryption/keys/" + peerID)
 		if err != nil {
 			log.Printf("encryption: get key proxy error: %v", err)
 			http.Error(w, "encryption service unreachable", http.StatusBadGateway)

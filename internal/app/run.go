@@ -725,6 +725,22 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 
 	publish(ctx, proto.TypeOnline)
 
+	// Register NaCl public key with encryption service(s) after first publish.
+	if cfg.P2P.NaClPublicKey != "" {
+		for _, c := range rvClients {
+			cc := c
+			go func() {
+				regCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+				defer cancel()
+				if err := cc.RegisterEncryptionKey(regCtx, node.ID(), cfg.P2P.NaClPublicKey); err != nil {
+					log.Printf("encryption: key registration failed: %v", err)
+				} else {
+					log.Printf("encryption: public key registered via %s", cc.BaseURL)
+				}
+			}()
+		}
+	}
+
 	// Re-publish and re-probe when our addresses change (network switch,
 	// relay address appears/disappears).  Always subscribe — not just when
 	// relay is configured — so LAN↔WAN transitions trigger probes.

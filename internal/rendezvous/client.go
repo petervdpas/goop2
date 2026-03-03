@@ -295,6 +295,49 @@ func (c *Client) DownloadTemplateBundle(ctx context.Context, dir, peerID string)
 	return resp.Body, nil
 }
 
+// RegisterEncryptionKey registers the peer's NaCl public key with the
+// encryption service via the rendezvous proxy.
+func (c *Client) RegisterEncryptionKey(ctx context.Context, peerID, publicKey string) error {
+	if c.BaseURL == "" {
+		return nil
+	}
+	body, _ := json.Marshal(map[string]string{"peer_id": peerID, "public_key": publicKey})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/api/encryption/keys", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Goop-PeerID", peerID)
+
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return err
+	}
+	io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("register encryption key: status %s", resp.Status)
+	}
+	return nil
+}
+
+// FetchPeerKey fetches a remote peer's NaCl public key from the encryption
+// service via the rendezvous proxy. Returns empty string + nil if not found.
+func (c *Client) FetchPeerKey(ctx context.Context, peerID string) (string, error) {
+	if c.BaseURL == "" {
+		return "", nil
+	}
+	var result struct {
+		PublicKey string `json:"public_key"`
+	}
+	found, err := c.getJSON(ctx, c.BaseURL+"/api/encryption/keys/"+peerID, &result)
+	if !found || err != nil {
+		return "", err
+	}
+	return result.PublicKey, nil
+}
+
 // PulsePeer asks the rendezvous server to tell a target peer to refresh its
 // relay reservation. This is called by the requesting peer when it can't
 // reach the target through the relay.
