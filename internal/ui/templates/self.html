@@ -521,6 +521,7 @@
             <div class="svc-tab" data-svc="email">Email</div>
             <div class="svc-tab" data-svc="templates">Templates</div>
             <div class="svc-tab" data-svc="bridge">Bridge</div>
+            <div class="svc-tab" data-svc="encryption">Encryption</div>
           </div>
 
           <!-- Registration tab -->
@@ -661,6 +662,35 @@
               <div class="hint">
                 Set the same token as <code>admin_token</code> in the bridge service's config.json.
                 Also used to auto-generate the <code>auth_token</code> that clients use to connect.
+              </div>
+            </div>
+          </div>
+          <!-- Encryption tab -->
+          <div class="svc-tab-panel" data-svc="encryption">
+            <div class="field">
+              <label>Service URL <span id="svc-encryption-status" class="svc-status"></span></label>
+              <div class="token-field">
+                <input id="svc-encryption-url" name="presence_encryption_url"
+                       value="{{.Cfg.Presence.EncryptionURL}}"
+                       placeholder="http://localhost:8805">
+                <button type="button" class="btn token-btn svc-check-btn" data-svc-check="encryption" style="display:none">Check</button>
+              </div>
+              <div class="hint">
+                End-to-end encryption key distribution.
+                Manages NaCl key pairs and broadcast key rotation.
+              </div>
+            </div>
+            <div class="field" style="margin-top:10px">
+              <label>Admin Token</label>
+              <div class="token-field">
+                <input id="svc-encryption-token" name="presence_encryption_admin_token"
+                       value="{{.Cfg.Presence.EncryptionAdminToken}}"
+                       placeholder="Bearer token for admin endpoints">
+                <button type="button" class="btn token-btn" onclick="generateToken('svc-encryption-token')" title="Generate random token">Generate</button>
+                <button type="button" class="btn token-btn" onclick="copyToken('svc-encryption-token')" title="Copy token to clipboard">Copy</button>
+              </div>
+              <div class="hint">
+                Set the same token as <code>admin_token</code> in the encryption service's config.json.
               </div>
             </div>
           </div>

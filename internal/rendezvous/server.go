@@ -92,6 +92,9 @@ type Server struct {
 	// Bridge (HTTPS bridge microservice)
 	bridge *RemoteBridgeProvider // nil = bridge service not configured
 
+	// Encryption (E2E key distribution microservice)
+	encryption *RemoteEncryptionProvider // nil = encryption service not configured
+
 	// Circuit relay v2
 	relayHost    host.Host  // nil when relay is disabled
 	relayInfo    *RelayInfo // nil when relay is disabled
@@ -167,6 +170,7 @@ const (
 	minEmailAPI         = 1
 	minTemplatesAPI     = 1
 	minBridgeAPI        = 1
+	minEncryptionAPI    = 1
 )
 
 type serviceStatus struct {
@@ -439,6 +443,12 @@ func (s *Server) SetBridgeProvider(bp *RemoteBridgeProvider) {
 	s.bridge = bp
 }
 
+// SetEncryptionProvider configures a remote encryption service.
+// When set, encryption endpoints are proxied to the remote service.
+func (s *Server) SetEncryptionProvider(ep *RemoteEncryptionProvider) {
+	s.encryption = ep
+}
+
 func (s *Server) Start(ctx context.Context) error {
 	// Start circuit relay v2 host if configured
 	if s.relayPort > 0 {
@@ -567,6 +577,11 @@ func (s *Server) Start(ctx context.Context) error {
 	// Bridge endpoints (proxied to bridge service)
 	if s.bridge != nil {
 		s.bridge.RegisterRoutes(mux, s.registration)
+	}
+
+	// Encryption endpoints (proxied to encryption service)
+	if s.encryption != nil {
+		s.encryption.RegisterRoutes(mux)
 	}
 
 	// Admin-protected endpoints
@@ -1809,6 +1824,17 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 			ss.Version = s.bridge.Version()
 			ss.APIVersion = s.bridge.APIVersion()
 			ss.APICompat = ss.APIVersion >= minBridgeAPI
+		}
+		services = append(services, ss)
+	}
+	if s.encryption != nil {
+		ss := serviceStatus{Name: "Encryption", URL: s.encryption.baseURL}
+		ss.OK = checkServiceHealth(s.encryption.baseURL)
+		if ss.OK {
+			ss.DummyMode = s.encryption.DummyMode()
+			ss.Version = s.encryption.Version()
+			ss.APIVersion = s.encryption.APIVersion()
+			ss.APICompat = ss.APIVersion >= minEncryptionAPI
 		}
 		services = append(services, ss)
 	}

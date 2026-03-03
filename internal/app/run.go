@@ -186,6 +186,10 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 				rv.SetBridgeProvider(rendezvous.NewRemoteBridgeProvider(
 					cfg.Presence.BridgeURL, cfg.Presence.BridgeAdminToken))
 			})
+			setupMicroService("Encryption", cfg.Presence.EncryptionURL, func() {
+				rv.SetEncryptionProvider(rendezvous.NewRemoteEncryptionProvider(
+					cfg.Presence.EncryptionURL, cfg.Presence.EncryptionAdminToken))
+			})
 		}
 
 		// Local template store fallback (works with or without services)

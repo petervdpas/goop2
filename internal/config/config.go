@@ -103,6 +103,7 @@ type Presence struct {
 	EmailURL        string `json:"email_url"`        // e.g., "http://localhost:8802"
 	TemplatesURL    string `json:"templates_url"`    // e.g., "http://localhost:8803"
 	BridgeURL       string `json:"bridge_url"`       // e.g., "http://localhost:8804"
+	EncryptionURL   string `json:"encryption_url"`   // e.g., "http://localhost:8805"
 
 	// Local template directory for the store (used when templates_url is empty).
 	// Each subdirectory needs a manifest.json. Relative to peer dir.
@@ -114,6 +115,7 @@ type Presence struct {
 	RegistrationAdminToken string `json:"registration_admin_token"`
 	TemplatesAdminToken    string `json:"templates_admin_token"`
 	BridgeAdminToken       string `json:"bridge_admin_token"`
+	EncryptionAdminToken   string `json:"encryption_admin_token"`
 
 }
 

@@ -41,7 +41,8 @@
     credits:      { url: 'svc-credits-url', status: 'svc-credits-status', key: 'credits', token: 'svc-credits-token' },
     email:        { url: 'svc-email-url', status: 'svc-email-status', key: 'email' },
     templates:    { url: 'svc-templates-url', status: 'svc-templates-status', key: 'templates', token: 'svc-templates-token' },
-    bridge:       { url: 'svc-bridge-url', status: 'svc-bridge-status', key: 'bridge', token: 'svc-bridge-token' }
+    bridge:       { url: 'svc-bridge-url', status: 'svc-bridge-status', key: 'bridge', token: 'svc-bridge-token' },
+    encryption:   { url: 'svc-encryption-url', status: 'svc-encryption-status', key: 'encryption', token: 'svc-encryption-token' }
   };
 
   function checkService(name) {

@@ -195,11 +195,13 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		cfg.Presence.EmailURL = getTrimmedPostFormValue(r.PostForm, "presence_email_url")
 		cfg.Presence.TemplatesURL = getTrimmedPostFormValue(r.PostForm, "presence_templates_url")
 		cfg.Presence.BridgeURL = getTrimmedPostFormValue(r.PostForm, "presence_bridge_url")
+		cfg.Presence.EncryptionURL = getTrimmedPostFormValue(r.PostForm, "presence_encryption_url")
 		cfg.Presence.TemplatesDir = getTrimmedPostFormValue(r.PostForm, "presence_templates_dir")
 		cfg.Presence.CreditsAdminToken = getTrimmedPostFormValue(r.PostForm, "presence_credits_admin_token")
 		cfg.Presence.RegistrationAdminToken = getTrimmedPostFormValue(r.PostForm, "presence_registration_admin_token")
 		cfg.Presence.TemplatesAdminToken = getTrimmedPostFormValue(r.PostForm, "presence_templates_admin_token")
 		cfg.Presence.BridgeAdminToken = getTrimmedPostFormValue(r.PostForm, "presence_bridge_admin_token")
+		cfg.Presence.EncryptionAdminToken = getTrimmedPostFormValue(r.PostForm, "presence_encryption_admin_token")
 
 		cfg.Lua.Enabled = formBool(r.PostForm, "lua_enabled")
 
@@ -234,6 +236,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			"email":        fetchServiceHealth(client, cfg.Presence.EmailURL, "/api/email/status", []string{"dummy_mode"}),
 			"templates":    fetchServiceHealth(client, cfg.Presence.TemplatesURL, "/api/templates/status", []string{"dummy_mode"}),
 			"bridge":       fetchServiceHealth(client, cfg.Presence.BridgeURL, "/api/bridge/status", []string{"dummy_mode"}),
+			"encryption":   fetchServiceHealth(client, cfg.Presence.EncryptionURL, "/api/encryption/status", []string{"dummy_mode"}),
 		})
 	})
 
@@ -318,6 +321,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			"email":        "/api/email/status",
 			"templates":    "/api/templates/status",
 			"bridge":       "/api/bridge/status",
+			"encryption":   "/api/encryption/status",
 		}
 
 		client := &http.Client{Timeout: 3 * time.Second}
