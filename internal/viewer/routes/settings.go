@@ -32,6 +32,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		OpenSitesExternal *bool   `json:"open_sites_external"`
 		UseServices       *bool   `json:"use_services"`
 		BridgeToken       *string `json:"bridge_token"`
+		BridgeMode        *bool   `json:"bridge_mode"`
 	}) {
 		if !requireLocal(w, r) {
 			return
@@ -75,6 +76,9 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 		if req.BridgeToken != nil {
 			cfg.Profile.BridgeToken = strings.TrimSpace(*req.BridgeToken)
+		}
+		if req.BridgeMode != nil {
+			cfg.P2P.BridgeMode = *req.BridgeMode
 		}
 
 		if err := config.Save(d.CfgPath, cfg); err != nil {

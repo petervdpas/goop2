@@ -36,6 +36,7 @@ type Paths struct {
 type P2P struct {
 	ListenPort int    `json:"listen_port"`
 	MdnsTag    string `json:"mdns_tag"`
+	BridgeMode bool   `json:"bridge_mode"` // when true, use WebSocket via bridge instead of libp2p
 }
 
 type Presence struct {

@@ -270,9 +270,10 @@
             </div>
           </div>
 
-          {{if and .Cfg.Presence.RendezvousWAN .Cfg.Profile.Email .Cfg.Profile.VerificationToken}}
+          {{if and .Cfg.Presence.RendezvousWAN .Cfg.Profile.Email}}
           <div class="field" style="margin-top:10px">
             <label>Bridge Token</label>
+            {{if .Cfg.Profile.VerificationToken}}
             <div class="token-field">
               <input id="bridge-token-input" type="password"
                      value="{{.Cfg.Profile.BridgeToken}}"
@@ -287,6 +288,24 @@
               </button>
             </div>
             <div class="hint">Paste the token from your email, or click Request to receive one.</div>
+
+            {{if .Cfg.Profile.BridgeToken}}
+            <div style="margin-top:14px;display:flex;align-items:center;gap:10px">
+              <span class="muted small">libp2p</span>
+              <label class="switch" title="Switch between libp2p (direct P2P) and WebSocket (via bridge)">
+                <input type="checkbox"
+                       {{if .Cfg.P2P.BridgeMode}}checked{{end}}
+                       onchange="fetch('/api/settings/quick',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bridge_mode:this.checked})}).then(function(){Goop.toast({title:'Connection Mode',message:'Restart required to apply.',duration:5000})})">
+                <span class="slider"></span>
+              </label>
+              <span class="muted small">WebSocket</span>
+            </div>
+            <div class="hint">WebSocket routes traffic through the bridge server. Requires restart.</div>
+            {{end}}
+
+            {{else}}
+            <input type="text" disabled value="With a verified email address you are entitled to request a bridge token." style="opacity:0.7;cursor:default">
+            {{end}}
           </div>
           {{end}}
         </div>
