@@ -62,9 +62,27 @@ func (n *Node) handleDocsStream(s network.Stream) {
 
 	remotePeer := s.Conn().RemotePeer().String()
 
-	dec := json.NewDecoder(s)
+	// Read request — may be plaintext JSON or encrypted ENC: line
+	rd := bufio.NewReader(s)
+	line, err := rd.ReadBytes('\n')
+	if err != nil && err != io.EOF {
+		writeDocsError(s, "bad request")
+		return
+	}
+
+	jsonLine := line
+	if n.enc != nil && len(line) > 4 && string(line[:4]) == "ENC:" {
+		trimmed := strings.TrimSpace(string(line[4:]))
+		plaintext, err := n.enc.Open(remotePeer, trimmed)
+		if err != nil {
+			writeDocsError(s, "decrypt error")
+			return
+		}
+		jsonLine = plaintext
+	}
+
 	var req docsRequest
-	if err := dec.Decode(&req); err != nil {
+	if err := json.Unmarshal(jsonLine, &req); err != nil {
 		writeDocsError(s, "bad request")
 		return
 	}
@@ -86,15 +104,15 @@ func (n *Node) handleDocsStream(s network.Stream) {
 
 	switch req.Op {
 	case "list":
-		n.handleDocsList(s, req)
+		n.handleDocsList(s, remotePeer, req)
 	case "get":
-		n.handleDocsGet(s, req)
+		n.handleDocsGet(s, remotePeer, req)
 	default:
 		writeDocsError(s, "unknown op: "+req.Op)
 	}
 }
 
-func (n *Node) handleDocsList(s network.Stream, req docsRequest) {
+func (n *Node) handleDocsList(s network.Stream, remotePeer string, req docsRequest) {
 	files, err := n.docsStore.List(req.GroupID)
 	if err != nil {
 		writeDocsError(s, "list failed: "+err.Error())
@@ -102,10 +120,18 @@ func (n *Node) handleDocsList(s network.Stream, req docsRequest) {
 	}
 
 	resp := docsListResponse{OK: true, Files: files}
-	json.NewEncoder(s).Encode(resp)
+	b, _ := json.Marshal(resp)
+	if n.enc != nil {
+		if sealed, err := n.enc.Seal(remotePeer, b); err == nil {
+			s.Write([]byte("ENC:" + sealed + "\n"))
+			return
+		}
+	}
+	b = append(b, '\n')
+	s.Write(b)
 }
 
-func (n *Node) handleDocsGet(s network.Stream, req docsRequest) {
+func (n *Node) handleDocsGet(s network.Stream, remotePeer string, req docsRequest) {
 	if req.File == "" {
 		writeDocsError(s, "missing file")
 		return
@@ -127,7 +153,16 @@ func (n *Node) handleDocsGet(s network.Stream, req docsRequest) {
 		mt = http.DetectContentType(data)
 	}
 
-	// Write response header (same format as site.go)
+	// Encrypt binary response if possible
+	if n.enc != nil {
+		if sealed, err := n.enc.Seal(remotePeer, data); err == nil {
+			sealedBytes := []byte(sealed)
+			fmt.Fprintf(s, "EOK %s %d\n", mt, len(sealedBytes))
+			s.Write(sealedBytes)
+			return
+		}
+	}
+
 	fmt.Fprintf(s, "OK %s %d\n", mt, len(data))
 	s.Write(data)
 }
@@ -153,7 +188,14 @@ func (n *Node) FetchDocList(ctx context.Context, peerID, groupID string) ([]docs
 	defer st.Close()
 
 	req := docsRequest{Op: "list", GroupID: groupID}
-	if err := json.NewEncoder(st).Encode(req); err != nil {
+	reqJSON, _ := json.Marshal(req)
+	if n.enc != nil {
+		if sealed, err := n.enc.Seal(peerID, reqJSON); err == nil {
+			reqJSON = []byte("ENC:" + sealed)
+		}
+	}
+	reqJSON = append(reqJSON, '\n')
+	if _, err := st.Write(reqJSON); err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
@@ -162,9 +204,23 @@ func (n *Node) FetchDocList(ctx context.Context, peerID, groupID string) ([]docs
 		closer.CloseWrite()
 	}
 
-	var resp docsListResponse
-	if err := json.NewDecoder(st).Decode(&resp); err != nil {
+	// Read response — may be ENC: or plain JSON
+	rd := bufio.NewReader(st)
+	respLine, err := rd.ReadBytes('\n')
+	if err != nil && err != io.EOF {
 		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+	jsonLine := respLine
+	if n.enc != nil && len(respLine) > 4 && string(respLine[:4]) == "ENC:" {
+		trimmed := strings.TrimSpace(string(respLine[4:]))
+		if plaintext, err := n.enc.Open(peerID, trimmed); err == nil {
+			jsonLine = plaintext
+		}
+	}
+
+	var resp docsListResponse
+	if err := json.Unmarshal(jsonLine, &resp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
 	if !resp.OK {
@@ -190,7 +246,14 @@ func (n *Node) FetchDocFile(ctx context.Context, peerID, groupID, filename strin
 	defer st.Close()
 
 	req := docsRequest{Op: "get", GroupID: groupID, File: filename}
-	if err := json.NewEncoder(st).Encode(req); err != nil {
+	reqJSON, _ := json.Marshal(req)
+	if n.enc != nil {
+		if sealed, err := n.enc.Seal(peerID, reqJSON); err == nil {
+			reqJSON = []byte("ENC:" + sealed)
+		}
+	}
+	reqJSON = append(reqJSON, '\n')
+	if _, err := st.Write(reqJSON); err != nil {
 		return "", nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
@@ -200,10 +263,76 @@ func (n *Node) FetchDocFile(ctx context.Context, peerID, groupID, filename strin
 
 	r := bufio.NewReader(st)
 
-	// Try to read first byte to detect JSON error vs OK response
+	// Try to read first byte to detect JSON error vs OK/EOK response
 	firstByte, err := r.ReadByte()
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// ENC: prefix means encrypted JSON error/list response
+	if firstByte == 'E' {
+		r.UnreadByte()
+		h, err := r.ReadString('\n')
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to read header: %w", err)
+		}
+		h = strings.TrimSpace(h)
+
+		// ENC: encrypted JSON response (list or error)
+		if strings.HasPrefix(h, "ENC:") {
+			if n.enc == nil {
+				return "", nil, fmt.Errorf("encrypted response but no decryptor")
+			}
+			plaintext, err := n.enc.Open(peerID, h[4:])
+			if err != nil {
+				return "", nil, fmt.Errorf("decrypt response: %w", err)
+			}
+			var resp docsListResponse
+			if err := json.Unmarshal(plaintext, &resp); err != nil {
+				return "", nil, fmt.Errorf("decode decrypted response: %w", err)
+			}
+			if !resp.OK {
+				return "", nil, fmt.Errorf("remote error: %s", resp.Error)
+			}
+			// This path is only hit in FetchDocFile, where we expect binary —
+			// an encrypted JSON OK response here means the server sent a list
+			// response (wrong op). Return a clear error.
+			return "", nil, fmt.Errorf("unexpected list response for get request")
+		}
+
+		// EOK header — encrypted binary data
+		if strings.HasPrefix(h, "EOK ") {
+			lastSpace := strings.LastIndexByte(h, ' ')
+			if lastSpace <= 4 {
+				return "", nil, fmt.Errorf("bad EOK response: %q", h)
+			}
+			mimeType := strings.TrimSpace(h[4:lastSpace])
+			sizeStr := strings.TrimSpace(h[lastSpace+1:])
+			size, err := strconv.Atoi(sizeStr)
+			if err != nil {
+				return "", nil, fmt.Errorf("bad size: %w", err)
+			}
+			if size < 0 || size > docs.MaxFileSize*2 {
+				return "", nil, fmt.Errorf("refusing size %d", size)
+			}
+			sealedData := make([]byte, size)
+			if _, err := io.ReadFull(r, sealedData); err != nil {
+				return "", nil, fmt.Errorf("read encrypted data: %w", err)
+			}
+			if n.enc != nil {
+				if plaintext, err := n.enc.Open(peerID, string(sealedData)); err == nil {
+					return mimeType, plaintext, nil
+				}
+			}
+			return "", nil, fmt.Errorf("encrypted data could not be decrypted")
+		}
+
+		// ERR response
+		if after, ok := strings.CutPrefix(h, "ERR "); ok {
+			return "", nil, fmt.Errorf("%s", after)
+		}
+
+		return "", nil, fmt.Errorf("bad response: %q", h)
 	}
 
 	if firstByte == '{' {
@@ -225,8 +354,8 @@ func (n *Node) FetchDocFile(ctx context.Context, peerID, groupID, filename strin
 	}
 	h = strings.TrimSpace(h)
 
-	if strings.HasPrefix(h, "ERR ") {
-		return "", nil, fmt.Errorf("%s", strings.TrimPrefix(h, "ERR "))
+	if after, ok := strings.CutPrefix(h, "ERR "); ok {
+		return "", nil, fmt.Errorf("%s", after)
 	}
 
 	lastSpace := strings.LastIndexByte(h, ' ')

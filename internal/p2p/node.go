@@ -111,6 +111,19 @@ type Node struct {
 	// triggering it to refresh its relay reservation.
 	pulseFn func(ctx context.Context, peerID string) error
 
+	// Optional encryptor for stream protocol payloads.
+	enc StreamEncryptor
+}
+
+// StreamEncryptor encrypts and decrypts stream protocol payloads.
+type StreamEncryptor interface {
+	Seal(peerID string, plaintext []byte) (string, error)
+	Open(peerID string, ciphertextB64 string) ([]byte, error)
+}
+
+// SetEncryptor sets the optional payload encryptor for stream protocols.
+func (n *Node) SetEncryptor(e StreamEncryptor) {
+	n.enc = e
 }
 
 type mdnsNotifee struct {
@@ -211,6 +224,9 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 		content := selfContent()
 		_, _ = s.Write([]byte(content + "\n"))
 	})
+	// NOTE: content protocol is NOT encrypted — it returns a single public
+	// label string and is used as a reachability probe. Encrypting it would
+	// break ProbePeer for old clients with no benefit (content is public).
 
 	var mdnsSw *swarm.Swarm
 	if s, ok := h.Network().(*swarm.Swarm); ok {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/petervdpas/goop2/internal/proto"
@@ -69,18 +70,43 @@ func (n *Node) handleDataStream(s network.Stream) {
 		return
 	}
 
+	// Decrypt if encrypted: ENC:base64\n
+	jsonLine := line
+	if n.enc != nil && len(line) > 4 && string(line[:4]) == "ENC:" {
+		trimmed := strings.TrimSpace(string(line[4:]))
+		plaintext, err := n.enc.Open(callerID, trimmed)
+		if err != nil {
+			writeDataResponse(s, DataResponse{Error: "decrypt error"})
+			return
+		}
+		jsonLine = plaintext
+	}
+
 	var req DataRequest
-	if err := json.Unmarshal(line, &req); err != nil {
+	if err := json.Unmarshal(jsonLine, &req); err != nil {
 		writeDataResponse(s, DataResponse{Error: "invalid json: " + err.Error()})
 		return
 	}
 
 	resp := n.dispatchDataOp(callerID, req)
-	writeDataResponse(s, resp)
+	n.writeDataResponseEnc(s, callerID, resp)
 }
 
 func writeDataResponse(s network.Stream, resp DataResponse) {
 	b, _ := json.Marshal(resp)
+	b = append(b, '\n')
+	_, _ = s.Write(b)
+}
+
+// writeDataResponseEnc writes the response, encrypting it for the remote peer if possible.
+func (n *Node) writeDataResponseEnc(s network.Stream, peerID string, resp DataResponse) {
+	b, _ := json.Marshal(resp)
+	if n.enc != nil {
+		if sealed, err := n.enc.Seal(peerID, b); err == nil {
+			_, _ = s.Write([]byte("ENC:" + sealed + "\n"))
+			return
+		}
+	}
 	b = append(b, '\n')
 	_, _ = s.Write(b)
 }
@@ -469,10 +495,15 @@ func (n *Node) RemoteDataOp(ctx context.Context, peerID string, req DataRequest)
 	}
 	defer s.Close()
 
-	// Send request as JSON line
+	// Send request as JSON line (encrypted if possible)
 	b, err := json.Marshal(req)
 	if err != nil {
 		return DataResponse{}, err
+	}
+	if n.enc != nil {
+		if sealed, err := n.enc.Seal(peerID, b); err == nil {
+			b = []byte("ENC:" + sealed)
+		}
 	}
 	b = append(b, '\n')
 	if _, err := s.Write(b); err != nil {
@@ -489,8 +520,17 @@ func (n *Node) RemoteDataOp(ctx context.Context, peerID string, req DataRequest)
 		return DataResponse{}, fmt.Errorf("read response: %w", err)
 	}
 
+	// Decrypt response if encrypted
+	jsonLine := respLine
+	if n.enc != nil && len(respLine) > 4 && string(respLine[:4]) == "ENC:" {
+		trimmed := strings.TrimSpace(string(respLine[4:]))
+		if plaintext, err := n.enc.Open(peerID, trimmed); err == nil {
+			jsonLine = plaintext
+		}
+	}
+
 	var resp DataResponse
-	if err := json.Unmarshal(respLine, &resp); err != nil {
+	if err := json.Unmarshal(jsonLine, &resp); err != nil {
 		return DataResponse{}, fmt.Errorf("decode response: %w", err)
 	}
 

@@ -41,6 +41,14 @@ func (n *Node) handleSiteStream(s network.Stream) {
 	}
 	line = strings.TrimSpace(line)
 
+	// Decrypt request if encrypted
+	if n.enc != nil && strings.HasPrefix(line, "ENC:") {
+		remotePeer := s.Conn().RemotePeer().String()
+		if plaintext, err := n.enc.Open(remotePeer, line[4:]); err == nil {
+			line = string(plaintext)
+		}
+	}
+
 	if !strings.HasPrefix(line, "GET ") {
 		_, _ = io.WriteString(s, "ERR bad request\n")
 		return
@@ -83,6 +91,17 @@ func (n *Node) handleSiteStream(s network.Stream) {
 	mt := mime.TypeByExtension(filepath.Ext(full))
 	if mt == "" {
 		mt = http.DetectContentType(b)
+	}
+
+	// Encrypt binary response if possible
+	remotePeer := s.Conn().RemotePeer().String()
+	if n.enc != nil {
+		if sealed, err := n.enc.Seal(remotePeer, b); err == nil {
+			sealedBytes := []byte(sealed)
+			_, _ = fmt.Fprintf(s, "EOK %s %d\n", mt, len(sealedBytes))
+			_, _ = s.Write(sealedBytes)
+			return
+		}
 	}
 
 	_, _ = fmt.Fprintf(s, "OK %s %d\n", mt, len(b))
@@ -190,7 +209,15 @@ func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (m
 	if path == "" || path == "/" {
 		path = "/index.html"
 	}
-	_, _ = io.WriteString(st, "GET "+path+"\n")
+
+	// Encrypt the request line if possible
+	reqLine := "GET " + path
+	if n.enc != nil {
+		if sealed, err := n.enc.Seal(peerID, []byte(reqLine)); err == nil {
+			reqLine = "ENC:" + sealed
+		}
+	}
+	_, _ = io.WriteString(st, reqLine+"\n")
 
 	r := bufio.NewReader(st)
 	h, err := r.ReadString('\n')
@@ -199,8 +226,35 @@ func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (m
 	}
 	h = strings.TrimSpace(h)
 
-	if strings.HasPrefix(h, "ERR ") {
-		return "", nil, fmt.Errorf("%s", strings.TrimPrefix(h, "ERR "))
+	if after, ok := strings.CutPrefix(h, "ERR "); ok {
+		return "", nil, fmt.Errorf("%s", after)
+	}
+
+	// Handle encrypted binary response (EOK header)
+	if strings.HasPrefix(h, "EOK ") {
+		lastSpace := strings.LastIndexByte(h, ' ')
+		if lastSpace <= 4 {
+			return "", nil, fmt.Errorf("bad EOK response: %q", h)
+		}
+		mimeType = strings.TrimSpace(h[4:lastSpace])
+		sizeStr := strings.TrimSpace(h[lastSpace+1:])
+		size, err := strconv.Atoi(sizeStr)
+		if err != nil {
+			return "", nil, err
+		}
+		if size < 0 || size > 100*1024*1024 {
+			return "", nil, fmt.Errorf("refusing size %d", size)
+		}
+		sealedData := make([]byte, size)
+		if _, err := io.ReadFull(r, sealedData); err != nil {
+			return "", nil, fmt.Errorf("read encrypted data: %w", err)
+		}
+		if n.enc != nil {
+			if plaintext, err := n.enc.Open(peerID, string(sealedData)); err == nil {
+				return mimeType, plaintext, nil
+			}
+		}
+		return "", nil, fmt.Errorf("encrypted data could not be decrypted")
 	}
 
 	// ---- FIX: parse size from the END ----

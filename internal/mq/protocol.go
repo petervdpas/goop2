@@ -24,6 +24,13 @@ type MQAck struct {
 	Seq  int64  `json:"seq"`  // matches MQMsg.Seq
 }
 
+// MQEncryptor encrypts and decrypts MQ message payloads.
+// When Seal returns ErrNoKey the caller falls back to plaintext.
+type MQEncryptor interface {
+	Seal(peerID string, plaintext []byte) (string, error)
+	Open(peerID string, ciphertextB64 string) ([]byte, error)
+}
+
 // mqEvent is delivered to SSE subscribers (/api/mq/events).
 type mqEvent struct {
 	Type  string `json:"type"`            // "message" | "delivered"

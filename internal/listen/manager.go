@@ -3,6 +3,7 @@ package listen
 import (
 	"context"
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -55,6 +56,20 @@ type Manager struct {
 	httpPipeMu sync.Mutex
 	httpPipeR  *io.PipeReader
 	httpPipeW  *io.PipeWriter
+
+	// Optional encryptor for audio stream chunks.
+	enc ListenEncryptor
+}
+
+// ListenEncryptor encrypts and decrypts audio stream chunks.
+type ListenEncryptor interface {
+	Seal(peerID string, plaintext []byte) (string, error)
+	Open(peerID string, ciphertextB64 string) ([]byte, error)
+}
+
+// SetEncryptor sets the optional audio stream encryptor.
+func (m *Manager) SetEncryptor(e ListenEncryptor) {
+	m.enc = e
 }
 
 type listenerPipe struct {
@@ -1001,6 +1016,39 @@ func (m *Manager) notifyBrowser() {
 
 // handleAudioStream processes incoming listen protocol streams from listeners.
 // Wire format: "LISTEN <group_id>\n" → host sends raw MP3 bytes.
+// writeAudioChunk writes audio data to the stream, encrypting if encrypted is true.
+// Encrypted format: [4-byte BE ciphertext-length][ciphertext-bytes]
+func (m *Manager) writeAudioChunk(s network.Stream, peerID string, encrypted bool, data []byte) error {
+	if encrypted && m.enc != nil {
+		sealed, err := m.enc.Seal(peerID, data)
+		if err == nil {
+			sealedBytes := []byte(sealed)
+			header := make([]byte, 4)
+			binary.BigEndian.PutUint32(header, uint32(len(sealedBytes)))
+			if _, err := s.Write(header); err != nil {
+				return err
+			}
+			for len(sealedBytes) > 0 {
+				nw, err := s.Write(sealedBytes)
+				if err != nil {
+					return err
+				}
+				sealedBytes = sealedBytes[nw:]
+			}
+			return nil
+		}
+		// Fall through to plaintext on encryption error
+	}
+	for len(data) > 0 {
+		nw, err := s.Write(data)
+		if err != nil {
+			return err
+		}
+		data = data[nw:]
+	}
+	return nil
+}
+
 func (m *Manager) handleAudioStream(s network.Stream) {
 	remotePeer := s.Conn().RemotePeer().String()
 	defer s.Close()
@@ -1042,8 +1090,18 @@ func (m *Manager) handleAudioStream(s network.Stream) {
 		return
 	}
 
-	// Send OK with track info
-	fmt.Fprintf(s, "OK %s %d %.2f\n", lg.Track.Format, lg.Track.Bitrate, lg.Track.Duration)
+	// Send OK (or EAOK if encrypted) with track info
+	encrypted := false
+	if m.enc != nil {
+		if _, err := m.enc.Seal(remotePeer, []byte("test")); err == nil {
+			encrypted = true
+		}
+	}
+	if encrypted {
+		fmt.Fprintf(s, "EAOK %s %d %.2f\n", lg.Track.Format, lg.Track.Bitrate, lg.Track.Duration)
+	} else {
+		fmt.Fprintf(s, "OK %s %d %.2f\n", lg.Track.Format, lg.Track.Bitrate, lg.Track.Duration)
+	}
 
 	log.Printf("LISTEN: Audio stream started for %s", remotePeer)
 
@@ -1109,14 +1167,9 @@ func (m *Manager) handleAudioStream(s network.Stream) {
 		for {
 			n, err := resp.Body.Read(audioBuffer)
 			if n > 0 {
-				data := audioBuffer[:n]
-				for len(data) > 0 {
-					nw, werr := s.Write(data)
-					if werr != nil {
-						log.Printf("LISTEN: Stream to %s ended (write error): %v", remotePeer, werr)
-						return
-					}
-					data = data[nw:]
+				if werr := m.writeAudioChunk(s, remotePeer, encrypted, audioBuffer[:n]); werr != nil {
+					log.Printf("LISTEN: Stream to %s ended (write error): %v", remotePeer, werr)
+					return
 				}
 			}
 			if err != nil {
@@ -1159,14 +1212,9 @@ func (m *Manager) handleAudioStream(s network.Stream) {
 
 		n, err := f.Read(audioBuffer)
 		if n > 0 {
-			data := audioBuffer[:n]
-			for len(data) > 0 {
-				nw, werr := s.Write(data)
-				if werr != nil {
-					log.Printf("LISTEN: Stream to %s ended (write error): %v", remotePeer, werr)
-					return
-				}
-				data = data[nw:]
+			if werr := m.writeAudioChunk(s, remotePeer, encrypted, audioBuffer[:n]); werr != nil {
+				log.Printf("LISTEN: Stream to %s ended (write error): %v", remotePeer, werr)
+				return
 			}
 		}
 		if err == io.EOF {
@@ -1234,12 +1282,66 @@ func (m *Manager) connectAudioStream() (io.ReadCloser, error) {
 		return nil, fmt.Errorf("host: %s", line)
 	}
 
+	// EAOK = encrypted audio OK — wrap in decrypting reader
+	if strings.HasPrefix(line, "EAOK") && m.enc != nil {
+		return &decryptingReader{stream: s, enc: m.enc, peerID: hostPeerID}, nil
+	}
+
 	if !strings.HasPrefix(line, "OK") {
 		s.Close()
 		return nil, fmt.Errorf("unexpected response: %s", line)
 	}
 
 	return s, nil
+}
+
+// decryptingReader wraps an encrypted audio stream, reading framed encrypted
+// chunks and decrypting them transparently.
+type decryptingReader struct {
+	stream network.Stream
+	enc    ListenEncryptor
+	peerID string
+	buf    []byte // decrypted data buffer
+	pos    int    // read position in buf
+}
+
+func (r *decryptingReader) Read(p []byte) (int, error) {
+	// Drain existing buffer first
+	if r.pos < len(r.buf) {
+		n := copy(p, r.buf[r.pos:])
+		r.pos += n
+		return n, nil
+	}
+
+	// Read next encrypted chunk: [4-byte BE length][ciphertext]
+	header := make([]byte, 4)
+	if _, err := io.ReadFull(r.stream, header); err != nil {
+		return 0, err
+	}
+	size := binary.BigEndian.Uint32(header)
+	if size > 10*1024*1024 {
+		return 0, fmt.Errorf("encrypted audio chunk too large: %d", size)
+	}
+
+	ciphertext := make([]byte, size)
+	if _, err := io.ReadFull(r.stream, ciphertext); err != nil {
+		return 0, err
+	}
+
+	plaintext, err := r.enc.Open(r.peerID, string(ciphertext))
+	if err != nil {
+		return 0, fmt.Errorf("decrypt audio chunk: %w", err)
+	}
+
+	r.buf = plaintext
+	r.pos = 0
+	n := copy(p, r.buf)
+	r.pos = n
+	return n, nil
+}
+
+func (r *decryptingReader) Close() error {
+	return r.stream.Close()
 }
 
 // startStreaming signals that playback has started at the given position.

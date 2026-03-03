@@ -55,6 +55,9 @@ type Manager struct {
 	// Topic subscribers (for call.Signaler adapter).
 	topicMu   sync.RWMutex
 	topicSubs []topicSub
+
+	// Optional encryptor for payload encryption.
+	enc MQEncryptor
 }
 
 type topicSub struct {
@@ -80,6 +83,13 @@ func New(h host.Host) *Manager {
 	h.SetStreamHandler(protocol.ID(proto.MQProtoID), m.handleIncoming)
 	log.Printf("MQ: registered handler for %s", proto.MQProtoID)
 	return m
+}
+
+// SetEncryptor sets the optional payload encryptor. When set, outbound
+// payloads are encrypted (if the peer has a public key) and inbound
+// encrypted envelopes are transparently decrypted.
+func (m *Manager) SetEncryptor(e MQEncryptor) {
+	m.enc = e
 }
 
 // Send opens (or reuses) a stream to peerID, writes a message with the given
@@ -142,9 +152,19 @@ func (m *Manager) sendOnce(ctx context.Context, peerID, topic string, payload an
 	}
 	defer stream.Close()
 
+	// Encrypt payload if encryptor is available and peer has a public key.
+	if m.enc != nil {
+		if payloadJSON, err := json.Marshal(msg.Payload); err == nil {
+			if sealed, err := m.enc.Seal(peerID, payloadJSON); err == nil {
+				msg.Payload = map[string]string{"enc": sealed}
+			}
+			// ErrNoKey → leave payload as plaintext (backward compat)
+		}
+	}
+
 	// Write the message as newline-delimited JSON.
-	enc := json.NewEncoder(stream)
-	if err := enc.Encode(msg); err != nil {
+	wireEnc := json.NewEncoder(stream)
+	if err := wireEnc.Encode(msg); err != nil {
 		return "", fmt.Errorf("mq: encode msg: %w", err)
 	}
 
@@ -200,6 +220,20 @@ func (m *Manager) handleIncoming(stream network.Stream) {
 	}
 
 	log.Printf("MQ: received msg %s (topic=%s) from %s", msg.ID[:8], msg.Topic, remotePeer[:8])
+
+	// Decrypt payload if it's an encrypted envelope: {"enc":"base64..."}
+	if m.enc != nil {
+		if pm, ok := msg.Payload.(map[string]any); ok && len(pm) == 1 {
+			if encStr, ok := pm["enc"].(string); ok {
+				if plaintext, err := m.enc.Open(remotePeer, encStr); err == nil {
+					var decrypted any
+					if err := json.Unmarshal(plaintext, &decrypted); err == nil {
+						msg.Payload = decrypted
+					}
+				}
+			}
+		}
+	}
 
 	// Application-level ACK: remote browser confirmed delivery of one of our messages.
 	// Convert to a local "delivered" SSE event and stop — do NOT forward as a
@@ -337,12 +371,11 @@ func (m *Manager) PublishLocal(topic, from string, payload any) {
 // relay (with the first 8 chars of the relay peer ID), or "direct" otherwise.
 func connVia(s network.Stream) string {
 	ma := s.Conn().RemoteMultiaddr().String()
-	circuitIdx := strings.Index(ma, "/p2p-circuit")
-	if circuitIdx < 0 {
+	before, _, found := strings.Cut(ma, "/p2p-circuit")
+	if !found {
 		return "direct"
 	}
 	// Multiaddr before /p2p-circuit: .../p2p/<relayPeerID>/p2p-circuit
-	before := ma[:circuitIdx]
 	if p2pIdx := strings.LastIndex(before, "/p2p/"); p2pIdx >= 0 {
 		relayID := before[p2pIdx+5:]
 		if len(relayID) > 8 {

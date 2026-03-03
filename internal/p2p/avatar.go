@@ -36,6 +36,17 @@ func (n *Node) handleAvatarStream(s network.Stream) {
 		return
 	}
 
+	// Encrypt binary avatar data if possible
+	remotePeer := s.Conn().RemotePeer().String()
+	if n.enc != nil {
+		if sealed, err := n.enc.Seal(remotePeer, data); err == nil {
+			sealedBytes := []byte(sealed)
+			_, _ = fmt.Fprintf(s, "EOK %d\n", len(sealedBytes))
+			_, _ = s.Write(sealedBytes)
+			return
+		}
+	}
+
 	_, _ = fmt.Fprintf(s, "OK %d\n", len(data))
 	_, _ = s.Write(data)
 }
@@ -65,6 +76,27 @@ func (n *Node) FetchAvatar(ctx context.Context, peerID string) ([]byte, error) {
 
 	if header == "NONE" {
 		return nil, nil
+	}
+
+	// Handle encrypted avatar (EOK header)
+	if sizeStr, ok := strings.CutPrefix(header, "EOK "); ok {
+		size, err := strconv.Atoi(sizeStr)
+		if err != nil {
+			return nil, fmt.Errorf("bad size: %w", err)
+		}
+		if size < 0 || size > 2*1024*1024 {
+			return nil, fmt.Errorf("refusing avatar size %d", size)
+		}
+		sealedData := make([]byte, size)
+		if _, err := io.ReadFull(rd, sealedData); err != nil {
+			return nil, err
+		}
+		if n.enc != nil {
+			if plaintext, err := n.enc.Open(peerID, string(sealedData)); err == nil {
+				return plaintext, nil
+			}
+		}
+		return nil, fmt.Errorf("encrypted avatar could not be decrypted")
 	}
 
 	if !strings.HasPrefix(header, "OK ") {

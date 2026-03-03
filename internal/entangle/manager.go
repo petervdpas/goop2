@@ -15,9 +15,12 @@
 package entangle
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
+	"io"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -44,6 +47,12 @@ type entConn struct {
 	cancel context.CancelFunc
 }
 
+// EntangleEncryptor encrypts and decrypts entangle heartbeat messages.
+type EntangleEncryptor interface {
+	Seal(peerID string, plaintext []byte) (string, error)
+	Open(peerID string, ciphertextB64 string) ([]byte, error)
+}
+
 // Manager maintains one persistent entangle stream per connected peer.
 type Manager struct {
 	host   host.Host
@@ -57,6 +66,14 @@ type Manager struct {
 	onConnect func(peerID string)
 	// onDisconnect is called when a peer's stream dies.
 	onDisconnect func(peerID string)
+
+	// Optional encryptor for heartbeat messages.
+	enc EntangleEncryptor
+}
+
+// SetEncryptor sets the optional heartbeat encryptor.
+func (m *Manager) SetEncryptor(e EntangleEncryptor) {
+	m.enc = e
 }
 
 // New registers the /goop/entangle/1.0.0 stream handler and returns a Manager.
@@ -196,22 +213,48 @@ func (m *Manager) runLoop(ctx context.Context, c *entConn) {
 		}
 	}()
 
-	enc := json.NewEncoder(c.stream)
-	dec := json.NewDecoder(c.stream)
+	encryptor := m.enc // capture before closure shadows m
+	writeMsg := func(v msg) error {
+		b, _ := json.Marshal(v)
+		if encryptor != nil {
+			if sealed, err := encryptor.Seal(c.peerID, b); err == nil {
+				b = []byte("ENC:" + sealed)
+			}
+		}
+		b = append(b, '\n')
+		_, err := c.stream.Write(b)
+		return err
+	}
 
 	pongCh  := make(chan struct{}, 1)
 	readErr := make(chan error, 1)
 	go func() {
+		rd := bufio.NewReader(c.stream)
 		for {
-			var in msg
-			if err := dec.Decode(&in); err != nil {
-				readErr <- err
+			line, err := rd.ReadBytes('\n')
+			if err != nil {
+				if err != io.EOF {
+					readErr <- err
+				} else {
+					readErr <- err
+				}
 				return
+			}
+			trimmed := strings.TrimSpace(string(line))
+			jsonLine := line
+			if encryptor != nil && strings.HasPrefix(trimmed, "ENC:") {
+				if plaintext, err := encryptor.Open(c.peerID, trimmed[4:]); err == nil {
+					jsonLine = plaintext
+				}
+			}
+			var in msg
+			if err := json.Unmarshal(jsonLine, &in); err != nil {
+				continue
 			}
 			switch in.Type {
 			case "ping":
 				_ = c.stream.SetWriteDeadline(time.Now().Add(10 * time.Second))
-				if err := enc.Encode(msg{Type: "pong"}); err != nil {
+				if err := writeMsg(msg{Type: "pong"}); err != nil {
 					readErr <- err
 					return
 				}
@@ -239,7 +282,7 @@ func (m *Manager) runLoop(ctx context.Context, c *entConn) {
 			return
 		case <-ticker.C:
 			_ = c.stream.SetWriteDeadline(time.Now().Add(10 * time.Second))
-			if err := enc.Encode(msg{Type: "ping"}); err != nil {
+			if err := writeMsg(msg{Type: "ping"}); err != nil {
 				log.Printf("entangle: %s ping failed: %v", c.peerID[:8], err)
 				return
 			}

@@ -16,6 +16,7 @@ import (
 	"github.com/petervdpas/goop2/internal/avatar"
 	"github.com/petervdpas/goop2/internal/call"
 	"github.com/petervdpas/goop2/internal/config"
+	goopCrypto "github.com/petervdpas/goop2/internal/crypto"
 	"github.com/petervdpas/goop2/internal/content"
 	"github.com/petervdpas/goop2/internal/docs"
 	"github.com/petervdpas/goop2/internal/entangle"
@@ -351,6 +352,23 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	defer entMgr.Close()
 	log.Printf("🔗 Entangle enabled: persistent peer threads via /goop/entangle/1.0.0")
 
+	// ── Wire E2E encryption (NaCl box) to all protocol layers
+	enc, err := goopCrypto.New(cfg.P2P.NaClPrivateKey, func(peerID string) (string, bool) {
+		sp, ok := peers.Get(peerID)
+		if !ok || sp.PublicKey == "" {
+			return "", false
+		}
+		return sp.PublicKey, true
+	})
+	if err != nil {
+		log.Printf("crypto: failed to create encryptor: %v (continuing without encryption)", err)
+	} else {
+		mqMgr.SetEncryptor(enc)
+		node.SetEncryptor(enc)
+		entMgr.SetEncryptor(enc)
+		log.Printf("🔐 E2E encryption enabled (NaCl box)")
+	}
+
 	node.EnableSite(util.ResolvePath(o.PeerDir, cfg.Paths.SiteRoot))
 
 	// ── Avatar store
@@ -513,6 +531,9 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 
 	// ── Listen room (wraps group protocol + binary audio stream)
 	listenMgr := listen.New(node.Host, grpMgr, mqMgr, node.ID(), o.PeerDir)
+	if enc != nil {
+		listenMgr.SetEncryptor(enc)
+	}
 	defer listenMgr.Close()
 	grpMgr.RegisterHandler("listen", listenMgr)
 	if luaEngine != nil {
