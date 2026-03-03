@@ -9,7 +9,10 @@
   },
   "p2p": {
     "listen_port": 0,
-    "mdns_tag": "goop-mdns"
+    "mdns_tag": "goop-mdns",
+    "bridge_mode": false,
+    "nacl_public_key": "E5g5IKJslgwoG83NHn824F7XvpxuOhrhgs7Yssdy+mc=",
+    "nacl_private_key": "qyWmI1n1xX9hnO/RdGBMWK3b30fNUbKIaO0nNVkAY90="
   },
   "presence": {
     "topic": "goop.presence.v1",
@@ -35,18 +38,23 @@
     "registration_url": "",
     "email_url": "",
     "templates_url": "",
+    "bridge_url": "",
+    "encryption_url": "",
     "templates_dir": "",
     "credits_admin_token": "",
     "registration_admin_token": "",
-    "templates_admin_token": ""
+    "templates_admin_token": "",
+    "bridge_admin_token": "",
+    "encryption_admin_token": ""
   },
   "profile": {
     "label": "EggMan",
     "email": "humpty@dumpty.com",
-    "verification_token": ""
+    "verification_token": "",
+    "bridge_token": ""
   },
   "viewer": {
-    "http_addr": ":7777",
+    "http_addr": "127.0.0.1:39925",
     "debug": false,
     "theme": "dark",
     "preferred_cam": "",

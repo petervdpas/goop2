@@ -306,6 +306,32 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		writeJSON(w, map[string]string{"error": fmt.Sprintf("bridge returned %d", resp.StatusCode)})
 	})
 
+	// Rendezvous capabilities check — fetches /api/capabilities from a remote rendezvous.
+	handleGet(mux, "/api/rendezvous/check", func(w http.ResponseWriter, r *http.Request) {
+		rvURL := strings.TrimSpace(r.URL.Query().Get("url"))
+		if rvURL == "" {
+			writeJSON(w, map[string]interface{}{"error": "no url"})
+			return
+		}
+		client := &http.Client{Timeout: 5 * time.Second}
+		resp, err := client.Get(strings.TrimRight(rvURL, "/") + "/api/capabilities")
+		if err != nil {
+			writeJSON(w, map[string]interface{}{"error": "unreachable"})
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			writeJSON(w, map[string]interface{}{"error": fmt.Sprintf("status %d", resp.StatusCode)})
+			return
+		}
+		var caps map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&caps); err != nil {
+			writeJSON(w, map[string]interface{}{"error": "invalid response"})
+			return
+		}
+		writeJSON(w, caps)
+	})
+
 	// Single-service health check using a URL from the form (not saved config)
 	handleGet(mux, "/api/services/check", func(w http.ResponseWriter, r *http.Request) {
 		svcURL := strings.TrimSpace(r.URL.Query().Get("url"))

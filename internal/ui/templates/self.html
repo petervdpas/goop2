@@ -254,6 +254,19 @@
                      placeholder="5">
             </div>
           </div>
+
+          {{if .Cfg.P2P.NaClPublicKey}}
+          <div class="field" style="margin-top:10px">
+            <label>NaCl Public Key</label>
+            <div class="token-field">
+              <input id="nacl-pub-key" type="text" readonly
+                     value="{{.Cfg.P2P.NaClPublicKey}}"
+                     style="font-family:monospace;font-size:12px">
+              <button type="button" class="btn token-btn" onclick="copyToken('nacl-pub-key')" title="Copy to clipboard">Copy</button>
+            </div>
+            <div class="hint">Your NaCl encryption public key — generated on first run.</div>
+          </div>
+          {{end}}
         </div>
 
         <!-- Rendezvous -->
@@ -262,12 +275,15 @@
 
           <div class="field">
             <label>WAN rendezvous</label>
-            <input name="presence_rendezvous_wan"
+            <input id="rv-wan-url" name="presence_rendezvous_wan"
                    value="{{.Cfg.Presence.RendezvousWAN}}"
-                   placeholder="https://rendezvous.example.org">
+                   placeholder="https://rendezvous.example.org"
+                   onchange="checkRvCapabilities(this.value)"
+                   onblur="checkRvCapabilities(this.value)">
             <div class="hint">
               Optional. Join WAN presence mesh (LAN + WAN).
             </div>
+            <div id="rv-encryption-status" style="margin-top:6px;display:none"></div>
           </div>
 
           {{if and .Cfg.Presence.RendezvousWAN .Cfg.Profile.Email}}

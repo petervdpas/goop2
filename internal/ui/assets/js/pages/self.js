@@ -26,6 +26,36 @@
     });
   };
 
+  // ── Rendezvous capabilities check ──
+  var _lastRvCheck = '';
+  window.checkRvCapabilities = function(url) {
+    url = (url || '').trim();
+    var el = document.getElementById('rv-encryption-status');
+    if (!el) return;
+    if (!url) { el.style.display = 'none'; _lastRvCheck = ''; return; }
+    if (url === _lastRvCheck) return;
+    _lastRvCheck = url;
+    el.style.display = 'none';
+    fetch('/api/rendezvous/check?url=' + encodeURIComponent(url))
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.error) { el.style.display = 'none'; return; }
+        if (d.encryption) {
+          el.innerHTML = '<span style="color:#4caf50">&#10003; Encryption enabled on this rendezvous.</span>';
+        } else {
+          el.innerHTML = '<span style="color:#ff9800">&#9888; This rendezvous has no encryption enabled. MQ messages will be sent in plaintext.</span>';
+        }
+        el.style.display = 'block';
+      })
+      .catch(function() { el.style.display = 'none'; });
+  };
+
+  // Auto-check on page load if a WAN URL is already configured
+  var rvWanInput = document.getElementById('rv-wan-url');
+  if (rvWanInput && rvWanInput.value.trim()) {
+    checkRvCapabilities(rvWanInput.value);
+  }
+
   // ── Service sub-tabs ──
   document.querySelectorAll('.svc-tab').forEach(function(tab) {
     tab.addEventListener('click', function() {

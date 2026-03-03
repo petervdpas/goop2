@@ -569,6 +569,21 @@ func (s *Server) Start(ctx context.Context) error {
 		_, _ = w.Write([]byte("ok"))
 	})
 
+	// Capabilities endpoint — tells peers what this rendezvous offers.
+	mux.HandleFunc("/api/capabilities", func(w http.ResponseWriter, r *http.Request) {
+		_, isNoCredits := s.credits.(NoCredits)
+		caps := map[string]bool{
+			"encryption":   s.encryption != nil,
+			"registration": s.registration != nil,
+			"credits":      !isNoCredits,
+			"templates":    s.templates != nil,
+			"bridge":       s.bridge != nil,
+			"relay":        s.relayHost != nil,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(caps)
+	})
+
 	// Relay info endpoint (returns 404 when relay is disabled)
 	mux.HandleFunc("/relay", func(w http.ResponseWriter, r *http.Request) {
 		handleRelayInfo(w, r, s.relayInfo)

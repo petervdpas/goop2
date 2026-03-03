@@ -2,12 +2,16 @@ package app
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/nacl/box"
 
 	"github.com/petervdpas/goop2/internal/avatar"
 	"github.com/petervdpas/goop2/internal/call"
@@ -114,6 +118,20 @@ type runPeerOpts struct {
 
 func runPeer(ctx context.Context, o runPeerOpts) error {
 	cfg := o.Cfg
+
+	// Generate NaCl keypair on first run (empty = not yet generated).
+	if cfg.P2P.NaClPublicKey == "" || cfg.P2P.NaClPrivateKey == "" {
+		pub, priv, err := box.GenerateKey(rand.Reader)
+		if err != nil {
+			return fmt.Errorf("generate NaCl keypair: %w", err)
+		}
+		cfg.P2P.NaClPublicKey = base64.StdEncoding.EncodeToString(pub[:])
+		cfg.P2P.NaClPrivateKey = base64.StdEncoding.EncodeToString(priv[:])
+		if err := config.Save(o.CfgPath, cfg); err != nil {
+			return fmt.Errorf("save NaCl keypair: %w", err)
+		}
+		log.Printf("NaCl keypair generated and persisted")
+	}
 
 	emit := o.Progress
 	if emit == nil {
