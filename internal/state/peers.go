@@ -12,8 +12,9 @@ type SeenPeer struct {
 	AvatarHash     string
 	VideoDisabled  bool
 	ActiveTemplate string
-	PublicKey      string
-	Verified       bool
+	PublicKey            string
+	EncryptionSupported bool
+	Verified            bool
 	Reachable      bool
 	LastSeen       time.Time
 	OfflineSince   time.Time
@@ -46,7 +47,7 @@ func NewPeerTable() *PeerTable {
 	}
 }
 
-func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled bool, activeTemplate string, publicKey string, verified bool) {
+func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled bool, activeTemplate string, publicKey string, encryptionSupported bool, verified bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	reachable := true
@@ -63,18 +64,19 @@ func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled 
 		lastFailAt = existing.lastFailAt
 	}
 	peer := SeenPeer{
-		Content:        content,
-		Email:          email,
-		AvatarHash:     avatarHash,
-		VideoDisabled:  videoDisabled,
-		ActiveTemplate: activeTemplate,
-		PublicKey:      publicKey,
-		Verified:       verified,
-		Reachable:      reachable,
-		LastSeen:       time.Now(),
-		Favorite:       favorite,
-		failStreak:     failStreak,
-		lastFailAt:     lastFailAt,
+		Content:             content,
+		Email:               email,
+		AvatarHash:          avatarHash,
+		VideoDisabled:       videoDisabled,
+		ActiveTemplate:      activeTemplate,
+		PublicKey:            publicKey,
+		EncryptionSupported: encryptionSupported,
+		Verified:            verified,
+		Reachable:           reachable,
+		LastSeen:            time.Now(),
+		Favorite:            favorite,
+		failStreak:          failStreak,
+		lastFailAt:          lastFailAt,
 	}
 	t.peers[id] = peer
 	t.notifyListeners(PeerEvent{Type: "update", PeerID: id, Peer: &peer})

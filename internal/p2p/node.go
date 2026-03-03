@@ -765,6 +765,7 @@ func (n *Node) Publish(ctx context.Context, typ string) {
 		msg.VideoDisabled = n.selfVideoDisabled()
 		msg.ActiveTemplate = n.selfActiveTemplate()
 		msg.PublicKey = n.selfPublicKey()
+		msg.EncryptionSupported = n.enc != nil
 		msg.Addrs = n.WanAddrs()
 	}
 
@@ -897,7 +898,7 @@ func (n *Node) RunPresenceLoop(ctx context.Context, onEvent func(msg proto.Prese
 				// Preserve the Verified flag set by the rendezvous server — P2P gossip
 				// is not an authority on email verification.
 				existing, _ := n.peers.Get(pm.PeerID)
-				n.peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.PublicKey, existing.Verified)
+				n.peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.PublicKey, pm.EncryptionSupported, existing.Verified)
 				n.AddPeerAddrs(pm.PeerID, pm.Addrs)
 			case proto.TypeOffline:
 				n.peers.MarkOffline(pm.PeerID)

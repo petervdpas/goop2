@@ -78,6 +78,7 @@
   function classifyLine(s) {
     if (/\bCALL\b/.test(s) ||
         /\[call-native\]|\[call-ui\]|\[webrtc\]/.test(s)) return 'log-call';
+    if (/\bencryption\b|\bE2E encryption\b|\bdecrypt\b|\b\[enc=/.test(s)) return 'log-encrypt';
     if (/\brelay\b/.test(s)) return 'log-relay';
     if (/\bGROUP\b|\bLISTEN\b/.test(s)) return 'log-group';
     if (/\bprobe\b/.test(s)) return 'log-probe';
@@ -166,11 +167,14 @@
     var topic = payload.topic || '';
     var ts    = payload.ts ? new Date(payload.ts).toLocaleTimeString() : '';
     var via   = payload.via && payload.via !== 'direct' ? ' ~' + payload.via : '';
-    var s     = ts + ' ' + dir + ' ' + peer + '  ' + topic + via;
+    var enc   = payload.encrypted ? ' \ud83d\udd12' : '';
+    var s     = ts + ' ' + dir + ' ' + peer + '  ' + topic + via + enc;
     if (payload.error) s += '  [' + payload.error + ']';
 
     var span = document.createElement('span');
-    if (topic.startsWith('group:') || topic === 'group.invite') {
+    if (payload.encrypted) {
+      span.className = 'log-encrypt';
+    } else if (topic.startsWith('group:') || topic === 'group.invite') {
       span.className = 'log-group';
     } else if (topic.startsWith('peer:')) {
       span.className = 'log-peer';

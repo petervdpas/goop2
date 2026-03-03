@@ -355,7 +355,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	// ── Wire E2E encryption (NaCl box) to all protocol layers
 	enc, err := goopCrypto.New(cfg.P2P.NaClPrivateKey, func(peerID string) (string, bool) {
 		sp, ok := peers.Get(peerID)
-		if !ok || sp.PublicKey == "" {
+		if !ok || sp.PublicKey == "" || !sp.EncryptionSupported {
 			return "", false
 		}
 		return sp.PublicKey, true
@@ -574,7 +574,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			switch pm.Type {
 			case proto.TypeOnline, proto.TypeUpdate:
 				sp, known := peers.Get(pm.PeerID)
-				peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.PublicKey, pm.Verified)
+				peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.PublicKey, pm.EncryptionSupported, pm.Verified)
 				go db.UpsertCachedPeer(storage.CachedPeer{
 					PeerID:         pm.PeerID,
 					Content:        pm.Content,

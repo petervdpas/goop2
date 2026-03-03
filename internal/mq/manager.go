@@ -147,16 +147,18 @@ func (m *Manager) sendOnce(ctx context.Context, peerID, topic string, payload an
 
 	stream, err := m.host.NewStream(dialCtx, pid, protocol.ID(proto.MQProtoID))
 	if err != nil {
-		go m.logMQEvent("error", topic, peerID, "unreachable", "")
+		go m.logMQEvent("error", topic, peerID, "unreachable", "", false)
 		return "", fmt.Errorf("mq: open stream to %s: %w", peerID, err)
 	}
 	defer stream.Close()
 
 	// Encrypt payload if encryptor is available and peer has a public key.
+	encrypted := false
 	if m.enc != nil {
 		if payloadJSON, err := json.Marshal(msg.Payload); err == nil {
 			if sealed, err := m.enc.Seal(peerID, payloadJSON); err == nil {
 				msg.Payload = map[string]string{"enc": sealed}
+				encrypted = true
 			}
 			// ErrNoKey → leave payload as plaintext (backward compat)
 		}
@@ -185,8 +187,12 @@ func (m *Manager) sendOnce(ctx context.Context, peerID, topic string, payload an
 	default:
 	}
 
-	log.Printf("MQ: sent msg %s (topic=%s) to %s", msgID[:8], topic, peerID[:8])
-	go m.logMQEvent("send", topic, peerID, "", connVia(stream))
+	encLabel := ""
+	if encrypted {
+		encLabel = "e2e"
+	}
+	log.Printf("MQ: sent msg %s (topic=%s) to %s [enc=%s]", msgID[:8], topic, peerID[:8], encLabel)
+	go m.logMQEvent("send", topic, peerID, "", connVia(stream), encrypted)
 	return msgID, nil
 }
 
@@ -219,21 +225,31 @@ func (m *Manager) handleIncoming(stream network.Stream) {
 		// Continue dispatching even if ACK write failed.
 	}
 
-	log.Printf("MQ: received msg %s (topic=%s) from %s", msg.ID[:8], msg.Topic, remotePeer[:8])
-
 	// Decrypt payload if it's an encrypted envelope: {"enc":"base64..."}
+	decrypted := false
 	if m.enc != nil {
 		if pm, ok := msg.Payload.(map[string]any); ok && len(pm) == 1 {
 			if encStr, ok := pm["enc"].(string); ok {
 				if plaintext, err := m.enc.Open(remotePeer, encStr); err == nil {
-					var decrypted any
-					if err := json.Unmarshal(plaintext, &decrypted); err == nil {
-						msg.Payload = decrypted
+					var decoded any
+					if err := json.Unmarshal(plaintext, &decoded); err == nil {
+						msg.Payload = decoded
+						decrypted = true
+					} else {
+						log.Printf("MQ: decrypt ok but unmarshal failed for msg %s from %s: %v", msg.ID[:8], remotePeer[:8], err)
 					}
+				} else {
+					log.Printf("MQ: decrypt failed for msg %s from %s: %v", msg.ID[:8], remotePeer[:8], err)
 				}
 			}
 		}
 	}
+
+	encLabel := ""
+	if decrypted {
+		encLabel = "e2e"
+	}
+	log.Printf("MQ: received msg %s (topic=%s) from %s [enc=%s]", msg.ID[:8], msg.Topic, remotePeer[:8], encLabel)
 
 	// Application-level ACK: remote browser confirmed delivery of one of our messages.
 	// Convert to a local "delivered" SSE event and stop — do NOT forward as a
@@ -289,7 +305,7 @@ func (m *Manager) handleIncoming(stream network.Stream) {
 		m.inboxMu.Unlock()
 	}
 
-	go m.logMQEvent("recv", msg.Topic, remotePeer, "", connVia(stream))
+	go m.logMQEvent("recv", msg.Topic, remotePeer, "", connVia(stream), decrypted)
 }
 
 // NotifyDelivered dispatches a "delivered" event to SSE listeners.
@@ -388,8 +404,9 @@ func connVia(s network.Stream) string {
 
 // logMQEvent publishes a structured log entry for an MQ message to browser listeners.
 // dir is "recv", "send", or "error"; via is "direct", "relay", or "" (unknown/error path).
+// encrypted indicates whether the payload was E2E encrypted.
 // Skips log:* and mq.ack topics to prevent noise/recursion.
-func (m *Manager) logMQEvent(dir, topic, peerID, errMsg, via string) {
+func (m *Manager) logMQEvent(dir, topic, peerID, errMsg, via string, encrypted bool) {
 	if strings.HasPrefix(topic, "log:") || topic == "mq.ack" {
 		return
 	}
@@ -404,6 +421,9 @@ func (m *Manager) logMQEvent(dir, topic, peerID, errMsg, via string) {
 	}
 	if via != "" {
 		entry["via"] = via
+	}
+	if encrypted {
+		entry["encrypted"] = true
 	}
 	m.PublishLocal("log:mq", "", entry)
 }
