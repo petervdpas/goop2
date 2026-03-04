@@ -91,7 +91,7 @@
 
     <!-- ── Main area ── -->
     <div class="settings-main panel">
-      <form method="post" action="/settings/save">
+      <form method="post" action="/settings/save" data-saveable>
         <input type="hidden" name="csrf" value="{{.CSRF}}">
 
         <!-- Viewer -->
@@ -156,7 +156,7 @@
               <label>Peer offline grace period</label>
               <input type="number" name="viewer_peer_offline_grace_min"
                      min="1" max="60"
-                     value="{{if .Cfg.Viewer.PeerOfflineGraceMin}}{{.Cfg.Viewer.PeerOfflineGraceMin}}{{else}}15{{end}}">
+                     value="{{if .Cfg.Viewer.PeerOfflineGraceMin}}{{.Cfg.Viewer.PeerOfflineGraceMin}}{{else}}{{(defaults).Viewer.PeerOfflineGraceMin}}{{end}}">
               <div class="hint">
                 Minutes to keep an offline non-favorite before pruning (1–60). Adds to the ~{{.Cfg.Presence.TTLSec}}s heartbeat timeout.
               </div>
@@ -227,7 +227,7 @@
               <label>P2P listen port</label>
               <input name="p2p_listen_port"
                      value="{{.Cfg.P2P.ListenPort}}"
-                     placeholder="0">
+                     placeholder="{{(defaults).P2P.ListenPort}}">
               <div class="hint">0 = random</div>
             </div>
 
@@ -235,7 +235,7 @@
               <label>mDNS tag</label>
               <input name="p2p_mdns_tag"
                      value="{{.Cfg.P2P.MdnsTag}}"
-                     placeholder="goop-mdns">
+                     placeholder="{{(defaults).P2P.MdnsTag}}">
             </div>
           </div>
 
@@ -244,14 +244,14 @@
               <label>Presence TTL seconds</label>
               <input name="presence_ttl_sec"
                      value="{{.Cfg.Presence.TTLSec}}"
-                     placeholder="20">
+                     placeholder="{{(defaults).Presence.TTLSec}}">
             </div>
 
             <div class="field">
               <label>Presence heartbeat seconds</label>
               <input name="presence_heartbeat_sec"
                      value="{{.Cfg.Presence.HeartbeatSec}}"
-                     placeholder="5">
+                     placeholder="{{(defaults).Presence.HeartbeatSec}}">
             </div>
           </div>
 
@@ -353,7 +353,7 @@
                 <label>Bind address</label>
                 <input name="presence_rendezvous_bind"
                        value="{{.Cfg.Presence.RendezvousBind}}"
-                       placeholder="127.0.0.1">
+                       placeholder="{{(defaults).Presence.RendezvousBind}}">
                 <div class="hint">
                   <code>127.0.0.1</code> = localhost only,
                   <code>0.0.0.0</code> = accept LAN connections.
@@ -365,7 +365,7 @@
                 <input id="rv_port"
                        name="presence_rendezvous_port"
                        value="{{.Cfg.Presence.RendezvousPort}}"
-                       placeholder="8787">
+                       placeholder="{{(defaults).Presence.RendezvousPort}}">
               </div>
             </div>
 
@@ -408,7 +408,7 @@
               <label>Relay key file</label>
               <input name="presence_relay_key_file"
                      value="{{.Cfg.Presence.RelayKeyFile}}"
-                     placeholder="data/relay.key">
+                     placeholder="{{(defaults).Presence.RelayKeyFile}}">
               <div class="hint">
                 Persistent identity key for the relay host.
               </div>
@@ -426,16 +426,16 @@
               <input name="presence_relay_cleanup_delay_sec"
                      type="number" min="0"
                      value="{{.Cfg.Presence.RelayCleanupDelaySec}}"
-                     placeholder="3">
-              <div class="hint">Wait before reconnecting after closing old relay connection. Default <code>3</code>.</div>
+                     placeholder="{{(defaults).Presence.RelayCleanupDelaySec}}">
+              <div class="hint">Wait before reconnecting after closing old relay connection. Default <code>{{(defaults).Presence.RelayCleanupDelaySec}}</code>.</div>
             </div>
             <div class="field">
               <label>Poll deadline (sec)</label>
               <input name="presence_relay_poll_deadline_sec"
                      type="number" min="0"
                      value="{{.Cfg.Presence.RelayPollDeadlineSec}}"
-                     placeholder="25">
-              <div class="hint">Max time to wait for reservation after reconnect. Default <code>25</code>.</div>
+                     placeholder="{{(defaults).Presence.RelayPollDeadlineSec}}">
+              <div class="hint">Max time to wait for reservation after reconnect. Default <code>{{(defaults).Presence.RelayPollDeadlineSec}}</code>.</div>
             </div>
           </div>
           <div class="grid2">
@@ -444,16 +444,16 @@
               <input name="presence_relay_connect_timeout_sec"
                      type="number" min="0"
                      value="{{.Cfg.Presence.RelayConnectTimeoutSec}}"
-                     placeholder="15">
-              <div class="hint">Dial timeout when connecting to relay peer. Default <code>15</code>.</div>
+                     placeholder="{{(defaults).Presence.RelayConnectTimeoutSec}}">
+              <div class="hint">Dial timeout when connecting to relay peer. Default <code>{{(defaults).Presence.RelayConnectTimeoutSec}}</code>.</div>
             </div>
             <div class="field">
               <label>Refresh interval (sec)</label>
               <input name="presence_relay_refresh_interval_sec"
                      type="number" min="0"
                      value="{{.Cfg.Presence.RelayRefreshIntervalSec}}"
-                     placeholder="300">
-              <div class="hint">Periodic check interval for missing circuit address. Default <code>300</code> (5 min).</div>
+                     placeholder="{{(defaults).Presence.RelayRefreshIntervalSec}}">
+              <div class="hint">Periodic check interval for missing circuit address. Default <code>{{(defaults).Presence.RelayRefreshIntervalSec}}</code>. Pushed to clients.</div>
             </div>
           </div>
           <div class="grid2">
@@ -462,8 +462,8 @@
               <input name="presence_relay_recovery_grace_sec"
                      type="number" min="0"
                      value="{{.Cfg.Presence.RelayRecoveryGraceSec}}"
-                     placeholder="5">
-              <div class="hint">Grace period for AutoRelay self-recovery before manual recovery kicks in. Default <code>5</code>.</div>
+                     placeholder="{{(defaults).Presence.RelayRecoveryGraceSec}}">
+              <div class="hint">Grace period for AutoRelay self-recovery before manual recovery kicks in. Default <code>{{(defaults).Presence.RelayRecoveryGraceSec}}</code>.</div>
             </div>
             <div class="field"></div>
           </div>

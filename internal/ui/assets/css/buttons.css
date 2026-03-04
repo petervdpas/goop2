@@ -35,6 +35,33 @@ button:focus-visible{
 }
 
 /* -----------------------------
+   Button group
+------------------------------ */
+.btn-group {
+  display: inline-flex;
+}
+
+.btn-group > .btn,
+.btn-group > button {
+  border-radius: 0;
+}
+
+.btn-group > .btn:first-child,
+.btn-group > button:first-child {
+  border-radius: 999px 0 0 999px;
+}
+
+.btn-group > .btn:last-child,
+.btn-group > button:last-child {
+  border-radius: 0 999px 999px 0;
+}
+
+.btn-group > .btn + .btn,
+.btn-group > button + button {
+  border-left: none;
+}
+
+/* -----------------------------
    Toggle switch
 ------------------------------ */
 .switch{

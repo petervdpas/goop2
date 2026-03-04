@@ -19,6 +19,7 @@
     "/assets/js/dialogs.js",
     "/assets/js/toast.js",
     "/assets/js/groups.js",
+    "/assets/js/forms.js",
   ];
 
   // Viewer-only call layer — single unified file handles both browser and native modes.

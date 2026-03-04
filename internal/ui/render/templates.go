@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/petervdpas/goop2/internal/config"
 	"github.com/petervdpas/goop2/internal/ui"
 )
 
@@ -31,6 +32,8 @@ func InitTemplates() error {
 			"rfc3339":  func(t time.Time) string { return t.Format(time.RFC3339) },
 			"isActive": func(active, key string) bool { return active == key },
 			"trim":     strings.TrimSpace,
+
+			"defaults": func() config.Config { return config.Default() },
 
 			"include": func(name string, data any) template.HTML {
 				if tmpl == nil {
