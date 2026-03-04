@@ -74,6 +74,72 @@ definitions:
         example: call
         type: string
     type: object
+  routes.clusterCancelRequest:
+    properties:
+      job_id:
+        example: j-abc123
+        type: string
+    type: object
+  routes.clusterCreateRequest:
+    properties:
+      name:
+        example: My Cluster
+        type: string
+    type: object
+  routes.clusterCreateResponse:
+    properties:
+      group_id:
+        example: a1b2c3d4e5f6a1b2
+        type: string
+      status:
+        example: created
+        type: string
+    type: object
+  routes.clusterJoinRequest:
+    properties:
+      group_id:
+        example: a1b2c3d4e5f6a1b2
+        type: string
+      host_peer_id:
+        example: 12D3KooWXxx...
+        type: string
+    type: object
+  routes.clusterStatusResponse:
+    properties:
+      group_id:
+        example: a1b2c3d4e5f6a1b2
+        type: string
+      role:
+        example: host
+        type: string
+    type: object
+  routes.clusterSubmitRequest:
+    properties:
+      max_retry:
+        example: 2
+        type: integer
+      payload:
+        additionalProperties: {}
+        type: object
+      priority:
+        example: 5
+        type: integer
+      timeout_s:
+        example: 300
+        type: integer
+      type:
+        example: render
+        type: string
+    type: object
+  routes.clusterSubmitResponse:
+    properties:
+      job_id:
+        example: j-abc123
+        type: string
+      status:
+        example: submitted
+        type: string
+    type: object
   routes.dataColumnRequest:
     properties:
       column: {}
@@ -792,6 +858,194 @@ paths:
       summary: Get chat history with a peer
       tags:
       - chat
+  /api/cluster/cancel:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Cancel request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.clusterCancelRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+        "400":
+          description: missing job_id
+          schema:
+            type: string
+        "409":
+          description: not a cluster host
+          schema:
+            type: string
+      summary: Cancel a job (host only)
+      tags:
+      - cluster
+  /api/cluster/create:
+    post:
+      consumes:
+      - application/json
+      description: Creates a volatile group with app_type="cluster" and sets this
+        node as host.
+      parameters:
+      - description: Create request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.clusterCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.clusterCreateResponse'
+        "409":
+          description: already in a cluster
+          schema:
+            type: string
+      summary: Create a new cluster (become host)
+      tags:
+      - cluster
+  /api/cluster/jobs:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      summary: List all jobs in the queue (host only)
+      tags:
+      - cluster
+  /api/cluster/join:
+    post:
+      consumes:
+      - application/json
+      description: Joins a remote cluster group and registers this node as a worker.
+      parameters:
+      - description: Join request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.clusterJoinRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+        "400":
+          description: missing host_peer_id or group_id
+          schema:
+            type: string
+        "409":
+          description: already in a cluster
+          schema:
+            type: string
+        "502":
+          description: failed to join group
+          schema:
+            type: string
+      summary: Join an existing cluster as worker
+      tags:
+      - cluster
+  /api/cluster/leave:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+      summary: Leave the current cluster
+      tags:
+      - cluster
+  /api/cluster/stats:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Queue statistics (host only)
+      tags:
+      - cluster
+  /api/cluster/status:
+    get:
+      description: Returns the current role (host, worker, or empty), the active group
+        ID, and stats if host.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.clusterStatusResponse'
+      summary: Current cluster role and group
+      tags:
+      - cluster
+  /api/cluster/submit:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Job submission
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.clusterSubmitRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.clusterSubmitResponse'
+        "400":
+          description: missing job type
+          schema:
+            type: string
+        "409":
+          description: not a cluster host
+          schema:
+            type: string
+      summary: Submit a job to the cluster queue (host only)
+      tags:
+      - cluster
+  /api/cluster/workers:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      summary: List all workers (host only)
+      tags:
+      - cluster
   /api/data/delete:
     post:
       consumes:

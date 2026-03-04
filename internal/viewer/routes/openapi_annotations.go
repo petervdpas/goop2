@@ -267,6 +267,151 @@ type statusOK struct {
 	Status string `json:"status" example:"ok"`
 }
 
+// ── Cluster ──────────────────────────────────────────────────────────────────
+
+// clusterStatusResponse is the body for GET /api/cluster/status.
+type clusterStatusResponse struct {
+	Role    string `json:"role"     example:"host"`
+	GroupID string `json:"group_id" example:"a1b2c3d4e5f6a1b2"`
+}
+
+// clusterCreateRequest is the body for POST /api/cluster/create.
+type clusterCreateRequest struct {
+	Name string `json:"name" example:"My Cluster"`
+}
+
+// clusterCreateResponse is the body for POST /api/cluster/create.
+type clusterCreateResponse struct {
+	Status  string `json:"status"   example:"created"`
+	GroupID string `json:"group_id" example:"a1b2c3d4e5f6a1b2"`
+}
+
+// clusterJoinRequest is the body for POST /api/cluster/join.
+type clusterJoinRequest struct {
+	HostPeerID string `json:"host_peer_id" example:"12D3KooWXxx..."`
+	GroupID    string `json:"group_id"     example:"a1b2c3d4e5f6a1b2"`
+}
+
+// clusterSubmitRequest is the body for POST /api/cluster/submit.
+type clusterSubmitRequest struct {
+	Type     string         `json:"type"                example:"render"`
+	Payload  map[string]any `json:"payload,omitempty"`
+	Priority int            `json:"priority,omitempty"  example:"5"`
+	TimeoutS int            `json:"timeout_s,omitempty" example:"300"`
+	MaxRetry int            `json:"max_retry,omitempty" example:"2"`
+}
+
+// clusterSubmitResponse is the body for POST /api/cluster/submit.
+type clusterSubmitResponse struct {
+	Status string `json:"status" example:"submitted"`
+	JobID  string `json:"job_id" example:"j-abc123"`
+}
+
+// clusterCancelRequest is the body for POST /api/cluster/cancel.
+type clusterCancelRequest struct {
+	JobID string `json:"job_id" example:"j-abc123"`
+}
+
+// swagClusterStatus is a documentation stub for GET /api/cluster/status.
+//
+//	@Summary	Current cluster role and group
+//	@Description	Returns the current role (host, worker, or empty), the active group ID, and stats if host.
+//	@Tags		cluster
+//	@Produce	json
+//	@Success	200	{object}	clusterStatusResponse
+//	@Router		/api/cluster/status [get]
+func swagClusterStatus() {}
+
+// swagClusterCreate is a documentation stub for POST /api/cluster/create.
+//
+//	@Summary	Create a new cluster (become host)
+//	@Description	Creates a volatile group with app_type="cluster" and sets this node as host.
+//	@Tags		cluster
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		clusterCreateRequest	true	"Create request"
+//	@Success	200		{object}	clusterCreateResponse
+//	@Failure	409		{string}	string	"already in a cluster"
+//	@Router		/api/cluster/create [post]
+func swagClusterCreate() {}
+
+// swagClusterJoin is a documentation stub for POST /api/cluster/join.
+//
+//	@Summary	Join an existing cluster as worker
+//	@Description	Joins a remote cluster group and registers this node as a worker.
+//	@Tags		cluster
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		clusterJoinRequest	true	"Join request"
+//	@Success	200		{object}	statusOK
+//	@Failure	400		{string}	string	"missing host_peer_id or group_id"
+//	@Failure	409		{string}	string	"already in a cluster"
+//	@Failure	502		{string}	string	"failed to join group"
+//	@Router		/api/cluster/join [post]
+func swagClusterJoin() {}
+
+// swagClusterLeave is a documentation stub for POST /api/cluster/leave.
+//
+//	@Summary	Leave the current cluster
+//	@Tags		cluster
+//	@Produce	json
+//	@Success	200	{object}	statusOK
+//	@Router		/api/cluster/leave [post]
+func swagClusterLeave() {}
+
+// swagClusterSubmit is a documentation stub for POST /api/cluster/submit.
+//
+//	@Summary	Submit a job to the cluster queue (host only)
+//	@Tags		cluster
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		clusterSubmitRequest	true	"Job submission"
+//	@Success	200		{object}	clusterSubmitResponse
+//	@Failure	400		{string}	string	"missing job type"
+//	@Failure	409		{string}	string	"not a cluster host"
+//	@Router		/api/cluster/submit [post]
+func swagClusterSubmit() {}
+
+// swagClusterCancel is a documentation stub for POST /api/cluster/cancel.
+//
+//	@Summary	Cancel a job (host only)
+//	@Tags		cluster
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		clusterCancelRequest	true	"Cancel request"
+//	@Success	200		{object}	statusOK
+//	@Failure	400		{string}	string	"missing job_id"
+//	@Failure	409		{string}	string	"not a cluster host"
+//	@Router		/api/cluster/cancel [post]
+func swagClusterCancel() {}
+
+// swagClusterJobs is a documentation stub for GET /api/cluster/jobs.
+//
+//	@Summary	List all jobs in the queue (host only)
+//	@Tags		cluster
+//	@Produce	json
+//	@Success	200	{array}	map[string]any
+//	@Router		/api/cluster/jobs [get]
+func swagClusterJobs() {}
+
+// swagClusterWorkers is a documentation stub for GET /api/cluster/workers.
+//
+//	@Summary	List all workers (host only)
+//	@Tags		cluster
+//	@Produce	json
+//	@Success	200	{array}	map[string]any
+//	@Router		/api/cluster/workers [get]
+func swagClusterWorkers() {}
+
+// swagClusterStats is a documentation stub for GET /api/cluster/stats.
+//
+//	@Summary	Queue statistics (host only)
+//	@Tags		cluster
+//	@Produce	json
+//	@Success	200	{object}	map[string]any
+//	@Router		/api/cluster/stats [get]
+func swagClusterStats() {}
+
 // ── MQ ───────────────────────────────────────────────────────────────────────
 
 // swagMQSend is a documentation stub for POST /api/mq/send.

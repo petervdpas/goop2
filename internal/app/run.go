@@ -680,6 +680,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			BridgeURL:   o.BridgeURL,
 			EnsureLua:   ensureLua,
 			Call:        callMgr,
+			Cluster:    clusterMgr,
 		})
 	}
 

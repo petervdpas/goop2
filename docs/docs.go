@@ -531,6 +531,293 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/cluster/cancel": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "Cancel a job (host only)",
+                "parameters": [
+                    {
+                        "description": "Cancel request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.clusterCancelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    },
+                    "400": {
+                        "description": "missing job_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "not a cluster host",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cluster/create": {
+            "post": {
+                "description": "Creates a volatile group with app_type=\"cluster\" and sets this node as host.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "Create a new cluster (become host)",
+                "parameters": [
+                    {
+                        "description": "Create request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.clusterCreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.clusterCreateResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "already in a cluster",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cluster/jobs": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "List all jobs in the queue (host only)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": true
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cluster/join": {
+            "post": {
+                "description": "Joins a remote cluster group and registers this node as a worker.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "Join an existing cluster as worker",
+                "parameters": [
+                    {
+                        "description": "Join request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.clusterJoinRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    },
+                    "400": {
+                        "description": "missing host_peer_id or group_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "already in a cluster",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "502": {
+                        "description": "failed to join group",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cluster/leave": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "Leave the current cluster",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cluster/stats": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "Queue statistics (host only)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cluster/status": {
+            "get": {
+                "description": "Returns the current role (host, worker, or empty), the active group ID, and stats if host.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "Current cluster role and group",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.clusterStatusResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cluster/submit": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "Submit a job to the cluster queue (host only)",
+                "parameters": [
+                    {
+                        "description": "Job submission",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.clusterSubmitRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.clusterSubmitResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "missing job type",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "not a cluster host",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cluster/workers": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "List all workers (host only)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": true
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/data/delete": {
             "post": {
                 "consumes": [
@@ -2374,6 +2661,101 @@ const docTemplate = `{
                 "source": {
                     "type": "string",
                     "example": "call"
+                }
+            }
+        },
+        "routes.clusterCancelRequest": {
+            "type": "object",
+            "properties": {
+                "job_id": {
+                    "type": "string",
+                    "example": "j-abc123"
+                }
+            }
+        },
+        "routes.clusterCreateRequest": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "example": "My Cluster"
+                }
+            }
+        },
+        "routes.clusterCreateResponse": {
+            "type": "object",
+            "properties": {
+                "group_id": {
+                    "type": "string",
+                    "example": "a1b2c3d4e5f6a1b2"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "created"
+                }
+            }
+        },
+        "routes.clusterJoinRequest": {
+            "type": "object",
+            "properties": {
+                "group_id": {
+                    "type": "string",
+                    "example": "a1b2c3d4e5f6a1b2"
+                },
+                "host_peer_id": {
+                    "type": "string",
+                    "example": "12D3KooWXxx..."
+                }
+            }
+        },
+        "routes.clusterStatusResponse": {
+            "type": "object",
+            "properties": {
+                "group_id": {
+                    "type": "string",
+                    "example": "a1b2c3d4e5f6a1b2"
+                },
+                "role": {
+                    "type": "string",
+                    "example": "host"
+                }
+            }
+        },
+        "routes.clusterSubmitRequest": {
+            "type": "object",
+            "properties": {
+                "max_retry": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "payload": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "priority": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "timeout_s": {
+                    "type": "integer",
+                    "example": 300
+                },
+                "type": {
+                    "type": "string",
+                    "example": "render"
+                }
+            }
+        },
+        "routes.clusterSubmitResponse": {
+            "type": "object",
+            "properties": {
+                "job_id": {
+                    "type": "string",
+                    "example": "j-abc123"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "submitted"
                 }
             }
         },

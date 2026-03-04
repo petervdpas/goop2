@@ -5,6 +5,7 @@ import (
 
 	"github.com/petervdpas/goop2/internal/avatar"
 	"github.com/petervdpas/goop2/internal/call"
+	"github.com/petervdpas/goop2/internal/cluster"
 	"github.com/petervdpas/goop2/internal/content"
 	"github.com/petervdpas/goop2/internal/docs"
 	"github.com/petervdpas/goop2/internal/group"
@@ -55,6 +56,9 @@ type Viewer struct {
 	// Call manager for native Go/Pion WebRTC (nil = use browser WebRTC).
 	// Set automatically on Linux; nil on all other platforms.
 	Call *call.Manager
+
+	// Cluster compute manager (nil when cluster not configured).
+	Cluster *cluster.Manager
 }
 
 func Start(addr string, v Viewer) error {
@@ -147,6 +151,11 @@ func Start(addr string, v Viewer) error {
 		)
 	}
 
+
+	// Register cluster compute endpoints
+	if v.Cluster != nil {
+		routes.RegisterCluster(mux, v.Cluster, v.Groups, v.Node.ID())
+	}
 
 	// Register native call endpoints (always register mode endpoint; full API when Call != nil)
 	routes.RegisterCall(mux, v.Call, v.MQ)
