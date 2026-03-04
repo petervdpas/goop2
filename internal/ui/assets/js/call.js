@@ -1069,7 +1069,10 @@
       .then(function (j) {
         _mode     = j.mode     || 'browser';
         _platform = j.platform || 'unknown';
-        log('info', 'mode=' + _mode + ' platform=' + _platform);
+        if (!sessionStorage.getItem('call:mode-logged')) {
+          sessionStorage.setItem('call:mode-logged', '1');
+          log('info', 'mode=' + _mode + ' platform=' + _platform);
+        }
         // Restore any active call sessions after page navigation.
         // Native: Go keeps Pion alive — query /api/call/active and re-attach UI.
         // Browser: RTCPeerConnections are destroyed on navigate — use sessionStorage

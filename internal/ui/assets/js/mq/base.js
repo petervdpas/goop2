@@ -62,7 +62,10 @@
         _dbReady = true;
         var q = _dbQueue.splice(0);
         q.forEach(function (fn) { fn(_db); });
-        log("info", "IndexedDB ready (session-only)");
+        if (!sessionStorage.getItem('mq:db-logged')) {
+          sessionStorage.setItem('mq:db-logged', '1');
+          log("info", "IndexedDB ready (session-only)");
+        }
       };
       req.onerror = function () {
         log("warn", "IndexedDB unavailable — MQ will operate without persistence");
