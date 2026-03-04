@@ -766,12 +766,12 @@ func (s *Server) Start(ctx context.Context) error {
 
 		// update peer snapshot for / and /peers.json
 		// Always store and broadcast — mark unverified peers
-		s.upsertPeer(pm, msgSize, isRegistered, peerToken)
+		addrsChanged := s.upsertPeer(pm, msgSize, isRegistered, peerToken)
 		s.addLog(fmt.Sprintf("Received %s from %s: %q (verified=%v)", pm.Type, pm.PeerID, pm.Content, isRegistered))
 		s.broadcast(b)
 
 		if pm.Type == proto.TypeOnline || pm.Type == proto.TypeUpdate {
-			s.emitPunchHints(pm)
+			s.emitPunchHints(pm, addrsChanged)
 		}
 
 		w.WriteHeader(http.StatusNoContent)
@@ -1082,6 +1082,10 @@ func (s *Server) handleWS(ctx context.Context, w http.ResponseWriter, r *http.Re
 		}
 		s.mu.Unlock()
 
+		if stillOnline && s.peerDB != nil {
+			go s.peerDB.remove(peerID)
+		}
+
 		if stillOnline {
 			offMsg := proto.PresenceMsg{
 				Type:   proto.TypeOffline,
@@ -1137,11 +1141,11 @@ func (s *Server) handleWS(ctx context.Context, w http.ResponseWriter, r *http.Re
 		b, _ := json.Marshal(pm)
 		msgSize := int64(len(b))
 
-		s.upsertPeer(pm, msgSize, isRegistered, peerToken)
+		addrsChanged := s.upsertPeer(pm, msgSize, isRegistered, peerToken)
 		s.broadcast(b)
 
 		if pm.Type == proto.TypeOnline || pm.Type == proto.TypeUpdate {
-			s.emitPunchHints(pm)
+			s.emitPunchHints(pm, addrsChanged)
 		}
 	}
 }
@@ -1198,11 +1202,16 @@ func pairKey(a, b string) [2]string {
 }
 
 // emitPunchHints sends targeted address hints to peer pairs.
-// When a peer arrives or updates, we tell each existing peer about the
-// arriving peer's addresses and vice versa. Both sides then add addresses to
-// their libp2p peerstores and probe — optimal for DCUtR hole-punching on WAN,
+// When a peer arrives or its addresses change, we tell each existing peer about
+// the arriving peer's addresses and vice versa. Both sides then add addresses
+// to their libp2p peerstores and probe — optimal for DCUtR hole-punching on WAN,
 // and a fast supplement to mDNS on LAN.
-func (s *Server) emitPunchHints(arriving proto.PresenceMsg) {
+// addrsChanged indicates whether the peer's addresses differ from what the server
+// had stored before this update. On TypeOnline, always true.
+func (s *Server) emitPunchHints(arriving proto.PresenceMsg, addrsChanged bool) {
+	if !addrsChanged {
+		return
+	}
 	if len(arriving.Addrs) == 0 {
 		return
 	}
@@ -1266,7 +1275,9 @@ func (s *Server) emitPunchHints(arriving proto.PresenceMsg) {
 	}
 }
 
-func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64, verified bool, verificationToken string) {
+// upsertPeer updates the in-memory peer map and persists to peerDB.
+// Returns true if the peer is new or its addresses changed (used to gate punch hints).
+func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64, verified bool, verificationToken string) bool {
 	now := time.Now().UnixMilli()
 
 	s.mu.Lock()
@@ -1280,11 +1291,12 @@ func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64, verified bool, 
 		if s.peerDB != nil {
 			go s.peerDB.remove(pm.PeerID)
 		}
-		return
+		return false
 	}
 
-	// Preserve existing byte counts
+	// Preserve existing byte counts and detect address changes
 	existing, exists := s.peers[pm.PeerID]
+	addrsChanged := !exists || !addrsEqual(existing.Addrs, pm.Addrs)
 	bytesSent := msgSize
 	bytesReceived := int64(0)
 	if exists {
@@ -1315,6 +1327,24 @@ func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64, verified bool, 
 	if s.peerDB != nil {
 		go s.peerDB.upsert(row)
 	}
+	return addrsChanged
+}
+
+// addrsEqual compares two address slices for equality (order-insensitive).
+func addrsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	set := make(map[string]struct{}, len(a))
+	for _, addr := range a {
+		set[addr] = struct{}{}
+	}
+	for _, addr := range b {
+		if _, ok := set[addr]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Server) snapshotPeers() []peerRow {
