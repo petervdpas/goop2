@@ -328,6 +328,7 @@
     // Wire up card clicks
     root.querySelectorAll(".card").forEach(function (card) {
       card.onclick = function (e) {
+        if (justDragged) return;
         if (e.target.closest(".card-action-btn") || e.target.closest(".move-dropdown")) return;
         var cardId = card.getAttribute("data-card-id");
         showEditCardModal(cardId);
@@ -394,6 +395,9 @@
         d.classList.remove("open");
       });
     });
+
+    // Attach drag-and-drop
+    if (Goop.drag) initDrag();
   }
 
   function renderCard(card, currentColumnId) {
@@ -433,6 +437,93 @@
 
     html += '</div>';
     return html;
+  }
+
+  // --- Drag-and-drop ---
+
+  var cardSortables = [];
+  var columnSortable = null;
+  var justDragged = false;
+
+  function initDrag() {
+    destroyDrag();
+
+    // Card drag (move between columns)
+    document.querySelectorAll(".column-cards").forEach(function (container) {
+      cardSortables.push(Goop.drag.sortable(container, {
+        items: ".card",
+        group: "cards",
+        direction: "vertical",
+        onEnd: function (evt) {
+          justDragged = true;
+          setTimeout(function () { justDragged = false; }, 0);
+          var cardId = parseInt(evt.item.getAttribute("data-card-id"));
+          var toColumn = parseInt(evt.to.closest(".column").getAttribute("data-column-id"));
+          var toPosition = evt.newIndex;
+          moveCardToPosition(cardId, toColumn, toPosition);
+        },
+        onCancel: function () {
+          justDragged = true;
+          setTimeout(function () { justDragged = false; }, 0);
+        }
+      }));
+    });
+
+    // Column drag (owner only)
+    if (isOwner) {
+      var board = document.querySelector(".board");
+      if (board) {
+        columnSortable = Goop.drag.sortable(board, {
+          items: ".column[data-column-id]",
+          handle: ".column-header",
+          direction: "horizontal",
+          onEnd: function () {
+            reorderColumns();
+          }
+        });
+      }
+    }
+  }
+
+  function destroyDrag() {
+    for (var i = 0; i < cardSortables.length; i++) cardSortables[i].destroy();
+    cardSortables = [];
+    if (columnSortable) { columnSortable.destroy(); columnSortable = null; }
+  }
+
+  async function moveCardToPosition(cardId, toColumn, toPosition) {
+    try {
+      await db.call("kanban", {
+        action: "move_card",
+        card_id: cardId,
+        to_column: toColumn,
+        to_position: toPosition,
+        peer_name: myLabel || myId
+      });
+      loadBoard();
+    } catch (e) {
+      Goop.ui.toast({ title: "Error", message: e.message || "Failed to move card" });
+      loadBoard();
+    }
+  }
+
+  async function reorderColumns() {
+    var cols = document.querySelectorAll(".board > .column[data-column-id]");
+    var ids = [];
+    cols.forEach(function (col) {
+      ids.push(parseInt(col.getAttribute("data-column-id")));
+    });
+    try {
+      var res = await db.call("kanban", {
+        action: "reorder_columns",
+        column_ids: ids
+      });
+      if (res.error) throw new Error(res.error);
+      loadBoard();
+    } catch (e) {
+      Goop.ui.toast({ title: "Error", message: e.message || "Failed to reorder columns" });
+      loadBoard();
+    }
   }
 
   // --- Add card modal ---

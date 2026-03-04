@@ -21,6 +21,8 @@ function call(request)
         return delete_column(request.params)
     elseif action == "move_column" then
         return move_column(request.params)
+    elseif action == "reorder_columns" then
+        return reorder_columns(request.params)
     elseif action == "get_config" then
         return get_config()
     elseif action == "save_config" then
@@ -331,6 +333,20 @@ function move_column(params)
     goop.db.exec("UPDATE columns SET position = ?, _updated_at = CURRENT_TIMESTAMP WHERE _id = ?", current_pos, adj_id)
 
     return { status = "moved" }
+end
+
+function reorder_columns(params)
+    if goop.peer.id ~= goop.self.id then
+        return { error = "only the site owner can reorder columns" }
+    end
+    local ids = params.column_ids
+    if not ids then
+        return { error = "column_ids required" }
+    end
+    for i, id in ipairs(ids) do
+        goop.db.exec("UPDATE columns SET position = ?, _updated_at = CURRENT_TIMESTAMP WHERE _id = ?", i - 1, id)
+    end
+    return { status = "reordered" }
 end
 
 function get_config()

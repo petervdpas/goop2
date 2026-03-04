@@ -31,9 +31,11 @@
     var s = document.createElement("style");
     s.id = STYLE_ID;
     s.textContent =
-      ".goop-drag-ghost{position:fixed;z-index:99999;pointer-events:none;opacity:0.85;}" +
-      ".goop-drag-placeholder{border:2px dashed var(--border,#ccc);border-radius:6px;min-height:2rem;transition:height .15s;}" +
-      ".goop-drag-active{user-select:none;}";
+      ".goop-drag-ghost{position:fixed;z-index:99999;pointer-events:none;opacity:0.9;box-shadow:0 8px 24px rgba(0,0,0,0.18);transform:rotate(1.5deg) scale(1.03);border-radius:8px;}" +
+      ".goop-drag-source{opacity:0.35;}" +
+      ".goop-drag-placeholder{border:2px dashed var(--accent,#6366f1);border-radius:6px;min-height:2rem;background:rgba(99,102,241,0.06);transition:height .15s;}" +
+      ".goop-drag-active{user-select:none;}" +
+      ".goop-drag-over{outline:2px solid var(--accent,#6366f1);outline-offset:-2px;border-radius:8px;}";
     document.head.appendChild(s);
   }
 
@@ -106,8 +108,8 @@
       var item = closestItem(target, itemSelector);
       if (!item || item.parentNode !== container) return;
 
-      // Don't drag if clicking interactive elements
-      if (target.closest("button, a, input, textarea, select, [contenteditable]")) return;
+      // Don't drag if clicking interactive elements (skip check when handle is set)
+      if (!handleSelector && target.closest("button, a, input, textarea, select, [contenteditable]")) return;
 
       startX = e.clientX;
       startY = e.clientY;
@@ -152,8 +154,9 @@
         dragItem.parentNode.insertBefore(placeholder, dragItem);
       }
 
-      // Hide original
-      dragItem.style.display = "none";
+      // Dim original in place
+      dragItem.classList.add("goop-drag-source");
+      currentContainer.classList.add("goop-drag-over");
 
       // Prevent text selection / touch scroll
       document.body.classList.add("goop-drag-active");
@@ -237,9 +240,11 @@
         }
       }
 
-      // Update touch-action on all containers
+      // Update container highlight + touch-action
       if (currentContainer !== targetContainer) {
+        currentContainer.classList.remove("goop-drag-over");
         currentContainer.style.touchAction = "";
+        targetContainer.classList.add("goop-drag-over");
         targetContainer.style.touchAction = "none";
       }
       currentContainer = targetContainer;
@@ -275,13 +280,13 @@
         } else {
           originContainer.appendChild(dragItem);
         }
-        dragItem.style.display = "";
+        dragItem.classList.remove("goop-drag-source");
       } else {
         // Insert at placeholder position
         if (placeholder && placeholder.parentNode) {
           placeholder.parentNode.insertBefore(dragItem, placeholder);
         }
-        dragItem.style.display = "";
+        dragItem.classList.remove("goop-drag-source");
 
         // Calculate final index
         var finalItems = getItems(dragItem.parentNode);
@@ -303,6 +308,7 @@
       var containers = getContainers();
       for (var c = 0; c < containers.length; c++) {
         containers[c].style.touchAction = "";
+        containers[c].classList.remove("goop-drag-over");
       }
 
       if (cancelled) {

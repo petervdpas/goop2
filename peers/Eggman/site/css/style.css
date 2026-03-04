@@ -514,6 +514,15 @@ html, body {
 .col-action-btn:hover { background: var(--bg); color: var(--text); }
 .col-action-btn.col-delete:hover { color: #e55; }
 
+/* Drag-and-drop */
+.column-cards .card { cursor: grab; }
+.column-cards .card:active { cursor: grabbing; }
+.card.goop-drag-source { transform: none; box-shadow: none; }
+.card.goop-drag-source:hover { transform: none; box-shadow: none; }
+.card.goop-drag-source .card-actions { display: none; }
+.goop-drag-active .card { transition: none; }
+.goop-drag-active .column { transition: outline 0.15s; }
+
 /* Empty state */
 .empty-column {
   color: var(--muted);
