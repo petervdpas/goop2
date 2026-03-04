@@ -147,7 +147,7 @@
 
     // Close picker on form submit
     form.addEventListener('submit', function() {
-      picker.style.display = 'none';
+      picker.classList.add('hidden');
       btn.classList.remove('active');
     });
 
