@@ -68,6 +68,7 @@ html, body {
   color: var(--accent);
 }
 
+.hidden { display: none; }
 .config-btn.hidden { display: none; }
 
 .kanban-subtitle {
@@ -497,6 +498,21 @@ html, body {
   gap: 0.35rem;
   flex-shrink: 0;
 }
+
+/* Column actions */
+.column-actions { display: flex; gap: 2px; margin-left: 0.5rem; }
+.col-action-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.75rem;
+  padding: 2px 5px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.col-action-btn:hover { background: var(--bg); color: var(--text); }
+.col-action-btn.col-delete:hover { color: #e55; }
 
 /* Empty state */
 .empty-column {

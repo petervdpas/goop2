@@ -19,6 +19,8 @@ function call(request)
         return update_column(request.params)
     elseif action == "delete_column" then
         return delete_column(request.params)
+    elseif action == "move_column" then
+        return move_column(request.params)
     elseif action == "get_config" then
         return get_config()
     elseif action == "save_config" then
@@ -282,6 +284,55 @@ function delete_column(params)
     return { status = "deleted" }
 end
 
+function move_column(params)
+    if goop.peer.id ~= goop.self.id then
+        return { error = "only the site owner can reorder columns" }
+    end
+
+    local column_id = params.column_id
+    local direction = params.direction
+
+    if not column_id or not direction then
+        return { error = "column_id and direction required" }
+    end
+
+    -- Get current column's position
+    local rows = goop.db.query("SELECT _id, position FROM columns WHERE _id = ?", column_id)
+    if not rows or #rows == 0 then
+        return { error = "column not found" }
+    end
+    local current_pos = rows[1].position
+
+    -- Find adjacent column
+    local adjacent
+    if direction == "left" then
+        adjacent = goop.db.query(
+            "SELECT _id, position FROM columns WHERE position < ? ORDER BY position DESC LIMIT 1",
+            current_pos
+        )
+    elseif direction == "right" then
+        adjacent = goop.db.query(
+            "SELECT _id, position FROM columns WHERE position > ? ORDER BY position ASC LIMIT 1",
+            current_pos
+        )
+    else
+        return { error = "direction must be 'left' or 'right'" }
+    end
+
+    if not adjacent or #adjacent == 0 then
+        return { error = "cannot move further in that direction" }
+    end
+
+    local adj_id = adjacent[1]._id
+    local adj_pos = adjacent[1].position
+
+    -- Swap positions
+    goop.db.exec("UPDATE columns SET position = ?, _updated_at = CURRENT_TIMESTAMP WHERE _id = ?", adj_pos, column_id)
+    goop.db.exec("UPDATE columns SET position = ?, _updated_at = CURRENT_TIMESTAMP WHERE _id = ?", current_pos, adj_id)
+
+    return { status = "moved" }
+end
+
 function get_config()
     local rows = goop.db.query("SELECT key, value FROM kanban_config")
     if not rows or #rows == 0 then
@@ -321,7 +372,12 @@ function request_join(params)
         goop.peer.id
     )
     if existing and #existing > 0 then
-        return { status = existing[1].status }
+        local st = existing[1].status
+        if st == "pending" then
+            return { status = "pending" }
+        end
+        -- Approved or dismissed: clear old request so they can re-request
+        goop.db.exec("DELETE FROM join_requests WHERE _owner = ?", goop.peer.id)
     end
 
     -- Insert new request (Lua runs as owner context due to insert_policy: "owner")

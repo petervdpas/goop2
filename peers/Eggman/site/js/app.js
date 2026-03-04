@@ -64,14 +64,14 @@
     try {
       var res = await db.call("kanban", { action: "get_my_request" });
       if (res.status === "pending") {
-        gateRequest.style.display = "none";
-        gatePending.style.display = "block";
+        gateRequest.classList.add("hidden");
+        gatePending.classList.remove("hidden");
       } else if (res.status === "approved") {
-        gateRequest.style.display = "none";
-        gateApproved.style.display = "block";
+        gateRequest.classList.add("hidden");
+        gateApproved.classList.remove("hidden");
       } else if (res.status === "dismissed") {
-        gateRequest.style.display = "none";
-        gateDenied.style.display = "block";
+        gateRequest.classList.add("hidden");
+        gateDenied.classList.remove("hidden");
       }
     } catch (_) {}
 
@@ -87,14 +87,14 @@
           message: msg
         });
         if (res.status === "pending") {
-          gateRequest.style.display = "none";
-          gatePending.style.display = "block";
+          gateRequest.classList.add("hidden");
+          gatePending.classList.remove("hidden");
         } else {
           // Already requested
-          gateRequest.style.display = "none";
-          if (res.status === "dismissed") gateDenied.style.display = "block";
-          else if (res.status === "approved") gateApproved.style.display = "block";
-          else gatePending.style.display = "block";
+          gateRequest.classList.add("hidden");
+          if (res.status === "dismissed") gateDenied.classList.remove("hidden");
+          else if (res.status === "approved") gateApproved.classList.remove("hidden");
+          else gatePending.classList.remove("hidden");
         }
       } catch (e) {
         Goop.ui.toast({ title: "Error", message: e.message || "Failed to send request" });
@@ -278,6 +278,17 @@
       html += esc(col.name);
       html += '</span>';
       html += '<span class="column-count">' + cards.length + (cards.length === 1 ? ' item' : ' items') + '</span>';
+      if (isOwner) {
+        html += '<span class="column-actions">';
+        if (i > 0) {
+          html += '<button class="col-action-btn col-move-left" data-col-id="' + col._id + '" title="Move left">&#9664;</button>';
+        }
+        if (i < columns.length - 1) {
+          html += '<button class="col-action-btn col-move-right" data-col-id="' + col._id + '" title="Move right">&#9654;</button>';
+        }
+        html += '<button class="col-action-btn col-delete" data-col-id="' + col._id + '" title="Delete column">&#10005;</button>';
+        html += '</span>';
+      }
       html += '</div>';
 
       html += '<div class="column-cards">';
@@ -341,6 +352,28 @@
         var cardId = parseInt(opt.getAttribute("data-card-id"));
         var toColumn = parseInt(opt.getAttribute("data-to-column"));
         await moveCard(cardId, toColumn);
+      };
+    });
+
+    // Wire up column action buttons
+    root.querySelectorAll(".col-move-left").forEach(function (btn) {
+      btn.onclick = function (e) {
+        e.stopPropagation();
+        moveColumn(parseInt(btn.getAttribute("data-col-id")), "left");
+      };
+    });
+
+    root.querySelectorAll(".col-move-right").forEach(function (btn) {
+      btn.onclick = function (e) {
+        e.stopPropagation();
+        moveColumn(parseInt(btn.getAttribute("data-col-id")), "right");
+      };
+    });
+
+    root.querySelectorAll(".col-delete").forEach(function (btn) {
+      btn.onclick = function (e) {
+        e.stopPropagation();
+        deleteColumn(parseInt(btn.getAttribute("data-col-id")));
       };
     });
 
@@ -577,6 +610,27 @@
       loadBoard();
     } catch (e) {
       Goop.ui.toast({ title: "Error", message: e.message || "Failed to move card" });
+    }
+  }
+
+  async function deleteColumn(columnId) {
+    if (!confirm("Delete this column?")) return;
+    try {
+      var res = await db.call("kanban", { action: "delete_column", column_id: columnId });
+      if (res.error) throw new Error(res.error);
+      loadBoard();
+    } catch (e) {
+      Goop.ui.toast({ title: "Error", message: e.message || "Failed to delete column" });
+    }
+  }
+
+  async function moveColumn(columnId, direction) {
+    try {
+      var res = await db.call("kanban", { action: "move_column", column_id: columnId, direction: direction });
+      if (res.error) throw new Error(res.error);
+      loadBoard();
+    } catch (e) {
+      Goop.ui.toast({ title: "Error", message: e.message || "Failed to move column" });
     }
   }
 
