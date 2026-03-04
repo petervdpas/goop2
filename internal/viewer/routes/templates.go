@@ -160,6 +160,116 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		})
 	})
 
+	// POST /api/templates/validate-local — preview a local template folder
+	handlePost(mux, "/api/templates/validate-local", func(w http.ResponseWriter, r *http.Request, req struct {
+		Path string `json:"path"`
+	}) {
+		if !requireLocal(w, r) {
+			return
+		}
+		if req.Path == "" {
+			http.Error(w, "path required", http.StatusBadRequest)
+			return
+		}
+		if !filepath.IsAbs(req.Path) || strings.Contains(req.Path, "..") {
+			http.Error(w, "invalid path", http.StatusBadRequest)
+			return
+		}
+
+		info, err := os.Stat(req.Path)
+		if err != nil || !info.IsDir() {
+			http.Error(w, "not a directory", http.StatusBadRequest)
+			return
+		}
+
+		manifestData, err := os.ReadFile(filepath.Join(req.Path, "manifest.json"))
+		if err != nil {
+			http.Error(w, "manifest.json not found in folder", http.StatusBadRequest)
+			return
+		}
+
+		var meta rendezvous.StoreMeta
+		if err := json.Unmarshal(manifestData, &meta); err != nil {
+			http.Error(w, "invalid manifest.json: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		writeJSON(w, map[string]string{
+			"name":        meta.Name,
+			"description": meta.Description,
+			"category":    meta.Category,
+			"icon":        meta.Icon,
+		})
+	})
+
+	// POST /api/templates/apply-local — apply a template from a local folder
+	handlePost(mux, "/api/templates/apply-local", func(w http.ResponseWriter, r *http.Request, req struct {
+		Path string `json:"path"`
+		CSRF string `json:"csrf"`
+	}) {
+		if !requireLocal(w, r) {
+			return
+		}
+		if req.CSRF != csrf {
+			http.Error(w, "bad csrf", http.StatusForbidden)
+			return
+		}
+		if req.Path == "" {
+			http.Error(w, "path required", http.StatusBadRequest)
+			return
+		}
+		if !filepath.IsAbs(req.Path) || strings.Contains(req.Path, "..") {
+			http.Error(w, "invalid path", http.StatusBadRequest)
+			return
+		}
+
+		allFiles, err := readLocalTemplateDir(req.Path)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		var schema string
+		var manifest rendezvous.StoreMeta
+		siteFiles := make(map[string][]byte)
+
+		for rel, data := range allFiles {
+			switch rel {
+			case "schema.sql":
+				schema = string(data)
+			case "manifest.json":
+				json.Unmarshal(data, &manifest)
+			default:
+				siteFiles[rel] = data
+			}
+		}
+
+		var tablePolicies map[string]string
+		if len(manifest.Tables) > 0 {
+			tablePolicies = make(map[string]string)
+			for name, tp := range manifest.Tables {
+				if tp.InsertPolicy != "" {
+					tablePolicies[name] = tp.InsertPolicy
+				}
+			}
+		}
+
+		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies, manifest.Name); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if cfg, err := config.Load(d.CfgPath); err == nil {
+			cfg.Viewer.ActiveTemplate = "local:" + filepath.Base(req.Path)
+			config.Save(d.CfgPath, cfg)
+		}
+
+		writeJSON(w, map[string]string{
+			"status":   "applied",
+			"template": manifest.Name,
+		})
+	})
+
 	// POST /api/templates/apply-store — apply a store template (resets site + db)
 	handlePost(mux, "/api/templates/apply-store", func(w http.ResponseWriter, r *http.Request, req struct {
 		Template string `json:"template"`
@@ -382,6 +492,52 @@ func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePol
 	}
 
 	return nil
+}
+
+// readLocalTemplateDir walks a directory and returns a map of relative path → content.
+// Rejects paths with ".." and enforces a 10MB per-file limit.
+func readLocalTemplateDir(root string) (map[string][]byte, error) {
+	const maxFileSize = 10 << 20 // 10MB
+
+	info, err := os.Stat(root)
+	if err != nil || !info.IsDir() {
+		return nil, fmt.Errorf("not a directory: %s", root)
+	}
+
+	if _, err := os.Stat(filepath.Join(root, "manifest.json")); err != nil {
+		return nil, fmt.Errorf("manifest.json not found in folder")
+	}
+
+	files := make(map[string][]byte)
+	err = filepath.Walk(root, func(path string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if fi.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		rel = filepath.ToSlash(rel)
+		if strings.Contains(rel, "..") {
+			return nil
+		}
+		if fi.Size() > maxFileSize {
+			return fmt.Errorf("file %q exceeds 10MB limit", rel)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read %q: %w", rel, err)
+		}
+		files[rel] = data
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return files, nil
 }
 
 // extractTarGz reads a tar.gz stream into a map of relative path → content.

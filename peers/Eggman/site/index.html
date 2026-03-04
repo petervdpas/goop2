@@ -2,93 +2,136 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Blog</title>
+  <title>Kanban Board</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="css/style.css">
   <script src="/sdk/goop-data.js"></script>
-  <script src="/sdk/goop-site.js"></script>
   <script src="/sdk/goop-identity.js"></script>
   <script src="/sdk/goop-group.js"></script>
   <script src="/sdk/goop-ui.js"></script>
 </head>
 <body>
-  <div class="blog">
-    <header class="blog-header">
-      <h1 class="blog-title">My Blog</h1>
-      <p class="blog-subtitle" id="blog-subtitle">Thoughts, stories &amp; notes</p>
-      <button id="btn-new" class="btn-new hidden">+ New Post</button>
-      <button id="btn-customize" class="btn-customize hidden" title="Customize blog">⚙ Design</button>
+  <div class="kanban">
+    <header class="kanban-header">
+      <div class="kanban-header-row">
+        <h1 class="kanban-title" id="board-title">Kanban Board</h1>
+        <button class="config-btn hidden" id="config-btn" title="Board settings">&#9881;</button>
+      </div>
+      <p class="kanban-subtitle" id="subtitle">Loading&hellip;</p>
     </header>
 
-    <main id="posts" class="posts">
-      <p class="loading">Loading posts&hellip;</p>
+    <!-- Config modal (owner only) -->
+    <div id="config-modal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <h3>Board Settings</h3>
+        <div class="form-group">
+          <label for="cfg-title">Board Title</label>
+          <input type="text" id="cfg-title" class="input" placeholder="Kanban Board">
+        </div>
+        <div class="form-group">
+          <label for="cfg-subtitle">Board Subtitle</label>
+          <input type="text" id="cfg-subtitle" class="input" placeholder="Shared team kanban board">
+        </div>
+        <div id="cfg-requests" style="display:none">
+          <h4>Pending Join Requests</h4>
+          <div id="cfg-requests-list"></div>
+          <p id="cfg-no-requests" class="muted">No pending requests.</p>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" id="cancel-config">Cancel</button>
+          <button class="btn btn-primary" id="save-config">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gate for non-members -->
+    <div id="kanban-gate" class="kanban-gate" style="display:none">
+      <div class="gate-card">
+        <h2>Members Only</h2>
+        <p>This board is only accessible to invited members.</p>
+        <div id="gate-request">
+          <textarea id="request-message" class="input textarea" rows="2"
+                    placeholder="Optional message to the board owner"></textarea>
+          <button class="btn btn-primary" id="btn-request" style="margin-top:0.75rem">Request to Join</button>
+        </div>
+        <div id="gate-pending" style="display:none">
+          <p class="gate-status">Your request is pending — the board owner will review it.</p>
+        </div>
+        <div id="gate-approved" style="display:none">
+          <p class="gate-status">Your request was approved! Reload to access the board.</p>
+        </div>
+        <div id="gate-denied" style="display:none">
+          <p class="gate-status">Your request was not accepted.</p>
+        </div>
+      </div>
+    </div>
+
+    <main id="kanban-root" style="display:none">
+      <p class="loading">Loading board&hellip;</p>
     </main>
-  </div>
 
-  <!-- write / edit overlay -->
-  <div id="editor-overlay" class="editor-overlay hidden">
-    <div class="editor-card">
-      <h2 id="editor-heading">New Post</h2>
-      <label>Title <input type="text" id="f-title" required></label>
-      <label>Body <textarea id="f-body" rows="10"></textarea></label>
-      <div id="editor-image-section" class="editor-image-section hidden">
-        <label>Cover image (optional)
-          <input type="file" id="f-image" accept="image/*">
-        </label>
-        <img id="f-image-preview" class="editor-image-preview hidden" src="" alt="">
-      </div>
-      <div class="editor-btns">
-        <button id="btn-cancel" class="btn-cancel">Cancel</button>
-        <button id="btn-save" class="btn-save">Publish</button>
+    <!-- Add card modal -->
+    <div id="add-card-modal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <h3>Add Card</h3>
+        <div class="form-group">
+          <label for="card-title">Title</label>
+          <input type="text" id="card-title" class="input" placeholder="Card title" required>
+        </div>
+        <div class="form-group">
+          <label for="card-desc">Description</label>
+          <textarea id="card-desc" class="input textarea" rows="3" placeholder="Optional description"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="card-color">Color</label>
+          <div class="color-picker">
+            <button type="button" class="color-btn" data-color="" style="background:#fff;border-style:dashed" title="Default"></button>
+            <button type="button" class="color-btn" data-color="#ef4444" style="background:#ef4444" title="Red"></button>
+            <button type="button" class="color-btn" data-color="#f59e0b" style="background:#f59e0b" title="Orange"></button>
+            <button type="button" class="color-btn" data-color="#22c55e" style="background:#22c55e" title="Green"></button>
+            <button type="button" class="color-btn" data-color="#3b82f6" style="background:#3b82f6" title="Blue"></button>
+            <button type="button" class="color-btn" data-color="#8b5cf6" style="background:#8b5cf6" title="Purple"></button>
+          </div>
+        </div>
+        <input type="hidden" id="card-column-id">
+        <input type="hidden" id="card-color-value">
+        <div class="modal-actions">
+          <button class="btn btn-secondary" id="cancel-card">Cancel</button>
+          <button class="btn btn-primary" id="save-card">Add Card</button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- host-only design panel -->
-  <div id="designer-panel" class="designer-panel hidden">
-    <div class="designer-header">
-      <span>Design</span>
-      <button id="btn-designer-close" class="designer-close">&times;</button>
-    </div>
-    <div class="designer-body">
-      <label class="designer-field">
-        Blog Title
-        <input type="text" id="d-title" placeholder="My Blog">
-      </label>
-      <label class="designer-field">
-        Subtitle
-        <input type="text" id="d-subtitle" placeholder="Thoughts, stories &amp; notes">
-      </label>
-
-      <div class="designer-section">Layout</div>
-      <div class="layout-picker">
-        <button class="layout-btn active" data-layout="list">☰ List</button>
-        <button class="layout-btn" data-layout="grid">⊞ Grid</button>
-        <button class="layout-btn" data-layout="magazine">▤ Magazine</button>
-      </div>
-
-      <div class="designer-section">Font</div>
-      <div class="option-picker">
-        <button class="layout-btn font-btn active" data-font="serif">Aa Serif</button>
-        <button class="layout-btn font-btn" data-font="sans">Aa Sans</button>
-        <button class="layout-btn font-btn" data-font="mono">Aa Mono</button>
-      </div>
-
-      <div class="designer-section">Theme</div>
-      <div class="option-picker">
-        <button class="layout-btn theme-btn active" data-theme="light">Light</button>
-        <button class="layout-btn theme-btn" data-theme="sepia">Sepia</button>
-        <button class="layout-btn theme-btn" data-theme="dark">Dark</button>
-      </div>
-
-      <div class="designer-section">Accent Color</div>
-      <div class="color-swatches">
-        <button class="swatch active" data-color="#b44d2d" title="Terracotta"></button>
-        <button class="swatch" data-color="#2d6a9f" title="Blue"></button>
-        <button class="swatch" data-color="#4a8f46" title="Green"></button>
-        <button class="swatch" data-color="#7c4a9f" title="Purple"></button>
-        <button class="swatch" data-color="#c0882c" title="Amber"></button>
-        <button class="swatch" data-color="#2d7a6a" title="Teal"></button>
+    <!-- Edit card modal -->
+    <div id="edit-card-modal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <h3>Edit Card</h3>
+        <div class="form-group">
+          <label for="edit-card-title">Title</label>
+          <input type="text" id="edit-card-title" class="input" required>
+        </div>
+        <div class="form-group">
+          <label for="edit-card-desc">Description</label>
+          <textarea id="edit-card-desc" class="input textarea" rows="3"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="edit-card-color">Color</label>
+          <div class="color-picker" id="edit-color-picker">
+            <button type="button" class="color-btn" data-color="" style="background:#fff;border-style:dashed" title="Default"></button>
+            <button type="button" class="color-btn" data-color="#ef4444" style="background:#ef4444" title="Red"></button>
+            <button type="button" class="color-btn" data-color="#f59e0b" style="background:#f59e0b" title="Orange"></button>
+            <button type="button" class="color-btn" data-color="#22c55e" style="background:#22c55e" title="Green"></button>
+            <button type="button" class="color-btn" data-color="#3b82f6" style="background:#3b82f6" title="Blue"></button>
+            <button type="button" class="color-btn" data-color="#8b5cf6" style="background:#8b5cf6" title="Purple"></button>
+          </div>
+        </div>
+        <input type="hidden" id="edit-card-id">
+        <input type="hidden" id="edit-card-color-value">
+        <div class="modal-actions">
+          <button class="btn btn-danger" id="delete-card">Delete</button>
+          <button class="btn btn-secondary" id="cancel-edit-card">Cancel</button>
+          <button class="btn btn-primary" id="save-edit-card">Save</button>
+        </div>
       </div>
     </div>
   </div>

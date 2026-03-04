@@ -1,424 +1,601 @@
-// Blog app.js
+// Kanban app.js
 (async function () {
   var db = Goop.data;
-  var site = Goop.site;
-  var postsEl = document.getElementById("posts");
-  var btnNew = document.getElementById("btn-new");
-  var btnCustomize = document.getElementById("btn-customize");
-  var designerPanel = document.getElementById("designer-panel");
-  var overlay = document.getElementById("editor-overlay");
+  var root = document.getElementById("kanban-root");
+  var gate = document.getElementById("kanban-gate");
+  var subtitle = document.getElementById("subtitle");
+  var columns = [];
 
-  var isOwner = false;
-  var isCoAuthor = false;
-  var myId = null;
-  var currentLayout = "list";
-  var configMap = {}; // key -> { id: number, value: string }
-  var editingId = null;
-  var editingImage = null; // filename of current post's image when editing
+  var myId = await Goop.identity.id();
+  var myLabel = await Goop.identity.label();
 
-  function esc(s) {
-    var d = document.createElement("div");
-    d.textContent = s == null ? "" : String(s);
-    return d.innerHTML;
-  }
+  // Detect owner vs visitor
+  var match = window.location.pathname.match(/\/p\/([^/]+)/);
+  var ownerPeerId = match ? match[1] : null;
+  var isOwner = !ownerPeerId || ownerPeerId === myId;
 
-  // ── Owner / co-author detection ──
-  try {
-    myId = await Goop.identity.id();
-    var match = window.location.pathname.match(/\/p\/([^/]+)/);
-    var ownerPeerId = match ? match[1] : null;
-    if (ownerPeerId && ownerPeerId === myId) {
-      isOwner = true;
-    } else if (ownerPeerId && Goop.group) {
+  // Check template group membership for non-owners
+  var isMember = false;
+  if (!isOwner && Goop.group) {
+    try {
       var subs = await Goop.group.subscriptions();
       var list = (subs && subs.subscriptions) || [];
-      isCoAuthor = list.some(function (s) {
+      isMember = list.some(function (s) {
         return s.host_peer_id === ownerPeerId && s.app_type === "template";
       });
-    }
-  } catch (_) {}
-
-  if (isOwner || isCoAuthor) {
-    btnNew.classList.remove("hidden");
+    } catch (_) {}
   }
+
+  // Find template group ID (owner needs this for approvals)
+  var templateGroupId = null;
+
   if (isOwner) {
-    document.getElementById("editor-image-section").classList.remove("hidden");
+    // Owner: show board + config gear
+    subtitle.textContent = "Shared team kanban board";
+    gate.style.display = "none";
+    root.style.display = "block";
+    loadConfig();
+    loadBoard();
+    initOwnerConfig();
+  } else if (isMember) {
+    // Member: show board (no config gear)
+    subtitle.textContent = "Shared team kanban board";
+    gate.style.display = "none";
+    root.style.display = "block";
+    loadConfig();
+    loadBoard();
+  } else {
+    // Non-member: show gate
+    loadConfig();
+    subtitle.textContent = "Join to collaborate on this board";
+    gate.style.display = "flex";
+    root.style.display = "none";
+    initGate();
   }
 
-  // ── Config helpers ──
+  // --- Gate logic ---
 
-  // Map hex → accent class index (avoids inline style / CSP issues)
-  var accentToIdx = {
-    "#b44d2d": "1", "#2d6a9f": "2", "#4a8f46": "3",
-    "#7c4a9f": "4", "#c0882c": "5", "#2d7a6a": "6",
-  };
+  async function initGate() {
+    var gateRequest = document.getElementById("gate-request");
+    var gatePending = document.getElementById("gate-pending");
+    var gateApproved = document.getElementById("gate-approved");
+    var gateDenied = document.getElementById("gate-denied");
 
-  function applyConfigKey(key, value) {
-    var html = document.documentElement;
-    switch (key) {
-      case "layout":
-        currentLayout = value || "list";
-        document.querySelector(".blog").className = "blog layout-" + currentLayout;
-        document.querySelectorAll(".layout-btn").forEach(function (btn) {
-          btn.classList.toggle("active", btn.dataset.layout === currentLayout);
-        });
-        break;
-      case "blog_title":
-        document.querySelector(".blog-title").textContent = value || "My Blog";
-        break;
-      case "blog_subtitle":
-        document.getElementById("blog-subtitle").textContent =
-          value || "Thoughts, stories & notes";
-        break;
-      case "accent":
-        if (value) {
-          // Toggle accent-N class — no inline style needed, fully CSS-driven
-          html.className = html.className.replace(/\baccent-\d+\b/g, "").trim();
-          var idx = accentToIdx[value] || "1";
-          html.classList.add("accent-" + idx);
-          document.querySelectorAll(".swatch").forEach(function (sw) {
-            sw.classList.toggle("active", sw.dataset.color === value);
-          });
-        }
-        break;
-      case "font":
-        html.className = html.className.replace(/\bfont-\w+\b/g, "").trim();
-        html.classList.add("font-" + (value || "serif"));
-        document.querySelectorAll(".font-btn").forEach(function (btn) {
-          btn.classList.toggle("active", btn.dataset.font === (value || "serif"));
-        });
-        break;
-      case "theme":
-        html.className = html.className.replace(/\btheme-\w+\b/g, "").trim();
-        html.classList.add("theme-" + (value || "light"));
-        document.querySelectorAll(".theme-btn").forEach(function (btn) {
-          btn.classList.toggle("active", btn.dataset.theme === (value || "light"));
-        });
-        break;
-    }
-  }
-
-  async function saveConfig(key, value) {
-    if (configMap[key] && configMap[key].id) {
-      await db.update("blog_config", configMap[key].id, { value: value });
-      configMap[key].value = value;
-    } else {
-      await db.insert("blog_config", { key: key, value: value });
-      try {
-        var rows = await db.query("blog_config", { where: "key = ?", args: [key], limit: 1 });
-        if (rows && rows.length > 0) {
-          configMap[key] = { id: rows[0]._id, value: value };
-        }
-      } catch (_) {}
-    }
-  }
-
-  // ── Design panel setup (host only) ──
-  async function setupDesigner() {
-    // Load all config rows
     try {
-      var rows = await db.query("blog_config", { limit: 100 });
-      (rows || []).forEach(function (r) {
-        configMap[r.key] = { id: r._id, value: r.value };
-      });
+      var res = await db.call("kanban", { action: "get_my_request" });
+      if (res.status === "pending") {
+        gateRequest.style.display = "none";
+        gatePending.style.display = "block";
+      } else if (res.status === "approved") {
+        gateRequest.style.display = "none";
+        gateApproved.style.display = "block";
+      } else if (res.status === "dismissed") {
+        gateRequest.style.display = "none";
+        gateDenied.style.display = "block";
+      }
     } catch (_) {}
 
-    // Apply config to DOM (owner + visitors + co-authors all benefit)
-    var loaded = {
-      layout:        (configMap.layout        || {}).value,
-      blog_title:    (configMap.blog_title    || {}).value,
-      blog_subtitle: (configMap.blog_subtitle || {}).value,
-      accent:        (configMap.accent        || {}).value,
-      font:          (configMap.font          || {}).value,
-      theme:         (configMap.theme         || {}).value,
+    document.getElementById("btn-request").onclick = async function () {
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = "Sending...";
+      try {
+        var msg = document.getElementById("request-message").value.trim();
+        var res = await db.call("kanban", {
+          action: "request_join",
+          peer_name: myLabel || myId,
+          message: msg
+        });
+        if (res.status === "pending") {
+          gateRequest.style.display = "none";
+          gatePending.style.display = "block";
+        } else {
+          // Already requested
+          gateRequest.style.display = "none";
+          if (res.status === "dismissed") gateDenied.style.display = "block";
+          else if (res.status === "approved") gateApproved.style.display = "block";
+          else gatePending.style.display = "block";
+        }
+      } catch (e) {
+        Goop.ui.toast({ title: "Error", message: e.message || "Failed to send request" });
+        btn.disabled = false;
+        btn.textContent = "Request to Join";
+      }
     };
-    applyConfigKey("layout",        loaded.layout);
-    applyConfigKey("blog_title",    loaded.blog_title);
-    applyConfigKey("blog_subtitle", loaded.blog_subtitle);
-    applyConfigKey("accent",        loaded.accent);
-    applyConfigKey("font",          loaded.font);
-    applyConfigKey("theme",         loaded.theme);
+  }
 
-    if (!isOwner) return; // visitors and co-authors stop here
+  // --- Owner config ---
 
-    // Ensure default config rows exist
-    var defaults = {
-      layout:        "list",
-      blog_title:    "My Blog",
-      blog_subtitle: "Thoughts, stories & notes",
-      accent:        "#b44d2d",
-      font:          "serif",
-      theme:         "light",
+  function initOwnerConfig() {
+    var configModal = document.getElementById("config-modal");
+    var configBtn = document.getElementById("config-btn");
+    configBtn.classList.remove("hidden");
+
+    configBtn.onclick = async function () {
+      document.getElementById("cfg-title").value = document.getElementById("board-title").textContent;
+      document.getElementById("cfg-subtitle").value = subtitle.textContent;
+      configModal.classList.remove("hidden");
+      document.getElementById("cfg-title").focus();
+      await loadRequests();
     };
-    for (var k in defaults) {
-      if (!configMap[k]) {
-        await saveConfig(k, defaults[k]);
-        applyConfigKey(k, defaults[k]);
+
+    configModal.onclick = function (e) {
+      if (e.target === configModal) configModal.classList.add("hidden");
+    };
+
+    document.getElementById("cancel-config").onclick = function () {
+      configModal.classList.add("hidden");
+    };
+
+    document.getElementById("save-config").onclick = async function () {
+      var t = document.getElementById("cfg-title").value.trim();
+      var s = document.getElementById("cfg-subtitle").value.trim();
+      try {
+        await db.call("kanban", {
+          action: "save_config",
+          title: t || "Kanban Board",
+          subtitle: s || "Shared team kanban board"
+        });
+        document.getElementById("board-title").textContent = t || "Kanban Board";
+        subtitle.textContent = s || "Shared team kanban board";
+        configModal.classList.add("hidden");
+      } catch (e) {
+        Goop.ui.toast({ title: "Error", message: e.message || "Failed to save config" });
+      }
+    };
+  }
+
+  async function findTemplateGroupId() {
+    if (templateGroupId) return templateGroupId;
+    try {
+      var groups = await Goop.group.list();
+      for (var i = 0; i < groups.length; i++) {
+        if (groups[i].app_type === "template") {
+          templateGroupId = groups[i].id;
+          return templateGroupId;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  async function loadRequests() {
+    var container = document.getElementById("cfg-requests-list");
+    var noRequests = document.getElementById("cfg-no-requests");
+    var section = document.getElementById("cfg-requests");
+    section.style.display = "block";
+
+    try {
+      var res = await db.call("kanban", { action: "get_requests" });
+      var requests = res.requests || [];
+      if (requests.length === 0) {
+        container.innerHTML = "";
+        noRequests.style.display = "block";
+        return;
+      }
+      noRequests.style.display = "none";
+      var html = "";
+      for (var i = 0; i < requests.length; i++) {
+        var r = requests[i];
+        html += '<div class="request-item" data-request-id="' + r._id + '" data-peer-id="' + esc(r._owner) + '">';
+        html += '<div class="request-info">';
+        html += '<span class="request-name">' + esc(r.peer_name || r._owner) + '</span>';
+        if (r.message) html += '<span class="request-msg">' + esc(r.message) + '</span>';
+        html += '</div>';
+        html += '<div class="request-actions">';
+        html += '<button class="btn btn-primary btn-sm btn-approve">Approve</button>';
+        html += '<button class="btn btn-secondary btn-sm btn-dismiss">Dismiss</button>';
+        html += '</div>';
+        html += '</div>';
+      }
+      container.innerHTML = html;
+
+      container.querySelectorAll(".btn-approve").forEach(function (btn) {
+        btn.onclick = async function () {
+          var item = btn.closest(".request-item");
+          var reqId = parseInt(item.getAttribute("data-request-id"));
+          var peerId = item.getAttribute("data-peer-id");
+          btn.disabled = true;
+          btn.textContent = "Approving...";
+          try {
+            var res = await db.call("kanban", { action: "approve_request", request_id: reqId });
+            if (res.error) throw new Error(res.error);
+            // Invite the peer to the template group
+            var groupId = await findTemplateGroupId();
+            if (groupId && peerId) {
+              await fetch("/api/groups/invite", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ group_id: groupId, peer_id: peerId })
+              });
+            }
+            item.remove();
+            if (!container.querySelector(".request-item")) {
+              noRequests.style.display = "block";
+            }
+          } catch (e) {
+            Goop.ui.toast({ title: "Error", message: e.message || "Failed to approve" });
+            btn.disabled = false;
+            btn.textContent = "Approve";
+          }
+        };
+      });
+
+      container.querySelectorAll(".btn-dismiss").forEach(function (btn) {
+        btn.onclick = async function () {
+          var item = btn.closest(".request-item");
+          var reqId = parseInt(item.getAttribute("data-request-id"));
+          btn.disabled = true;
+          try {
+            await db.call("kanban", { action: "dismiss_request", request_id: reqId });
+            item.remove();
+            if (!container.querySelector(".request-item")) {
+              noRequests.style.display = "block";
+            }
+          } catch (e) {
+            Goop.ui.toast({ title: "Error", message: e.message || "Failed to dismiss" });
+            btn.disabled = false;
+          }
+        };
+      });
+    } catch (e) {
+      container.innerHTML = '';
+      noRequests.style.display = "block";
+    }
+  }
+
+  // --- Board ---
+
+  async function loadConfig() {
+    try {
+      var cfg = await db.call("kanban", { action: "get_config" });
+      if (cfg.title) document.getElementById("board-title").textContent = cfg.title;
+      if (cfg.subtitle && (isOwner || isMember)) subtitle.textContent = cfg.subtitle;
+    } catch (_) {}
+  }
+
+  async function loadBoard() {
+    try {
+      var result = await db.call("kanban", { action: "get_board" });
+      columns = result.columns || [];
+      renderBoard();
+    } catch (e) {
+      root.innerHTML = '<p class="loading">Failed to load board: ' + esc(e.message) + '</p>';
+    }
+  }
+
+  function renderBoard() {
+    var html = '<div class="board">';
+
+    for (var i = 0; i < columns.length; i++) {
+      var col = columns[i];
+      var cards = Array.isArray(col.cards) ? col.cards : [];
+
+      html += '<div class="column" data-column-id="' + col._id + '">';
+      html += '<div class="column-header">';
+      html += '<span class="column-title">';
+      html += '<span class="column-dot" style="background:' + esc(col.color || '#5b6abf') + '"></span>';
+      html += esc(col.name);
+      html += '</span>';
+      html += '<span class="column-count">' + cards.length + (cards.length === 1 ? ' item' : ' items') + '</span>';
+      html += '</div>';
+
+      html += '<div class="column-cards">';
+      if (cards.length === 0) {
+        html += '<div class="empty-column">No cards</div>';
+      } else {
+        for (var j = 0; j < cards.length; j++) {
+          html += renderCard(cards[j], col._id);
+        }
+      }
+      html += '</div>';
+
+      html += '<div class="column-add">';
+      html += '<button class="btn-add" data-add-column="' + col._id + '">+ Add card</button>';
+      html += '</div>';
+
+      html += '</div>';
+    }
+
+    // Owner can add columns
+    if (isOwner) {
+      html += '<div class="column" style="background:transparent;border:1px dashed var(--border)">';
+      html += '<button class="btn-add" id="add-column-btn" style="margin:1rem">+ Add Column</button>';
+      html += '</div>';
+    }
+
+    html += '</div>';
+    root.innerHTML = html;
+
+    // Wire up add card buttons
+    root.querySelectorAll("[data-add-column]").forEach(function (btn) {
+      btn.onclick = function () {
+        showAddCardModal(btn.getAttribute("data-add-column"));
+      };
+    });
+
+    // Wire up card clicks
+    root.querySelectorAll(".card").forEach(function (card) {
+      card.onclick = function (e) {
+        if (e.target.closest(".card-action-btn") || e.target.closest(".move-dropdown")) return;
+        var cardId = card.getAttribute("data-card-id");
+        showEditCardModal(cardId);
+      };
+    });
+
+    // Wire up move buttons
+    root.querySelectorAll(".move-btn").forEach(function (btn) {
+      btn.onclick = function (e) {
+        e.stopPropagation();
+        var dropdown = btn.nextElementSibling;
+        root.querySelectorAll(".move-dropdown.open").forEach(function (d) {
+          if (d !== dropdown) d.classList.remove("open");
+        });
+        dropdown.classList.toggle("open");
+      };
+    });
+
+    root.querySelectorAll(".move-option").forEach(function (opt) {
+      opt.onclick = async function (e) {
+        e.stopPropagation();
+        var cardId = parseInt(opt.getAttribute("data-card-id"));
+        var toColumn = parseInt(opt.getAttribute("data-to-column"));
+        await moveCard(cardId, toColumn);
+      };
+    });
+
+    // Add column button
+    var addColBtn = document.getElementById("add-column-btn");
+    if (addColBtn) {
+      addColBtn.onclick = function () {
+        var name = prompt("Column name:");
+        if (name && name.trim()) {
+          addColumn(name.trim());
+        }
+      };
+    }
+
+    // Close dropdowns on click outside
+    document.addEventListener("click", function () {
+      root.querySelectorAll(".move-dropdown.open").forEach(function (d) {
+        d.classList.remove("open");
+      });
+    });
+  }
+
+  function renderCard(card, currentColumnId) {
+    var html = '<div class="card" data-card-id="' + card._id + '">';
+
+    if (card.color) {
+      html += '<div class="card-color-bar" style="background:' + esc(card.color) + '"></div>';
+    }
+
+    html += '<div class="card-actions">';
+    html += '<button class="card-action-btn move-btn" title="Move">&#8644;</button>';
+    html += '<div class="move-dropdown">';
+    for (var i = 0; i < columns.length; i++) {
+      var col = columns[i];
+      if (col._id !== currentColumnId) {
+        html += '<button class="move-option" data-card-id="' + card._id + '" data-to-column="' + col._id + '">';
+        html += esc(col.name);
+        html += '</button>';
       }
     }
+    html += '</div>';
+    html += '</div>';
 
-    // Populate designer inputs
-    document.getElementById("d-title").value =
-      (configMap.blog_title || {}).value || "My Blog";
-    document.getElementById("d-subtitle").value =
-      (configMap.blog_subtitle || {}).value || "";
+    html += '<div class="card-title">' + esc(card.title) + '</div>';
 
-    // Show customize button
-    btnCustomize.classList.remove("hidden");
-
-    // ── Wire layout buttons ──
-    document.querySelectorAll(".layout-btn").forEach(function (btn) {
-      btn.addEventListener("click", async function () {
-        applyConfigKey("layout", btn.dataset.layout);
-        await saveConfig("layout", btn.dataset.layout);
-      });
-    });
-
-    // ── Wire color swatches ──
-    document.querySelectorAll(".swatch").forEach(function (sw) {
-      sw.addEventListener("click", async function () {
-        applyConfigKey("accent", sw.dataset.color);
-        await saveConfig("accent", sw.dataset.color);
-      });
-    });
-
-    // ── Wire font buttons ──
-    document.querySelectorAll(".font-btn").forEach(function (btn) {
-      btn.addEventListener("click", async function () {
-        applyConfigKey("font", btn.dataset.font);
-        await saveConfig("font", btn.dataset.font);
-      });
-    });
-
-    // ── Wire theme buttons ──
-    document.querySelectorAll(".theme-btn").forEach(function (btn) {
-      btn.addEventListener("click", async function () {
-        applyConfigKey("theme", btn.dataset.theme);
-        await saveConfig("theme", btn.dataset.theme);
-      });
-    });
-
-    // ── Wire title input ──
-    var titleInput = document.getElementById("d-title");
-    titleInput.addEventListener("input", function () {
-      applyConfigKey("blog_title", titleInput.value || "My Blog");
-    });
-    titleInput.addEventListener("blur", async function () {
-      var val = titleInput.value.trim() || "My Blog";
-      titleInput.value = val;
-      await saveConfig("blog_title", val);
-    });
-
-    // ── Wire subtitle input ──
-    var subtitleInput = document.getElementById("d-subtitle");
-    subtitleInput.addEventListener("input", function () {
-      applyConfigKey("blog_subtitle", subtitleInput.value);
-    });
-    subtitleInput.addEventListener("blur", async function () {
-      await saveConfig("blog_subtitle", subtitleInput.value.trim());
-    });
-
-    // ── Wire panel open / close ──
-    btnCustomize.addEventListener("click", function () {
-      designerPanel.classList.toggle("hidden");
-    });
-    document.getElementById("btn-designer-close").addEventListener("click", function () {
-      designerPanel.classList.add("hidden");
-    });
-  }
-
-  // ── Seed sample posts on first run ──
-  async function seed() {
-    var tables = await db.tables();
-    if (tables && tables.length > 0) return;
-
-    await db.createTable("posts", [
-      { name: "title",       type: "TEXT",    not_null: true },
-      { name: "body",        type: "TEXT",    not_null: true },
-      { name: "author_name", type: "TEXT",    default: "" },
-      { name: "slug",        type: "TEXT" },
-      { name: "published",   type: "INTEGER", default: "1" },
-    ]);
-
-    var myLabel = "";
-    try { myLabel = await Goop.identity.label(); } catch (_) {}
-
-    await db.insert("posts", {
-      title: "Hello, World!",
-      body: "Welcome to my blog. This is my first post on the ephemeral web.\n\nI'm running a peer-to-peer site using Goop². Everything here is local-first and distributed — no central servers involved.\n\nFeel free to look around!",
-      slug: "hello-world",
-      author_name: myLabel,
-    });
-
-    await db.insert("posts", {
-      title: "How This Works",
-      body: "Each peer runs their own site. You're reading this through the p2p network right now.\n\nI write posts from my local editor, and they get served to anyone who connects. No accounts, no passwords, no cloud — just peers talking to peers.",
-      slug: "how-this-works",
-      author_name: myLabel,
-    });
-  }
-
-  // ── Load & render posts ──
-  async function loadPosts() {
-    try {
-      var rows = await db.query("posts", { where: "published = 1", limit: 50 });
-      renderPosts(rows || []);
-    } catch (err) {
-      postsEl.innerHTML =
-        '<div class="empty-msg"><p>Could not load posts.</p><p class="loading">' +
-        esc(err.message) + "</p></div>";
+    if (card.description) {
+      html += '<div class="card-desc">' + esc(card.description) + '</div>';
     }
+
+    // Attribution: created by / moved by
+    var attrs = [];
+    if (card.created_by) attrs.push('added by ' + esc(card.created_by));
+    if (card.moved_by) attrs.push('moved by ' + esc(card.moved_by));
+    if (attrs.length > 0) {
+      html += '<div class="card-meta">' + attrs.join(' &middot; ') + '</div>';
+    }
+
+    html += '</div>';
+    return html;
   }
 
-  function renderPosts(posts) {
-    if (posts.length === 0) {
-      postsEl.innerHTML =
-        '<div class="empty-msg"><p>No posts yet.</p>' +
-        ((isOwner || isCoAuthor)
-          ? '<p class="loading">Click "+ New Post" to write your first one.</p>'
-          : "") +
-        "</div>";
+  // --- Add card modal ---
+
+  var addCardModal = document.getElementById("add-card-modal");
+  var selectedColor = "";
+
+  function showAddCardModal(columnId) {
+    document.getElementById("card-column-id").value = columnId;
+    document.getElementById("card-title").value = "";
+    document.getElementById("card-desc").value = "";
+    document.getElementById("card-color-value").value = "";
+    selectedColor = "";
+
+    addCardModal.querySelectorAll(".color-btn").forEach(function (btn) {
+      btn.classList.remove("selected");
+      if (btn.getAttribute("data-color") === "") btn.classList.add("selected");
+    });
+
+    addCardModal.classList.remove("hidden");
+    document.getElementById("card-title").focus();
+  }
+
+  addCardModal.querySelectorAll(".color-btn").forEach(function (btn) {
+    btn.onclick = function () {
+      addCardModal.querySelectorAll(".color-btn").forEach(function (b) { b.classList.remove("selected"); });
+      btn.classList.add("selected");
+      selectedColor = btn.getAttribute("data-color");
+      document.getElementById("card-color-value").value = selectedColor;
+    };
+  });
+
+  document.getElementById("cancel-card").onclick = function () {
+    addCardModal.classList.add("hidden");
+  };
+
+  addCardModal.onclick = function (e) {
+    if (e.target === addCardModal) addCardModal.classList.add("hidden");
+  };
+
+  document.getElementById("save-card").onclick = async function () {
+    var title = document.getElementById("card-title").value.trim();
+    var columnId = parseInt(document.getElementById("card-column-id").value);
+    var desc = document.getElementById("card-desc").value.trim();
+    var color = document.getElementById("card-color-value").value;
+
+    if (!title) {
+      document.getElementById("card-title").focus();
       return;
     }
 
-    posts.sort(function (a, b) { return b._id - a._id; });
-
-    postsEl.innerHTML = posts.map(function (p) {
-      var date = p._created_at
-        ? new Date(String(p._created_at).replace(" ", "T") + "Z")
-            .toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })
-        : "";
-      var html = '<article class="post">';
-      if (p.image) {
-        html += '<img class="post-image" src="images/' + esc(p.image) + '" alt="">';
-      }
-      html += '<h2 class="post-title">' + esc(p.title) + "</h2>";
-      html += '<div class="post-meta">' + esc(date) + "</div>";
-      if (p.author_name) {
-        html += '<div class="post-byline">by ' + esc(p.author_name) + "</div>";
-      }
-      html += '<div class="post-body">' + esc(p.body) + "</div>";
-      var canEdit = isOwner || (isCoAuthor && p._owner === myId);
-      if (canEdit) {
-        html += '<div class="post-actions">';
-        html += '<button data-action="edit" data-id="' + p._id + '">Edit</button>';
-        html += '<button data-action="delete" data-id="' + p._id + '" data-image="' + esc(p.image || "") + '">Delete</button>';
-        html += "</div>";
-      }
-      html += "</article>";
-      return html;
-    }).join("");
-
-    if (isOwner || isCoAuthor) wireActions();
-  }
-
-  function wireActions() {
-    postsEl.querySelectorAll("[data-action=edit]").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        openEditor(parseInt(btn.getAttribute("data-id"), 10));
+    try {
+      await db.call("kanban", {
+        action: "add_card",
+        column_id: columnId,
+        title: title,
+        description: desc,
+        color: color,
+        peer_name: myLabel || myId
       });
-    });
-    postsEl.querySelectorAll("[data-action=delete]").forEach(function (btn) {
-      btn.addEventListener("click", async function () {
-        var id = parseInt(btn.getAttribute("data-id"), 10);
-        var imgFile = btn.getAttribute("data-image") || "";
-        var ok = true;
-        if (Goop.ui) ok = await Goop.ui.confirm("Delete this post?");
-        if (!ok) return;
-        await db.remove("posts", id);
-        if (imgFile && isOwner && site) {
-          try { await site.remove("images/" + imgFile); } catch (_) {}
-        }
-        loadPosts();
-      });
-    });
-  }
-
-  // ── Editor ──
-  async function openEditor(id) {
-    editingId = id || null;
-    editingImage = null;
-    document.getElementById("f-title").value = "";
-    document.getElementById("f-body").value = "";
-    document.getElementById("editor-heading").textContent = id ? "Edit Post" : "New Post";
-    document.getElementById("btn-save").textContent = id ? "Update" : "Publish";
-
-    // Reset image input + preview
-    var fImage = document.getElementById("f-image");
-    var fPreview = document.getElementById("f-image-preview");
-    if (fImage) fImage.value = "";
-    if (fPreview) { fPreview.src = ""; fPreview.classList.add("hidden"); }
-
-    if (id) {
-      try {
-        var rows = await db.query("posts", { where: "_id = ?", args: [id], limit: 1 });
-        if (rows && rows.length > 0) {
-          document.getElementById("f-title").value = rows[0].title;
-          document.getElementById("f-body").value = rows[0].body;
-          if (rows[0].image && fPreview) {
-            editingImage = rows[0].image;
-            fPreview.src = "images/" + editingImage;
-            fPreview.classList.remove("hidden");
-          }
-        }
-      } catch (_) {}
+      addCardModal.classList.add("hidden");
+      loadBoard();
+    } catch (e) {
+      Goop.ui.toast({ title: "Error", message: e.message || "Failed to add card" });
     }
-    overlay.classList.remove("hidden");
-    document.getElementById("f-title").focus();
-  }
+  };
 
-  btnNew.addEventListener("click", function () { openEditor(null); });
+  // --- Edit card modal ---
 
-  document.getElementById("btn-cancel").addEventListener("click", function () {
-    overlay.classList.add("hidden");
-  });
+  var editCardModal = document.getElementById("edit-card-modal");
+  var editingCardId = null;
 
-  overlay.addEventListener("mousedown", function (e) {
-    if (e.target === overlay) overlay.classList.add("hidden");
-  });
+  function showEditCardModal(cardId) {
+    editingCardId = parseInt(cardId);
 
-  document.getElementById("btn-save").addEventListener("click", async function () {
-    var title = document.getElementById("f-title").value.trim();
-    var body = document.getElementById("f-body").value.trim();
-    if (!title || !body) return;
-
-    var slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-
-    // Handle image upload (owner only)
-    var imageName = editingId ? editingImage : "";
-    var fImage = document.getElementById("f-image");
-    var imageFile = fImage && fImage.files && fImage.files[0];
-    if (imageFile && isOwner && site) {
-      var ext = (imageFile.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
-      var safeName = Date.now() + "-" +
-        imageFile.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 60) +
-        "." + ext;
-      try {
-        await site.upload("images/" + safeName, imageFile);
-        // Remove old image if replacing
-        if (editingImage) {
-          try { await site.remove("images/" + editingImage); } catch (_) {}
+    var card = null;
+    for (var i = 0; i < columns.length; i++) {
+      var cards = Array.isArray(columns[i].cards) ? columns[i].cards : [];
+      for (var j = 0; j < cards.length; j++) {
+        if (cards[j]._id === editingCardId) {
+          card = cards[j];
+          break;
         }
-        imageName = safeName;
-      } catch (_) {
-        // Upload failed — save post without image change
       }
+      if (card) break;
     }
 
-    if (editingId) {
-      await db.update("posts", editingId, { title: title, body: body, slug: slug, image: imageName || "" });
-    } else {
-      var myLabel = "";
-      try { myLabel = await Goop.identity.label(); } catch (_) {}
-      await db.insert("posts", { title: title, body: body, slug: slug, author_name: myLabel, image: imageName || "" });
-    }
+    if (!card) return;
 
-    overlay.classList.add("hidden");
-    loadPosts();
+    document.getElementById("edit-card-id").value = card._id;
+    document.getElementById("edit-card-title").value = card.title || "";
+    document.getElementById("edit-card-desc").value = card.description || "";
+    document.getElementById("edit-card-color-value").value = card.color || "";
+
+    var editColorPicker = document.getElementById("edit-color-picker");
+    editColorPicker.querySelectorAll(".color-btn").forEach(function (btn) {
+      btn.classList.remove("selected");
+      if (btn.getAttribute("data-color") === (card.color || "")) btn.classList.add("selected");
+    });
+
+    editCardModal.classList.remove("hidden");
+    document.getElementById("edit-card-title").focus();
+  }
+
+  document.getElementById("edit-color-picker").querySelectorAll(".color-btn").forEach(function (btn) {
+    btn.onclick = function () {
+      document.getElementById("edit-color-picker").querySelectorAll(".color-btn").forEach(function (b) { b.classList.remove("selected"); });
+      btn.classList.add("selected");
+      document.getElementById("edit-card-color-value").value = btn.getAttribute("data-color");
+    };
   });
 
-  // ── Init ──
-  await setupDesigner(); // loads + applies config for everyone; wires controls for owner
-  await seed();
-  loadPosts();
+  document.getElementById("cancel-edit-card").onclick = function () {
+    editCardModal.classList.add("hidden");
+  };
+
+  editCardModal.onclick = function (e) {
+    if (e.target === editCardModal) editCardModal.classList.add("hidden");
+  };
+
+  document.getElementById("save-edit-card").onclick = async function () {
+    var cardId = parseInt(document.getElementById("edit-card-id").value);
+    var title = document.getElementById("edit-card-title").value.trim();
+    var desc = document.getElementById("edit-card-desc").value.trim();
+    var color = document.getElementById("edit-card-color-value").value;
+
+    if (!title) {
+      document.getElementById("edit-card-title").focus();
+      return;
+    }
+
+    try {
+      await db.call("kanban", {
+        action: "update_card",
+        card_id: cardId,
+        title: title,
+        description: desc,
+        color: color
+      });
+      editCardModal.classList.add("hidden");
+      loadBoard();
+    } catch (e) {
+      Goop.ui.toast({ title: "Error", message: e.message || "Failed to update card" });
+    }
+  };
+
+  document.getElementById("delete-card").onclick = async function () {
+    var cardId = parseInt(document.getElementById("edit-card-id").value);
+
+    if (Goop.ui && Goop.ui.confirm) {
+      var ok = await Goop.ui.confirm("Delete this card?");
+      if (!ok) return;
+    }
+
+    try {
+      await db.call("kanban", {
+        action: "delete_card",
+        card_id: cardId
+      });
+      editCardModal.classList.add("hidden");
+      loadBoard();
+    } catch (e) {
+      Goop.ui.toast({ title: "Error", message: e.message || "Failed to delete card" });
+    }
+  };
+
+  async function moveCard(cardId, toColumn) {
+    try {
+      await db.call("kanban", {
+        action: "move_card",
+        card_id: cardId,
+        to_column: toColumn,
+        peer_name: myLabel || myId
+      });
+      loadBoard();
+    } catch (e) {
+      Goop.ui.toast({ title: "Error", message: e.message || "Failed to move card" });
+    }
+  }
+
+  async function addColumn(name) {
+    try {
+      await db.call("kanban", {
+        action: "add_column",
+        name: name
+      });
+      loadBoard();
+    } catch (e) {
+      Goop.ui.toast({ title: "Error", message: e.message || "Failed to add column" });
+    }
+  }
+
+  function esc(s) {
+    if (!s) return "";
+    var d = document.createElement("div");
+    d.appendChild(document.createTextNode(s));
+    return d.innerHTML;
+  }
 })();

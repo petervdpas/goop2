@@ -5,7 +5,7 @@
 
   var csrf = page.dataset.csrf || '';
 
-  document.querySelectorAll('.tpl-card-apply').forEach(function(btn) {
+  document.querySelectorAll('.tpl-card-apply:not(.tpl-local-apply)').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var dir    = btn.getAttribute('data-dir');
       var name   = btn.getAttribute('data-name');
@@ -71,5 +71,90 @@
       var errMsg = err.message || 'Unknown error';
       Goop.toast({ title: 'Error', message: errMsg, duration: 6000 });
     });
+  }
+  // ── Local Template (native app only) ──
+  var browseBtn = document.getElementById('local-tpl-browse');
+  if (browseBtn) {
+    var bridgeURL = document.body.dataset.bridgeUrl || '';
+    var pathInput = document.getElementById('local-tpl-path');
+    var preview   = document.getElementById('local-tpl-preview');
+    var localPath = '';
+
+    browseBtn.addEventListener('click', function() {
+      if (!bridgeURL) return;
+      fetch(bridgeURL + '/select-dir?title=Choose+template+folder', { method: 'POST' })
+        .then(function(res) {
+          if (!res.ok) return res.text().then(function(t) { throw new Error(t); });
+          return res.json();
+        })
+        .then(function(data) {
+          if (!data || !data.path) return;
+          localPath = data.path;
+          pathInput.value = localPath;
+          validateLocal(localPath);
+        })
+        .catch(function(err) {
+          if (err.message) Goop.toast({ title: 'Error', message: err.message, duration: 5000 });
+        });
+    });
+
+    function validateLocal(path) {
+      preview.style.display = 'none';
+      fetch('/api/templates/validate-local', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: path })
+      })
+      .then(function(res) {
+        if (!res.ok) return res.text().then(function(t) { throw new Error(t); });
+        return res.json();
+      })
+      .then(function(meta) {
+        document.getElementById('local-tpl-icon').textContent = meta.icon || '';
+        document.getElementById('local-tpl-name').textContent = meta.name || 'Unnamed';
+        document.getElementById('local-tpl-cat').textContent  = meta.category || '';
+        document.getElementById('local-tpl-desc').textContent = meta.description || '';
+        preview.style.display = '';
+      })
+      .catch(function(err) {
+        Goop.toast({ title: 'Invalid Template', message: err.message || 'Could not read template', duration: 5000 });
+      });
+    }
+
+    var applyBtn = document.getElementById('local-tpl-apply');
+    if (applyBtn) {
+      applyBtn.addEventListener('click', function() {
+        if (!localPath) return;
+        var name = document.getElementById('local-tpl-name').textContent || 'local template';
+        var msg = 'Apply "' + name + '"?\n\nThis will DELETE all your current site files and database tables and replace them with the template. This cannot be undone.';
+
+        Goop.dialogs.confirm(msg, 'Apply Template').then(function(ok) {
+          if (!ok) return;
+          fetch('/api/templates/apply-local', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: localPath, csrf: csrf })
+          })
+          .then(function(res) {
+            if (!res.ok) return res.text().then(function(t) { throw new Error(t); });
+            return res.json();
+          })
+          .then(function(data) {
+            if (!data) return;
+            // Clear any existing active star
+            var oldStar = document.querySelector('.tpl-active-star');
+            if (oldStar) {
+              oldStar.className = 'tpl-owned-star';
+              oldStar.title = 'Previously applied';
+            }
+            document.querySelectorAll('.tpl-card-active').forEach(function(c) { c.classList.remove('tpl-card-active'); });
+            Goop.toast({ title: 'Template Applied', message: '"' + (data.template || name) + '" is now active.', duration: 5000 });
+          })
+          .catch(function(err) {
+            Goop.toast({ title: 'Error', message: err.message || 'Unknown error', duration: 6000 });
+          });
+        });
+      });
+    }
   }
 })();
