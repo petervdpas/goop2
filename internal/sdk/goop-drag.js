@@ -111,6 +111,7 @@
       // Don't drag if clicking interactive elements (skip check when handle is set)
       if (!handleSelector && target.closest("button, a, input, textarea, select, [contenteditable]")) return;
 
+      e.preventDefault();
       startX = e.clientX;
       startY = e.clientY;
       dragItem = item;
@@ -131,26 +132,31 @@
       originNext = dragItem.nextSibling;
       currentContainer = container;
 
-      // Create ghost
+      // Create ghost — apply critical styles inline to beat any class specificity
       ghost = dragItem.cloneNode(true);
       ghost.classList.add("goop-drag-ghost");
       var rect = dragItem.getBoundingClientRect();
-      ghost.style.width = rect.width + "px";
-      ghost.style.height = rect.height + "px";
-      ghost.style.left = (e.clientX - offsetX) + "px";
-      ghost.style.top = (e.clientY - offsetY) + "px";
+      var gs = ghost.style;
+      gs.cssText = "position:fixed !important;z-index:99999;pointer-events:none;" +
+        "opacity:0.9;box-shadow:0 8px 24px rgba(0,0,0,0.18);" +
+        "transform:rotate(1.5deg) scale(1.03);border-radius:8px;" +
+        "width:" + rect.width + "px;height:" + rect.height + "px;" +
+        "left:" + (e.clientX - offsetX) + "px;top:" + (e.clientY - offsetY) + "px;" +
+        "background:" + getComputedStyle(dragItem).backgroundColor + ";";
       document.body.appendChild(ghost);
 
       // Create placeholder
       if (showPlaceholder) {
         placeholder = document.createElement("div");
         placeholder.classList.add("goop-drag-placeholder");
+        var ps = "border:2px dashed var(--accent,#6366f1);border-radius:6px;" +
+          "background:rgba(99,102,241,0.06);";
         if (direction === "horizontal") {
-          placeholder.style.width = rect.width + "px";
-          placeholder.style.height = rect.height + "px";
+          ps += "width:" + rect.width + "px;height:" + rect.height + "px;";
         } else {
-          placeholder.style.height = rect.height + "px";
+          ps += "height:" + rect.height + "px;";
         }
+        placeholder.style.cssText = ps;
         dragItem.parentNode.insertBefore(placeholder, dragItem);
       }
 
@@ -236,7 +242,20 @@
         if (insertBefore) {
           targetContainer.insertBefore(placeholder, insertBefore);
         } else {
-          targetContainer.appendChild(placeholder);
+          // Insert before the first non-item child (e.g. "Add Column" button)
+          // so the placeholder stays among the sortable items
+          var sentinel = null;
+          var allChildren = targetContainer.children;
+          for (var k = 0; k < allChildren.length; k++) {
+            var ch = allChildren[k];
+            if (ch === placeholder || ch === dragItem) continue;
+            if (!ch.matches(itemSelector)) { sentinel = ch; break; }
+          }
+          if (sentinel) {
+            targetContainer.insertBefore(placeholder, sentinel);
+          } else {
+            targetContainer.appendChild(placeholder);
+          }
         }
       }
 
