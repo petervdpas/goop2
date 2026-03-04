@@ -67,14 +67,12 @@
 
     var peerName = peer.Content || shortId;
 
-    // peer.Offline = explicitly gone (OfflineSince set) → full inert + dimmed.
-    // peer.Reachable === false = probe failed or not yet run → just dim; call may
-    // still succeed via relay so we keep the row interactive.
     var rowOffline = !!peer.Offline;
-    var rowDimmed  = rowOffline || peer.Reachable === false;
-    var rowClass   = rowDimmed ? ' dimmed' : '';
+    var rowUnreachable = rowOffline || peer.Reachable === false;
+    var rowClass   = rowUnreachable ? ' dimmed' : '';
+    var unreachAttr = rowUnreachable ? ' data-unreachable' : '';
 
-    return '<li class="peerrow' + rowClass + '" data-peer-id="' + escapeHtml(peer.ID) + '" data-favorite="' + (peer.Favorite ? 'true' : 'false') + '"' + (rowOffline ? ' inert' : '') + '>' +
+    return '<li class="peerrow' + rowClass + '" data-peer-id="' + escapeHtml(peer.ID) + '" data-favorite="' + (peer.Favorite ? 'true' : 'false') + '"' + unreachAttr + (rowOffline ? ' inert' : '') + '>' +
       '<img class="avatar avatar-md" src="' + avatarSrc + '" alt="">' +
       '<div class="peerleft">' +
         '<div class="peer-name-row">' +

@@ -41,3 +41,15 @@ h1{
 
 /* Visual disabled state */
 .dimmed { opacity: 0.5; }
+
+/* Unreachable peer: suppress peer-action elements visually */
+[data-unreachable] [data-peer-action],
+[data-unreachable] [data-call-audio],
+[data-unreachable] [data-call-video],
+[data-unreachable] [onclick*="openSite"],
+[data-unreachable] .identity-site-btn,
+[data-unreachable] .peer-call-btn,
+[data-unreachable] .call-btn {
+  cursor: not-allowed;
+  opacity: 0.35;
+}

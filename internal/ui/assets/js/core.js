@@ -120,6 +120,25 @@
       '</button>';
   }
 
+  // ── Unreachable peer guard ──────────────────────────────────────────────────
+  // Any element inside a [data-unreachable] container has clicks suppressed.
+  // Links, buttons, and onclick handlers are blocked with a toast notification.
+  // Peer name links (a.peerid) are exempt — you can still view peer info.
+  document.addEventListener('click', function(e) {
+    var container = e.target.closest('[data-unreachable]');
+    if (!container) return;
+
+    // Only block elements explicitly marked as peer actions.
+    // Use data-peer-action on buttons/links that require reachability,
+    // or match common peer action patterns.
+    var interactive = e.target.closest('[data-peer-action], [data-call-audio], [data-call-video], [onclick*="openSite"], .identity-site-btn, .peer-call-btn, .call-btn');
+    if (!interactive) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    if (toast) toast('Peer is unreachable', 2000);
+  }, true); // capture phase so we beat all other handlers
+
   // Lightweight namespace
   window.Goop = window.Goop || {};
   window.Goop.core = {

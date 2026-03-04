@@ -589,9 +589,8 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			})
 			node.AddPeerAddrs(pm.PeerID, pm.Addrs)
 			if !known {
-				// First time seeing this peer — mark reachable (server knows them)
-				// and probe to verify direct connectivity.
-				peers.SetReachable(pm.PeerID, true)
+				// First time seeing this peer — probe to verify connectivity.
+				// Peer starts unreachable; ProbePeer sets reachable on success.
 				go node.ProbePeer(ctx, pm.PeerID)
 			}
 		case proto.TypePunch:

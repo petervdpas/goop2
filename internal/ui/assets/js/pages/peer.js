@@ -174,6 +174,33 @@
     return window.Goop && window.Goop.emoji ? window.Goop.emoji.isEmojiOnly(text) : false;
   }
 
+  // ── Live reachability updates ──
+  if (window.Goop && window.Goop.mq && window.Goop.mq.onPeerAnnounce) {
+    Goop.mq.onPeerAnnounce(function(from, topic, payload, ack) {
+      if (payload.peerID !== peerID) { ack(); return; }
+      var unreachable = !!payload.offline || !payload.reachable;
+      // Toggle data-unreachable on action containers (card + call buttons)
+      var card = pageEl.querySelector('.peer-detail-card');
+      var callActions = pageEl.querySelector('.chat-call-actions');
+      [card, callActions].forEach(function(el) {
+        if (!el) return;
+        if (unreachable) el.setAttribute('data-unreachable', '');
+        else el.removeAttribute('data-unreachable');
+      });
+      // Update chat input
+      if (input) {
+        input.disabled = unreachable;
+        input.placeholder = unreachable ? 'Peer unreachable' : 'Type a message...';
+      }
+      var sendBtn = form && form.querySelector('button[type="submit"]');
+      if (sendBtn) sendBtn.disabled = unreachable;
+      // Update banner
+      var banner = document.querySelector('.peer-unreachable-banner');
+      if (banner) banner.style.display = unreachable ? '' : 'none';
+      ack();
+    });
+  }
+
   // Load persistent chat history from the backend.
   Goop.api.chat.history(peerID).then(function(msgs) {
     if (Array.isArray(msgs)) {

@@ -50,7 +50,7 @@ func NewPeerTable() *PeerTable {
 func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled bool, activeTemplate string, publicKey string, encryptionSupported bool, verified bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	reachable := true
+	reachable := false
 	favorite := false
 	var failStreak int
 	var lastFailAt time.Time

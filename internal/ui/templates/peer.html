@@ -4,7 +4,7 @@
   <a class="back" href="/peers">&larr; back</a>
 </p>
 
-<div class="card peer-detail-card">
+<div class="card peer-detail-card"{{if not .Reachable}} data-unreachable{{end}}>
   <img class="avatar avatar-lg"
        src="/api/avatar/peer/{{.PeerID}}{{if .AvatarHash}}?v={{.AvatarHash}}{{end}}"
        alt="">
@@ -35,7 +35,8 @@
   <h2 style="margin:0;">Chat</h2>
   <div class="chat-call-actions"
        data-peer-video-disabled="{{.VideoDisabled}}"
-       data-self-video-disabled="{{.SelfVideoDisabled}}"></div>
+       data-self-video-disabled="{{.SelfVideoDisabled}}"
+       {{if not .Reachable}}data-unreachable{{end}}></div>
 </div>
 <div class="chat-container">
   <div class="chat-messages" id="chat-messages">
