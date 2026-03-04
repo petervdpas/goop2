@@ -20,6 +20,7 @@ import (
 	"github.com/petervdpas/goop2/internal/proto"
 	"github.com/petervdpas/goop2/internal/util"
 
+	"github.com/gorilla/websocket"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -105,6 +106,13 @@ type Server struct {
 	// per-IP rate limiter for /publish
 	rateMu     sync.Mutex
 	rateWindow map[string]*rateBucket
+
+	// punch hint cooldowns: prevents spamming hole-punch attempts for the same peer pair
+	punchCooldowns map[[2]string]time.Time
+
+	// WebSocket clients: peerID → connection (authenticated, per-peer channel)
+	wsClients   map[string]*wsClient
+	wsClientsMu sync.RWMutex
 }
 
 // rateBucket is a fixed-size ring buffer of timestamps for rate limiting.
@@ -337,6 +345,8 @@ func New(addr string, peerDBPath string, adminPassword string, externalURL strin
 		relayKeyFile:         relayKeyFile,
 		relayTiming:          relayTiming,
 		rateWindow:           map[string]*rateBucket{},
+		punchCooldowns:       map[[2]string]time.Time{},
+		wsClients:            map[string]*wsClient{},
 	}
 
 	// Open peer DB if path provided (for multi-instance persistence)
@@ -643,6 +653,12 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	// SSE: stream messages to subscribers
+	// WebSocket entangler: per-peer bidirectional channel for presence + punch hints.
+	// Replaces SSE for peers that support it; SSE remains for backward compatibility.
+	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		s.handleWS(ctx, w, r)
+	})
+
 	mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -753,6 +769,10 @@ func (s *Server) Start(ctx context.Context) error {
 		s.upsertPeer(pm, msgSize, isRegistered, peerToken)
 		s.addLog(fmt.Sprintf("Received %s from %s: %q (verified=%v)", pm.Type, pm.PeerID, pm.Content, isRegistered))
 		s.broadcast(b)
+
+		if pm.Type == proto.TypeOnline || pm.Type == proto.TypeUpdate {
+			s.emitPunchHints(pm)
+		}
 
 		w.WriteHeader(http.StatusNoContent)
 	})
@@ -929,6 +949,203 @@ func extractIP(addr string) string {
 	return host
 }
 
+// ── WebSocket entangler ─────────────────────────────────────────────
+
+// wsClient wraps a WebSocket connection for a specific peer.
+type wsClient struct {
+	conn   *websocket.Conn
+	send   chan []byte
+	peerID string
+}
+
+var wsUpgrader = websocket.Upgrader{
+	CheckOrigin:  func(r *http.Request) bool { return true },
+	ReadBufferSize:  4096,
+	WriteBufferSize: 4096,
+}
+
+// sendToPeer sends a message directly to a WebSocket-connected peer.
+// Returns true if the peer has an active WebSocket connection (message queued).
+func (s *Server) sendToPeer(peerID string, msg []byte) bool {
+	s.wsClientsMu.RLock()
+	wsc, ok := s.wsClients[peerID]
+	s.wsClientsMu.RUnlock()
+	if !ok {
+		return false
+	}
+	select {
+	case wsc.send <- msg:
+		return true
+	default:
+		return false // send buffer full, fall back to broadcast
+	}
+}
+
+// handleWS upgrades an HTTP connection to WebSocket for a specific peer.
+// The peer sends heartbeat/presence messages; the server pushes presence
+// updates and punch hints through the same connection.
+func (s *Server) handleWS(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	peerID := r.URL.Query().Get("peer_id")
+	if peerID == "" {
+		http.Error(w, "peer_id required", http.StatusBadRequest)
+		return
+	}
+
+	conn, err := wsUpgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("ws: upgrade failed for %s: %v", peerID[:min(8, len(peerID))], err)
+		return
+	}
+
+	wsc := &wsClient{
+		conn:   conn,
+		send:   make(chan []byte, 128),
+		peerID: peerID,
+	}
+
+	// Register this WebSocket client
+	s.wsClientsMu.Lock()
+	if old, exists := s.wsClients[peerID]; exists {
+		// Close previous connection for this peer (stale/reconnect)
+		close(old.send)
+		old.conn.Close()
+	}
+	s.wsClients[peerID] = wsc
+	s.wsClientsMu.Unlock()
+
+	s.addLog(fmt.Sprintf("WS connected: %s", peerID))
+
+	// Write pump: sends queued messages to the WebSocket
+	go func() {
+		defer conn.Close()
+		for msg := range wsc.send {
+			conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+				return
+			}
+		}
+	}()
+
+	// Read pump: receives presence messages from the peer
+	conn.SetReadDeadline(time.Now().Add(45 * time.Second))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(45 * time.Second))
+		return nil
+	})
+
+	// Ping ticker to keep connection alive
+	pingDone := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+					return
+				}
+			case <-pingDone:
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	defer func() {
+		close(pingDone)
+
+		// Unregister — only if this is still the current client for this peer.
+		// If a newer connection replaced us, it already closed our send channel.
+		s.wsClientsMu.Lock()
+		isCurrent := false
+		if cur, ok := s.wsClients[peerID]; ok && cur == wsc {
+			delete(s.wsClients, peerID)
+			isCurrent = true
+		}
+		s.wsClientsMu.Unlock()
+
+		if isCurrent {
+			close(wsc.send)
+		}
+
+		s.addLog(fmt.Sprintf("WS disconnected: %s", peerID))
+
+		// Instant disconnect detection: if the peer is still in s.peers,
+		// broadcast TypeOffline immediately — same benefit as entangle.
+		s.mu.Lock()
+		_, stillOnline := s.peers[peerID]
+		if stillOnline {
+			delete(s.peers, peerID)
+			s.peersDirty = true
+		}
+		s.mu.Unlock()
+
+		if stillOnline {
+			offMsg := proto.PresenceMsg{
+				Type:   proto.TypeOffline,
+				PeerID: peerID,
+				TS:     proto.NowMillis(),
+			}
+			if b, err := json.Marshal(offMsg); err == nil {
+				s.broadcast(b)
+			}
+			s.addLog(fmt.Sprintf("WS: peer %s marked offline (connection lost)", peerID))
+		}
+	}()
+
+	for {
+		_, message, err := conn.ReadMessage()
+		if err != nil {
+			break
+		}
+
+		// Reset read deadline on any message
+		conn.SetReadDeadline(time.Now().Add(45 * time.Second))
+
+		var pm proto.PresenceMsg
+		if err := json.Unmarshal(message, &pm); err != nil {
+			continue
+		}
+
+		if pm.PeerID == "" {
+			pm.PeerID = peerID
+		}
+
+		if err := validatePresence(pm); err != nil {
+			continue
+		}
+
+		// Same logic as /publish handler
+		isRegistered := true
+		if s.registration != nil && s.registration.RegistrationRequired() {
+			if pm.Email == "" || pm.VerificationToken == "" {
+				isRegistered = false
+			} else {
+				isRegistered = s.registration.IsEmailTokenValid(pm.Email, pm.VerificationToken)
+			}
+		}
+
+		peerToken := pm.VerificationToken
+		pm.VerificationToken = ""
+		if pm.TS == 0 {
+			pm.TS = proto.NowMillis()
+		}
+		pm.Verified = isRegistered
+
+		b, _ := json.Marshal(pm)
+		msgSize := int64(len(b))
+
+		s.upsertPeer(pm, msgSize, isRegistered, peerToken)
+		s.broadcast(b)
+
+		if pm.Type == proto.TypeOnline || pm.Type == proto.TypeUpdate {
+			s.emitPunchHints(pm)
+		}
+	}
+}
+
 func (s *Server) broadcast(b []byte) {
 	s.mu.Lock()
 
@@ -953,6 +1170,98 @@ func (s *Server) broadcast(b []byte) {
 		case ch <- b:
 		default:
 			// slow client; drop message rather than blocking server
+		}
+	}
+
+	// Also fan out to WebSocket clients
+	s.wsClientsMu.RLock()
+	wsClients := make([]*wsClient, 0, len(s.wsClients))
+	for _, wsc := range s.wsClients {
+		wsClients = append(wsClients, wsc)
+	}
+	s.wsClientsMu.RUnlock()
+
+	for _, wsc := range wsClients {
+		select {
+		case wsc.send <- b:
+		default:
+		}
+	}
+}
+
+// pairKey returns a canonical sorted key for a peer pair.
+func pairKey(a, b string) [2]string {
+	if a > b {
+		a, b = b, a
+	}
+	return [2]string{a, b}
+}
+
+// emitPunchHints sends targeted address hints to peer pairs.
+// When a peer arrives or updates, we tell each existing peer about the
+// arriving peer's addresses and vice versa. Both sides then add addresses to
+// their libp2p peerstores and probe — optimal for DCUtR hole-punching on WAN,
+// and a fast supplement to mDNS on LAN.
+func (s *Server) emitPunchHints(arriving proto.PresenceMsg) {
+	if len(arriving.Addrs) == 0 {
+		return
+	}
+
+	now := time.Now()
+
+	s.mu.Lock()
+	type hint struct {
+		targetPeerID string
+		msg          proto.PresenceMsg
+	}
+	var hints []hint
+
+	for peerID, peer := range s.peers {
+		if peerID == arriving.PeerID {
+			continue
+		}
+		if len(peer.Addrs) == 0 {
+			continue
+		}
+
+		key := pairKey(arriving.PeerID, peerID)
+		if last, ok := s.punchCooldowns[key]; ok && now.Sub(last) < 60*time.Second {
+			continue
+		}
+		s.punchCooldowns[key] = now
+
+		// Tell existing peer about arriving peer
+		hints = append(hints, hint{
+			targetPeerID: peerID,
+			msg: proto.PresenceMsg{
+				Type:   proto.TypePunch,
+				PeerID: arriving.PeerID,
+				Target: peerID,
+				Addrs:  arriving.Addrs,
+				TS:     proto.NowMillis(),
+			},
+		})
+		// Tell arriving peer about existing peer
+		hints = append(hints, hint{
+			targetPeerID: arriving.PeerID,
+			msg: proto.PresenceMsg{
+				Type:   proto.TypePunch,
+				PeerID: peerID,
+				Target: arriving.PeerID,
+				Addrs:  peer.Addrs,
+				TS:     proto.NowMillis(),
+			},
+		})
+	}
+	s.mu.Unlock()
+
+	for _, h := range hints {
+		b, err := json.Marshal(h.msg)
+		if err != nil {
+			continue
+		}
+		if !s.sendToPeer(h.targetPeerID, b) {
+			s.broadcast(b)
 		}
 	}
 }
@@ -1127,22 +1436,45 @@ func (s *Server) cleanupStalePeers(ctx context.Context) {
 			now := time.Now().UnixMilli()
 			staleThreshold := now - (30 * 1000) // 30 seconds
 
-			removed := false
+			var pruned []string
 			for peerID, peer := range s.peers {
 				if peer.LastSeen < staleThreshold {
 					delete(s.peers, peerID)
-					removed = true
+					pruned = append(pruned, peerID)
 					s.addLog(fmt.Sprintf("Removed stale peer: %s (last seen: %v)", peerID, time.UnixMilli(peer.LastSeen).Format("15:04:05")))
 				}
 			}
-			if removed {
+			if len(pruned) > 0 {
 				s.peersDirty = true
 			}
 			s.mu.Unlock()
 
+			// Broadcast TypeOffline for each pruned peer so SSE subscribers
+			// learn immediately instead of waiting for their own TTL expiry.
+			for _, peerID := range pruned {
+				offMsg := proto.PresenceMsg{
+					Type:   proto.TypeOffline,
+					PeerID: peerID,
+					TS:     proto.NowMillis(),
+				}
+				if b, err := json.Marshal(offMsg); err == nil {
+					s.broadcast(b)
+				}
+			}
+
 			if s.peerDB != nil {
 				go s.peerDB.cleanupStale(staleThreshold)
 			}
+
+			// Clean up stale punch cooldown entries (older than 5 minutes)
+			punchCutoff := time.Now().Add(-5 * time.Minute)
+			s.mu.Lock()
+			for key, ts := range s.punchCooldowns {
+				if ts.Before(punchCutoff) {
+					delete(s.punchCooldowns, key)
+				}
+			}
+			s.mu.Unlock()
 
 			// Clean up stale rate limiter entries
 			s.cleanupRateLimiter()

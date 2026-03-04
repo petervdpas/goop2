@@ -62,6 +62,14 @@ func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled 
 		favorite = existing.Favorite
 		failStreak = existing.failStreak
 		lastFailAt = existing.lastFailAt
+		// Preserve public key if the incoming update doesn't carry one
+		// (e.g. P2P gossip doesn't include keys — they come over HTTP).
+		if publicKey == "" {
+			publicKey = existing.PublicKey
+		}
+		if !encryptionSupported {
+			encryptionSupported = existing.EncryptionSupported
+		}
 	}
 	peer := SeenPeer{
 		Content:             content,
@@ -103,6 +111,17 @@ func (t *PeerTable) Seed(id, content, email, avatarHash string, videoDisabled bo
 	}
 	t.peers[id] = sp
 	t.notifyListeners(PeerEvent{Type: "update", PeerID: id, Peer: &sp})
+}
+
+func (t *PeerTable) SetPublicKey(id, publicKey string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	sp, ok := t.peers[id]
+	if !ok {
+		return
+	}
+	sp.PublicKey = publicKey
+	t.peers[id] = sp
 }
 
 func (t *PeerTable) Touch(id string) {

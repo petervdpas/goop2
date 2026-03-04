@@ -19,8 +19,7 @@ import (
 	goopCrypto "github.com/petervdpas/goop2/internal/crypto"
 	"github.com/petervdpas/goop2/internal/content"
 	"github.com/petervdpas/goop2/internal/docs"
-	"github.com/petervdpas/goop2/internal/entangle"
-	"github.com/petervdpas/goop2/internal/group"
+"github.com/petervdpas/goop2/internal/group"
 	"github.com/petervdpas/goop2/internal/listen"
 	luapkg "github.com/petervdpas/goop2/internal/lua"
 	"github.com/petervdpas/goop2/internal/mq"
@@ -342,15 +341,6 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	mqMgr := mq.New(node.Host)
 	log.Printf("📨 MQ enabled: message queue via /goop/mq/1.0.0")
 
-	// Entangle handler registered here so the protocol appears in Identify
-	// from the very first connection. The Connect() calls come later (after
-	// peer cache load), but the handler must be ready immediately.
-	entMgr := entangle.New(node.Host,
-		func(peerID string) { peers.SetReachable(peerID, true) },
-		func(peerID string) { peers.MarkOffline(peerID) },
-	)
-	defer entMgr.Close()
-	log.Printf("🔗 Entangle enabled: persistent peer threads via /goop/entangle/1.0.0")
 
 	// ── Wire E2E encryption (NaCl box) to all protocol layers
 	// sealKeyFor: only encrypt for peers that advertise EncryptionSupported.
@@ -366,10 +356,21 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	}
 	openKeyFor := func(peerID string) (string, bool) {
 		sp, ok := peers.Get(peerID)
-		if !ok || sp.PublicKey == "" {
-			return "", false
+		if ok && sp.PublicKey != "" {
+			return sp.PublicKey, true
 		}
-		return sp.PublicKey, true
+		// Key not in local table — fetch from rendezvous over HTTPS.
+		for _, c := range rvClients {
+			ctx2, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			key, err := c.FetchPeerKey(ctx2, peerID)
+			cancel()
+			if err == nil && key != "" {
+				log.Printf("crypto: fetched public key for %s from rendezvous", peerID[:8])
+				peers.SetPublicKey(peerID, key)
+				return key, true
+			}
+		}
+		return "", false
 	}
 	enc, err := goopCrypto.New(cfg.P2P.NaClPrivateKey, sealKeyFor, openKeyFor)
 	if err != nil {
@@ -377,7 +378,6 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	} else {
 		mqMgr.SetEncryptor(enc)
 		node.SetEncryptor(enc)
-		entMgr.SetEncryptor(enc)
 		log.Printf("🔐 E2E encryption enabled (NaCl box)")
 	}
 
@@ -568,71 +568,77 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		log.Printf("📄 File sharing enabled: /goop/docs/1.0.0")
 	}
 
-	// Entangle all peers already in the table at startup.
-	for _, peerID := range peers.IDs() {
-		go entMgr.Connect(ctx, peerID)
+	rvOnMsg := func(pm proto.PresenceMsg) {
+		if pm.PeerID == node.ID() {
+			return
+		}
+		switch pm.Type {
+		case proto.TypeOnline, proto.TypeUpdate:
+			_, known := peers.Get(pm.PeerID)
+			peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.PublicKey, pm.EncryptionSupported, pm.Verified)
+			// The rendezvous server is the authority for online status —
+			// if it says the peer is online, trust it unconditionally.
+			peers.SetReachable(pm.PeerID, true)
+			go db.UpsertCachedPeer(storage.CachedPeer{
+				PeerID:         pm.PeerID,
+				Content:        pm.Content,
+				Email:          pm.Email,
+				AvatarHash:     pm.AvatarHash,
+				VideoDisabled:  pm.VideoDisabled,
+				ActiveTemplate: pm.ActiveTemplate,
+				PublicKey:      pm.PublicKey,
+				Verified:       pm.Verified,
+				Addrs:          pm.Addrs,
+			})
+			node.AddPeerAddrs(pm.PeerID, pm.Addrs)
+			if !known {
+				go node.ProbePeer(ctx, pm.PeerID)
+			}
+		case proto.TypePunch:
+			if pm.Target != node.ID() {
+				break
+			}
+			log.Printf("punch hint: peer %s at %d addrs", pm.PeerID[:min(8, len(pm.PeerID))], len(pm.Addrs))
+			node.AddPeerAddrs(pm.PeerID, pm.Addrs)
+			go node.ProbePeer(ctx, pm.PeerID)
+		case proto.TypeOffline:
+			peers.MarkOffline(pm.PeerID)
+		}
 	}
 
-	// Entangle whenever libp2p establishes a new connection (mDNS, relay, direct).
-	node.SubscribeConnectionEvents(ctx, func(peerID string) {
-		go entMgr.Connect(ctx, peerID)
-	})
-
+	// Connect to each rendezvous server via WebSocket (preferred) with SSE fallback.
 	for _, c := range rvClients {
 		cc := c
-		go cc.SubscribeEvents(ctx, func(pm proto.PresenceMsg) {
-			if pm.PeerID == node.ID() {
-				return
-			}
-			switch pm.Type {
-			case proto.TypeOnline, proto.TypeUpdate:
-				sp, known := peers.Get(pm.PeerID)
-				peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.PublicKey, pm.EncryptionSupported, pm.Verified)
-				go db.UpsertCachedPeer(storage.CachedPeer{
-					PeerID:         pm.PeerID,
-					Content:        pm.Content,
-					Email:          pm.Email,
-					AvatarHash:     pm.AvatarHash,
-					VideoDisabled:  pm.VideoDisabled,
-					ActiveTemplate: pm.ActiveTemplate,
-					PublicKey:      pm.PublicKey,
-					Verified:       pm.Verified,
-					Addrs:          pm.Addrs,
-				})
-				node.AddPeerAddrs(pm.PeerID, pm.Addrs)
-				// Probe on first sight or when a known-unreachable peer reappears.
-				if !known || (pm.Type == proto.TypeUpdate && !sp.Reachable) {
-					go node.ProbePeer(ctx, pm.PeerID)
-				}
-				// Entangle: open (or reuse) the persistent heartbeat stream.
-				go entMgr.Connect(ctx, pm.PeerID)
-			case proto.TypeOffline:
-				peers.MarkOffline(pm.PeerID)
-			}
-		})
+		go cc.ConnectWebSocket(ctx, node.ID(), rvOnMsg)
 	}
 
 	publish := func(pctx context.Context, typ string) {
 		node.Publish(pctx, typ)
 		addrs := node.WanAddrs()
+		pm := proto.PresenceMsg{
+			Type:                typ,
+			PeerID:              node.ID(),
+			Content:             selfContent(),
+			Email:               selfEmail(),
+			AvatarHash:          avatarStore.Hash(),
+			VideoDisabled:       selfVideoDisabled(),
+			ActiveTemplate:      selfActiveTemplate(),
+			PublicKey:           selfPublicKey(),
+			EncryptionSupported: enc != nil,
+			VerificationToken:   selfVerificationToken(),
+			Addrs:               addrs,
+			TS:                  proto.NowMillis(),
+		}
 		for _, c := range rvClients {
 			cc := c
 			go func() {
+				// Prefer WebSocket; fall back to HTTP POST
+				if cc.PublishWS(pm) {
+					return
+				}
 				ctx2, cancel := context.WithTimeout(pctx, util.ShortTimeout)
 				defer cancel()
-				_ = cc.Publish(ctx2, proto.PresenceMsg{
-					Type:              typ,
-					PeerID:            node.ID(),
-					Content:           selfContent(),
-					Email:             selfEmail(),
-					AvatarHash:        avatarStore.Hash(),
-					VideoDisabled:     selfVideoDisabled(),
-					ActiveTemplate:    selfActiveTemplate(),
-					PublicKey:         selfPublicKey(),
-					VerificationToken: selfVerificationToken(),
-					Addrs:             addrs,
-					TS:                proto.NowMillis(),
-				})
+				_ = cc.Publish(ctx2, pm)
 			}()
 		}
 	}

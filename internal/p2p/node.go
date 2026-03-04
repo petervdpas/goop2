@@ -764,7 +764,6 @@ func (n *Node) Publish(ctx context.Context, typ string) {
 		msg.AvatarHash = n.AvatarHash()
 		msg.VideoDisabled = n.selfVideoDisabled()
 		msg.ActiveTemplate = n.selfActiveTemplate()
-		msg.PublicKey = n.selfPublicKey()
 		msg.EncryptionSupported = n.enc != nil
 		msg.Addrs = n.WanAddrs()
 	}

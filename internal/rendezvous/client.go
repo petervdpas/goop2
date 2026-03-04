@@ -7,10 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
+	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/petervdpas/goop2/internal/proto"
 	"github.com/petervdpas/goop2/internal/util"
 )
@@ -18,6 +22,11 @@ import (
 type Client struct {
 	BaseURL string
 	HTTP    *http.Client
+
+	// WebSocket state (set by ConnectWebSocket)
+	wsMu   sync.Mutex
+	wsConn *websocket.Conn
+	wsSend chan []byte // buffered send channel for write pump
 }
 
 func NewClient(baseURL string) *Client {
@@ -447,4 +456,167 @@ func (c *Client) subscribeOnce(ctx context.Context, onMsg func(proto.PresenceMsg
 		}
 	}
 	return sc.Err()
+}
+
+// ConnectWebSocket establishes a WebSocket connection to the rendezvous server.
+// It replaces both SubscribeEvents (SSE) and the heartbeat POST loop.
+// Messages received from the server are dispatched via onMsg.
+// The connection auto-reconnects with exponential backoff until ctx is cancelled.
+func (c *Client) ConnectWebSocket(ctx context.Context, peerID string, onMsg func(proto.PresenceMsg)) {
+	if c.BaseURL == "" {
+		return
+	}
+
+	backoff := 250 * time.Millisecond
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		err := c.connectWSOnce(ctx, peerID, onMsg)
+		if err != nil {
+			log.Printf("rendezvous ws: %v (reconnecting)", err)
+		}
+
+		// Clean up connection state
+		c.wsMu.Lock()
+		c.wsConn = nil
+		c.wsSend = nil
+		c.wsMu.Unlock()
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(backoff):
+		}
+		if backoff < 5*time.Second {
+			backoff *= 2
+		}
+	}
+}
+
+func (c *Client) connectWSOnce(ctx context.Context, peerID string, onMsg func(proto.PresenceMsg)) error {
+	// Convert http(s):// to ws(s)://
+	// Enforce TLS for non-localhost — never send tokens/emails as plaintext over WAN.
+	wsURL := c.BaseURL
+	if strings.HasPrefix(wsURL, "http://") {
+		host := strings.TrimPrefix(wsURL, "http://")
+		if idx := strings.Index(host, "/"); idx != -1 {
+			host = host[:idx]
+		}
+		if h, _, err := net.SplitHostPort(host); err == nil {
+			host = h
+		}
+		if host != "127.0.0.1" && host != "localhost" && host != "::1" {
+			// Upgrade to HTTPS for WAN — Caddy/reverse proxy terminates TLS
+			wsURL = "https://" + strings.TrimPrefix(wsURL, "http://")
+		}
+	}
+	wsURL = strings.Replace(wsURL, "https://", "wss://", 1)
+	wsURL = strings.Replace(wsURL, "http://", "ws://", 1)
+	wsURL += "/ws?peer_id=" + peerID
+
+	dialer := websocket.Dialer{
+		HandshakeTimeout: 10 * time.Second,
+	}
+
+	conn, _, err := dialer.DialContext(ctx, wsURL, nil)
+	if err != nil {
+		return fmt.Errorf("ws dial %s: %w", wsURL, err)
+	}
+
+	sendCh := make(chan []byte, 64)
+
+	c.wsMu.Lock()
+	c.wsConn = conn
+	c.wsSend = sendCh
+	c.wsMu.Unlock()
+
+	// Write pump
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case msg, ok := <-sendCh:
+				if !ok {
+					return
+				}
+				conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+				if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+					return
+				}
+			case <-ctx.Done():
+				conn.WriteMessage(websocket.CloseMessage,
+					websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+				return
+			}
+		}
+	}()
+
+	// Read pump
+	conn.SetReadDeadline(time.Now().Add(45 * time.Second))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(45 * time.Second))
+		return nil
+	})
+
+	defer func() {
+		close(sendCh)
+		conn.Close()
+		<-done // wait for write pump to exit
+	}()
+
+	for {
+		_, message, err := conn.ReadMessage()
+		if err != nil {
+			return fmt.Errorf("ws read: %w", err)
+		}
+
+		conn.SetReadDeadline(time.Now().Add(45 * time.Second))
+
+		var pm proto.PresenceMsg
+		if err := json.Unmarshal(message, &pm); err != nil {
+			continue
+		}
+		if pm.Type == "" || pm.PeerID == "" {
+			continue
+		}
+		if onMsg != nil {
+			onMsg(pm)
+		}
+	}
+}
+
+// PublishWS sends a presence message via the active WebSocket connection.
+// Returns false if no WebSocket is connected (caller should fall back to POST).
+func (c *Client) PublishWS(pm proto.PresenceMsg) bool {
+	c.wsMu.Lock()
+	sendCh := c.wsSend
+	c.wsMu.Unlock()
+
+	if sendCh == nil {
+		return false
+	}
+
+	b, err := json.Marshal(pm)
+	if err != nil {
+		return false
+	}
+
+	select {
+	case sendCh <- b:
+		return true
+	default:
+		return false // buffer full
+	}
+}
+
+// IsWebSocketConnected returns true if this client has an active WebSocket connection.
+func (c *Client) IsWebSocketConnected() bool {
+	c.wsMu.Lock()
+	defer c.wsMu.Unlock()
+	return c.wsConn != nil
 }
