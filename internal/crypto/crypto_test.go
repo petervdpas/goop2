@@ -33,11 +33,11 @@ func TestRoundTrip(t *testing.T) {
 		return k, ok
 	}
 
-	encA, err := New(privA, lookup)
+	encA, err := New(privA, lookup, lookup)
 	if err != nil {
 		t.Fatal(err)
 	}
-	encB, err := New(privB, lookup)
+	encB, err := New(privB, lookup, lookup)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestErrNoKey(t *testing.T) {
 		return "", false
 	}
 
-	enc, err := New(privA, lookup)
+	enc, err := New(privA, lookup, lookup)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,17 +84,13 @@ func TestCrossPeerDecryptFails(t *testing.T) {
 	pubB, _ := genKeyPair(t)
 
 	keysA := map[string]string{"bob": pubB}
-	encA, _ := New(privA, func(id string) (string, bool) {
-		k, ok := keysA[id]
-		return k, ok
-	})
+	lookupA := func(id string) (string, bool) { k, ok := keysA[id]; return k, ok }
+	encA, _ := New(privA, lookupA, lookupA)
 
 	// C tries to decrypt a message from A to B (C doesn't have B's private key)
 	keysC := map[string]string{"alice": pubA}
-	encC, _ := New(privC, func(id string) (string, bool) {
-		k, ok := keysC[id]
-		return k, ok
-	})
+	lookupC := func(id string) (string, bool) { k, ok := keysC[id]; return k, ok }
+	encC, _ := New(privC, lookupC, lookupC)
 
 	sealed, err := encA.Seal("bob", []byte("secret"))
 	if err != nil {
@@ -117,8 +113,8 @@ func TestEmptyPlaintext(t *testing.T) {
 		return k, ok
 	}
 
-	encA, _ := New(privA, lookup)
-	encB, _ := New(privB, lookup)
+	encA, _ := New(privA, lookup, lookup)
+	encB, _ := New(privB, lookup, lookup)
 
 	sealed, err := encA.Seal("bob", []byte{})
 	if err != nil {
@@ -144,8 +140,8 @@ func TestTamperedCiphertext(t *testing.T) {
 		return k, ok
 	}
 
-	encA, _ := New(privA, lookup)
-	encB, _ := New(privB, lookup)
+	encA, _ := New(privA, lookup, lookup)
+	encB, _ := New(privB, lookup, lookup)
 
 	sealed, _ := encA.Seal("bob", []byte("hello"))
 

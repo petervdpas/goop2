@@ -25,13 +25,15 @@ const nonceSize = 24
 
 // Encryptor seals and opens NaCl box messages between peers.
 type Encryptor struct {
-	privKey   [32]byte
-	pubKeyFor func(peerID string) (string, bool) // returns base64 pubkey
+	privKey      [32]byte
+	sealKeyFor   func(peerID string) (string, bool) // Seal: checks EncryptionSupported + PublicKey
+	openKeyFor   func(peerID string) (string, bool) // Open: only checks PublicKey (always decrypt if key known)
 }
 
-// New creates an Encryptor from a base64-encoded private key and a lookup
-// function that returns the base64-encoded public key for a given peer ID.
-func New(privKeyB64 string, pubKeyFor func(peerID string) (string, bool)) (*Encryptor, error) {
+// New creates an Encryptor from a base64-encoded private key and two lookup
+// functions: sealKeyFor (for encrypting — should check EncryptionSupported)
+// and openKeyFor (for decrypting — should only check if public key exists).
+func New(privKeyB64 string, sealKeyFor, openKeyFor func(peerID string) (string, bool)) (*Encryptor, error) {
 	raw, err := base64.StdEncoding.DecodeString(privKeyB64)
 	if err != nil {
 		return nil, fmt.Errorf("crypto: decode private key: %w", err)
@@ -39,15 +41,16 @@ func New(privKeyB64 string, pubKeyFor func(peerID string) (string, bool)) (*Encr
 	if len(raw) != 32 {
 		return nil, fmt.Errorf("crypto: private key must be 32 bytes, got %d", len(raw))
 	}
-	e := &Encryptor{pubKeyFor: pubKeyFor}
+	e := &Encryptor{sealKeyFor: sealKeyFor, openKeyFor: openKeyFor}
 	copy(e.privKey[:], raw)
 	return e, nil
 }
 
 // Seal encrypts plaintext for the given peer. Returns a base64 string
-// containing nonce24 + sealedBox, or ErrNoKey if the peer has no public key.
+// containing nonce24 + sealedBox, or ErrNoKey if the peer has no public key
+// or doesn't support encryption.
 func (e *Encryptor) Seal(peerID string, plaintext []byte) (string, error) {
-	pubB64, ok := e.pubKeyFor(peerID)
+	pubB64, ok := e.sealKeyFor(peerID)
 	if !ok || pubB64 == "" {
 		return "", ErrNoKey
 	}
@@ -73,8 +76,9 @@ func (e *Encryptor) Seal(peerID string, plaintext []byte) (string, error) {
 }
 
 // Open decrypts a base64 string (nonce24 + sealedBox) from the given peer.
+// Uses openKeyFor which only requires the peer's public key (no EncryptionSupported check).
 func (e *Encryptor) Open(peerID string, ciphertextB64 string) ([]byte, error) {
-	pubB64, ok := e.pubKeyFor(peerID)
+	pubB64, ok := e.openKeyFor(peerID)
 	if !ok || pubB64 == "" {
 		return nil, ErrNoKey
 	}

@@ -18,6 +18,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"strings"
@@ -249,7 +250,9 @@ func (m *Manager) runLoop(ctx context.Context, c *entConn) {
 			}
 			var in msg
 			if err := json.Unmarshal(jsonLine, &in); err != nil {
-				continue
+				log.Printf("entangle: %s unmarshal error: %v (line=%q)", c.peerID[:8], err, trimmed[:min(len(trimmed), 40)])
+				readErr <- fmt.Errorf("unmarshal: %w", err)
+				return
 			}
 			switch in.Type {
 			case "ping":

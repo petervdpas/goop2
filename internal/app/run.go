@@ -353,13 +353,25 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	log.Printf("🔗 Entangle enabled: persistent peer threads via /goop/entangle/1.0.0")
 
 	// ── Wire E2E encryption (NaCl box) to all protocol layers
-	enc, err := goopCrypto.New(cfg.P2P.NaClPrivateKey, func(peerID string) (string, bool) {
+	// sealKeyFor: only encrypt for peers that advertise EncryptionSupported.
+	// openKeyFor: always decrypt if we know the peer's public key (no flag check).
+	// This prevents the race where a server encrypts a response before the
+	// client has received the server's EncryptionSupported presence update.
+	sealKeyFor := func(peerID string) (string, bool) {
 		sp, ok := peers.Get(peerID)
 		if !ok || sp.PublicKey == "" || !sp.EncryptionSupported {
 			return "", false
 		}
 		return sp.PublicKey, true
-	})
+	}
+	openKeyFor := func(peerID string) (string, bool) {
+		sp, ok := peers.Get(peerID)
+		if !ok || sp.PublicKey == "" {
+			return "", false
+		}
+		return sp.PublicKey, true
+	}
+	enc, err := goopCrypto.New(cfg.P2P.NaClPrivateKey, sealKeyFor, openKeyFor)
 	if err != nil {
 		log.Printf("crypto: failed to create encryptor: %v (continuing without encryption)", err)
 	} else {
