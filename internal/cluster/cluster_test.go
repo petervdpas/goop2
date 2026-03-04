@@ -224,8 +224,34 @@ func TestWorkerHandleJob(t *testing.T) {
 	w := NewWorker(sendFn, "g1")
 	w.HandleJob("host-peer", Job{ID: "j1", Type: "echo", TimeoutS: 5})
 
-	// Wait for the goroutine to complete
-	time.Sleep(200 * time.Millisecond)
+	// Job should be parked in pending
+	pending := w.PendingJobs()
+	if len(pending) != 1 {
+		t.Fatalf("expected 1 pending job, got %d", len(pending))
+	}
+
+	mu.Lock()
+	if len(messages) != 1 || messages[0]["topic"] != "cluster:g1:job:ack" {
+		t.Fatalf("expected 1 ack message, got %d messages", len(messages))
+	}
+	mu.Unlock()
+
+	// Executor accepts the job
+	pj, err := w.AcceptJob("j1")
+	if err != nil {
+		t.Fatalf("accept: %v", err)
+	}
+	if pj.Job.Type != "echo" {
+		t.Fatalf("expected echo job, got %s", pj.Job.Type)
+	}
+	if len(w.PendingJobs()) != 0 {
+		t.Fatalf("expected 0 pending after accept")
+	}
+
+	// Executor reports result
+	if err := w.ReportResult("j1", true, map[string]any{"ok": true}, ""); err != nil {
+		t.Fatalf("result: %v", err)
+	}
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -234,18 +260,13 @@ func TestWorkerHandleJob(t *testing.T) {
 		t.Fatalf("expected at least 2 messages (ack + result), got %d", len(messages))
 	}
 
-	// First message should be ack
-	if messages[0]["topic"] != "cluster:g1:job:ack" {
-		t.Fatalf("expected ack topic, got %s", messages[0]["topic"])
-	}
-
 	// Second message should be result
 	if messages[1]["topic"] != "cluster:g1:job:result" {
 		t.Fatalf("expected result topic, got %s", messages[1]["topic"])
 	}
 
 	if w.Status() != WorkerIdle {
-		t.Fatalf("expected idle after job, got %s", w.Status())
+		t.Fatalf("expected idle after result, got %s", w.Status())
 	}
 }
 
@@ -253,15 +274,16 @@ func TestWorkerCancel(t *testing.T) {
 	sendFn := func(peerID, topic string, payload any) error { return nil }
 
 	w := NewWorker(sendFn, "g1")
-	// Submit a job with long timeout so we can cancel it
 	w.HandleJob("host", Job{ID: "j1", Type: "slow", TimeoutS: 60})
 
-	time.Sleep(50 * time.Millisecond) // let goroutine start
+	// Cancel pending job
 	w.Cancel("j1")
 
-	time.Sleep(50 * time.Millisecond)
 	if w.RunningCount() != 0 {
 		t.Fatalf("expected 0 running jobs after cancel, got %d", w.RunningCount())
+	}
+	if len(w.PendingJobs()) != 0 {
+		t.Fatalf("expected 0 pending after cancel, got %d", len(w.PendingJobs()))
 	}
 }
 
@@ -270,7 +292,6 @@ func TestWorkerClose(t *testing.T) {
 
 	w := NewWorker(sendFn, "g1")
 	w.HandleJob("host", Job{ID: "j1", Type: "test", TimeoutS: 60})
-	time.Sleep(50 * time.Millisecond)
 
 	w.Close()
 	if w.Status() != WorkerOffline {

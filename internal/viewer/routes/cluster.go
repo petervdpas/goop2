@@ -136,4 +136,85 @@ func RegisterCluster(mux *http.ServeMux, cm *cluster.Manager, grpMgr *group.Mana
 	handleGet(mux, "/api/cluster/stats", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, cm.GetStats())
 	})
+
+	// ── Executor API (any executor — browser, script, agent) ─────────────
+
+	// GET /api/cluster/job — fetch pending + accepted jobs for this worker
+	handleGet(mux, "/api/cluster/job", func(w http.ResponseWriter, r *http.Request) {
+		pending := cm.PendingJobs()
+		if pending == nil {
+			pending = []cluster.PendingJob{}
+		}
+		accepted := cm.AcceptedJobs()
+		if accepted == nil {
+			accepted = []cluster.PendingJob{}
+		}
+		writeJSON(w, map[string]any{
+			"pending":  pending,
+			"accepted": accepted,
+		})
+	})
+
+	// POST /api/cluster/accept — executor claims a pending job
+	handlePost(mux, "/api/cluster/accept", func(w http.ResponseWriter, r *http.Request, req struct {
+		JobID string `json:"job_id"`
+	}) {
+		if req.JobID == "" {
+			http.Error(w, "missing job_id", http.StatusBadRequest)
+			return
+		}
+		pj, err := cm.AcceptJob(req.JobID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		writeJSON(w, map[string]any{"status": "accepted", "job": pj.Job})
+	})
+
+	// POST /api/cluster/progress — executor reports job progress
+	handlePost(mux, "/api/cluster/progress", func(w http.ResponseWriter, r *http.Request, req struct {
+		JobID   string         `json:"job_id"`
+		Percent int            `json:"percent"`
+		Message string         `json:"message,omitempty"`
+		Stats   map[string]any `json:"stats,omitempty"`
+	}) {
+		if req.JobID == "" {
+			http.Error(w, "missing job_id", http.StatusBadRequest)
+			return
+		}
+		if err := cm.ReportProgress(req.JobID, req.Percent, req.Message, req.Stats); err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		writeJSON(w, map[string]any{"status": "ok"})
+	})
+
+	// POST /api/cluster/result — executor reports job completion or failure
+	handlePost(mux, "/api/cluster/result", func(w http.ResponseWriter, r *http.Request, req struct {
+		JobID   string         `json:"job_id"`
+		Success bool           `json:"success"`
+		Result  map[string]any `json:"result,omitempty"`
+		Error   string         `json:"error,omitempty"`
+	}) {
+		if req.JobID == "" {
+			http.Error(w, "missing job_id", http.StatusBadRequest)
+			return
+		}
+		if err := cm.ReportResult(req.JobID, req.Success, req.Result, req.Error); err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		writeJSON(w, map[string]any{"status": "ok"})
+	})
+
+	// POST /api/cluster/heartbeat — executor reports liveness + processing stats
+	handlePost(mux, "/api/cluster/heartbeat", func(w http.ResponseWriter, r *http.Request, req struct {
+		Stats map[string]any `json:"stats,omitempty"`
+	}) {
+		if err := cm.WorkerHeartbeat(req.Stats); err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		writeJSON(w, map[string]any{"status": "ok"})
+	})
 }

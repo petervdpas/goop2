@@ -412,6 +412,96 @@ func swagClusterWorkers() {}
 //	@Router		/api/cluster/stats [get]
 func swagClusterStats() {}
 
+// ── Cluster Executor API ─────────────────────────────────────────────────────
+
+// clusterJobIDRequest is a single job_id body (accept, progress, result, cancel).
+type clusterJobIDRequest struct {
+	JobID string `json:"job_id" example:"j-abc123"`
+}
+
+// clusterProgressRequest is the body for POST /api/cluster/progress.
+type clusterProgressRequest struct {
+	JobID   string         `json:"job_id"             example:"j-abc123"`
+	Percent int            `json:"percent"            example:"42"`
+	Message string         `json:"message,omitempty"  example:"processing frame 84/200"`
+	Stats   map[string]any `json:"stats,omitempty"`
+}
+
+// clusterResultRequest is the body for POST /api/cluster/result.
+type clusterResultRequest struct {
+	JobID   string         `json:"job_id"            example:"j-abc123"`
+	Success bool           `json:"success"           example:"true"`
+	Result  map[string]any `json:"result,omitempty"`
+	Error   string         `json:"error,omitempty"`
+}
+
+// clusterHeartbeatRequest is the body for POST /api/cluster/heartbeat.
+type clusterHeartbeatRequest struct {
+	Stats map[string]any `json:"stats,omitempty"`
+}
+
+// swagClusterJob is a documentation stub for GET /api/cluster/job.
+//
+//	@Summary	Fetch pending and accepted jobs for this worker
+//	@Description	Returns jobs waiting for an executor to claim (pending) and jobs already claimed (accepted). Any executor — browser, script, agent — can poll this endpoint on localhost.
+//	@Tags		cluster
+//	@Produce	json
+//	@Success	200	{object}	map[string]any
+//	@Router		/api/cluster/job [get]
+func swagClusterJob() {}
+
+// swagClusterAccept is a documentation stub for POST /api/cluster/accept.
+//
+//	@Summary	Claim a pending job for execution (worker only)
+//	@Description	Moves a job from pending to accepted. The executor is now responsible for reporting progress and result.
+//	@Tags		cluster
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		clusterJobIDRequest	true	"Accept request"
+//	@Success	200		{object}	map[string]any
+//	@Failure	409		{string}	string	"not a worker or job not pending"
+//	@Router		/api/cluster/accept [post]
+func swagClusterAccept() {}
+
+// swagClusterProgress is a documentation stub for POST /api/cluster/progress.
+//
+//	@Summary	Report job progress to the cluster host (worker only)
+//	@Description	Sends a progress update (percent, message, custom stats) to the host via MQ. The host can broadcast this to its browser.
+//	@Tags		cluster
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		clusterProgressRequest	true	"Progress report"
+//	@Success	200		{object}	statusOK
+//	@Failure	409		{string}	string	"not a worker or job not accepted"
+//	@Router		/api/cluster/progress [post]
+func swagClusterProgress() {}
+
+// swagClusterResult is a documentation stub for POST /api/cluster/result.
+//
+//	@Summary	Report job completion or failure to the cluster host (worker only)
+//	@Description	Sends the final result to the host. On success, include result payload. On failure, include error message. The job is removed from the accepted set.
+//	@Tags		cluster
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		clusterResultRequest	true	"Result report"
+//	@Success	200		{object}	statusOK
+//	@Failure	409		{string}	string	"not a worker or job not accepted"
+//	@Router		/api/cluster/result [post]
+func swagClusterResult() {}
+
+// swagClusterHeartbeat is a documentation stub for POST /api/cluster/heartbeat.
+//
+//	@Summary	Report worker liveness and processing stats (worker only)
+//	@Description	Sends a heartbeat with optional stats (CPU, memory, throughput, custom metrics) to the host. The stats map is free-form — each executor defines its own keys.
+//	@Tags		cluster
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		clusterHeartbeatRequest	true	"Heartbeat"
+//	@Success	200		{object}	statusOK
+//	@Failure	409		{string}	string	"not a worker or no host known"
+//	@Router		/api/cluster/heartbeat [post]
+func swagClusterHeartbeat() {}
+
 // ── MQ ───────────────────────────────────────────────────────────────────────
 
 // swagMQSend is a documentation stub for POST /api/mq/send.

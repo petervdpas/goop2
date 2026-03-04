@@ -186,6 +186,80 @@ func (m *Manager) GetStats() QueueStats {
 	return stats
 }
 
+// ── Executor API (worker side) ───────────────────────────────────────────────
+
+// PendingJobs returns jobs waiting for an executor to claim (worker only).
+func (m *Manager) PendingJobs() []PendingJob {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.role != roleWorker || m.worker == nil {
+		return nil
+	}
+	return m.worker.PendingJobs()
+}
+
+// AcceptedJobs returns jobs claimed by an executor (worker only).
+func (m *Manager) AcceptedJobs() []PendingJob {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.role != roleWorker || m.worker == nil {
+		return nil
+	}
+	return m.worker.AcceptedJobs()
+}
+
+// AcceptJob claims a pending job for execution (worker only).
+func (m *Manager) AcceptJob(jobID string) (PendingJob, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.role != roleWorker || m.worker == nil {
+		return PendingJob{}, fmt.Errorf("not a cluster worker")
+	}
+	return m.worker.AcceptJob(jobID)
+}
+
+// ReportProgress sends a progress update to the host (worker only).
+func (m *Manager) ReportProgress(jobID string, percent int, message string, stats map[string]any) error {
+	m.mu.Lock()
+	if m.role != roleWorker || m.worker == nil {
+		m.mu.Unlock()
+		return fmt.Errorf("not a cluster worker")
+	}
+	w := m.worker
+	m.mu.Unlock()
+
+	return w.ReportProgress(jobID, percent, message, stats)
+}
+
+// ReportResult sends a job completion or failure to the host (worker only).
+func (m *Manager) ReportResult(jobID string, succeeded bool, result map[string]any, errMsg string) error {
+	m.mu.Lock()
+	if m.role != roleWorker || m.worker == nil {
+		m.mu.Unlock()
+		return fmt.Errorf("not a cluster worker")
+	}
+	w := m.worker
+	m.mu.Unlock()
+
+	return w.ReportResult(jobID, succeeded, result, errMsg)
+}
+
+// WorkerHeartbeat sends worker stats to the host (worker only).
+func (m *Manager) WorkerHeartbeat(stats map[string]any) error {
+	m.mu.Lock()
+	if m.role != roleWorker || m.worker == nil {
+		m.mu.Unlock()
+		return fmt.Errorf("not a cluster worker")
+	}
+	w := m.worker
+	m.mu.Unlock()
+
+	return w.Heartbeat(stats)
+}
+
 // Role returns "host", "worker", or "" for the current role.
 func (m *Manager) Role() string {
 	m.mu.Lock()

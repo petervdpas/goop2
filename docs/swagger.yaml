@@ -95,6 +95,18 @@ definitions:
         example: created
         type: string
     type: object
+  routes.clusterHeartbeatRequest:
+    properties:
+      stats:
+        additionalProperties: {}
+        type: object
+    type: object
+  routes.clusterJobIDRequest:
+    properties:
+      job_id:
+        example: j-abc123
+        type: string
+    type: object
   routes.clusterJoinRequest:
     properties:
       group_id:
@@ -103,6 +115,35 @@ definitions:
       host_peer_id:
         example: 12D3KooWXxx...
         type: string
+    type: object
+  routes.clusterProgressRequest:
+    properties:
+      job_id:
+        example: j-abc123
+        type: string
+      message:
+        example: processing frame 84/200
+        type: string
+      percent:
+        example: 42
+        type: integer
+      stats:
+        additionalProperties: {}
+        type: object
+    type: object
+  routes.clusterResultRequest:
+    properties:
+      error:
+        type: string
+      job_id:
+        example: j-abc123
+        type: string
+      result:
+        additionalProperties: {}
+        type: object
+      success:
+        example: true
+        type: boolean
     type: object
   routes.clusterStatusResponse:
     properties:
@@ -858,6 +899,34 @@ paths:
       summary: Get chat history with a peer
       tags:
       - chat
+  /api/cluster/accept:
+    post:
+      consumes:
+      - application/json
+      description: Moves a job from pending to accepted. The executor is now responsible
+        for reporting progress and result.
+      parameters:
+      - description: Accept request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.clusterJobIDRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: not a worker or job not pending
+          schema:
+            type: string
+      summary: Claim a pending job for execution (worker only)
+      tags:
+      - cluster
   /api/cluster/cancel:
     post:
       consumes:
@@ -912,6 +981,50 @@ paths:
           schema:
             type: string
       summary: Create a new cluster (become host)
+      tags:
+      - cluster
+  /api/cluster/heartbeat:
+    post:
+      consumes:
+      - application/json
+      description: Sends a heartbeat with optional stats (CPU, memory, throughput,
+        custom metrics) to the host. The stats map is free-form — each executor defines
+        its own keys.
+      parameters:
+      - description: Heartbeat
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.clusterHeartbeatRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+        "409":
+          description: not a worker or no host known
+          schema:
+            type: string
+      summary: Report worker liveness and processing stats (worker only)
+      tags:
+      - cluster
+  /api/cluster/job:
+    get:
+      description: Returns jobs waiting for an executor to claim (pending) and jobs
+        already claimed (accepted). Any executor — browser, script, agent — can poll
+        this endpoint on localhost.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Fetch pending and accepted jobs for this worker
       tags:
       - cluster
   /api/cluster/jobs:
@@ -973,6 +1086,61 @@ paths:
           schema:
             $ref: '#/definitions/routes.statusOK'
       summary: Leave the current cluster
+      tags:
+      - cluster
+  /api/cluster/progress:
+    post:
+      consumes:
+      - application/json
+      description: Sends a progress update (percent, message, custom stats) to the
+        host via MQ. The host can broadcast this to its browser.
+      parameters:
+      - description: Progress report
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.clusterProgressRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+        "409":
+          description: not a worker or job not accepted
+          schema:
+            type: string
+      summary: Report job progress to the cluster host (worker only)
+      tags:
+      - cluster
+  /api/cluster/result:
+    post:
+      consumes:
+      - application/json
+      description: Sends the final result to the host. On success, include result
+        payload. On failure, include error message. The job is removed from the accepted
+        set.
+      parameters:
+      - description: Result report
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.clusterResultRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+        "409":
+          description: not a worker or job not accepted
+          schema:
+            type: string
+      summary: Report job completion or failure to the cluster host (worker only)
       tags:
       - cluster
   /api/cluster/stats:

@@ -527,6 +527,47 @@
                 }
             }
         },
+        "/api/cluster/accept": {
+            "post": {
+                "description": "Moves a job from pending to accepted. The executor is now responsible for reporting progress and result.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "Claim a pending job for execution (worker only)",
+                "parameters": [
+                    {
+                        "description": "Accept request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.clusterJobIDRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "409": {
+                        "description": "not a worker or job not pending",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/api/cluster/cancel": {
             "post": {
                 "consumes": [
@@ -607,6 +648,67 @@
                         "description": "already in a cluster",
                         "schema": {
                             "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cluster/heartbeat": {
+            "post": {
+                "description": "Sends a heartbeat with optional stats (CPU, memory, throughput, custom metrics) to the host. The stats map is free-form — each executor defines its own keys.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "Report worker liveness and processing stats (worker only)",
+                "parameters": [
+                    {
+                        "description": "Heartbeat",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.clusterHeartbeatRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    },
+                    "409": {
+                        "description": "not a worker or no host known",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cluster/job": {
+            "get": {
+                "description": "Returns jobs waiting for an executor to claim (pending) and jobs already claimed (accepted). Any executor — browser, script, agent — can poll this endpoint on localhost.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "Fetch pending and accepted jobs for this worker",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 }
@@ -701,6 +803,86 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/routes.statusOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cluster/progress": {
+            "post": {
+                "description": "Sends a progress update (percent, message, custom stats) to the host via MQ. The host can broadcast this to its browser.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "Report job progress to the cluster host (worker only)",
+                "parameters": [
+                    {
+                        "description": "Progress report",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.clusterProgressRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    },
+                    "409": {
+                        "description": "not a worker or job not accepted",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cluster/result": {
+            "post": {
+                "description": "Sends the final result to the host. On success, include result payload. On failure, include error message. The job is removed from the accepted set.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "Report job completion or failure to the cluster host (worker only)",
+                "parameters": [
+                    {
+                        "description": "Result report",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.clusterResultRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    },
+                    "409": {
+                        "description": "not a worker or job not accepted",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 }
@@ -2691,6 +2873,24 @@
                 }
             }
         },
+        "routes.clusterHeartbeatRequest": {
+            "type": "object",
+            "properties": {
+                "stats": {
+                    "type": "object",
+                    "additionalProperties": {}
+                }
+            }
+        },
+        "routes.clusterJobIDRequest": {
+            "type": "object",
+            "properties": {
+                "job_id": {
+                    "type": "string",
+                    "example": "j-abc123"
+                }
+            }
+        },
         "routes.clusterJoinRequest": {
             "type": "object",
             "properties": {
@@ -2701,6 +2901,47 @@
                 "host_peer_id": {
                     "type": "string",
                     "example": "12D3KooWXxx..."
+                }
+            }
+        },
+        "routes.clusterProgressRequest": {
+            "type": "object",
+            "properties": {
+                "job_id": {
+                    "type": "string",
+                    "example": "j-abc123"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "processing frame 84/200"
+                },
+                "percent": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "stats": {
+                    "type": "object",
+                    "additionalProperties": {}
+                }
+            }
+        },
+        "routes.clusterResultRequest": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "job_id": {
+                    "type": "string",
+                    "example": "j-abc123"
+                },
+                "result": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "success": {
+                    "type": "boolean",
+                    "example": true
                 }
             }
         },
