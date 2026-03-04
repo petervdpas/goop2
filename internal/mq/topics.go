@@ -129,8 +129,9 @@ type PeerAnnouncePayload struct {
 	AvatarHash     string    `json:"avatarHash,omitempty"`
 	VideoDisabled  bool      `json:"videoDisabled,omitempty"`
 	ActiveTemplate string    `json:"activeTemplate,omitempty"`
-	PublicKey      string    `json:"publicKey,omitempty"`
-	Verified       bool      `json:"verified,omitempty"`
+	PublicKey            string `json:"publicKey,omitempty"`
+	EncryptionSupported bool   `json:"encryptionSupported,omitempty"`
+	Verified            bool   `json:"verified,omitempty"`
 	Reachable      bool      `json:"reachable"`
 	Offline        bool      `json:"offline"`
 	LastSeen       int64     `json:"lastSeen"` // Unix milliseconds
