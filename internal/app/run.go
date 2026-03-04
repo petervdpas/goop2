@@ -559,6 +559,11 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	}
 	log.Printf("🎵 Listen room enabled")
 
+	// ── Cluster compute
+	clusterMgr, _ := setupCluster(mqMgr, grpMgr, node.ID())
+	defer clusterMgr.Close()
+	log.Printf("🖥️ Cluster compute enabled")
+
 	// ── File sharing store
 	docStore, err := docs.NewStore(o.PeerDir)
 	if err != nil {
