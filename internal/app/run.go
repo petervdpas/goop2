@@ -576,9 +576,6 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		case proto.TypeOnline, proto.TypeUpdate:
 			_, known := peers.Get(pm.PeerID)
 			peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.PublicKey, pm.EncryptionSupported, pm.Verified)
-			// The rendezvous server is the authority for online status —
-			// if it says the peer is online, trust it unconditionally.
-			peers.SetReachable(pm.PeerID, true)
 			go db.UpsertCachedPeer(storage.CachedPeer{
 				PeerID:         pm.PeerID,
 				Content:        pm.Content,
@@ -592,6 +589,9 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 			})
 			node.AddPeerAddrs(pm.PeerID, pm.Addrs)
 			if !known {
+				// First time seeing this peer — mark reachable (server knows them)
+				// and probe to verify direct connectivity.
+				peers.SetReachable(pm.PeerID, true)
 				go node.ProbePeer(ctx, pm.PeerID)
 			}
 		case proto.TypePunch:

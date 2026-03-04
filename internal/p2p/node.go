@@ -113,6 +113,10 @@ type Node struct {
 
 	// Optional encryptor for stream protocol payloads.
 	enc StreamEncryptor
+
+	// Probe cooldown: prevents hammering an unreachable peer with repeated probes.
+	probeMu       sync.Mutex
+	probeLastFail map[string]time.Time // peerID → last failed probe time
 }
 
 // StreamEncryptor encrypts and decrypts stream protocol payloads.
@@ -292,6 +296,7 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 		diagLogs:           make([]string, 0, 200),
 		diagMax:            200,
 		startTime:          time.Now(),
+		probeLastFail:      make(map[string]time.Time),
 	}
 
 	// Store relay peer info for recovery after connection drops.
@@ -921,6 +926,16 @@ func (n *Node) ProbePeer(ctx context.Context, rawID string) {
 	if err != nil {
 		return
 	}
+
+	// Cooldown: don't re-probe a peer that failed recently.
+	// This prevents multiple code paths from hammering an unreachable peer.
+	n.probeMu.Lock()
+	if last, ok := n.probeLastFail[rawID]; ok && time.Since(last) < 3*time.Second {
+		n.probeMu.Unlock()
+		return
+	}
+	n.probeMu.Unlock()
+
 	if sw, ok := n.Host.Network().(*swarm.Swarm); ok {
 		sw.Backoff().Clear(pid)
 	}
@@ -928,6 +943,15 @@ func (n *Node) ProbePeer(ctx context.Context, rawID string) {
 	defer cancel()
 	s, err := n.Host.NewStream(probeCtx, pid, protocol.ID(proto.ContentProtoID))
 	if err != nil {
+		// Close any existing (degraded) connection so the next probe attempt
+		// dials fresh using all known addresses — including LAN addresses that
+		// libp2p skipped because it thought it was already connected.
+		if n.Host.Network().Connectedness(pid) == network.Connected {
+			n.Host.Network().ClosePeer(pid)
+		}
+		n.probeMu.Lock()
+		n.probeLastFail[rawID] = time.Now()
+		n.probeMu.Unlock()
 		// Only log when transitioning from reachable → unreachable.
 		if sp, ok := n.peers.Get(rawID); ok && sp.Reachable {
 			log.Printf("probe %s: UNREACHABLE err=%v", rawID[:16], err)
@@ -936,6 +960,10 @@ func (n *Node) ProbePeer(ctx context.Context, rawID string) {
 		return
 	}
 	s.Close()
+	// Success — clear any cooldown so future probes run immediately.
+	n.probeMu.Lock()
+	delete(n.probeLastFail, rawID)
+	n.probeMu.Unlock()
 	// Only log when transitioning from unreachable → reachable.
 	if sp, ok := n.peers.Get(rawID); ok && !sp.Reachable {
 		log.Printf("probe %s: REACHABLE", rawID[:16])

@@ -218,6 +218,14 @@ func (a *App) CreatePeer(name string, siteFolder string) (string, error) {
 		return "", err
 	}
 
+	// New peer: use the peer folder name as the default label
+	if created && cfg.Profile.Label == "hello" {
+		cfg.Profile.Label = name
+		if err := config.Save(cfgPath, cfg); err != nil {
+			return "", err
+		}
+	}
+
 	// If a site folder was chosen, update all paths that derive from site root
 	if siteFolder != "" && created {
 		cfg.Paths.SiteRoot = siteFolder

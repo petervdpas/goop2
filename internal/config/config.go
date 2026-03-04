@@ -181,8 +181,8 @@ func Default() Config {
 			RelayCleanupDelaySec:    3,
 			RelayPollDeadlineSec:    25,
 			RelayConnectTimeoutSec:  15,
-			RelayRefreshIntervalSec: 300,
-			RelayRecoveryGraceSec:   5,
+			RelayRefreshIntervalSec: 90,
+			RelayRecoveryGraceSec:   3,
 		},
 		Profile: Profile{
 			Label: "hello",
