@@ -124,8 +124,9 @@ type peerRow struct {
 	Email          string   `json:"email,omitempty"`
 	AvatarHash     string   `json:"avatar_hash,omitempty"`
 	ActiveTemplate string   `json:"active_template,omitempty"`
-	PublicKey      string   `json:"public_key,omitempty"`
-	Addrs          []string `json:"addrs,omitempty"`
+	PublicKey            string   `json:"public_key,omitempty"`
+	EncryptionSupported bool     `json:"encryption_supported,omitempty"`
+	Addrs               []string `json:"addrs,omitempty"`
 	TS             int64    `json:"ts"`
 	LastSeen       int64    `json:"last_seen"`
 	BytesSent      int64    `json:"bytes_sent"`
@@ -989,8 +990,9 @@ func (s *Server) upsertPeer(pm proto.PresenceMsg, msgSize int64, verified bool, 
 		Email:             pm.Email,
 		AvatarHash:        pm.AvatarHash,
 		ActiveTemplate:    pm.ActiveTemplate,
-		PublicKey:         pm.PublicKey,
-		Addrs:             pm.Addrs,
+		PublicKey:            pm.PublicKey,
+		EncryptionSupported: pm.EncryptionSupported,
+		Addrs:               pm.Addrs,
 		TS:                pm.TS,
 		LastSeen:          now,
 		BytesSent:         bytesSent,
