@@ -40,6 +40,33 @@
     document.body.appendChild(script);
   }
 
+  var redocPanel = document.getElementById('redoc-panel');
+  var redocReady = false;
+
+  function initRedoc() {
+    if (redocReady) return;
+    redocReady = true;
+    var script = document.createElement('script');
+    script.src = 'https://cdn.redoc.ly/redoc/v2.1.5/bundles/redoc.standalone.js';
+    script.onload = function() {
+      Redoc.init('/api/executor-api.yaml', {
+        scrollYOffset: 0,
+        hideDownloadButton: false,
+        expandResponses: '200',
+        theme: {
+          colors: { primary: { main: '#7c8aff' } },
+          typography: { fontSize: '14px', fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif' },
+          rightPanel: { backgroundColor: '#1a1a2e' },
+          sidebar: { backgroundColor: '#fafafa' },
+        },
+      }, redocPanel);
+    };
+    script.onerror = function() {
+      redocPanel.innerHTML = '<p style="padding:16px;color:#c00">Redoc could not be loaded (no internet access?). The raw spec is at <a href="/api/executor-api.yaml">/api/executor-api.yaml</a></p>';
+    };
+    document.body.appendChild(script);
+  }
+
   var topoCanvas = document.getElementById('topology-canvas');
 
   document.querySelectorAll('.log-tab').forEach(function(btn) {
@@ -51,12 +78,16 @@
       box.style.display = 'none';
       if (copyBtn) copyBtn.style.display = 'none';
       swaggerPanel.style.display = 'none';
+      redocPanel.style.display = 'none';
       if (topoCanvas) topoCanvas.style.display = 'none';
       if (window._topologyStop) window._topologyStop();
 
       if (tab === 'api') {
         swaggerPanel.style.display = '';
         initSwaggerUI();
+      } else if (tab === 'executor') {
+        redocPanel.style.display = '';
+        initRedoc();
       } else if (tab === 'topology') {
         if (topoCanvas) { topoCanvas.style.display = ''; }
         if (window._topologyStart) window._topologyStart();

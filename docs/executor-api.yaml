@@ -1,0 +1,461 @@
+openapi: "3.0.3"
+info:
+  title: Goop2 Cluster Executor API
+  description: |
+    Standalone contract for external executors that process jobs in a goop2 cluster.
+
+    An executor is any process — script, binary, container — that runs on the same
+    machine as a goop2 worker node. It talks to localhost only. goop2 handles all
+    P2P routing to the cluster host.
+
+    ## Lifecycle
+
+    ```
+    1. Poll    GET  /api/cluster/job        → discover pending jobs
+    2. Claim   POST /api/cluster/accept     → claim a job for execution
+    3. Work    POST /api/cluster/progress   → report progress (repeat)
+    4. Done    POST /api/cluster/result     → report success or failure
+    5. Alive   POST /api/cluster/heartbeat  → periodic liveness + stats
+    ```
+  version: "1.0.0"
+  license:
+    name: GPL-2.0-only
+
+servers:
+  - url: http://localhost:8787
+    description: Default goop2 viewer port
+
+paths:
+  /api/cluster/job:
+    get:
+      operationId: getJobs
+      summary: Fetch pending and accepted jobs
+      description: |
+        Returns jobs waiting to be claimed (pending) and jobs already claimed
+        by this or another executor (accepted). Poll this endpoint to discover
+        new work.
+      x-codeSamples:
+        - lang: Bash
+          source: |
+            curl -sf http://localhost:8787/api/cluster/job
+        - lang: Python
+          source: |
+            import requests
+            jobs = requests.get("http://localhost:8787/api/cluster/job").json()
+            for pj in jobs["pending"]:
+                print(f"Job {pj['job']['id']} type={pj['job']['type']}")
+        - lang: Go
+          source: |
+            resp, _ := http.Get("http://localhost:8787/api/cluster/job")
+            var data struct {
+                Pending  []struct{ Job struct{ ID, Type string } }
+                Accepted []struct{ Job struct{ ID, Type string } }
+            }
+            json.NewDecoder(resp.Body).Decode(&data)
+            resp.Body.Close()
+        - lang: C
+          source: |
+            /* libcurl + cJSON */
+            cJSON *data = http_get("http://localhost:8787/api/cluster/job");
+            cJSON *pending = cJSON_GetObjectItem(data, "pending");
+            int count = cJSON_GetArraySize(pending);
+            cJSON_Delete(data);
+        - lang: C++
+          source: |
+            // libcurl + nlohmann/json
+            json data = http_get("http://localhost:8787/api/cluster/job");
+            for (auto& pj : data["pending"]) {
+                std::cout << pj["job"]["id"] << "\n";
+            }
+      responses:
+        "200":
+          description: Job lists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobListResponse"
+
+  /api/cluster/accept:
+    post:
+      operationId: acceptJob
+      summary: Claim a pending job
+      description: |
+        Moves a job from pending to accepted. The executor is now responsible
+        for reporting progress and a final result. A job can only be accepted
+        once — subsequent calls return 409.
+      x-codeSamples:
+        - lang: Bash
+          source: |
+            curl -sf -X POST http://localhost:8787/api/cluster/accept \
+              -H 'Content-Type: application/json' \
+              -d '{"job_id":"j-a1b2c3d4"}'
+        - lang: Python
+          source: |
+            resp = requests.post("http://localhost:8787/api/cluster/accept",
+                json={"job_id": job_id})
+            job = resp.json()["job"]
+        - lang: Go
+          source: |
+            postJSON("http://localhost:8787/api/cluster/accept",
+                map[string]any{"job_id": jobID})
+        - lang: C
+          source: |
+            post_json("http://localhost:8787/api/cluster/accept",
+                "{\"job_id\":\"j-a1b2c3d4\"}");
+        - lang: C++
+          source: |
+            post_json("http://localhost:8787/api/cluster/accept",
+                {{"job_id", job_id}});
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcceptRequest"
+      responses:
+        "200":
+          description: Job accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcceptResponse"
+        "400":
+          description: Missing job_id
+        "409":
+          description: Not a worker, job not found, or already accepted
+
+  /api/cluster/progress:
+    post:
+      operationId: reportProgress
+      summary: Report job progress
+      description: |
+        Send an intermediate progress update to the cluster host. Call this
+        as often as needed — the host relays it to its UI and any monitoring.
+        The stats field is free-form: use it for throughput, ETA, frame count,
+        or any executor-specific metrics.
+      x-codeSamples:
+        - lang: Bash
+          source: |
+            curl -sf -X POST http://localhost:8787/api/cluster/progress \
+              -H 'Content-Type: application/json' \
+              -d '{"job_id":"j-a1b2c3d4","percent":42,"message":"rendering frame 84/200","stats":{"fps":2.4}}'
+        - lang: Python
+          source: |
+            requests.post("http://localhost:8787/api/cluster/progress",
+                json={
+                    "job_id": job_id,
+                    "percent": 42,
+                    "message": "rendering frame 84/200",
+                    "stats": {"fps": 2.4, "memory_mb": 1024},
+                })
+        - lang: Go
+          source: |
+            postJSON("http://localhost:8787/api/cluster/progress",
+                map[string]any{
+                    "job_id":  jobID,
+                    "percent": 42,
+                    "message": "rendering frame 84/200",
+                    "stats":   map[string]any{"fps": 2.4},
+                })
+        - lang: C
+          source: |
+            char body[512];
+            snprintf(body, sizeof(body),
+                "{\"job_id\":\"%s\",\"percent\":%d,\"message\":\"frame 84/200\"}",
+                job_id, 42);
+            post_json("http://localhost:8787/api/cluster/progress", body);
+        - lang: C++
+          source: |
+            post_json("http://localhost:8787/api/cluster/progress", {
+                {"job_id", job_id}, {"percent", 42},
+                {"message", "rendering frame 84/200"},
+                {"stats", {{"fps", 2.4}}},
+            });
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProgressRequest"
+      responses:
+        "200":
+          description: Progress recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "400":
+          description: Missing job_id
+        "409":
+          description: Not a worker or job not accepted
+
+  /api/cluster/result:
+    post:
+      operationId: reportResult
+      summary: Report job completion or failure
+      description: |
+        Send the final outcome. On success, include a result payload.
+        On failure, include an error message. The job is removed from the
+        accepted set after this call. goop2 relays the result to the host
+        which updates the queue and may re-dispatch on failure (if retries
+        remain).
+      x-codeSamples:
+        - lang: Bash
+          source: |
+            # Success
+            curl -sf -X POST http://localhost:8787/api/cluster/result \
+              -H 'Content-Type: application/json' \
+              -d '{"job_id":"j-a1b2c3d4","success":true,"result":{"frames":200}}'
+
+            # Failure
+            curl -sf -X POST http://localhost:8787/api/cluster/result \
+              -H 'Content-Type: application/json' \
+              -d '{"job_id":"j-a1b2c3d4","success":false,"error":"out of memory"}'
+        - lang: Python
+          source: |
+            # Success
+            requests.post("http://localhost:8787/api/cluster/result",
+                json={"job_id": job_id, "success": True,
+                      "result": {"frames": 200, "output": "/tmp/out.png"}})
+
+            # Failure
+            requests.post("http://localhost:8787/api/cluster/result",
+                json={"job_id": job_id, "success": False,
+                      "error": "out of memory"})
+        - lang: Go
+          source: |
+            // Success
+            postJSON("http://localhost:8787/api/cluster/result",
+                map[string]any{"job_id": jobID, "success": true,
+                    "result": map[string]any{"frames": 200}})
+
+            // Failure
+            postJSON("http://localhost:8787/api/cluster/result",
+                map[string]any{"job_id": jobID, "success": false,
+                    "error": "out of memory"})
+        - lang: C
+          source: |
+            /* Success */
+            post_json("http://localhost:8787/api/cluster/result",
+                "{\"job_id\":\"j-a1b2c3d4\",\"success\":true,"
+                "\"result\":{\"frames\":200}}");
+
+            /* Failure */
+            post_json("http://localhost:8787/api/cluster/result",
+                "{\"job_id\":\"j-a1b2c3d4\",\"success\":false,"
+                "\"error\":\"out of memory\"}");
+        - lang: C++
+          source: |
+            // Success
+            post_json("http://localhost:8787/api/cluster/result",
+                {{"job_id", job_id}, {"success", true},
+                 {"result", {{"frames", 200}}}});
+
+            // Failure
+            post_json("http://localhost:8787/api/cluster/result",
+                {{"job_id", job_id}, {"success", false},
+                 {"error", "out of memory"}});
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResultRequest"
+      responses:
+        "200":
+          description: Result recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "400":
+          description: Missing job_id
+        "409":
+          description: Not a worker or job not accepted
+
+  /api/cluster/heartbeat:
+    post:
+      operationId: sendHeartbeat
+      summary: Report executor liveness and stats
+      description: |
+        Periodic liveness signal with optional processing stats. The host uses
+        this to detect stale workers and display resource utilization. The stats
+        field is free-form — report whatever is relevant to your executor
+        (CPU, memory, GPU, queue depth, throughput, etc.).
+      x-codeSamples:
+        - lang: Bash
+          source: |
+            curl -sf -X POST http://localhost:8787/api/cluster/heartbeat \
+              -H 'Content-Type: application/json' \
+              -d '{"stats":{"cpu_percent":78,"memory_mb":2048,"gpu_util":95}}'
+        - lang: Python
+          source: |
+            import psutil  # optional, for real stats
+            requests.post("http://localhost:8787/api/cluster/heartbeat",
+                json={"stats": {
+                    "cpu_percent": psutil.cpu_percent(),
+                    "memory_mb": psutil.virtual_memory().used // 1048576,
+                }})
+        - lang: Go
+          source: |
+            postJSON("http://localhost:8787/api/cluster/heartbeat",
+                map[string]any{"stats": map[string]any{
+                    "executor": "go",
+                    "pid":      os.Getpid(),
+                    "goroutines": runtime.NumGoroutine(),
+                }})
+        - lang: C
+          source: |
+            char body[256];
+            snprintf(body, sizeof(body),
+                "{\"stats\":{\"executor\":\"c\",\"pid\":%d}}", (int)getpid());
+            post_json("http://localhost:8787/api/cluster/heartbeat", body);
+        - lang: C++
+          source: |
+            post_json("http://localhost:8787/api/cluster/heartbeat",
+                {{"stats", {{"executor","cpp"},{"pid",getpid()}}}});
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HeartbeatRequest"
+      responses:
+        "200":
+          description: Heartbeat recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "409":
+          description: Not a worker or no host known
+
+components:
+  schemas:
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "j-a1b2c3d4"
+        type:
+          type: string
+          example: "render"
+        payload:
+          type: object
+          additionalProperties: true
+          example: { "scene": "intro.blend", "frame": 42 }
+        priority:
+          type: integer
+          example: 5
+        timeout_s:
+          type: integer
+          description: Max execution time in seconds (0 = no limit)
+          example: 300
+        max_retry:
+          type: integer
+          example: 2
+      required: [id, type]
+
+    PendingJob:
+      type: object
+      properties:
+        job:
+          $ref: "#/components/schemas/Job"
+        host_peer_id:
+          type: string
+          description: Opaque host identifier (executor does not need this)
+        received_at:
+          type: string
+          format: date-time
+      required: [job, received_at]
+
+    JobListResponse:
+      type: object
+      properties:
+        pending:
+          type: array
+          items:
+            $ref: "#/components/schemas/PendingJob"
+          description: Jobs waiting to be claimed
+        accepted:
+          type: array
+          items:
+            $ref: "#/components/schemas/PendingJob"
+          description: Jobs already claimed by an executor
+      required: [pending, accepted]
+
+    AcceptRequest:
+      type: object
+      properties:
+        job_id:
+          type: string
+          example: "j-a1b2c3d4"
+      required: [job_id]
+
+    AcceptResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "accepted"
+        job:
+          $ref: "#/components/schemas/Job"
+      required: [status, job]
+
+    ProgressRequest:
+      type: object
+      properties:
+        job_id:
+          type: string
+          example: "j-a1b2c3d4"
+        percent:
+          type: integer
+          minimum: 0
+          maximum: 100
+          example: 42
+        message:
+          type: string
+          example: "rendering frame 84/200"
+        stats:
+          type: object
+          additionalProperties: true
+          description: Free-form executor metrics
+          example: { "fps": 2.4, "memory_mb": 1024 }
+      required: [job_id, percent]
+
+    ResultRequest:
+      type: object
+      properties:
+        job_id:
+          type: string
+          example: "j-a1b2c3d4"
+        success:
+          type: boolean
+          example: true
+        result:
+          type: object
+          additionalProperties: true
+          description: Output payload on success
+          example: { "output_path": "/tmp/render_0042.png", "frames": 200 }
+        error:
+          type: string
+          description: Error message on failure
+          example: "out of memory"
+      required: [job_id, success]
+
+    HeartbeatRequest:
+      type: object
+      properties:
+        stats:
+          type: object
+          additionalProperties: true
+          description: Free-form worker metrics
+          example: { "cpu_percent": 78, "memory_mb": 2048, "gpu_util": 95 }
+
+    StatusResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "ok"

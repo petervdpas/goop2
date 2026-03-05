@@ -55,7 +55,7 @@
   },
   "viewer": {
     "http_addr": "127.0.0.1:39925",
-    "debug": false,
+    "debug": true,
     "theme": "dark",
     "preferred_cam": "",
     "preferred_mic": "",

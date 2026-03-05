@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cluster Executor Examples</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#1a1a2e;color:#e0e0e0;padding:24px;max-width:900px;margin:0 auto}
+h1{font-size:1.5rem;margin-bottom:8px}
+.subtitle{color:#888;margin-bottom:24px;font-size:.9rem}
+.tabs{display:flex;gap:0;border-bottom:2px solid #333;margin-bottom:0}
+.tab{padding:10px 20px;cursor:pointer;color:#888;border:none;background:none;font-size:.9rem;font-family:inherit;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s}
+.tab:hover{color:#ccc}
+.tab.active{color:#7c8aff;border-bottom-color:#7c8aff}
+.panel{display:none;position:relative}
+.panel.active{display:block}
+.code-wrap{position:relative;background:#0d1117;border:1px solid #333;border-top:none;border-radius:0 0 8px 8px;overflow:hidden}
+.code-wrap pre{margin:0;padding:16px;overflow-x:auto;font-size:13px;line-height:1.5;color:#c9d1d9;font-family:'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;white-space:pre}
+.copy-btn{position:absolute;top:8px;right:8px;background:#30363d;color:#c9d1d9;border:1px solid #484f58;border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s}
+.copy-btn:hover{background:#484f58}
+.copy-btn.copied{background:#238636;border-color:#238636;color:#fff}
+.back{display:inline-block;margin-bottom:16px;color:#7c8aff;text-decoration:none;font-size:.85rem}
+.back:hover{text-decoration:underline}
+.note{color:#888;font-size:.8rem;margin-top:16px;padding:0 4px}
+</style>
+</head>
+<body>
+<a class="back" href="/logs">&larr; Back to API</a>
+<h1>Cluster Executor — Code Examples</h1>
+<p class="subtitle">Poll &rarr; Accept &rarr; Progress &rarr; Result &rarr; Heartbeat</p>
+
+<div class="tabs" id="tabs">
+  <button class="tab active" data-lang="bash">Bash</button>
+  <button class="tab" data-lang="python">Python</button>
+  <button class="tab" data-lang="go">Go</button>
+  <button class="tab" data-lang="c">C</button>
+  <button class="tab" data-lang="cpp">C++</button>
+</div>
+
+<div class="panel active" data-lang="bash"><div class="code-wrap">
+<button class="copy-btn" onclick="copyCode(this)">Copy</button>
+<pre>#!/usr/bin/env bash
+BASE="http://localhost:8787"
+
+# Background heartbeat
+(while true; do
+  curl -sf -X POST "$BASE/api/cluster/heartbeat" \
+    -H 'Content-Type: application/json' \
+    -d '{"stats":{"executor":"bash","pid":'$$'}}' &gt;/dev/null 2&gt;&amp;1
+  sleep 10
+done) &amp;
+
+while true; do
+  # 1. Poll for pending jobs
+  JOBS=$(curl -sf "$BASE/api/cluster/job")
+  JOB_ID=$(echo "$JOBS" | python3 -c "
+    import sys,json; p=json.load(sys.stdin).get('pending',[])
+    print(p[0]['job']['id'] if p else '')")
+  [ -z "$JOB_ID" ] &amp;&amp; sleep 2 &amp;&amp; continue
+
+  # 2. Accept the job
+  curl -sf -X POST "$BASE/api/cluster/accept" \
+    -H 'Content-Type: application/json' \
+    -d "{\"job_id\":\"$JOB_ID\"}"
+
+  # 3. Do work + report progress
+  for pct in 25 50 75 100; do
+    sleep 1  # your work here
+    curl -sf -X POST "$BASE/api/cluster/progress" \
+      -H 'Content-Type: application/json' \
+      -d "{\"job_id\":\"$JOB_ID\",\"percent\":$pct,\"message\":\"$pct%\"}"
+  done
+
+  # 4. Report result
+  curl -sf -X POST "$BASE/api/cluster/result" \
+    -H 'Content-Type: application/json' \
+    -d "{\"job_id\":\"$JOB_ID\",\"success\":true,\"result\":{\"done\":true}}"
+done</pre>
+</div></div>
+
+<div class="panel" data-lang="python"><div class="code-wrap">
+<button class="copy-btn" onclick="copyCode(this)">Copy</button>
+<pre>import time, threading, os, requests
+
+BASE = "http://localhost:8787"
+
+# Background heartbeat
+def heartbeat():
+    while True:
+        try: requests.post(f"{BASE}/api/cluster/heartbeat",
+                 json={"stats": {"executor": "python", "pid": os.getpid()}})
+        except: pass
+        time.sleep(10)
+
+threading.Thread(target=heartbeat, daemon=True).start()
+
+while True:
+    # 1. Poll for pending jobs
+    jobs = requests.get(f"{BASE}/api/cluster/job").json()
+    pending = jobs.get("pending", [])
+    if not pending:
+        time.sleep(2); continue
+
+    job = pending[0]["job"]
+    job_id = job["id"]
+
+    # 2. Accept the job
+    requests.post(f"{BASE}/api/cluster/accept", json={"job_id": job_id})
+
+    # 3. Do work + report progress
+    for pct in range(25, 101, 25):
+        time.sleep(1)  # your work here
+        requests.post(f"{BASE}/api/cluster/progress",
+            json={"job_id": job_id, "percent": pct, "message": f"{pct}%"})
+
+    # 4. Report result
+    requests.post(f"{BASE}/api/cluster/result",
+        json={"job_id": job_id, "success": True, "result": {"done": True}})</pre>
+</div></div>
+
+<div class="panel" data-lang="go"><div class="code-wrap">
+<button class="copy-btn" onclick="copyCode(this)">Copy</button>
+<pre>package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "net/http"
+    "os"
+    "time"
+)
+
+var base = "http://localhost:8787"
+
+func postJSON(url string, body any) {
+    b, _ := json.Marshal(body)
+    http.Post(url, "application/json", bytes.NewReader(b))
+}
+
+func main() {
+    // Background heartbeat
+    go func() {
+        for {
+            postJSON(base+"/api/cluster/heartbeat", map[string]any{
+                "stats": map[string]any{"executor": "go", "pid": os.Getpid()},
+            })
+            time.Sleep(10 * time.Second)
+        }
+    }()
+
+    for {
+        // 1. Poll for pending jobs
+        resp, err := http.Get(base + "/api/cluster/job")
+        if err != nil { time.Sleep(2 * time.Second); continue }
+        var data struct {
+            Pending []struct{ Job struct{ ID, Type string } }
+        }
+        json.NewDecoder(resp.Body).Decode(&amp;data)
+        resp.Body.Close()
+        if len(data.Pending) == 0 { time.Sleep(2 * time.Second); continue }
+
+        jobID := data.Pending[0].Job.ID
+
+        // 2. Accept the job
+        postJSON(base+"/api/cluster/accept", map[string]any{"job_id": jobID})
+
+        // 3. Do work + report progress
+        for pct := 25; pct &lt;= 100; pct += 25 {
+            time.Sleep(1 * time.Second) // your work here
+            postJSON(base+"/api/cluster/progress", map[string]any{
+                "job_id": jobID, "percent": pct,
+                "message": fmt.Sprintf("%d%%", pct),
+            })
+        }
+
+        // 4. Report result
+        postJSON(base+"/api/cluster/result", map[string]any{
+            "job_id": jobID, "success": true,
+            "result": map[string]any{"done": true},
+        })
+    }
+}</pre>
+</div></div>
+
+<div class="panel" data-lang="c"><div class="code-wrap">
+<button class="copy-btn" onclick="copyCode(this)">Copy</button>
+<pre>// Build: gcc -o executor executor.c -lcurl -lcjson -lpthread
+#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;pthread.h&gt;
+#include &lt;curl/curl.h&gt;
+#include &lt;cjson/cJSON.h&gt;
+
+static const char *BASE = "http://localhost:8787";
+
+int post_json(const char *url, const char *body) {
+    CURL *c = curl_easy_init();
+    struct curl_slist *h = curl_slist_append(NULL, "Content-Type: application/json");
+    curl_easy_setopt(c, CURLOPT_URL, url);
+    curl_easy_setopt(c, CURLOPT_POSTFIELDS, body);
+    curl_easy_setopt(c, CURLOPT_HTTPHEADER, h);
+    curl_easy_perform(c);
+    curl_slist_free_all(h);
+    curl_easy_cleanup(c);
+    return 0;
+}
+
+void *heartbeat_thread(void *arg) {
+    char url[256], body[256];
+    snprintf(url, sizeof(url), "%s/api/cluster/heartbeat", BASE);
+    snprintf(body, sizeof(body),
+        "{\"stats\":{\"executor\":\"c\",\"pid\":%d}}", (int)getpid());
+    for (;;) { post_json(url, body); sleep(10); }
+    return NULL;
+}
+
+/* GET + parse helper omitted for brevity — see docs/examples/executor-c/ */
+
+int main(void) {
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    pthread_t hb;
+    pthread_create(&amp;hb, NULL, heartbeat_thread, NULL);
+    pthread_detach(hb);
+
+    /* Main loop: poll → accept → progress → result */
+    /* See docs/examples/executor-c/executor.c for the full implementation */
+    printf("See docs/examples/executor-c/executor.c for the full loop\\n");
+
+    curl_global_cleanup();
+    return 0;
+}</pre>
+</div></div>
+
+<div class="panel" data-lang="cpp"><div class="code-wrap">
+<button class="copy-btn" onclick="copyCode(this)">Copy</button>
+<pre>// Build: g++ -std=c++17 -o executor executor.cpp -lcurl -lpthread
+#include &lt;iostream&gt;
+#include &lt;string&gt;
+#include &lt;thread&gt;
+#include &lt;chrono&gt;
+#include &lt;curl/curl.h&gt;
+#include &lt;nlohmann/json.hpp&gt;
+
+using json = nlohmann::json;
+using namespace std::chrono_literals;
+
+static const std::string BASE = "http://localhost:8787";
+
+int post_json(const std::string &amp;url, const json &amp;body) {
+    CURL *c = curl_easy_init();
+    std::string data = body.dump();
+    auto *h = curl_slist_append(nullptr, "Content-Type: application/json");
+    curl_easy_setopt(c, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(c, CURLOPT_POSTFIELDS, data.c_str());
+    curl_easy_setopt(c, CURLOPT_HTTPHEADER, h);
+    curl_easy_perform(c);
+    curl_slist_free_all(h);
+    curl_easy_cleanup(c);
+    return 0;
+}
+
+int main() {
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+
+    // Background heartbeat
+    std::thread([]() {
+        for (;;) {
+            post_json(BASE + "/api/cluster/heartbeat",
+                {{"stats", {{"executor","cpp"},{"pid",getpid()}}}});
+            std::this_thread::sleep_for(10s);
+        }
+    }).detach();
+
+    /* Main loop: poll → accept → progress → result */
+    /* See docs/examples/executor-cpp/executor.cpp for the full implementation */
+    std::cout &lt;&lt; "See docs/examples/executor-cpp/executor.cpp\\n";
+
+    curl_global_cleanup();
+    return 0;
+}</pre>
+</div></div>
+
+<p class="note">Full implementations with error handling and stats are in the <code>docs/examples/</code> directory.
+Download the spec: <a href="/api/executor-api.yaml" style="color:#7c8aff">/api/executor-api.yaml</a></p>
+
+<script>
+document.getElementById('tabs').addEventListener('click', function(e) {
+  if (!e.target.classList.contains('tab')) return;
+  var lang = e.target.dataset.lang;
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelectorAll('.panel').forEach(function(p) { p.classList.remove('active'); });
+  e.target.classList.add('active');
+  document.querySelector('.panel[data-lang="'+lang+'"]').classList.add('active');
+});
+
+function copyCode(btn) {
+  var pre = btn.parentElement.querySelector('pre');
+  // Decode HTML entities for clipboard
+  var ta = document.createElement('textarea');
+  ta.innerHTML = pre.innerHTML;
+  var text = ta.value.replace(/<[^>]*>/g, '');
+  navigator.clipboard.writeText(text).then(function() {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+</script>
+</body>
+</html>
