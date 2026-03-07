@@ -1,7 +1,7 @@
 package call
 
 // Signaler is the only surface the call package needs from the realtime layer.
-// The concrete mqSignalerAdapter satisfies this via a small adapter in run.go
+// The concrete mqSignalerAdapter satisfies this via a small adapter in modes/signaler.go
 // (the only place that imports both packages).
 type Signaler interface {
 	// RegisterChannel tells the signaler which remote peer owns a channel ID.
