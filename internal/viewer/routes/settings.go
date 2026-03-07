@@ -137,6 +137,8 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		if p := getTrimmedPostFormValue(r.PostForm, "p2p_listen_port"); p != "" {
 			cfg.P2P.ListenPort = atoiOrNeg(p)
 		}
+		cfg.P2P.BridgeMode = formBool(r.PostForm, "p2p_bridge_mode")
+		cfg.Profile.BridgeToken = getTrimmedPostFormValue(r.PostForm, "profile_bridge_token")
 		if ttl := getTrimmedPostFormValue(r.PostForm, "presence_ttl_sec"); ttl != "" {
 			cfg.Presence.TTLSec = atoiOrNeg(ttl)
 		}

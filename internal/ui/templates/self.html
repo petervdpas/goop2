@@ -292,9 +292,9 @@
             {{if .Cfg.Profile.VerificationToken}}
             <div class="token-field">
               <input id="bridge-token-input" type="password"
+                     name="profile_bridge_token"
                      value="{{.Cfg.Profile.BridgeToken}}"
-                     placeholder="Paste your bridge token here"
-                     onchange="fetch('/api/settings/quick',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bridge_token:this.value})})">
+                     placeholder="Paste your bridge token here">
               <button type="button" class="btn token-btn"
                       onclick="var i=document.getElementById('bridge-token-input');var show=i.type==='password';i.type=show?'text':'password';this.textContent=show?'Hide':'Show'"
                       >Show</button>
@@ -307,16 +307,15 @@
 
             {{if .Cfg.Profile.BridgeToken}}
             <div style="margin-top:14px;display:flex;align-items:center;gap:10px">
-              <span class="muted small">libp2p</span>
-              <label class="switch" title="Switch between libp2p (direct P2P) and WebSocket (via bridge)">
+              <span class="muted small">Thin Client</span>
+              <label class="switch" title="Thin client mode: connect via bridge instead of libp2p">
                 <input type="checkbox"
-                       {{if .Cfg.P2P.BridgeMode}}checked{{end}}
-                       onchange="fetch('/api/settings/quick',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bridge_mode:this.checked})}).then(function(){Goop.toast({title:'Connection Mode',message:'Restart required to apply.',duration:5000})})">
+                       name="p2p_bridge_mode"
+                       {{if .Cfg.P2P.BridgeMode}}checked{{end}}>
                 <span class="slider"></span>
               </label>
-              <span class="muted small">WebSocket</span>
             </div>
-            <div class="hint">WebSocket routes traffic through the bridge server. Requires restart.</div>
+            <div class="hint">Routes all traffic through the bridge server. Requires restart.</div>
             {{end}}
 
             {{else}}

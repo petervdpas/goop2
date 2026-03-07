@@ -1,0 +1,184 @@
+package bridge
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/gorilla/websocket"
+	"github.com/petervdpas/goop2/internal/state"
+)
+
+// Client connects a thin-client peer to the bridge service.
+type Client struct {
+	bridgeURL  string
+	email      string
+	token      string
+	peerID     string
+	label      string
+	publicKey  string
+	encSupport bool
+	peers      *state.PeerTable
+	httpClient *http.Client
+}
+
+// New creates a bridge client.
+func New(bridgeURL, email, token, peerID, label, publicKey string, encSupport bool, peers *state.PeerTable) *Client {
+	return &Client{
+		bridgeURL:  strings.TrimRight(bridgeURL, "/"),
+		email:      email,
+		token:      token,
+		peerID:     peerID,
+		label:      label,
+		publicKey:  publicKey,
+		encSupport: encSupport,
+		peers:      peers,
+		httpClient: &http.Client{Timeout: 10 * time.Second},
+	}
+}
+
+// Register registers this peer as a VPeer on the bridge service.
+func (c *Client) Register(ctx context.Context) (string, error) {
+	body, _ := json.Marshal(map[string]any{
+		"peer_id":              c.peerID,
+		"label":                c.label,
+		"email":                c.email,
+		"platform":             "desktop",
+		"public_key":           c.publicKey,
+		"encryption_supported": c.encSupport,
+	})
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		c.bridgeURL+"/api/bridge/peers", bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Goop-Email", c.email)
+	req.Header.Set("X-Bridge-Token", c.token)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("bridge register: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		return "", fmt.Errorf("bridge register: status %d", resp.StatusCode)
+	}
+
+	var result struct {
+		SessionID string `json:"session_id"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+	log.Printf("bridge: registered as VPeer %s (session %s)", c.peerID, result.SessionID)
+	return result.SessionID, nil
+}
+
+// Connect opens the WebSocket tunnel and processes events until ctx is cancelled.
+// Reconnects automatically on disconnect.
+func (c *Client) Connect(ctx context.Context, onPresence func(data json.RawMessage)) {
+	backoff := 500 * time.Millisecond
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		if _, err := c.Register(ctx); err != nil {
+			log.Printf("bridge: register failed: %v", err)
+		}
+
+		err := c.connectOnce(ctx, onPresence)
+		if err != nil {
+			log.Printf("bridge ws: %v (reconnecting)", err)
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(backoff):
+		}
+		if backoff < 5*time.Second {
+			backoff *= 2
+		}
+	}
+}
+
+func (c *Client) connectOnce(ctx context.Context, onPresence func(data json.RawMessage)) error {
+	wsURL := c.bridgeURL
+	wsURL = strings.Replace(wsURL, "https://", "wss://", 1)
+	wsURL = strings.Replace(wsURL, "http://", "ws://", 1)
+	wsURL += "/api/bridge/ws/" + c.peerID
+
+	dialer := websocket.Dialer{HandshakeTimeout: 10 * time.Second}
+	header := http.Header{}
+	header.Set("X-Goop-Email", c.email)
+	header.Set("X-Bridge-Token", c.token)
+
+	conn, _, err := dialer.DialContext(ctx, wsURL, header)
+	if err != nil {
+		return fmt.Errorf("bridge ws dial: %w", err)
+	}
+	defer conn.Close()
+
+	log.Printf("bridge ws: connected to %s", wsURL)
+
+	conn.SetReadDeadline(time.Now().Add(45 * time.Second))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(45 * time.Second))
+		return nil
+	})
+
+	pingDone := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+					return
+				}
+				msg, _ := json.Marshal(map[string]string{"type": "ping"})
+				conn.WriteMessage(websocket.TextMessage, msg)
+			case <-pingDone:
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	defer close(pingDone)
+
+	for {
+		_, message, err := conn.ReadMessage()
+		if err != nil {
+			return fmt.Errorf("bridge ws read: %w", err)
+		}
+		conn.SetReadDeadline(time.Now().Add(45 * time.Second))
+
+		var evt struct {
+			Type string          `json:"type"`
+			Data json.RawMessage `json:"data"`
+		}
+		if json.Unmarshal(message, &evt) != nil {
+			continue
+		}
+
+		switch evt.Type {
+		case "presence":
+			if onPresence != nil {
+				onPresence(evt.Data)
+			}
+		}
+	}
+}

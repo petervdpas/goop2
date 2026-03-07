@@ -13,6 +13,8 @@ import (
 
 	"golang.org/x/crypto/nacl/box"
 
+	"github.com/petervdpas/goop2/internal/app/modes"
+	"github.com/petervdpas/goop2/internal/app/shared"
 	"github.com/petervdpas/goop2/internal/avatar"
 	"github.com/petervdpas/goop2/internal/call"
 	"github.com/petervdpas/goop2/internal/config"
@@ -97,29 +99,16 @@ func Run(ctx context.Context, opt Options) error {
 
 	logBanner(opt.PeerDir, opt.CfgPath)
 
-	return runPeer(ctx, runPeerOpts{
+	mo := shared.ModeOpts{
 		PeerDir:   opt.PeerDir,
 		CfgPath:   opt.CfgPath,
-		Cfg:       opt.Cfg,
 		Logs:      logBuf,
 		BridgeURL: opt.BridgeURL,
-		Progress:  opt.Progress,
-	})
+	}
+	return runPeer(ctx, mo, opt.Cfg, opt.Progress)
 }
 
-type runPeerOpts struct {
-	PeerDir   string
-	CfgPath   string
-	Cfg       config.Config
-	Logs      *viewer.LogBuffer
-	BridgeURL string
-	Progress  func(step, total int, label string)
-}
-
-func runPeer(ctx context.Context, o runPeerOpts) error {
-	cfg := o.Cfg
-
-	// Generate NaCl keypair on first run (empty = not yet generated).
+func runPeer(ctx context.Context, o shared.ModeOpts, cfg config.Config, progress func(int, int, string)) error {
 	if cfg.P2P.NaClPublicKey == "" || cfg.P2P.NaClPrivateKey == "" {
 		pub, priv, err := box.GenerateKey(rand.Reader)
 		if err != nil {
@@ -133,11 +122,11 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 		log.Printf("NaCl keypair generated and persisted")
 	}
 
-	emit := o.Progress
+	emit := progress
 	if emit == nil {
 		emit = func(int, int, string) {}
 	}
-	progress := func(s, t int, label string) {
+	progress = func(s, t int, label string) {
 		emit(s, t, label)
 		time.Sleep(time.Second)
 	}
@@ -261,40 +250,11 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 	}
 
 	if cfg.Presence.RendezvousOnly {
-		log.Printf("mode: rendezvous-only")
+		return modes.RunRendezvous(ctx, o, cfg, rv, selfContent, selfEmail, progress)
+	}
 
-		step++
-		progress(step, total, "Starting viewer")
-
-		// Start minimal viewer for settings access
-		if cfg.Viewer.HTTPAddr != "" {
-			addr, url, _ := NormalizeLocalViewer(cfg.Viewer.HTTPAddr)
-			rvURL := ""
-			if rv != nil {
-				rvURL = rv.URL()
-			}
-			avatarStore := avatar.NewStore(o.PeerDir)
-			var topoFn func() any
-			if rv != nil {
-				topoFn = func() any { return rv.Topology() }
-			}
-			go viewer.StartMinimal(addr, viewer.MinimalViewer{
-				SelfLabel:      selfContent,
-				SelfEmail:      selfEmail,
-				CfgPath:        o.CfgPath,
-				Cfg:            cfg,
-				Logs:           o.Logs,
-				BaseURL:        url,
-				RendezvousURL:  rvURL,
-				AvatarStore:    avatarStore,
-				BridgeURL:      o.BridgeURL,
-				TopologyFunc:   topoFn,
-			})
-			log.Printf("📋 Settings viewer: %s", url)
-		}
-
-		<-ctx.Done()
-		return nil
+	if cfg.P2P.BridgeMode {
+		return modes.RunBridge(ctx, o, cfg, selfContent, selfEmail, progress)
 	}
 
 	// ── Rendezvous bridges
@@ -652,7 +612,7 @@ func runPeer(ctx context.Context, o runPeerOpts) error {
 
 	// ── Viewer
 	if cfg.Viewer.HTTPAddr != "" {
-		addr, url, _ := NormalizeLocalViewer(cfg.Viewer.HTTPAddr)
+		addr, url, _ := shared.NormalizeLocalViewer(cfg.Viewer.HTTPAddr)
 		store, err := content.NewStore(o.PeerDir, cfg.Paths.SiteRoot)
 		if err != nil {
 			return err

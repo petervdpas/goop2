@@ -181,6 +181,20 @@ func loadOrCreateKey(keyFile string) (crypto.PrivKey, bool, error) {
 	return priv, true, nil
 }
 
+// PeerIDFromKeyFile loads the identity key and derives the libp2p peer ID
+// without starting a full host. Used by thin-client (bridge) mode.
+func PeerIDFromKeyFile(keyFile string) (string, error) {
+	priv, _, err := loadOrCreateKey(keyFile)
+	if err != nil {
+		return "", err
+	}
+	pid, err := peer.IDFromPrivateKey(priv)
+	if err != nil {
+		return "", err
+	}
+	return pid.String(), nil
+}
+
 func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerTable, selfContent, selfEmail func() string, selfVideoDisabled func() bool, selfActiveTemplate, selfPublicKey func() string, relayInfo *rendezvous.RelayInfo, presenceTTL time.Duration) (*Node, error) {
 	priv, isNew, err := loadOrCreateKey(keyFile)
 	if err != nil {
