@@ -53,8 +53,8 @@ type Server struct {
 
 	// simple in-memory peer view for the web page
 	peers       map[string]peerRow
-	peersDirty  bool       // set when peers map changes; cleared by snapshotPeers
-	cachedPeers []peerRow  // sorted snapshot cache
+	peersDirty  bool      // set when peers map changes; cleared by snapshotPeers
+	cachedPeers []peerRow // sorted snapshot cache
 
 	// log buffer for web UI
 	logMu   sync.Mutex
@@ -77,12 +77,12 @@ type Server struct {
 	splash       []byte
 	docsSite     *DocSite
 
-	peerDB         *peerDB         // nil when persistence is disabled
-	credits             CreditProvider  // default: NoCredits{}
-	registration        *RemoteRegistrationProvider // nil = use built-in registration
-	email               *RemoteEmailProvider        // nil = email service not configured
-	templates           *RemoteTemplatesProvider    // nil = templates service not configured
-	localTemplates      *LocalTemplateStore         // nil = no local template store
+	peerDB         *peerDB                     // nil when persistence is disabled
+	credits        CreditProvider              // default: NoCredits{}
+	registration   *RemoteRegistrationProvider // nil = use built-in registration
+	email          *RemoteEmailProvider        // nil = email service not configured
+	templates      *RemoteTemplatesProvider    // nil = templates service not configured
+	localTemplates *LocalTemplateStore         // nil = no local template store
 
 	// Bridge (HTTPS bridge microservice)
 	bridge *RemoteBridgeProvider // nil = bridge service not configured
@@ -120,20 +120,20 @@ type rateBucket struct {
 }
 
 type peerRow struct {
-	PeerID         string   `json:"peer_id"`
-	Type           string   `json:"type"`
-	Content        string   `json:"content"`
-	Email          string   `json:"email,omitempty"`
-	AvatarHash     string   `json:"avatar_hash,omitempty"`
-	ActiveTemplate string   `json:"active_template,omitempty"`
-	PublicKey            string   `json:"public_key,omitempty"`
+	PeerID              string   `json:"peer_id"`
+	Type                string   `json:"type"`
+	Content             string   `json:"content"`
+	Email               string   `json:"email,omitempty"`
+	AvatarHash          string   `json:"avatar_hash,omitempty"`
+	ActiveTemplate      string   `json:"active_template,omitempty"`
+	PublicKey           string   `json:"public_key,omitempty"`
 	EncryptionSupported bool     `json:"encryption_supported,omitempty"`
 	Addrs               []string `json:"addrs,omitempty"`
-	TS             int64    `json:"ts"`
-	LastSeen       int64    `json:"last_seen"`
-	BytesSent      int64    `json:"bytes_sent"`
-	BytesReceived  int64    `json:"bytes_received"`
-	Verified       bool     `json:"verified"`
+	TS                  int64    `json:"ts"`
+	LastSeen            int64    `json:"last_seen"`
+	BytesSent           int64    `json:"bytes_sent"`
+	BytesReceived       int64    `json:"bytes_received"`
+	Verified            bool     `json:"verified"`
 
 	// Internal-only: stored server-side, never broadcast to peers.
 	verificationToken string
@@ -169,12 +169,12 @@ type storeVM struct {
 
 // Minimum API versions that this build of goop2 requires.
 const (
-	minRegistrationAPI  = 1
-	minCreditsAPI       = 1
-	minEmailAPI         = 1
-	minTemplatesAPI     = 1
-	minBridgeAPI        = 1
-	minEncryptionAPI    = 1
+	minRegistrationAPI = 1
+	minCreditsAPI      = 1
+	minEmailAPI        = 1
+	minTemplatesAPI    = 1
+	minBridgeAPI       = 1
+	minEncryptionAPI   = 1
 )
 
 type serviceStatus struct {
@@ -315,32 +315,32 @@ func New(addr string, peerDBPath string, adminPassword string, externalURL strin
 	}
 
 	s := &Server{
-		addr:          addr,
-		externalURL:   util.NormalizeURL(externalURL),
-		adminPassword: adminPassword,
-		clients:       map[chan []byte]struct{}{},
-		clientIPs:            map[chan []byte]string{},
-		peers:                map[string]peerRow{},
-		logs:                 make([]string, 0, 500),
-		maxLogs:              500,
-		relayLogs:            make([]string, 0, 500),
-		maxRelayLogs:         500,
-		tmpl:                 tmpl,
-		adminTmpl:            adminTmpl,
-		docsTmpl:             docsTmpl,
-		storeTmpl:            storeTmpl,
-		registerTmpl:         registerTmpl,
-		style:                css,
-		docsCSS:              docsCSSData,
-		favicon:              faviconData,
-		splash:               splashData,
-		docsSite:             newDocSite(),
-		relayPort:            relayPort,
-		relayKeyFile:         relayKeyFile,
-		relayTiming:          relayTiming,
-		rateWindow:           map[string]*rateBucket{},
-		punchCooldowns:       map[[2]string]time.Time{},
-		wsClients:            map[string]*wsClient{},
+		addr:           addr,
+		externalURL:    util.NormalizeURL(externalURL),
+		adminPassword:  adminPassword,
+		clients:        map[chan []byte]struct{}{},
+		clientIPs:      map[chan []byte]string{},
+		peers:          map[string]peerRow{},
+		logs:           make([]string, 0, 500),
+		maxLogs:        500,
+		relayLogs:      make([]string, 0, 500),
+		maxRelayLogs:   500,
+		tmpl:           tmpl,
+		adminTmpl:      adminTmpl,
+		docsTmpl:       docsTmpl,
+		storeTmpl:      storeTmpl,
+		registerTmpl:   registerTmpl,
+		style:          css,
+		docsCSS:        docsCSSData,
+		favicon:        faviconData,
+		splash:         splashData,
+		docsSite:       newDocSite(),
+		relayPort:      relayPort,
+		relayKeyFile:   relayKeyFile,
+		relayTiming:    relayTiming,
+		rateWindow:     map[string]*rateBucket{},
+		punchCooldowns: map[[2]string]time.Time{},
+		wsClients:      map[string]*wsClient{},
 	}
 
 	// Open peer DB if path provided (for multi-instance persistence)
