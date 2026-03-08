@@ -120,7 +120,7 @@ func RunPeer(p PeerParams) error {
 		}
 		// Key not in local table — fetch from rendezvous over HTTPS.
 		for _, c := range rvClients {
-			ctx2, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx2, cancel := context.WithTimeout(context.Background(), PeerKeyFetchTimeout)
 			key, err := c.FetchPeerKey(ctx2, peerID)
 			cancel()
 			if err == nil && key != "" {
@@ -518,7 +518,7 @@ func RunPeer(p PeerParams) error {
 			"status": "waiting",
 			"msg":    "Connecting to relay — WAN peers require a relay circuit",
 		})
-		if node.WaitForRelay(ctx, 15*time.Second) {
+		if node.WaitForRelay(ctx, RelayWaitTimeout) {
 			mqMgr.PublishLocal("relay:status", "", map[string]any{
 				"status": "connected",
 				"msg":    "Relay connected — WAN peers are reachable",
@@ -538,7 +538,7 @@ func RunPeer(p PeerParams) error {
 		for _, c := range rvClients {
 			cc := c
 			go func() {
-				regCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+				regCtx, cancel := context.WithTimeout(ctx, EncryptionRegisterTimeout)
 				defer cancel()
 				if err := cc.RegisterEncryptionKey(regCtx, node.ID(), cfg.P2P.NaClPublicKey); err != nil {
 					log.Printf("encryption: key registration failed: %v", err)
@@ -572,7 +572,7 @@ func RunPeer(p PeerParams) error {
 		// Periodically refresh the relay connection to prevent stale state.
 		// This ensures the relay reservation stays active even when the TCP
 		// connection to the relay silently degrades.
-		refreshInterval := 90 * time.Second
+		refreshInterval := DefaultRelayRefresh
 		if relayInfo.RefreshIntervalSec > 0 {
 			refreshInterval = time.Duration(relayInfo.RefreshIntervalSec) * time.Second
 		}
@@ -593,7 +593,7 @@ func RunPeer(p PeerParams) error {
 	}()
 
 	go func() {
-		t := time.NewTicker(1 * time.Second)
+		t := time.NewTicker(PruneCheckInterval)
 		defer t.Stop()
 		graceMin := cfg.Viewer.PeerOfflineGraceMin
 		if graceMin < 1 || graceMin > 60 {
@@ -607,7 +607,7 @@ func RunPeer(p PeerParams) error {
 			case <-t.C:
 				// Re-read grace period from config once every 5 minutes.
 				graceRefresh++
-				if graceRefresh >= 300 {
+				if graceRefresh >= ConfigRereadInterval {
 					graceRefresh = 0
 					if live, err := config.LoadPartial(o.CfgPath); err == nil {
 						v := live.Viewer.PeerOfflineGraceMin

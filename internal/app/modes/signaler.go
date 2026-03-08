@@ -6,7 +6,6 @@ import (
 	"log"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/petervdpas/goop2/internal/call"
 	"github.com/petervdpas/goop2/internal/mq"
@@ -36,7 +35,7 @@ func (a *mqSignalerAdapter) Send(channelID string, payload any) error {
 	if !ok {
 		return fmt.Errorf("mqSignaler: no peer registered for channel %s", channelID)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), MQCallSignalTimeout)
 	defer cancel()
 	_, err := a.mqMgr.Send(ctx, peerID, "call:"+channelID, payload)
 	return err
