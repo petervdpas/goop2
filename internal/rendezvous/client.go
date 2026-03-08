@@ -35,7 +35,7 @@ func NewClient(baseURL string) *Client {
 	return &Client{
 		BaseURL: baseURL,
 		HTTP: &http.Client{
-			Timeout: 2 * time.Second,
+			Timeout: HTTPClientTimeout,
 		},
 	}
 }
@@ -396,7 +396,7 @@ func (c *Client) SubscribeEvents(ctx context.Context, onMsg func(proto.PresenceM
 			return
 		case <-time.After(backoff):
 		}
-		if backoff < 3*time.Second {
+		if backoff < SSEReconnectBackoff {
 			backoff *= 2
 		}
 	}
@@ -467,11 +467,6 @@ func (c *Client) ConnectWebSocket(ctx context.Context, peerID string, onMsg func
 		return
 	}
 
-	const (
-		wsProbeFirst = 10 * time.Second
-		wsProbeNext  = 25 * time.Second
-	)
-
 	backoff := 250 * time.Millisecond
 	for {
 		select {
@@ -489,11 +484,11 @@ func (c *Client) ConnectWebSocket(ctx context.Context, peerID string, onMsg func
 
 		if err != nil {
 			if isWSUnsupported(err) {
-				log.Printf("rendezvous: WS unavailable at %s, using SSE (probing WS in %v)", c.BaseURL, wsProbeFirst)
+				log.Printf("rendezvous: WS unavailable at %s, using SSE (probing WS in %v)", c.BaseURL, WSProbeFirstInterval)
 				sseCtx, sseCancel := context.WithCancel(ctx)
 				go c.SubscribeEvents(sseCtx, onMsg)
 
-				probeWait := wsProbeFirst
+				probeWait := WSProbeFirstInterval
 				for {
 					select {
 					case <-ctx.Done():
@@ -507,7 +502,7 @@ func (c *Client) ConnectWebSocket(ctx context.Context, peerID string, onMsg func
 						backoff = 250 * time.Millisecond
 						break
 					}
-					probeWait = wsProbeNext
+					probeWait = WSProbeNextInterval
 				}
 				continue
 			}
@@ -519,7 +514,7 @@ func (c *Client) ConnectWebSocket(ctx context.Context, peerID string, onMsg func
 			return
 		case <-time.After(backoff):
 		}
-		if backoff < 3*time.Second {
+		if backoff < WSReconnectBackoff {
 			backoff *= 2
 		}
 	}
@@ -529,10 +524,10 @@ func (c *Client) ConnectWebSocket(ctx context.Context, peerID string, onMsg func
 // existing connection. Opens a WS, immediately closes it, returns success.
 func (c *Client) probeWS(ctx context.Context, peerID string) bool {
 	wsURL := c.wsURL(peerID)
-	probeCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	probeCtx, cancel := context.WithTimeout(ctx, WSProbeTimeout)
 	defer cancel()
 
-	conn, _, err := (&websocket.Dialer{HandshakeTimeout: 2 * time.Second}).DialContext(probeCtx, wsURL, nil)
+	conn, _, err := (&websocket.Dialer{HandshakeTimeout: WSProbeTimeout}).DialContext(probeCtx, wsURL, nil)
 	if err != nil {
 		return false
 	}
@@ -577,7 +572,7 @@ func (c *Client) connectWSOnce(ctx context.Context, peerID string, onMsg func(pr
 	wsURL := c.wsURL(peerID)
 
 	dialer := websocket.Dialer{
-		HandshakeTimeout: 2 * time.Second,
+		HandshakeTimeout: WSHandshakeTimeout,
 	}
 
 	conn, _, err := dialer.DialContext(ctx, wsURL, nil)
@@ -602,7 +597,7 @@ func (c *Client) connectWSOnce(ctx context.Context, peerID string, onMsg func(pr
 				if !ok {
 					return
 				}
-				conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
+				conn.SetWriteDeadline(time.Now().Add(WSWriteDeadline))
 				if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
 					return
 				}
@@ -615,9 +610,9 @@ func (c *Client) connectWSOnce(ctx context.Context, peerID string, onMsg func(pr
 	}()
 
 	// Read pump
-	conn.SetReadDeadline(time.Now().Add(15 * time.Second))
+	conn.SetReadDeadline(time.Now().Add(WSReadDeadline))
 	conn.SetPongHandler(func(string) error {
-		conn.SetReadDeadline(time.Now().Add(15 * time.Second))
+		conn.SetReadDeadline(time.Now().Add(WSReadDeadline))
 		return nil
 	})
 
@@ -633,7 +628,7 @@ func (c *Client) connectWSOnce(ctx context.Context, peerID string, onMsg func(pr
 			return fmt.Errorf("ws read: %w", err)
 		}
 
-		conn.SetReadDeadline(time.Now().Add(15 * time.Second))
+		conn.SetReadDeadline(time.Now().Add(WSReadDeadline))
 
 		var pm proto.PresenceMsg
 		if err := json.Unmarshal(message, &pm); err != nil {
