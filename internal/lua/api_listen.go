@@ -1,7 +1,7 @@
 package lua
 
 import (
-	"github.com/petervdpas/goop2/internal/listen"
+	"github.com/petervdpas/goop2/internal/group_types/listen"
 
 	lua "github.com/yuin/gopher-lua"
 )

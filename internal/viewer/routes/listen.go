@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/petervdpas/goop2/internal/listen"
+	"github.com/petervdpas/goop2/internal/group_types/listen"
 )
 
 // RegisterListen adds listening group HTTP API endpoints.

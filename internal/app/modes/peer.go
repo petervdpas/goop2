@@ -17,7 +17,7 @@ import (
 	goopCrypto "github.com/petervdpas/goop2/internal/crypto"
 	"github.com/petervdpas/goop2/internal/docs"
 	"github.com/petervdpas/goop2/internal/group"
-	"github.com/petervdpas/goop2/internal/listen"
+	"github.com/petervdpas/goop2/internal/group_types/listen"
 	luapkg "github.com/petervdpas/goop2/internal/lua"
 	"github.com/petervdpas/goop2/internal/mq"
 	"github.com/petervdpas/goop2/internal/p2p"

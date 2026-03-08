@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/petervdpas/goop2/internal/config"
-	"github.com/petervdpas/goop2/internal/listen"
+	"github.com/petervdpas/goop2/internal/group_types/listen"
 	"github.com/petervdpas/goop2/internal/state"
 	"github.com/petervdpas/goop2/internal/storage"
 	"github.com/petervdpas/goop2/internal/util"

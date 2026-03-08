@@ -9,7 +9,7 @@ import (
 	"github.com/petervdpas/goop2/internal/content"
 	"github.com/petervdpas/goop2/internal/docs"
 	"github.com/petervdpas/goop2/internal/group"
-	"github.com/petervdpas/goop2/internal/listen"
+	"github.com/petervdpas/goop2/internal/group_types/listen"
 	"github.com/petervdpas/goop2/internal/mq"
 	"github.com/petervdpas/goop2/internal/p2p"
 	"github.com/petervdpas/goop2/internal/rendezvous"
