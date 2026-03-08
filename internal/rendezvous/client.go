@@ -458,14 +458,16 @@ func (c *Client) subscribeOnce(ctx context.Context, onMsg func(proto.PresenceMsg
 	return sc.Err()
 }
 
-// ConnectWebSocket establishes a WebSocket connection to the rendezvous server.
-// It replaces both SubscribeEvents (SSE) and the heartbeat POST loop.
-// Messages received from the server are dispatched via onMsg.
-// The connection auto-reconnects with exponential backoff until ctx is cancelled.
+// ConnectWebSocket tries to establish a WebSocket connection to the rendezvous
+// server. If the server doesn't support WebSocket (older rendezvous, 404, upgrade
+// rejected), it falls back to SSE via SubscribeEvents, then retries WS
+// periodically in case the server gets upgraded.
 func (c *Client) ConnectWebSocket(ctx context.Context, peerID string, onMsg func(proto.PresenceMsg)) {
 	if c.BaseURL == "" {
 		return
 	}
+
+	const wsRetryInterval = 30 * time.Second
 
 	backoff := 250 * time.Millisecond
 	for {
@@ -476,15 +478,36 @@ func (c *Client) ConnectWebSocket(ctx context.Context, peerID string, onMsg func
 		}
 
 		err := c.connectWSOnce(ctx, peerID, onMsg)
-		if err != nil {
-			log.Printf("rendezvous ws: %v (reconnecting)", err)
-		}
 
-		// Clean up connection state
 		c.wsMu.Lock()
 		c.wsConn = nil
 		c.wsSend = nil
 		c.wsMu.Unlock()
+
+		if err != nil {
+			if isWSUnsupported(err) {
+				log.Printf("rendezvous: WS unavailable at %s, using SSE (probing WS every %v)", c.BaseURL, wsRetryInterval)
+				sseCtx, sseCancel := context.WithCancel(ctx)
+				go c.SubscribeEvents(sseCtx, onMsg)
+
+				for {
+					select {
+					case <-ctx.Done():
+						sseCancel()
+						return
+					case <-time.After(wsRetryInterval):
+					}
+					if c.probeWS(ctx, peerID) {
+						log.Printf("rendezvous: WS now available at %s, switching from SSE", c.BaseURL)
+						sseCancel()
+						backoff = 250 * time.Millisecond
+						break
+					}
+				}
+				continue
+			}
+			log.Printf("rendezvous ws: %v (reconnecting)", err)
+		}
 
 		select {
 		case <-ctx.Done():
@@ -497,12 +520,39 @@ func (c *Client) ConnectWebSocket(ctx context.Context, peerID string, onMsg func
 	}
 }
 
-func (c *Client) connectWSOnce(ctx context.Context, peerID string, onMsg func(proto.PresenceMsg)) error {
-	// Convert http(s):// to ws(s)://
-	// Enforce TLS for non-localhost — never send tokens/emails as plaintext over WAN.
-	wsURL := c.BaseURL
-	if strings.HasPrefix(wsURL, "http://") {
-		host := strings.TrimPrefix(wsURL, "http://")
+// probeWS checks if the server supports WebSocket without disrupting any
+// existing connection. Opens a WS, immediately closes it, returns success.
+func (c *Client) probeWS(ctx context.Context, peerID string) bool {
+	wsURL := c.wsURL(peerID)
+	probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	conn, _, err := (&websocket.Dialer{HandshakeTimeout: 5 * time.Second}).DialContext(probeCtx, wsURL, nil)
+	if err != nil {
+		return false
+	}
+	conn.WriteMessage(websocket.CloseMessage,
+		websocket.FormatCloseMessage(websocket.CloseNormalClosure, "probe"))
+	conn.Close()
+	return true
+}
+
+// isWSUnsupported returns true if the error indicates the server does not
+// support WebSocket (as opposed to a transient network failure).
+func isWSUnsupported(err error) bool {
+	s := err.Error()
+	return strings.Contains(s, "bad handshake") ||
+		strings.Contains(s, "404") ||
+		strings.Contains(s, "403") ||
+		strings.Contains(s, "501")
+}
+
+// wsURL builds the WebSocket URL for this client.
+// Converts http(s):// to ws(s):// and enforces TLS for non-localhost.
+func (c *Client) wsURL(peerID string) string {
+	u := c.BaseURL
+	if strings.HasPrefix(u, "http://") {
+		host := strings.TrimPrefix(u, "http://")
 		if idx := strings.Index(host, "/"); idx != -1 {
 			host = host[:idx]
 		}
@@ -510,13 +560,16 @@ func (c *Client) connectWSOnce(ctx context.Context, peerID string, onMsg func(pr
 			host = h
 		}
 		if host != "127.0.0.1" && host != "localhost" && host != "::1" {
-			// Upgrade to HTTPS for WAN — Caddy/reverse proxy terminates TLS
-			wsURL = "https://" + strings.TrimPrefix(wsURL, "http://")
+			u = "https://" + strings.TrimPrefix(u, "http://")
 		}
 	}
-	wsURL = strings.Replace(wsURL, "https://", "wss://", 1)
-	wsURL = strings.Replace(wsURL, "http://", "ws://", 1)
-	wsURL += "/ws?peer_id=" + peerID
+	u = strings.Replace(u, "https://", "wss://", 1)
+	u = strings.Replace(u, "http://", "ws://", 1)
+	return u + "/ws?peer_id=" + peerID
+}
+
+func (c *Client) connectWSOnce(ctx context.Context, peerID string, onMsg func(proto.PresenceMsg)) error {
+	wsURL := c.wsURL(peerID)
 
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,

@@ -19,6 +19,64 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 		return
 	}
 
+	// List all file groups with their local files included.
+	// Sources: hosted groups (app_type "files"), subscribed groups, and
+	// groups that still have files on disk after leaving.
+	handleGet(mux, "/api/docs/groups", func(w http.ResponseWriter, r *http.Request) {
+		type docGroup struct {
+			GroupID   string         `json:"group_id"`
+			GroupName string         `json:"group_name"`
+			Source    string         `json:"source"` // "hosted", "subscribed", "local"
+			Files     []docs.DocInfo `json:"files"`
+		}
+
+		seen := map[string]*docGroup{}
+
+		if d.GroupManager != nil {
+			if hosted, err := d.GroupManager.ListHostedGroups(); err == nil {
+				for _, g := range hosted {
+					if g.AppType == "files" {
+						seen[g.ID] = &docGroup{GroupID: g.ID, GroupName: g.Name, Source: "hosted"}
+					}
+				}
+			}
+			if subs, err := d.GroupManager.ListSubscriptions(); err == nil {
+				for _, s := range subs {
+					if s.AppType == "files" {
+						if _, ok := seen[s.GroupID]; !ok {
+							seen[s.GroupID] = &docGroup{GroupID: s.GroupID, GroupName: s.GroupName, Source: "subscribed"}
+						}
+					}
+				}
+			}
+		}
+
+		if diskGroups, err := d.DocsStore.ListGroups(); err == nil {
+			for _, gid := range diskGroups {
+				if _, ok := seen[gid]; !ok {
+					seen[gid] = &docGroup{GroupID: gid, Source: "local"}
+				}
+			}
+		}
+
+		// Populate each group with its local files
+		for _, g := range seen {
+			files, err := d.DocsStore.List(g.GroupID)
+			if err != nil || files == nil {
+				g.Files = []docs.DocInfo{}
+			} else {
+				g.Files = files
+			}
+		}
+
+		groups := make([]docGroup, 0, len(seen))
+		for _, g := range seen {
+			groups = append(groups, *g)
+		}
+
+		writeJSON(w, map[string]any{"groups": groups})
+	})
+
 	// List my shared files for a group
 	handleGet(mux, "/api/docs/my", func(w http.ResponseWriter, r *http.Request) {
 		groupID := r.URL.Query().Get("group_id")
