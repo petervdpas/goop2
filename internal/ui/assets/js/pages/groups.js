@@ -48,6 +48,7 @@
   startEventStream();
 
   function addEventToLog(evt) {
+    if (!evt) return;
     var placeholder = eventsEl.querySelector('.groups-empty');
     if (placeholder) placeholder.remove();
 

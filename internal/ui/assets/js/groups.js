@@ -31,6 +31,7 @@
   }
 
   function formatEventPayload(evt) {
+    if (!evt) return '';
     var p = evt.payload;
     if (!p) return '';
     if (evt.type === 'members' && p.members) {
