@@ -286,6 +286,7 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 			ss.Version = s.encryption.Version()
 			ss.APIVersion = s.encryption.APIVersion()
 			ss.APICompat = ss.APIVersion >= minEncryptionAPI
+			ss.KeyCount = s.encryption.KeyCount()
 		}
 		services = append(services, ss)
 	}

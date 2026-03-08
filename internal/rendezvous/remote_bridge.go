@@ -145,10 +145,3 @@ func (p *RemoteBridgeProvider) FetchVirtualPeers() []map[string]any {
 	return out
 }
 
-// VirtualPeerCount returns the cached virtual peer count from the bridge service.
-func (p *RemoteBridgeProvider) VirtualPeerCount() int {
-	p.fetchStatus()
-	p.cacheMu.RLock()
-	defer p.cacheMu.RUnlock()
-	return p.virtualPeers
-}

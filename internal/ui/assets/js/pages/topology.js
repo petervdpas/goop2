@@ -198,6 +198,10 @@
       var badge = p.connection === 'bridge' ? 'bridge' :
                   p.connection === 'direct' ? (isPrivateAddr(p.addr) ? 'LAN' : 'direct') : 'relay';
       drawBadge(ctx, pos.x, pos.y - nodeR - 6, badge, col, colBg);
+      // Encryption indicator (small lock icon top-right of node).
+      if (p.encryption_supported) {
+        drawBadge(ctx, pos.x + nodeR + 2, pos.y - nodeR + 2, '\u{1F512}', '#4caf50', colBg);
+      }
       nodes.push({ x: pos.x, y: pos.y, r: nodeR, peer: p, type: p.connection });
     });
 
@@ -216,6 +220,9 @@
     ctx.restore();
 
     drawGlowNode(ctx, selfX, selfY, selfR, colAccent, 'circle');
+    if (data.self.encryption_supported) {
+      drawBadge(ctx, selfX + selfR + 2, selfY - selfR + 2, '\u{1F512}', '#4caf50', colBg);
+    }
 
     // "ME" text inside.
     ctx.save();
@@ -269,12 +276,17 @@
     if (_hover && !_dragNode) {
       var hit = hitNode(_hover.x, _hover.y);
       if (hit) {
-        var lines = [hit.peer.label || hit.peer.id];
-        if (hit.peer.id) lines.push(hit.peer.id.slice(0, 16) + '...');
-        if (hit.peer.addr) lines.push(hit.peer.addr);
-        if (hit.peer.age && hit.peer.age !== '0s') lines.push('uptime: ' + hit.peer.age);
-        if (hit.peer.streams) lines.push('streams: ' + hit.peer.streams);
-        if (hit.peer.connection) lines.push('via: ' + hit.peer.connection);
+        var p = hit.peer;
+        var lines = [p.label || p.id];
+        if (p.id) lines.push(p.id.slice(0, 16) + '...');
+        if (p.addr) lines.push(p.addr);
+        if (p.uptime) lines.push('uptime: ' + p.uptime);
+        if (p.age && p.age !== '0s') lines.push('uptime: ' + p.age);
+        if (p.connected_peers) lines.push('peers: ' + p.connected_peers);
+        if (p.streams) lines.push('streams: ' + p.streams);
+        if (p.connection) lines.push('via: ' + p.connection);
+        if (p.has_circuit !== undefined) lines.push('circuit: ' + (p.has_circuit ? 'active' : 'none'));
+        lines.push('encryption: ' + (p.encryption_supported ? 'yes' : 'no'));
         drawTooltip(ctx, _hover.x, _hover.y - 16, lines, colPanel, colText);
       }
     }

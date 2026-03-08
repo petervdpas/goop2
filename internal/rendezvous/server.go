@@ -186,6 +186,7 @@ type serviceStatus struct {
 	Version    string
 	APIVersion int
 	APICompat  bool // true if api_version >= required minimum
+	KeyCount   int  // encryption service: registered peer keys
 }
 
 type topologyDep struct {

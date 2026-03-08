@@ -250,12 +250,13 @@ func (s *Server) Topology() map[string]any {
 		}
 
 		peerList = append(peerList, map[string]any{
-			"id":           p.PeerID,
-			"label":        p.Content,
-			"reachable":    p.Type == proto.TypeOnline || p.Type == proto.TypeUpdate,
-			"connection":   conn,
-			"addr":         addr,
-			"ws_connected": p.WSConnected,
+			"id":                   p.PeerID,
+			"label":                p.Content,
+			"reachable":            p.Type == proto.TypeOnline || p.Type == proto.TypeUpdate,
+			"connection":           conn,
+			"addr":                 addr,
+			"ws_connected":         p.WSConnected,
+			"encryption_supported": p.EncryptionSupported,
 		})
 	}
 

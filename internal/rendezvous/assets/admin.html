@@ -163,7 +163,7 @@
                     <span class="status-badge {{statusClass .Type}}">{{.Type}}</span>
                     <span class="peer-time">{{fmtMillis .LastSeen}}</span>
                   </div>
-                  <div class="peer-label">{{.Content}}{{if not .Verified}} <span class="badge-unverified">unverified</span>{{end}}</div>
+                  <div class="peer-label">{{.Content}}{{if not .Verified}} <span class="badge-unverified">unverified</span>{{end}}{{if .EncryptionSupported}} <span class="badge-encrypted" title="E2E encryption enabled">&#x1F512;</span>{{end}}{{if .WSConnected}} <span class="badge-ws" title="WebSocket connected">WS</span>{{end}}</div>
                   {{if .Email}}<div class="peer-email">{{.Email}}</div>{{end}}
                   <div class="peer-id">{{.PeerID}}</div>
                   {{if .Addrs}}<details class="peer-addrs-details"><summary class="peer-addrs-summary">{{len .Addrs}} address{{if ne (len .Addrs) 1}}es{{end}}</summary><div class="peer-addrs">{{range .Addrs}}<div class="peer-addr">{{.}}</div>{{end}}</div></details>{{end}}
@@ -371,7 +371,7 @@
               }
               return '<div class="peer-card peer-row" data-status="'+sc+'" data-label="'+(p.content||'')+'">'
                 +'<div class="peer-header"><img class="peer-avatar" src="'+av+'" width="28" height="28"><span class="status-badge '+sc+'">'+p.type+'</span><span class="peer-time">'+ls+'</span></div>'
-                +'<div class="peer-label">'+(p.content||'Unknown')+unverifiedBadge+'</div>'
+                +'<div class="peer-label">'+(p.content||'Unknown')+unverifiedBadge+(p.encryption_supported?' <span class="badge-encrypted" title="E2E encryption enabled">&#x1F512;</span>':'')+(p.ws_connected?' <span class="badge-ws" title="WebSocket connected">WS</span>':'')+'</div>'
                 +(p.email?'<div class="peer-email">'+p.email+'</div>':'')
                 +'<div class="peer-id">'+p.peer_id+'</div>'
                 +addrsHtml

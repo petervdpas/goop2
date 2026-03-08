@@ -564,21 +564,26 @@ func dirString(d network.Direction) string {
 
 // TopologyPeer describes a peer in the topology graph.
 type TopologyPeer struct {
-	ID         string `json:"id"`
-	Label      string `json:"label"`
-	Reachable  bool   `json:"reachable"`
-	Connection string `json:"connection"` // "direct", "relay", or "none"
-	Addr       string `json:"addr"`
-	Age        string `json:"age"`
-	Streams    int    `json:"streams"`
+	ID                  string `json:"id"`
+	Label               string `json:"label"`
+	Reachable           bool   `json:"reachable"`
+	Connection          string `json:"connection"` // "direct", "relay", or "none"
+	Addr                string `json:"addr"`
+	Age                 string `json:"age"`
+	Streams             int    `json:"streams"`
+	EncryptionSupported bool   `json:"encryption_supported,omitempty"`
 }
 
 // TopologyNode describes the self or relay node.
 type TopologyNode struct {
-	ID         string `json:"id"`
-	Label      string `json:"label"`
-	HasCircuit bool   `json:"has_circuit,omitempty"`
-	Addr       string `json:"addr,omitempty"`
+	ID                  string `json:"id"`
+	Label               string `json:"label"`
+	HasCircuit          bool   `json:"has_circuit,omitempty"`
+	Addr                string `json:"addr,omitempty"`
+	ConnectedPeers      int    `json:"connected_peers,omitempty"`
+	Streams             int    `json:"streams,omitempty"`
+	Uptime              string `json:"uptime,omitempty"`
+	EncryptionSupported bool   `json:"encryption_supported,omitempty"`
 }
 
 // TopologyData is the full topology graph payload.
@@ -597,11 +602,22 @@ func (n *Node) Topology() TopologyData {
 	if n.selfContent != nil {
 		selfLabel = n.selfContent()
 	}
+	totalStreams := 0
+	for _, pid := range n.Host.Network().Peers() {
+		for _, c := range n.Host.Network().ConnsToPeer(pid) {
+			totalStreams += len(c.GetStreams())
+		}
+	}
+
 	data := TopologyData{
 		Self: TopologyNode{
-			ID:         n.Host.ID().String(),
-			Label:      selfLabel,
-			HasCircuit: n.hasCircuitAddr(),
+			ID:                  n.Host.ID().String(),
+			Label:               selfLabel,
+			HasCircuit:          n.hasCircuitAddr(),
+			ConnectedPeers:      len(n.Host.Network().Peers()),
+			Streams:             totalStreams,
+			Uptime:              now.Sub(n.startTime).Truncate(time.Second).String(),
+			EncryptionSupported: n.enc != nil,
 		},
 	}
 
@@ -660,13 +676,14 @@ func (n *Node) Topology() TopologyData {
 		}
 
 		data.Peers = append(data.Peers, TopologyPeer{
-			ID:         pid.String(),
-			Label:      label,
-			Reachable:  sp.Reachable,
-			Connection: connType,
-			Addr:       bestAddr,
-			Age:        bestAge.Truncate(time.Second).String(),
-			Streams:    totalStreams,
+			ID:                  pid.String(),
+			Label:               label,
+			Reachable:           sp.Reachable,
+			Connection:          connType,
+			Addr:                bestAddr,
+			Age:                 bestAge.Truncate(time.Second).String(),
+			Streams:             totalStreams,
+			EncryptionSupported: sp.EncryptionSupported,
 		})
 	}
 
@@ -681,10 +698,11 @@ func (n *Node) Topology() TopologyData {
 			label = pidStr[:8]
 		}
 		data.Peers = append(data.Peers, TopologyPeer{
-			ID:         pidStr,
-			Label:      label,
-			Reachable:  sp.Reachable,
-			Connection: "none",
+			ID:                  pidStr,
+			Label:               label,
+			Reachable:           sp.Reachable,
+			Connection:          "none",
+			EncryptionSupported: sp.EncryptionSupported,
 		})
 	}
 

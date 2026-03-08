@@ -596,6 +596,24 @@ h1 {
   vertical-align: middle;
   margin-left: 6px;
 }
+.badge-encrypted {
+  display: inline-block;
+  font-size: 12px;
+  vertical-align: middle;
+  margin-left: 4px;
+  opacity: 0.8;
+}
+.badge-ws {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 600;
+  background: rgba(0, 188, 212, 0.12);
+  color: #00bcd4;
+  vertical-align: middle;
+  margin-left: 4px;
+}
 
 /* ─── Empty state ─── */
 .empty-state {
