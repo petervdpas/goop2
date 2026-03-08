@@ -174,8 +174,17 @@ func (s *Server) snapshotPeers() []peerRow {
 		return s.cachedPeers
 	}
 
+	// Snapshot WS connection state under its own lock before building rows.
+	s.wsClientsMu.RLock()
+	wsSet := make(map[string]bool, len(s.wsClients))
+	for pid := range s.wsClients {
+		wsSet[pid] = true
+	}
+	s.wsClientsMu.RUnlock()
+
 	out := make([]peerRow, 0, len(s.peers))
 	for _, v := range s.peers {
+		v.WSConnected = wsSet[v.PeerID]
 		out = append(out, v)
 	}
 
@@ -241,11 +250,12 @@ func (s *Server) Topology() map[string]any {
 		}
 
 		peerList = append(peerList, map[string]any{
-			"id":         p.PeerID,
-			"label":      p.Content,
-			"reachable":  p.Type == proto.TypeOnline || p.Type == proto.TypeUpdate,
-			"connection": conn,
-			"addr":       addr,
+			"id":           p.PeerID,
+			"label":        p.Content,
+			"reachable":    p.Type == proto.TypeOnline || p.Type == proto.TypeUpdate,
+			"connection":   conn,
+			"addr":         addr,
+			"ws_connected": p.WSConnected,
 		})
 	}
 

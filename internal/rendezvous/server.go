@@ -134,6 +134,7 @@ type peerRow struct {
 	BytesSent           int64    `json:"bytes_sent"`
 	BytesReceived       int64    `json:"bytes_received"`
 	Verified            bool     `json:"verified"`
+	WSConnected         bool     `json:"ws_connected,omitempty"`
 
 	// Internal-only: stored server-side, never broadcast to peers.
 	verificationToken string
@@ -823,6 +824,9 @@ func (s *Server) Start(ctx context.Context) error {
 		shctx, cancel := context.WithTimeout(context.Background(), util.ShortTimeout)
 		defer cancel()
 		_ = s.srv.Shutdown(shctx)
+		if s.peerDB != nil {
+			_ = s.peerDB.close()
+		}
 	}()
 
 	ln, err := net.Listen("tcp", s.addr)

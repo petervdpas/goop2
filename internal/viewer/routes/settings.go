@@ -232,6 +232,14 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 		client := &http.Client{Timeout: 3 * time.Second}
 
+		var rvStatus []map[string]any
+		for _, c := range d.RVClients {
+			rvStatus = append(rvStatus, map[string]any{
+				"url":          c.BaseURL,
+				"ws_connected": c.IsWebSocketConnected(),
+			})
+		}
+
 		writeJSON(w, map[string]interface{}{
 			"registration": fetchServiceHealth(client, cfg.Presence.RegistrationURL, "/api/reg/status", []string{"registration_required", "dummy_mode"}),
 			"credits":      fetchServiceHealth(client, cfg.Presence.CreditsURL, "/api/credits/store-data", []string{"dummy_mode"}),
@@ -239,6 +247,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			"templates":    fetchServiceHealth(client, cfg.Presence.TemplatesURL, "/api/templates/status", []string{"dummy_mode"}),
 			"bridge":       fetchServiceHealth(client, cfg.Presence.BridgeURL, "/api/bridge/status", []string{"dummy_mode"}),
 			"encryption":   fetchServiceHealth(client, cfg.Presence.EncryptionURL, "/api/encryption/status", []string{"dummy_mode"}),
+			"rendezvous":   rvStatus,
 		})
 	})
 
