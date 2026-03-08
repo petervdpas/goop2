@@ -79,11 +79,16 @@ func (m *Manager) handleHostMessage(from string, hg *hostedGroup, groupID, msgTy
 			_ = m.db.UpsertGroupMembers(groupID, peerIDs)
 		}
 
+		if h := m.handlerForType(appType); h != nil {
+			_ = h.OnJoin(groupID, from, nil)
+		}
+
 	case TypeLeave:
 		hg.mu.Lock()
 		delete(hg.members, from)
 		members := hg.memberList(m.selfID)
 		volatile := hg.info.Volatile
+		appType := hg.info.AppType
 		hg.mu.Unlock()
 
 		log.Printf("GROUP: %s left group %s", shortID(from), groupID)
@@ -97,6 +102,10 @@ func (m *Manager) handleHostMessage(from string, hg *hostedGroup, groupID, msgTy
 				ids[i] = mi.PeerID
 			}
 			_ = m.db.UpsertGroupMembers(groupID, ids)
+		}
+
+		if h := m.handlerForType(appType); h != nil {
+			h.OnLeave(groupID, from)
 		}
 
 	case TypePong:
@@ -131,6 +140,7 @@ func (m *Manager) handleMemberMessage(from string, cc *clientConn, groupID, msgT
 		m.notifyListeners(&Event{Type: TypeMembers, Group: groupID, From: from, Payload: payload})
 
 	case TypeClose:
+		appType := cc.appType
 		m.mu.Lock()
 		if m.activeConns[groupID] == cc {
 			delete(m.activeConns, groupID)
@@ -138,6 +148,9 @@ func (m *Manager) handleMemberMessage(from string, cc *clientConn, groupID, msgT
 		m.mu.Unlock()
 		m.db.RemoveSubscription(cc.hostPeerID, groupID) //nolint:errcheck
 		m.notifyListeners(&Event{Type: TypeClose, Group: groupID})
+		if h := m.handlerForType(appType); h != nil {
+			h.OnClose(groupID)
+		}
 		log.Printf("GROUP: Group %s closed by host", groupID)
 
 	case TypePing:

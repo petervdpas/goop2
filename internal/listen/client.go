@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -19,60 +18,34 @@ import (
 )
 
 // JoinGroup joins a remote listening group.
+// The listen-specific setup happens in the OnJoin lifecycle hook.
 func (m *Manager) JoinGroup(hostPeerID, groupID string) error {
-	m.mu.Lock()
-	if m.group != nil {
-		if m.group.Role == "listener" {
-			log.Printf("LISTEN: Auto-leaving %s to join %s", m.group.ID, groupID)
-			_ = m.grp.LeaveGroup(m.group.ID)
-			m.closeHTTPPipeLocked()
-			m.group = nil
-			m.notifyBrowser()
-		} else {
-			m.mu.Unlock()
-			return fmt.Errorf("already hosting a listen group")
-		}
-	}
+	m.mu.RLock()
+	lg := m.group
+	m.mu.RUnlock()
 
-	m.group = &Group{
-		ID:   groupID,
-		Name: groupID,
-		Role: "listener",
+	// Auto-leave current listener group before joining new one.
+	if lg != nil && lg.Role == "listener" {
+		_ = m.grp.LeaveGroup(lg.ID)
 	}
-	m.mu.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	if err := m.grp.JoinRemoteGroup(ctx, hostPeerID, groupID); err != nil {
-		m.mu.Lock()
-		if m.group != nil && m.group.ID == groupID && m.group.Role == "listener" {
-			m.group = nil
-		}
-		m.mu.Unlock()
-		return fmt.Errorf("join group: %w", err)
-	}
-
-	log.Printf("LISTEN: Joined group %s on host %s", groupID, hostPeerID)
-	m.notifyBrowser()
-	return nil
+	return m.grp.JoinRemoteGroup(ctx, hostPeerID, groupID)
 }
 
 // LeaveGroup leaves the current listening group.
+// The listen-specific cleanup happens in the OnLeave lifecycle hook.
 func (m *Manager) LeaveGroup() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mu.RLock()
+	lg := m.group
+	m.mu.RUnlock()
 
-	if m.group == nil || m.group.Role != "listener" {
+	if lg == nil || lg.Role != "listener" {
 		return fmt.Errorf("not in a listening group")
 	}
 
-	_ = m.grp.LeaveGroup(m.group.ID)
-	m.closeHTTPPipeLocked()
-	m.group = nil
-
-	log.Printf("LISTEN: Left group")
-	m.notifyBrowser()
-	return nil
+	return m.grp.LeaveGroup(lg.ID)
 }
 
 // AudioReader returns an io.ReadCloser that streams audio from the host.

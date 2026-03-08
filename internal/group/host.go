@@ -68,6 +68,14 @@ func (m *Manager) CreateGroup(id, name, appType string, maxMembers int, volatile
 	go m.pingGroupLoop(ctx, id)
 
 	log.Printf("GROUP: Created group %s (%s)", id, name)
+
+	if h := m.handlerForType(appType); h != nil {
+		if err := h.OnCreate(id, name, maxMembers, volatile); err != nil {
+			_ = m.CloseGroup(id)
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -79,6 +87,7 @@ func (m *Manager) CloseGroup(groupID string) error {
 		m.mu.Unlock()
 		return fmt.Errorf("group not found: %s", groupID)
 	}
+	appType := hg.info.AppType
 	delete(m.groups, groupID)
 	m.mu.Unlock()
 
@@ -107,6 +116,10 @@ func (m *Manager) CloseGroup(groupID string) error {
 	_ = m.db.DeleteGroupMembers(groupID)
 
 	m.notifyListeners(&Event{Type: TypeClose, Group: groupID})
+
+	if h := m.handlerForType(appType); h != nil {
+		h.OnClose(groupID)
+	}
 
 	log.Printf("GROUP: Closed group %s", groupID)
 	return nil
@@ -278,6 +291,12 @@ func (m *Manager) JoinOwnGroup(groupID string) error {
 	m.broadcastToGroup(hg, groupID, TypeMembers, MembersPayload{Members: memberList}, "")
 	m.notifyListeners(&Event{Type: TypeMembers, Group: groupID, Payload: MembersPayload{Members: memberList}})
 
+	if h := m.handlerForGroup(groupID); h != nil {
+		if err := h.OnJoin(groupID, m.selfID, nil); err != nil {
+			return err
+		}
+	}
+
 	log.Printf("GROUP: Host joined own group %s", groupID)
 	return nil
 }
@@ -305,6 +324,10 @@ func (m *Manager) LeaveOwnGroup(groupID string) error {
 
 	m.broadcastToGroup(hg, groupID, TypeMembers, MembersPayload{Members: memberList}, "")
 	m.notifyListeners(&Event{Type: TypeMembers, Group: groupID, Payload: MembersPayload{Members: memberList}})
+
+	if h := m.handlerForGroup(groupID); h != nil {
+		h.OnLeave(groupID, m.selfID)
+	}
 
 	log.Printf("GROUP: Host left own group %s", groupID)
 	return nil

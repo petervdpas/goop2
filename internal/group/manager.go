@@ -21,11 +21,6 @@ type Event struct {
 	Payload any    `json:"payload,omitempty"`
 }
 
-// Handler is implemented by subsystems that process events for a specific group app_type.
-// HandleGroupEvent is called asynchronously for every event whose group has the matching app_type.
-type Handler interface {
-	HandleGroupEvent(evt *Event)
-}
 
 // ActiveGroupInfo holds info about one active client-side group connection.
 type ActiveGroupInfo struct {
@@ -52,8 +47,8 @@ type Manager struct {
 	pendingJoinsMu sync.Mutex
 	pendingJoins   map[string]chan joinResult
 
-	// Type-specific event handlers keyed by app_type.
-	handlers map[string]Handler
+	// Type-specific lifecycle handlers keyed by app_type.
+	handlers map[string]TypeHandler
 
 	// MQ unsubscribe functions
 	unsubGroup  func()
@@ -103,7 +98,7 @@ func New(h host.Host, db *storage.DB, mqMgr *mq.Manager) *Manager {
 		groups:       make(map[string]*hostedGroup),
 		activeConns:  make(map[string]*clientConn),
 		pendingJoins: make(map[string]chan joinResult),
-		handlers:     make(map[string]Handler),
+		handlers:     make(map[string]TypeHandler),
 	}
 
 	// Load existing groups from DB into memory (restore host-joined state)
@@ -172,8 +167,8 @@ func (m *Manager) SelfID() string {
 	return m.selfID
 }
 
-// RegisterHandler registers h to receive group events whose group app_type matches appType.
-func (m *Manager) RegisterHandler(appType string, h Handler) {
+// RegisterType registers a TypeHandler for the given app_type.
+func (m *Manager) RegisterType(appType string, h TypeHandler) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.handlers[appType] = h
@@ -187,7 +182,7 @@ func (m *Manager) notifyListeners(evt *Event) {
 	h := m.handlers[appType]
 	m.mu.RUnlock()
 	if h != nil {
-		go h.HandleGroupEvent(evt)
+		go h.OnEvent(evt)
 	}
 }
 

@@ -9,7 +9,7 @@ import (
 )
 
 // mqClusterAdapter bridges *mq.Manager to cluster.SendFunc / cluster.SubscribeFunc
-// and implements group.Handler to forward membership events.
+// and implements group.TypeHandler to forward lifecycle events.
 type mqClusterAdapter struct {
 	mqMgr      *mq.Manager
 	clusterMgr *cluster.Manager
@@ -28,8 +28,12 @@ func (a *mqClusterAdapter) subscribe(fn func(from, topic string, payload any)) f
 	})
 }
 
-// HandleGroupEvent implements group.Handler. Converts group.Event to cluster.GroupEvent.
-func (a *mqClusterAdapter) HandleGroupEvent(evt *group.Event) {
+func (a *mqClusterAdapter) OnCreate(_, _ string, _ int, _ bool) error { return nil }
+func (a *mqClusterAdapter) OnJoin(_, _ string, _ *group.WelcomePayload) error { return nil }
+func (a *mqClusterAdapter) OnLeave(_, _ string) {}
+func (a *mqClusterAdapter) OnClose(_ string) {}
+
+func (a *mqClusterAdapter) OnEvent(evt *group.Event) {
 	a.clusterMgr.HandleGroupEvent(&cluster.GroupEvent{
 		Type:    evt.Type,
 		Group:   evt.Group,
@@ -44,7 +48,7 @@ func setupCluster(mqMgr *mq.Manager, grpMgr *group.Manager, selfID string) (*clu
 	clusterMgr := cluster.New(selfID, adapter.send, adapter.subscribe)
 	adapter.clusterMgr = clusterMgr
 
-	grpMgr.RegisterHandler("cluster", adapter)
+	grpMgr.RegisterType("cluster", adapter)
 
 	return clusterMgr, adapter
 }

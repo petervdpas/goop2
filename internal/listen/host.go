@@ -72,16 +72,9 @@ func New(h libhost.Host, grp *group.Manager, mqMgr *mq.Manager, selfID, dataDir 
 }
 
 // CreateGroup creates a new listening group. Only one group at a time.
+// The listen-specific setup happens in the OnCreate lifecycle hook.
 func (m *Manager) CreateGroup(name string) (*Group, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.group != nil {
-		return nil, fmt.Errorf("already in a group")
-	}
-
 	id := generateListenID()
-
 	if err := m.grp.CreateGroup(id, name, "listen", 0, false); err != nil {
 		return nil, fmt.Errorf("create group: %w", err)
 	}
@@ -89,18 +82,7 @@ func (m *Manager) CreateGroup(name string) (*Group, error) {
 		m.grp.CloseGroup(id) //nolint:errcheck
 		return nil, fmt.Errorf("join own group: %w", err)
 	}
-
-	m.group = &Group{
-		ID:   id,
-		Name: name,
-		Role: "host",
-	}
-	m.paused = true
-	m.stopCh = make(chan struct{})
-
-	log.Printf("LISTEN: Created group %s (%s)", id, name)
-	m.notifyBrowser()
-	return m.group, nil
+	return m.GetGroup(), nil
 }
 
 // LoadTrack loads a single MP3 file, replacing any existing queue.
@@ -655,33 +637,22 @@ func (m *Manager) Seek(position float64) error {
 }
 
 // CloseGroup closes the listening group and disconnects all listeners.
+// The listen-specific cleanup happens in the OnClose lifecycle hook.
 func (m *Manager) CloseGroup() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mu.RLock()
+	lg := m.group
+	m.mu.RUnlock()
 
-	if m.group == nil {
+	if lg == nil {
 		return nil
 	}
 
-	m.stopPlaybackLocked()
+	m.sendControl(ControlMsg{Action: "close"})
 
-	if m.group.Role == "host" {
-		m.sendControl(ControlMsg{Action: "close"})
-		_ = m.grp.CloseGroup(m.group.ID)
-	} else {
-		_ = m.grp.LeaveGroup(m.group.ID)
+	if lg.Role == "host" {
+		return m.grp.CloseGroup(lg.ID)
 	}
-
-	m.closeHTTPPipeLocked()
-	m.group = nil
-	m.filePath = ""
-	m.queue = nil
-	m.queueIdx = 0
-	m.saveQueueToDisk()
-
-	log.Printf("LISTEN: Group closed")
-	m.notifyBrowser()
-	return nil
+	return m.grp.LeaveGroup(lg.ID)
 }
 
 // writeAudioChunk writes audio data to the stream, encrypting if needed.

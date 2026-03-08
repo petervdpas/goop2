@@ -2,6 +2,7 @@ package listen
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
@@ -23,13 +24,111 @@ func (m *Manager) sendControl(msg ControlMsg) {
 	}
 }
 
-// HandleGroupEvent implements group.Handler for app_type "listen".
-func (m *Manager) HandleGroupEvent(evt *group.Event) {
+// OnCreate is called when a listen group is created.
+func (m *Manager) OnCreate(groupID, name string, _ int, _ bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.group != nil {
+		return fmt.Errorf("already in a group")
+	}
+
+	m.group = &Group{
+		ID:   groupID,
+		Name: name,
+		Role: "host",
+	}
+	m.paused = true
+	m.stopCh = make(chan struct{})
+
+	log.Printf("LISTEN: Initialized host state for group %s (%s)", groupID, name)
+	m.notifyBrowser()
+	return nil
+}
+
+// OnJoin is called when a peer joins a listen group.
+func (m *Manager) OnJoin(groupID, peerID string, welcome *group.WelcomePayload) error {
+	if peerID == m.selfID && welcome != nil {
+		// We joined a remote group as listener.
+		m.mu.Lock()
+		defer m.mu.Unlock()
+
+		if m.group != nil && m.group.Role == "host" {
+			return fmt.Errorf("already hosting a listen group")
+		}
+
+		// Auto-leave previous listener group.
+		if m.group != nil && m.group.Role == "listener" {
+			m.closeHTTPPipeLocked()
+		}
+
+		groupName := welcome.GroupName
+		if groupName == "" {
+			groupName = groupID
+		}
+		m.group = &Group{
+			ID:   groupID,
+			Name: groupName,
+			Role: "listener",
+		}
+
+		log.Printf("LISTEN: Joined group %s as listener", groupID)
+		m.notifyBrowser()
+	}
+	return nil
+}
+
+// OnLeave is called when a peer leaves a listen group.
+func (m *Manager) OnLeave(groupID, peerID string) {
+	if peerID == m.selfID {
+		m.mu.Lock()
+		m.closeHTTPPipeLocked()
+		if m.group != nil && m.group.ID == groupID {
+			m.group = nil
+		}
+		m.mu.Unlock()
+
+		log.Printf("LISTEN: Left group %s", groupID)
+		m.notifyBrowserLocked()
+		return
+	}
+
+	// A remote listener left.
+	m.mu.RLock()
+	lg := m.group
+	m.mu.RUnlock()
+	if lg != nil && lg.Role == "host" {
+		log.Printf("LISTEN: Listener %s left", peerID)
+	}
+}
+
+// OnClose is called when a listen group is closed.
+func (m *Manager) OnClose(groupID string) {
+	m.mu.Lock()
+	if m.group != nil && m.group.ID == groupID {
+		m.stopPlaybackLocked()
+		m.closeHTTPPipeLocked()
+		m.group = nil
+		m.filePath = ""
+		m.queue = nil
+		m.queueIdx = 0
+	}
+	m.mu.Unlock()
+	m.saveQueueToDisk()
+
+	log.Printf("LISTEN: Group %s closed", groupID)
+	m.notifyBrowserLocked()
+}
+
+// OnEvent is called for all group events (msg, members, meta, etc.).
+func (m *Manager) OnEvent(evt *group.Event) {
 	m.mu.RLock()
 	lg := m.group
 	m.mu.RUnlock()
 
 	if lg == nil {
+		// Auto-restore listener state if the group manager reconnected
+		// via reconnectSubscriptions without going through listen's JoinGroup.
 		hostPeerID, connected := m.grp.ActiveGroup(evt.Group)
 		if connected {
 			groupName := evt.Group
@@ -71,91 +170,89 @@ func (m *Manager) HandleGroupEvent(evt *group.Event) {
 	switch evt.Type {
 	case "msg":
 		m.handleControlEvent(evt.Payload)
-	case "close":
-		m.mu.Lock()
-		m.closeHTTPPipeLocked()
-		m.group = nil
-		m.mu.Unlock()
-		m.notifyBrowserLocked()
-		log.Printf("LISTEN: Group closed by host")
-	case "leave":
-		if lg.Role == "host" {
-			log.Printf("LISTEN: Listener %s left", evt.From)
-		}
 	case "members":
 		if lg.Role == "host" {
-			if mp, ok := evt.Payload.(map[string]any); ok {
-				if members, ok := mp["members"].([]any); ok {
-					m.mu.Lock()
+			m.handleMembersEvent(evt)
+		}
+	}
+}
 
-					oldSet := make(map[string]bool, len(m.group.Listeners))
-					for _, pid := range m.group.Listeners {
-						oldSet[pid] = true
-					}
+func (m *Manager) handleMembersEvent(evt *group.Event) {
+	mp, ok := evt.Payload.(map[string]any)
+	if !ok {
+		return
+	}
+	members, ok := mp["members"].([]any)
+	if !ok {
+		return
+	}
 
-					m.group.Listeners = make([]string, 0, len(members))
-					for _, member := range members {
-						if mi, ok := member.(map[string]any); ok {
-							if pid, ok := mi["peer_id"].(string); ok && pid != m.selfID {
-								m.group.Listeners = append(m.group.Listeners, pid)
-							}
-						}
-					}
+	m.mu.Lock()
 
-					hasNewListeners := false
-					for _, pid := range m.group.Listeners {
-						if !oldSet[pid] {
-							hasNewListeners = true
-							break
-						}
-					}
+	oldSet := make(map[string]bool, len(m.group.Listeners))
+	for _, pid := range m.group.Listeners {
+		oldSet[pid] = true
+	}
 
-					var syncTrack *Track
-					var syncQueue []string
-					var syncQueueTypes []string
-					var syncQueueIdx, syncQueueTotal int
-					var syncPos float64
-					var syncPlaying bool
-					if hasNewListeners && m.group.Track != nil {
-						syncTrack = m.group.Track
-						syncQueue = append([]string(nil), m.group.Queue...)
-						syncQueueTypes = append([]string(nil), m.group.QueueTypes...)
-						syncQueueIdx = m.group.QueueIndex
-						syncQueueTotal = m.group.QueueTotal
-						if ps := m.group.PlayState; ps != nil {
-							syncPlaying = ps.Playing
-							if ps.Playing {
-								elapsed := float64(time.Now().UnixMilli()-ps.UpdatedAt) / 1000.0
-								syncPos = ps.Position + elapsed
-							} else {
-								syncPos = ps.Position
-							}
-							if syncPos < 0 {
-								syncPos = 0
-							}
-						}
-					}
-
-					m.mu.Unlock()
-					m.notifyBrowserLocked()
-
-					if syncTrack != nil {
-						m.sendControl(ControlMsg{
-							Action:     "load",
-							Track:      syncTrack,
-							Queue:      syncQueue,
-							QueueTypes: syncQueueTypes,
-							QueueIndex: syncQueueIdx,
-							QueueTotal: syncQueueTotal,
-						})
-						if syncPlaying {
-							m.sendControl(ControlMsg{Action: "play", Position: syncPos})
-						} else {
-							m.sendControl(ControlMsg{Action: "pause", Position: syncPos})
-						}
-					}
-				}
+	m.group.Listeners = make([]string, 0, len(members))
+	for _, member := range members {
+		if mi, ok := member.(map[string]any); ok {
+			if pid, ok := mi["peer_id"].(string); ok && pid != m.selfID {
+				m.group.Listeners = append(m.group.Listeners, pid)
 			}
+		}
+	}
+
+	hasNewListeners := false
+	for _, pid := range m.group.Listeners {
+		if !oldSet[pid] {
+			hasNewListeners = true
+			break
+		}
+	}
+
+	var syncTrack *Track
+	var syncQueue []string
+	var syncQueueTypes []string
+	var syncQueueIdx, syncQueueTotal int
+	var syncPos float64
+	var syncPlaying bool
+	if hasNewListeners && m.group.Track != nil {
+		syncTrack = m.group.Track
+		syncQueue = append([]string(nil), m.group.Queue...)
+		syncQueueTypes = append([]string(nil), m.group.QueueTypes...)
+		syncQueueIdx = m.group.QueueIndex
+		syncQueueTotal = m.group.QueueTotal
+		if ps := m.group.PlayState; ps != nil {
+			syncPlaying = ps.Playing
+			if ps.Playing {
+				elapsed := float64(time.Now().UnixMilli()-ps.UpdatedAt) / 1000.0
+				syncPos = ps.Position + elapsed
+			} else {
+				syncPos = ps.Position
+			}
+			if syncPos < 0 {
+				syncPos = 0
+			}
+		}
+	}
+
+	m.mu.Unlock()
+	m.notifyBrowserLocked()
+
+	if syncTrack != nil {
+		m.sendControl(ControlMsg{
+			Action:     "load",
+			Track:      syncTrack,
+			Queue:      syncQueue,
+			QueueTypes: syncQueueTypes,
+			QueueIndex: syncQueueIdx,
+			QueueTotal: syncQueueTotal,
+		})
+		if syncPlaying {
+			m.sendControl(ControlMsg{Action: "play", Position: syncPos})
+		} else {
+			m.sendControl(ControlMsg{Action: "pause", Position: syncPos})
 		}
 	}
 }
@@ -248,7 +345,7 @@ func (m *Manager) handleControlEvent(payload any) {
 	case "close":
 		m.closeHTTPPipeLocked()
 		m.group = nil
-		log.Printf("LISTEN: Group closed by host")
+		log.Printf("LISTEN: Group closed by host (control)")
 	}
 
 	m.notifyBrowser()

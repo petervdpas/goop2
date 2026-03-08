@@ -307,7 +307,7 @@ func RunPeer(p PeerParams) error {
 		listenMgr.SetEncryptor(enc)
 	}
 	defer listenMgr.Close()
-	grpMgr.RegisterHandler("listen", listenMgr)
+	grpMgr.RegisterType("listen", listenMgr)
 	if luaEngine != nil {
 		luaEngine.SetListen(listenMgr)
 	}
