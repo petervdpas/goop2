@@ -80,7 +80,7 @@ func (s *Server) handleWS(ctx context.Context, w http.ResponseWriter, r *http.Re
 	go func() {
 		defer conn.Close()
 		for msg := range wsc.send {
-			conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
 			if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
 				return
 			}
@@ -88,21 +88,21 @@ func (s *Server) handleWS(ctx context.Context, w http.ResponseWriter, r *http.Re
 	}()
 
 	// Read pump: receives presence messages from the peer
-	conn.SetReadDeadline(time.Now().Add(45 * time.Second))
+	conn.SetReadDeadline(time.Now().Add(15 * time.Second))
 	conn.SetPongHandler(func(string) error {
-		conn.SetReadDeadline(time.Now().Add(45 * time.Second))
+		conn.SetReadDeadline(time.Now().Add(15 * time.Second))
 		return nil
 	})
 
 	// Ping ticker to keep connection alive
 	pingDone := make(chan struct{})
 	go func() {
-		ticker := time.NewTicker(15 * time.Second)
+		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+				conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
 				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 					return
 				}
@@ -167,7 +167,7 @@ func (s *Server) handleWS(ctx context.Context, w http.ResponseWriter, r *http.Re
 		}
 
 		// Reset read deadline on any message
-		conn.SetReadDeadline(time.Now().Add(45 * time.Second))
+		conn.SetReadDeadline(time.Now().Add(15 * time.Second))
 
 		var pm proto.PresenceMsg
 		if err := json.Unmarshal(message, &pm); err != nil {
