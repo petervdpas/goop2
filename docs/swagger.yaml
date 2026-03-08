@@ -1,10 +1,29 @@
 basePath: /
 definitions:
+  routes.avatarUploadResponse:
+    properties:
+      hash:
+        example: a1b2c3d4
+        type: string
+      ok:
+        example: true
+        type: boolean
+    type: object
   routes.callChannelRequest:
     properties:
       channel_id:
         example: nc-abc123
         type: string
+    type: object
+  routes.callDebugResponse:
+    properties:
+      session_count:
+        example: 2
+        type: integer
+      sessions:
+        items:
+          $ref: '#/definitions/routes.callSessionStatus'
+        type: array
     type: object
   routes.callModeResponse:
     properties:
@@ -74,6 +93,14 @@ definitions:
         example: call
         type: string
     type: object
+  routes.clusterAcceptResponse:
+    properties:
+      job:
+        $ref: '#/definitions/routes.clusterJob'
+      status:
+        example: accepted
+        type: string
+    type: object
   routes.clusterCancelRequest:
     properties:
       job_id:
@@ -101,10 +128,60 @@ definitions:
         additionalProperties: {}
         type: object
     type: object
+  routes.clusterJob:
+    properties:
+      id:
+        example: j-abc123
+        type: string
+      max_retry:
+        example: 2
+        type: integer
+      payload:
+        additionalProperties: {}
+        type: object
+      priority:
+        example: 5
+        type: integer
+      timeout_s:
+        example: 300
+        type: integer
+      type:
+        example: render
+        type: string
+    type: object
   routes.clusterJobIDRequest:
     properties:
       job_id:
         example: j-abc123
+        type: string
+    type: object
+  routes.clusterJobState:
+    properties:
+      created_at:
+        example: "2026-03-08T12:00:00Z"
+        type: string
+      done_at:
+        type: string
+      elapsed_ms:
+        example: 1234
+        type: integer
+      error:
+        type: string
+      job:
+        $ref: '#/definitions/routes.clusterJob'
+      result:
+        additionalProperties: {}
+        type: object
+      retries:
+        example: 0
+        type: integer
+      started_at:
+        type: string
+      status:
+        example: running
+        type: string
+      worker_id:
+        example: 12D3KooWXxx...
         type: string
     type: object
   routes.clusterJoinRequest:
@@ -114,6 +191,17 @@ definitions:
         type: string
       host_peer_id:
         example: 12D3KooWXxx...
+        type: string
+    type: object
+  routes.clusterPendingJob:
+    properties:
+      host_peer_id:
+        example: 12D3KooWXxx...
+        type: string
+      job:
+        $ref: '#/definitions/routes.clusterJob'
+      received_at:
+        example: "2026-03-08T12:00:00Z"
         type: string
     type: object
   routes.clusterProgressRequest:
@@ -130,6 +218,24 @@ definitions:
       stats:
         additionalProperties: {}
         type: object
+    type: object
+  routes.clusterQueueStats:
+    properties:
+      completed:
+        example: 15
+        type: integer
+      failed:
+        example: 1
+        type: integer
+      pending:
+        example: 3
+        type: integer
+      running:
+        example: 2
+        type: integer
+      workers:
+        example: 4
+        type: integer
     type: object
   routes.clusterResultRequest:
     properties:
@@ -181,6 +287,35 @@ definitions:
         example: submitted
         type: string
     type: object
+  routes.clusterWorkerInfo:
+    properties:
+      capacity:
+        example: 4
+        type: integer
+      last_seen:
+        example: "2026-03-08T12:00:00Z"
+        type: string
+      peer_id:
+        example: 12D3KooWXxx...
+        type: string
+      running_jobs:
+        example: 1
+        type: integer
+      status:
+        example: idle
+        type: string
+    type: object
+  routes.clusterWorkerJobsResponse:
+    properties:
+      accepted:
+        items:
+          $ref: '#/definitions/routes.clusterPendingJob'
+        type: array
+      pending:
+        items:
+          $ref: '#/definitions/routes.clusterPendingJob'
+        type: array
+    type: object
   routes.dataColumnRequest:
     properties:
       column: {}
@@ -204,6 +339,15 @@ definitions:
         type: object
       table:
         example: my_table
+        type: string
+    type: object
+  routes.dataInsertResponse:
+    properties:
+      id:
+        example: 42
+        type: integer
+      status:
+        example: inserted
         type: string
     type: object
   routes.dataPolicyRequest:
@@ -263,6 +407,18 @@ definitions:
         example: my_table
         type: string
     type: object
+  routes.docFileInfo:
+    properties:
+      mod_time:
+        example: "2026-03-08T12:00:00Z"
+        type: string
+      name:
+        example: notes.pdf
+        type: string
+      size:
+        example: 1048576
+        type: integer
+    type: object
   routes.docsDeleteRequest:
     properties:
       filename:
@@ -317,6 +473,18 @@ definitions:
         example: 20
         type: integer
     type: object
+  routes.groupMemberInfo:
+    properties:
+      joined_at:
+        example: 1709136000000
+        type: integer
+      name:
+        example: Roadwarrior
+        type: string
+      peer_id:
+        example: 12D3KooWXxx...
+        type: string
+    type: object
   routes.groupMetaRequest:
     properties:
       group_id:
@@ -345,6 +513,37 @@ definitions:
         type: string
       payload: {}
     type: object
+  routes.hostedGroupInfo:
+    properties:
+      app_type:
+        example: listen
+        type: string
+      created_at:
+        example: "2026-03-08T12:00:00Z"
+        type: string
+      host_in_group:
+        type: boolean
+      host_joined:
+        type: boolean
+      id:
+        example: a1b2c3d4e5f6a1b2
+        type: string
+      max_members:
+        example: 20
+        type: integer
+      member_count:
+        example: 3
+        type: integer
+      members:
+        items:
+          $ref: '#/definitions/routes.groupMemberInfo'
+        type: array
+      name:
+        example: My Group
+        type: string
+      volatile:
+        type: boolean
+    type: object
   routes.listenControlRequest:
     properties:
       action:
@@ -362,6 +561,38 @@ definitions:
       name:
         example: My Listen Group
         type: string
+    type: object
+  routes.listenGroup:
+    properties:
+      id:
+        example: listen-a1b2c3d4e5f6
+        type: string
+      listeners:
+        items:
+          type: string
+        type: array
+      name:
+        example: My Station
+        type: string
+      play_state:
+        $ref: '#/definitions/routes.listenPlayState'
+      queue:
+        items:
+          type: string
+        type: array
+      queue_index:
+        type: integer
+      queue_total:
+        type: integer
+      queue_types:
+        items:
+          type: string
+        type: array
+      role:
+        example: host
+        type: string
+      track:
+        $ref: '#/definitions/routes.listenTrack'
     type: object
   routes.listenJoinRequest:
     properties:
@@ -381,12 +612,51 @@ definitions:
           type: string
         type: array
     type: object
+  routes.listenPlayState:
+    properties:
+      playing:
+        example: true
+        type: boolean
+      position:
+        example: 42.5
+        type: number
+      updated_at:
+        example: 1709136000000
+        type: integer
+    type: object
   routes.listenQueueAddRequest:
     properties:
       file_paths:
         items:
           type: string
         type: array
+    type: object
+  routes.listenStateResponse:
+    properties:
+      group:
+        $ref: '#/definitions/routes.listenGroup'
+      listener_names:
+        additionalProperties:
+          type: string
+        type: object
+    type: object
+  routes.listenTrack:
+    properties:
+      bitrate:
+        example: 320000
+        type: integer
+      duration:
+        example: 245.3
+        type: number
+      format:
+        example: mp3
+        type: string
+      is_stream:
+        example: false
+        type: boolean
+      name:
+        example: song.mp3
+        type: string
     type: object
   routes.loopbackICERequest:
     properties:
@@ -438,6 +708,22 @@ definitions:
         example: delivered
         type: string
     type: object
+  routes.peerContentResponse:
+    properties:
+      content:
+        type: string
+      error:
+        type: string
+    type: object
+  routes.peerFavoriteRequest:
+    properties:
+      favorite:
+        example: true
+        type: boolean
+      peer_id:
+        example: 12D3KooWXxx...
+        type: string
+    type: object
   routes.quickSettingsRequest:
     properties:
       email:
@@ -482,11 +768,79 @@ definitions:
       video_disabled:
         type: boolean
     type: object
+  routes.serviceHealthEntry:
+    properties:
+      error:
+        type: string
+      ok:
+        type: boolean
+      status: {}
+    type: object
+  routes.servicesHealthResponse:
+    properties:
+      bridge:
+        $ref: '#/definitions/routes.serviceHealthEntry'
+      credits:
+        $ref: '#/definitions/routes.serviceHealthEntry'
+      email:
+        $ref: '#/definitions/routes.serviceHealthEntry'
+      encryption:
+        $ref: '#/definitions/routes.serviceHealthEntry'
+      registration:
+        $ref: '#/definitions/routes.serviceHealthEntry'
+      templates:
+        $ref: '#/definitions/routes.serviceHealthEntry'
+    type: object
   routes.statusOK:
     properties:
       status:
         example: ok
         type: string
+    type: object
+  routes.subscriptionInfo:
+    properties:
+      app_type:
+        example: listen
+        type: string
+      group_id:
+        example: a1b2c3d4e5f6a1b2
+        type: string
+      group_name:
+        example: My Group
+        type: string
+      host_name:
+        example: Eggman
+        type: string
+      host_peer_id:
+        example: 12D3KooWXxx...
+        type: string
+      host_reachable:
+        type: boolean
+      max_members:
+        example: 20
+        type: integer
+      member_count:
+        example: 3
+        type: integer
+      role:
+        example: member
+        type: string
+      subscribed_at:
+        example: "2026-03-08T12:00:00Z"
+        type: string
+      volatile:
+        type: boolean
+    type: object
+  routes.subscriptionsResponse:
+    properties:
+      active_groups:
+        items:
+          type: string
+        type: array
+      subscriptions:
+        items:
+          $ref: '#/definitions/routes.subscriptionInfo'
+        type: array
     type: object
   routes.topologyNode:
     properties:
@@ -606,7 +960,7 @@ paths:
       parameters:
       - description: Avatar image
         in: formData
-        name: file
+        name: avatar
         required: true
         type: file
       produces:
@@ -615,8 +969,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/routes.avatarUploadResponse'
       summary: Upload own avatar (multipart image)
       tags:
       - avatar
@@ -669,8 +1022,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/routes.callDebugResponse'
       summary: Debug dump of all active sessions
       tags:
       - call
@@ -798,6 +1150,26 @@ paths:
       summary: WebSocket — self-view WebM stream (local camera, Linux native only)
       tags:
       - call
+  /api/call/selfvideo/{channel}:
+    get:
+      description: Self-view camera stream for the PiP inset. Replays last keyframe
+        for instant display.
+      parameters:
+      - description: Channel ID
+        in: path
+        name: channel
+        required: true
+        type: string
+      produces:
+      - video/webm
+      responses:
+        "200":
+          description: Chunked WebM stream
+          schema:
+            type: string
+      summary: HTTP chunked WebM stream of local self-view (Linux native mode)
+      tags:
+      - call
   /api/call/start:
     post:
       consumes:
@@ -864,6 +1236,27 @@ paths:
       summary: Toggle local video track (native mode)
       tags:
       - call
+  /api/call/video/{channel}:
+    get:
+      description: Replaces the WebSocket+MSE path on Linux. GStreamer's souphttpsrc
+        handles this natively via <video src="http://...">. Uses SubscribeMediaFresh
+        + RequestPLI for clean keyframe-first delivery.
+      parameters:
+      - description: Channel ID
+        in: path
+        name: channel
+        required: true
+        type: string
+      produces:
+      - video/webm
+      responses:
+        "200":
+          description: Chunked WebM stream
+          schema:
+            type: string
+      summary: HTTP chunked WebM stream of remote video/audio (Linux native mode)
+      tags:
+      - call
   /api/chat/history:
     delete:
       parameters:
@@ -918,8 +1311,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/routes.clusterAcceptResponse'
         "409":
           description: not a worker or job not pending
           schema:
@@ -1022,8 +1414,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/routes.clusterWorkerJobsResponse'
       summary: Fetch pending and accepted jobs for this worker
       tags:
       - cluster
@@ -1036,8 +1427,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/routes.clusterJobState'
             type: array
       summary: List all jobs in the queue (host only)
       tags:
@@ -1151,8 +1541,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/routes.clusterQueueStats'
       summary: Queue statistics (host only)
       tags:
       - cluster
@@ -1208,8 +1597,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/routes.clusterWorkerInfo'
             type: array
       summary: List all workers (host only)
       tags:
@@ -1231,8 +1619,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/routes.statusOK'
       summary: Delete rows from a table
       tags:
       - data
@@ -1253,8 +1640,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/routes.dataInsertResponse'
       summary: Insert a row into a table
       tags:
       - data
@@ -1462,8 +1848,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/routes.statusOK'
       summary: Update rows in a table
       tags:
       - data
@@ -1550,8 +1935,9 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            items:
+              $ref: '#/definitions/routes.docFileInfo'
+            type: array
       summary: List my shared files for a group
       tags:
       - docs
@@ -1576,8 +1962,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/routes.statusOK'
       summary: Upload a file to share with the group (multipart)
       tags:
       - docs
@@ -1590,8 +1975,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/routes.hostedGroupInfo'
             type: array
       summary: List hosted groups with live member data
       tags:
@@ -1856,8 +2240,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/routes.subscriptionsResponse'
       summary: List group subscriptions (member side) with host reachability
       tags:
       - groups
@@ -1932,8 +2315,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/routes.listenGroup'
       summary: Host creates a listen group
       tags:
       - listen
@@ -1987,8 +2369,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/routes.listenTrack'
       summary: Load MP3 file(s) as playlist (local access only)
       tags:
       - listen
@@ -2021,8 +2402,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/routes.listenStateResponse'
       summary: Current listen group state
       tags:
       - listen
@@ -2130,8 +2510,8 @@ paths:
       consumes:
       - application/json
       description: 'Delivers the payload to the remote peer over the MQ P2P protocol.\nBlocks
-        until the peer sends a transport ACK (up to 30 s).\nTopic convention: call:{channelId},
-        group:{groupId}:{type}, group.invite, chat, chat.broadcast'
+        until the peer sends a transport ACK (up to 4 s, one retry).\nTopic convention:
+        call:{channelId}, group:{groupId}:{type}, group.invite, chat, chat.broadcast'
       parameters:
       - description: Send request
         in: body
@@ -2151,7 +2531,7 @@ paths:
           schema:
             type: string
         "504":
-          description: peer unreachable within 30 s
+          description: peer unreachable
           schema:
             type: string
       summary: Send an MQ message to a peer
@@ -2184,9 +2564,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/routes.peerContentResponse'
       summary: Fetch a remote peer's site content (HTML string)
       tags:
       - peers
@@ -2210,13 +2588,12 @@ paths:
       consumes:
       - application/json
       parameters:
-      - description: '{ peer_id, favorite }'
+      - description: Favorite request
         in: body
         name: body
         required: true
         schema:
-          additionalProperties: true
-          type: object
+          $ref: '#/definitions/routes.peerFavoriteRequest'
       produces:
       - application/json
       responses:
@@ -2270,8 +2647,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/routes.serviceHealthEntry'
       summary: Check a single service URL (pre-save validation)
       tags:
       - settings
@@ -2283,8 +2659,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/routes.servicesHealthResponse'
       summary: Ping all configured external services
       tags:
       - settings

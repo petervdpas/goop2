@@ -138,6 +138,42 @@ type groupSendRequest struct {
 	Payload any    `json:"payload"`
 }
 
+// listenGroup is the listen group state returned by create and state endpoints.
+type listenGroup struct {
+	ID         string          `json:"id"                    example:"listen-a1b2c3d4e5f6"`
+	Name       string          `json:"name"                  example:"My Station"`
+	Role       string          `json:"role"                  example:"host"`
+	Track      *listenTrack    `json:"track,omitempty"`
+	PlayState  *listenPlayState `json:"play_state,omitempty"`
+	Listeners  []string        `json:"listeners,omitempty"`
+	Queue      []string        `json:"queue,omitempty"`
+	QueueTypes []string        `json:"queue_types,omitempty"`
+	QueueIndex int             `json:"queue_index"`
+	QueueTotal int             `json:"queue_total"`
+}
+
+// listenTrack describes the currently loaded audio track.
+type listenTrack struct {
+	Name     string  `json:"name"      example:"song.mp3"`
+	Duration float64 `json:"duration"  example:"245.3"`
+	Bitrate  int     `json:"bitrate"   example:"320000"`
+	Format   string  `json:"format"    example:"mp3"`
+	IsStream bool    `json:"is_stream" example:"false"`
+}
+
+// listenPlayState describes the current playback position.
+type listenPlayState struct {
+	Playing   bool    `json:"playing"    example:"true"`
+	Position  float64 `json:"position"   example:"42.5"`
+	UpdatedAt int64   `json:"updated_at" example:"1709136000000"`
+}
+
+// listenStateResponse is the body for GET /api/listen/state.
+type listenStateResponse struct {
+	Group         *listenGroup      `json:"group"`
+	ListenerNames map[string]string `json:"listener_names,omitempty"`
+}
+
 // listenCreateRequest is the body for POST /api/listen/create.
 type listenCreateRequest struct {
 	Name string `json:"name,omitempty" example:"My Listen Group"`
@@ -267,6 +303,179 @@ type statusOK struct {
 	Status string `json:"status" example:"ok"`
 }
 
+// ── Groups response types ────────────────────────────────────────────────────
+
+// groupMemberInfo describes a member in a hosted group listing.
+type groupMemberInfo struct {
+	PeerID   string `json:"peer_id"   example:"12D3KooWXxx..."`
+	JoinedAt int64  `json:"joined_at" example:"1709136000000"`
+	Name     string `json:"name"      example:"Roadwarrior"`
+}
+
+// hostedGroupInfo is one item in the GET /api/groups response.
+type hostedGroupInfo struct {
+	ID           string            `json:"id"             example:"a1b2c3d4e5f6a1b2"`
+	Name         string            `json:"name"           example:"My Group"`
+	AppType      string            `json:"app_type"       example:"listen"`
+	MaxMembers   int               `json:"max_members"    example:"20"`
+	Volatile     bool              `json:"volatile"`
+	HostJoined   bool              `json:"host_joined"`
+	CreatedAt    string            `json:"created_at"     example:"2026-03-08T12:00:00Z"`
+	MemberCount  int               `json:"member_count"   example:"3"`
+	Members      []groupMemberInfo `json:"members"`
+	HostInGroup  bool              `json:"host_in_group"`
+}
+
+// subscriptionInfo is one item in the subscriptions list.
+type subscriptionInfo struct {
+	HostPeerID    string `json:"host_peer_id"    example:"12D3KooWXxx..."`
+	GroupID       string `json:"group_id"        example:"a1b2c3d4e5f6a1b2"`
+	GroupName     string `json:"group_name"      example:"My Group"`
+	AppType       string `json:"app_type"        example:"listen"`
+	MaxMembers    int    `json:"max_members"     example:"20"`
+	Volatile      bool   `json:"volatile"`
+	Role          string `json:"role"            example:"member"`
+	SubscribedAt  string `json:"subscribed_at"   example:"2026-03-08T12:00:00Z"`
+	HostName      string `json:"host_name"       example:"Eggman"`
+	HostReachable bool   `json:"host_reachable"`
+	MemberCount   int    `json:"member_count"    example:"3"`
+}
+
+// subscriptionsResponse is the body for GET /api/groups/subscriptions.
+type subscriptionsResponse struct {
+	Subscriptions []subscriptionInfo `json:"subscriptions"`
+	ActiveGroups  []string           `json:"active_groups"`
+}
+
+// ── Call response types ──────────────────────────────────────────────────────
+
+// callDebugResponse is the body for GET /api/call/debug.
+type callDebugResponse struct {
+	SessionCount int                 `json:"session_count" example:"2"`
+	Sessions     []callSessionStatus `json:"sessions"`
+}
+
+// ── Cluster response types ───────────────────────────────────────────────────
+
+// clusterJob describes a submitted job.
+type clusterJob struct {
+	ID       string         `json:"id"                example:"j-abc123"`
+	Type     string         `json:"type"              example:"render"`
+	Payload  map[string]any `json:"payload,omitempty"`
+	Priority int            `json:"priority"          example:"5"`
+	TimeoutS int            `json:"timeout_s"         example:"300"`
+	MaxRetry int            `json:"max_retry"         example:"2"`
+}
+
+// clusterJobState describes a job with its execution state.
+type clusterJobState struct {
+	Job       clusterJob     `json:"job"`
+	Status    string         `json:"status"               example:"running"`
+	WorkerID  string         `json:"worker_id,omitempty"  example:"12D3KooWXxx..."`
+	Result    map[string]any `json:"result,omitempty"`
+	Error     string         `json:"error,omitempty"`
+	Retries   int            `json:"retries"              example:"0"`
+	CreatedAt string         `json:"created_at"           example:"2026-03-08T12:00:00Z"`
+	StartedAt string         `json:"started_at,omitempty"`
+	DoneAt    string         `json:"done_at,omitempty"`
+	ElapsedMs int64          `json:"elapsed_ms,omitempty" example:"1234"`
+}
+
+// clusterWorkerInfo describes a cluster worker.
+type clusterWorkerInfo struct {
+	PeerID      string `json:"peer_id"       example:"12D3KooWXxx..."`
+	Status      string `json:"status"        example:"idle"`
+	Capacity    int    `json:"capacity"      example:"4"`
+	RunningJobs int    `json:"running_jobs"  example:"1"`
+	LastSeen    string `json:"last_seen"     example:"2026-03-08T12:00:00Z"`
+}
+
+// clusterQueueStats describes cluster queue statistics.
+type clusterQueueStats struct {
+	Pending   int `json:"pending"   example:"3"`
+	Running   int `json:"running"   example:"2"`
+	Completed int `json:"completed" example:"15"`
+	Failed    int `json:"failed"    example:"1"`
+	Workers   int `json:"workers"   example:"4"`
+}
+
+// clusterPendingJob describes a pending job available to a worker.
+type clusterPendingJob struct {
+	Job        clusterJob `json:"job"`
+	HostPeerID string     `json:"host_peer_id" example:"12D3KooWXxx..."`
+	ReceivedAt string     `json:"received_at"  example:"2026-03-08T12:00:00Z"`
+}
+
+// clusterWorkerJobsResponse is the body for GET /api/cluster/job (worker side).
+type clusterWorkerJobsResponse struct {
+	Pending  []clusterPendingJob `json:"pending"`
+	Accepted []clusterPendingJob `json:"accepted"`
+}
+
+// clusterAcceptResponse is the body for POST /api/cluster/accept.
+type clusterAcceptResponse struct {
+	Status string     `json:"status" example:"accepted"`
+	Job    clusterJob `json:"job"`
+}
+
+// ── Peer response types ──────────────────────────────────────────────────────
+
+// peerContentResponse is the body for GET /api/peer/content.
+type peerContentResponse struct {
+	Content string `json:"content,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+// peerFavoriteRequest is the body for POST /api/peers/favorite.
+type peerFavoriteRequest struct {
+	PeerID   string `json:"peer_id"  example:"12D3KooWXxx..."`
+	Favorite bool   `json:"favorite" example:"true"`
+}
+
+// ── Avatar response types ────────────────────────────────────────────────────
+
+// avatarUploadResponse is the body for POST /api/avatar/upload.
+type avatarUploadResponse struct {
+	OK   bool   `json:"ok"   example:"true"`
+	Hash string `json:"hash" example:"a1b2c3d4"`
+}
+
+// ── Data response types ──────────────────────────────────────────────────────
+
+// dataInsertResponse is the body for POST /api/data/insert.
+type dataInsertResponse struct {
+	Status string `json:"status" example:"inserted"`
+	ID     int64  `json:"id"     example:"42"`
+}
+
+// ── Services response types ──────────────────────────────────────────────────
+
+// serviceHealthEntry describes the health of one service.
+type serviceHealthEntry struct {
+	OK     bool   `json:"ok"`
+	Status any    `json:"status,omitempty"`
+	Error  string `json:"error,omitempty"`
+}
+
+// servicesHealthResponse is the body for GET /api/services/health.
+type servicesHealthResponse struct {
+	Registration *serviceHealthEntry `json:"registration,omitempty"`
+	Credits      *serviceHealthEntry `json:"credits,omitempty"`
+	Email        *serviceHealthEntry `json:"email,omitempty"`
+	Templates    *serviceHealthEntry `json:"templates,omitempty"`
+	Bridge       *serviceHealthEntry `json:"bridge,omitempty"`
+	Encryption   *serviceHealthEntry `json:"encryption,omitempty"`
+}
+
+// ── Docs response types ──────────────────────────────────────────────────────
+
+// docFileInfo describes a shared file.
+type docFileInfo struct {
+	Name    string `json:"name"     example:"notes.pdf"`
+	Size    int64  `json:"size"     example:"1048576"`
+	ModTime string `json:"mod_time" example:"2026-03-08T12:00:00Z"`
+}
+
 // ── Cluster ──────────────────────────────────────────────────────────────────
 
 // clusterStatusResponse is the body for GET /api/cluster/status.
@@ -390,7 +599,7 @@ func swagClusterCancel() {}
 //	@Summary	List all jobs in the queue (host only)
 //	@Tags		cluster
 //	@Produce	json
-//	@Success	200	{array}	map[string]any
+//	@Success	200	{array}	clusterJobState
 //	@Router		/api/cluster/jobs [get]
 func swagClusterJobs() {}
 
@@ -399,7 +608,7 @@ func swagClusterJobs() {}
 //	@Summary	List all workers (host only)
 //	@Tags		cluster
 //	@Produce	json
-//	@Success	200	{array}	map[string]any
+//	@Success	200	{array}	clusterWorkerInfo
 //	@Router		/api/cluster/workers [get]
 func swagClusterWorkers() {}
 
@@ -408,7 +617,7 @@ func swagClusterWorkers() {}
 //	@Summary	Queue statistics (host only)
 //	@Tags		cluster
 //	@Produce	json
-//	@Success	200	{object}	map[string]any
+//	@Success	200	{object}	clusterQueueStats
 //	@Router		/api/cluster/stats [get]
 func swagClusterStats() {}
 
@@ -446,7 +655,7 @@ type clusterHeartbeatRequest struct {
 //	@Description	Returns jobs waiting for an executor to claim (pending) and jobs already claimed (accepted). Any executor — browser, script, agent — can poll this endpoint on localhost.
 //	@Tags		cluster
 //	@Produce	json
-//	@Success	200	{object}	map[string]any
+//	@Success	200	{object}	clusterWorkerJobsResponse
 //	@Router		/api/cluster/job [get]
 func swagClusterJob() {}
 
@@ -458,7 +667,7 @@ func swagClusterJob() {}
 //	@Accept		json
 //	@Produce	json
 //	@Param		body	body		clusterJobIDRequest	true	"Accept request"
-//	@Success	200		{object}	map[string]any
+//	@Success	200		{object}	clusterAcceptResponse
 //	@Failure	409		{string}	string	"not a worker or job not pending"
 //	@Router		/api/cluster/accept [post]
 func swagClusterAccept() {}
@@ -507,14 +716,14 @@ func swagClusterHeartbeat() {}
 // swagMQSend is a documentation stub for POST /api/mq/send.
 //
 //	@Summary	Send an MQ message to a peer
-//	@Description	Delivers the payload to the remote peer over the MQ P2P protocol.\nBlocks until the peer sends a transport ACK (up to 30 s).\nTopic convention: call:{channelId}, group:{groupId}:{type}, group.invite, chat, chat.broadcast
+//	@Description	Delivers the payload to the remote peer over the MQ P2P protocol.\nBlocks until the peer sends a transport ACK (up to 4 s, one retry).\nTopic convention: call:{channelId}, group:{groupId}:{type}, group.invite, chat, chat.broadcast
 //	@Tags		mq
 //	@Accept		json
 //	@Produce	json
 //	@Param		body	body		mqSendRequest	true	"Send request"
 //	@Success	200		{object}	mqSendResponse
 //	@Failure	400		{string}	string	"missing peer_id or topic"
-//	@Failure	504		{string}	string	"peer unreachable within 30 s"
+//	@Failure	504		{string}	string	"peer unreachable"
 //	@Router		/api/mq/send [post]
 func swagMQSend() {}
 
@@ -567,7 +776,7 @@ func swagCallActive() {}
 //	@Summary	Debug dump of all active sessions
 //	@Tags		call
 //	@Produce	json
-//	@Success	200	{object}	map[string]any
+//	@Success	200	{object}	callDebugResponse
 //	@Router		/api/call/debug [get]
 func swagCallDebug() {}
 
@@ -672,6 +881,28 @@ func swagCallLoopbackOffer() {}
 //	@Router		/api/call/loopback/{channel}/ice [post]
 func swagCallLoopbackICE() {}
 
+// swagCallVideo is a documentation stub for GET /api/call/video/{channel}.
+//
+//	@Summary	HTTP chunked WebM stream of remote video/audio (Linux native mode)
+//	@Description	Replaces the WebSocket+MSE path on Linux. GStreamer's souphttpsrc handles this natively via <video src="http://...">. Uses SubscribeMediaFresh + RequestPLI for clean keyframe-first delivery.
+//	@Tags		call
+//	@Param		channel	path	string	true	"Channel ID"
+//	@Produce	video/webm
+//	@Success	200	{string}	string	"Chunked WebM stream"
+//	@Router		/api/call/video/{channel} [get]
+func swagCallVideo() {}
+
+// swagCallSelfVideo is a documentation stub for GET /api/call/selfvideo/{channel}.
+//
+//	@Summary	HTTP chunked WebM stream of local self-view (Linux native mode)
+//	@Description	Self-view camera stream for the PiP inset. Replays last keyframe for instant display.
+//	@Tags		call
+//	@Param		channel	path	string	true	"Channel ID"
+//	@Produce	video/webm
+//	@Success	200	{string}	string	"Chunked WebM stream"
+//	@Router		/api/call/selfvideo/{channel} [get]
+func swagCallSelfVideo() {}
+
 // ── Groups ───────────────────────────────────────────────────────────────────
 
 // swagGroupsList is a documentation stub for GET /api/groups.
@@ -679,7 +910,7 @@ func swagCallLoopbackICE() {}
 //	@Summary	List hosted groups with live member data
 //	@Tags		groups
 //	@Produce	json
-//	@Success	200	{array}	map[string]any
+//	@Success	200	{array}	hostedGroupInfo
 //	@Router		/api/groups [get]
 func swagGroupsList() {}
 
@@ -732,7 +963,7 @@ func swagGroupsClose() {}
 //	@Summary	List group subscriptions (member side) with host reachability
 //	@Tags		groups
 //	@Produce	json
-//	@Success	200	{object}	map[string]any
+//	@Success	200	{object}	subscriptionsResponse
 //	@Router		/api/groups/subscriptions [get]
 func swagGroupsSubscriptions() {}
 
@@ -844,7 +1075,7 @@ func swagGroupsSend() {}
 //	@Accept		json
 //	@Produce	json
 //	@Param		body	body		listenCreateRequest	true	"Create request"
-//	@Success	200		{object}	map[string]any
+//	@Success	200		{object}	listenGroup
 //	@Router		/api/listen/create [post]
 func swagListenCreate() {}
 
@@ -864,7 +1095,7 @@ func swagListenClose() {}
 //	@Accept		json
 //	@Produce	json
 //	@Param		body	body		listenLoadRequest	true	"Load request"
-//	@Success	200		{object}	map[string]any
+//	@Success	200		{object}	listenTrack
 //	@Router		/api/listen/load [post]
 func swagListenLoad() {}
 
@@ -925,7 +1156,7 @@ func swagListenStream() {}
 //	@Summary	Current listen group state
 //	@Tags		listen
 //	@Produce	json
-//	@Success	200	{object}	map[string]any
+//	@Success	200	{object}	listenStateResponse
 //	@Router		/api/listen/state [get]
 func swagListenState() {}
 
@@ -1001,7 +1232,7 @@ func swagTopology() {}
 //	@Tags		peers
 //	@Accept		json
 //	@Produce	json
-//	@Param		body	body		map[string]any	true	"{ peer_id, favorite }"
+//	@Param		body	body		peerFavoriteRequest	true	"Favorite request"
 //	@Success	200		{object}	statusOK
 //	@Router		/api/peers/favorite [post]
 func swagPeersFavorite() {}
@@ -1012,7 +1243,7 @@ func swagPeersFavorite() {}
 //	@Tags		peers
 //	@Produce	json
 //	@Param		id	query		string	true	"Peer ID"
-//	@Success	200	{object}	map[string]string
+//	@Success	200	{object}	peerContentResponse
 //	@Router		/api/peer/content [get]
 func swagPeerContent() {}
 
@@ -1043,7 +1274,7 @@ func swagSettingsQuickGet() {}
 //	@Summary	Ping all configured external services
 //	@Tags		settings
 //	@Produce	json
-//	@Success	200	{object}	map[string]any
+//	@Success	200	{object}	servicesHealthResponse
 //	@Router		/api/services/health [get]
 func swagServicesHealth() {}
 
@@ -1054,7 +1285,7 @@ func swagServicesHealth() {}
 //	@Produce	json
 //	@Param		url		query		string	true	"Service base URL"
 //	@Param		type	query		string	false	"Service type: registration, credits, email, templates"
-//	@Success	200		{object}	map[string]any
+//	@Success	200		{object}	serviceHealthEntry
 //	@Router		/api/services/check [get]
 func swagServicesCheck() {}
 
@@ -1105,7 +1336,7 @@ func swagLogsClient() {}
 //	@Tags		docs
 //	@Produce	json
 //	@Param		group_id	query		string	true	"Group ID"
-//	@Success	200			{object}	map[string]any
+//	@Success	200			{array}		docFileInfo
 //	@Router		/api/docs/my [get]
 func swagDocsMy() {}
 
@@ -1117,7 +1348,7 @@ func swagDocsMy() {}
 //	@Produce	json
 //	@Param		group_id	formData	string	true	"Group ID"
 //	@Param		file		formData	file	true	"File to upload (max 50 MB)"
-//	@Success	200			{object}	map[string]any
+//	@Success	200			{object}	statusOK
 //	@Router		/api/docs/upload [post]
 func swagDocsUpload() {}
 
@@ -1183,7 +1414,7 @@ func swagDataTablesCreate() {}
 //	@Accept		json
 //	@Produce	json
 //	@Param		body	body		dataInsertRequest	true	"Insert request"
-//	@Success	200		{object}	map[string]any
+//	@Success	200		{object}	dataInsertResponse
 //	@Router		/api/data/insert [post]
 func swagDataInsert() {}
 
@@ -1205,7 +1436,7 @@ func swagDataQuery() {}
 //	@Accept		json
 //	@Produce	json
 //	@Param		body	body		dataUpdateRequest	true	"Update request"
-//	@Success	200		{object}	map[string]any
+//	@Success	200		{object}	statusOK
 //	@Router		/api/data/update [post]
 func swagDataUpdate() {}
 
@@ -1216,7 +1447,7 @@ func swagDataUpdate() {}
 //	@Accept		json
 //	@Produce	json
 //	@Param		body	body		dataDeleteRequest	true	"Delete request"
-//	@Success	200		{object}	map[string]any
+//	@Success	200		{object}	statusOK
 //	@Router		/api/data/delete [post]
 func swagDataDelete() {}
 
@@ -1304,7 +1535,7 @@ func swagAvatarGet() {}
 //	@Accept		multipart/form-data
 //	@Produce	json
 //	@Param		avatar	formData	file	true	"Avatar image"
-//	@Success	200		{object}	map[string]any
+//	@Success	200		{object}	avatarUploadResponse
 //	@Router		/api/avatar/upload [post]
 func swagAvatarUpload() {}
 

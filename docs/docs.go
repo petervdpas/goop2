@@ -99,7 +99,7 @@ const docTemplate = `{
                     {
                         "type": "file",
                         "description": "Avatar image",
-                        "name": "file",
+                        "name": "avatar",
                         "in": "formData",
                         "required": true
                     }
@@ -108,8 +108,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/routes.avatarUploadResponse"
                         }
                     }
                 }
@@ -185,8 +184,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/routes.callDebugResponse"
                         }
                     }
                 }
@@ -377,6 +375,35 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/call/selfvideo/{channel}": {
+            "get": {
+                "description": "Self-view camera stream for the PiP inset. Replays last keyframe for instant display.",
+                "produces": [
+                    "video/webm"
+                ],
+                "tags": [
+                    "call"
+                ],
+                "summary": "HTTP chunked WebM stream of local self-view (Linux native mode)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Channel ID",
+                        "name": "channel",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Chunked WebM stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/api/call/start": {
             "post": {
                 "description": "Creates the Go-side Pion PeerConnection.\\nThe browser must call this before sending call-request via MQ.\\nFlow: POST /api/call/start → _sendMQ(call-request) → wait for call-ack → _connectNative()",
@@ -477,6 +504,35 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/call/video/{channel}": {
+            "get": {
+                "description": "Replaces the WebSocket+MSE path on Linux. GStreamer's souphttpsrc handles this natively via \u003cvideo src=\"http://...\"\u003e. Uses SubscribeMediaFresh + RequestPLI for clean keyframe-first delivery.",
+                "produces": [
+                    "video/webm"
+                ],
+                "tags": [
+                    "call"
+                ],
+                "summary": "HTTP chunked WebM stream of remote video/audio (Linux native mode)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Channel ID",
+                        "name": "channel",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Chunked WebM stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/api/chat/history": {
             "get": {
                 "produces": [
@@ -559,8 +615,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/routes.clusterAcceptResponse"
                         }
                     },
                     "409": {
@@ -711,8 +766,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/routes.clusterWorkerJobsResponse"
                         }
                     }
                 }
@@ -733,8 +787,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/routes.clusterJobState"
                             }
                         }
                     }
@@ -905,8 +958,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/routes.clusterQueueStats"
                         }
                     }
                 }
@@ -992,8 +1044,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/routes.clusterWorkerInfo"
                             }
                         }
                     }
@@ -1027,8 +1078,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/routes.statusOK"
                         }
                     }
                 }
@@ -1061,8 +1111,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/routes.dataInsertResponse"
                         }
                     }
                 }
@@ -1387,8 +1436,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/routes.statusOK"
                         }
                     }
                 }
@@ -1522,8 +1570,10 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/routes.docFileInfo"
+                            }
                         }
                     }
                 }
@@ -1561,8 +1611,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/routes.statusOK"
                         }
                     }
                 }
@@ -1583,8 +1632,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/routes.hostedGroupInfo"
                             }
                         }
                     }
@@ -1998,8 +2046,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/routes.subscriptionsResponse"
                         }
                     }
                 }
@@ -2117,8 +2164,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/routes.listenGroup"
                         }
                     }
                 }
@@ -2203,8 +2249,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/routes.listenTrack"
                         }
                     }
                 }
@@ -2256,8 +2301,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/routes.listenStateResponse"
                         }
                     }
                 }
@@ -2410,7 +2454,7 @@ const docTemplate = `{
         },
         "/api/mq/send": {
             "post": {
-                "description": "Delivers the payload to the remote peer over the MQ P2P protocol.\\nBlocks until the peer sends a transport ACK (up to 30 s).\\nTopic convention: call:{channelId}, group:{groupId}:{type}, group.invite, chat, chat.broadcast",
+                "description": "Delivers the payload to the remote peer over the MQ P2P protocol.\\nBlocks until the peer sends a transport ACK (up to 4 s, one retry).\\nTopic convention: call:{channelId}, group:{groupId}:{type}, group.invite, chat, chat.broadcast",
                 "consumes": [
                     "application/json"
                 ],
@@ -2446,7 +2490,7 @@ const docTemplate = `{
                         }
                     },
                     "504": {
-                        "description": "peer unreachable within 30 s",
+                        "description": "peer unreachable",
                         "schema": {
                             "type": "string"
                         }
@@ -2496,10 +2540,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/routes.peerContentResponse"
                         }
                     }
                 }
@@ -2542,13 +2583,12 @@ const docTemplate = `{
                 "summary": "Toggle favorite flag for a peer",
                 "parameters": [
                     {
-                        "description": "{ peer_id, favorite }",
+                        "description": "Favorite request",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/routes.peerFavoriteRequest"
                         }
                     }
                 ],
@@ -2629,8 +2669,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/routes.serviceHealthEntry"
                         }
                     }
                 }
@@ -2649,8 +2688,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/routes.servicesHealthResponse"
                         }
                     }
                 }
@@ -2736,12 +2774,40 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "routes.avatarUploadResponse": {
+            "type": "object",
+            "properties": {
+                "hash": {
+                    "type": "string",
+                    "example": "a1b2c3d4"
+                },
+                "ok": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
         "routes.callChannelRequest": {
             "type": "object",
             "properties": {
                 "channel_id": {
                     "type": "string",
                     "example": "nc-abc123"
+                }
+            }
+        },
+        "routes.callDebugResponse": {
+            "type": "object",
+            "properties": {
+                "session_count": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "sessions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/routes.callSessionStatus"
+                    }
                 }
             }
         },
@@ -2846,6 +2912,18 @@ const docTemplate = `{
                 }
             }
         },
+        "routes.clusterAcceptResponse": {
+            "type": "object",
+            "properties": {
+                "job": {
+                    "$ref": "#/definitions/routes.clusterJob"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "accepted"
+                }
+            }
+        },
         "routes.clusterCancelRequest": {
             "type": "object",
             "properties": {
@@ -2886,12 +2964,82 @@ const docTemplate = `{
                 }
             }
         },
+        "routes.clusterJob": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "example": "j-abc123"
+                },
+                "max_retry": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "payload": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "priority": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "timeout_s": {
+                    "type": "integer",
+                    "example": 300
+                },
+                "type": {
+                    "type": "string",
+                    "example": "render"
+                }
+            }
+        },
         "routes.clusterJobIDRequest": {
             "type": "object",
             "properties": {
                 "job_id": {
                     "type": "string",
                     "example": "j-abc123"
+                }
+            }
+        },
+        "routes.clusterJobState": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "example": "2026-03-08T12:00:00Z"
+                },
+                "done_at": {
+                    "type": "string"
+                },
+                "elapsed_ms": {
+                    "type": "integer",
+                    "example": 1234
+                },
+                "error": {
+                    "type": "string"
+                },
+                "job": {
+                    "$ref": "#/definitions/routes.clusterJob"
+                },
+                "result": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "retries": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "running"
+                },
+                "worker_id": {
+                    "type": "string",
+                    "example": "12D3KooWXxx..."
                 }
             }
         },
@@ -2905,6 +3053,22 @@ const docTemplate = `{
                 "host_peer_id": {
                     "type": "string",
                     "example": "12D3KooWXxx..."
+                }
+            }
+        },
+        "routes.clusterPendingJob": {
+            "type": "object",
+            "properties": {
+                "host_peer_id": {
+                    "type": "string",
+                    "example": "12D3KooWXxx..."
+                },
+                "job": {
+                    "$ref": "#/definitions/routes.clusterJob"
+                },
+                "received_at": {
+                    "type": "string",
+                    "example": "2026-03-08T12:00:00Z"
                 }
             }
         },
@@ -2926,6 +3090,31 @@ const docTemplate = `{
                 "stats": {
                     "type": "object",
                     "additionalProperties": {}
+                }
+            }
+        },
+        "routes.clusterQueueStats": {
+            "type": "object",
+            "properties": {
+                "completed": {
+                    "type": "integer",
+                    "example": 15
+                },
+                "failed": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "pending": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "running": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "workers": {
+                    "type": "integer",
+                    "example": 4
                 }
             }
         },
@@ -3000,6 +3189,48 @@ const docTemplate = `{
                 }
             }
         },
+        "routes.clusterWorkerInfo": {
+            "type": "object",
+            "properties": {
+                "capacity": {
+                    "type": "integer",
+                    "example": 4
+                },
+                "last_seen": {
+                    "type": "string",
+                    "example": "2026-03-08T12:00:00Z"
+                },
+                "peer_id": {
+                    "type": "string",
+                    "example": "12D3KooWXxx..."
+                },
+                "running_jobs": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "status": {
+                    "type": "string",
+                    "example": "idle"
+                }
+            }
+        },
+        "routes.clusterWorkerJobsResponse": {
+            "type": "object",
+            "properties": {
+                "accepted": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/routes.clusterPendingJob"
+                    }
+                },
+                "pending": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/routes.clusterPendingJob"
+                    }
+                }
+            }
+        },
         "routes.dataColumnRequest": {
             "type": "object",
             "properties": {
@@ -3033,6 +3264,19 @@ const docTemplate = `{
                 "table": {
                     "type": "string",
                     "example": "my_table"
+                }
+            }
+        },
+        "routes.dataInsertResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "status": {
+                    "type": "string",
+                    "example": "inserted"
                 }
             }
         },
@@ -3118,6 +3362,23 @@ const docTemplate = `{
                 }
             }
         },
+        "routes.docFileInfo": {
+            "type": "object",
+            "properties": {
+                "mod_time": {
+                    "type": "string",
+                    "example": "2026-03-08T12:00:00Z"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "notes.pdf"
+                },
+                "size": {
+                    "type": "integer",
+                    "example": 1048576
+                }
+            }
+        },
         "routes.docsDeleteRequest": {
             "type": "object",
             "properties": {
@@ -3197,6 +3458,23 @@ const docTemplate = `{
                 }
             }
         },
+        "routes.groupMemberInfo": {
+            "type": "object",
+            "properties": {
+                "joined_at": {
+                    "type": "integer",
+                    "example": 1709136000000
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Roadwarrior"
+                },
+                "peer_id": {
+                    "type": "string",
+                    "example": "12D3KooWXxx..."
+                }
+            }
+        },
         "routes.groupMetaRequest": {
             "type": "object",
             "properties": {
@@ -3237,6 +3515,50 @@ const docTemplate = `{
                 "payload": {}
             }
         },
+        "routes.hostedGroupInfo": {
+            "type": "object",
+            "properties": {
+                "app_type": {
+                    "type": "string",
+                    "example": "listen"
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2026-03-08T12:00:00Z"
+                },
+                "host_in_group": {
+                    "type": "boolean"
+                },
+                "host_joined": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "a1b2c3d4e5f6a1b2"
+                },
+                "max_members": {
+                    "type": "integer",
+                    "example": 20
+                },
+                "member_count": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/routes.groupMemberInfo"
+                    }
+                },
+                "name": {
+                    "type": "string",
+                    "example": "My Group"
+                },
+                "volatile": {
+                    "type": "boolean"
+                }
+            }
+        },
         "routes.listenControlRequest": {
             "type": "object",
             "properties": {
@@ -3260,6 +3582,53 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "My Listen Group"
+                }
+            }
+        },
+        "routes.listenGroup": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "example": "listen-a1b2c3d4e5f6"
+                },
+                "listeners": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string",
+                    "example": "My Station"
+                },
+                "play_state": {
+                    "$ref": "#/definitions/routes.listenPlayState"
+                },
+                "queue": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "queue_index": {
+                    "type": "integer"
+                },
+                "queue_total": {
+                    "type": "integer"
+                },
+                "queue_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "role": {
+                    "type": "string",
+                    "example": "host"
+                },
+                "track": {
+                    "$ref": "#/definitions/routes.listenTrack"
                 }
             }
         },
@@ -3290,6 +3659,23 @@ const docTemplate = `{
                 }
             }
         },
+        "routes.listenPlayState": {
+            "type": "object",
+            "properties": {
+                "playing": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "position": {
+                    "type": "number",
+                    "example": 42.5
+                },
+                "updated_at": {
+                    "type": "integer",
+                    "example": 1709136000000
+                }
+            }
+        },
         "routes.listenQueueAddRequest": {
             "type": "object",
             "properties": {
@@ -3298,6 +3684,45 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "routes.listenStateResponse": {
+            "type": "object",
+            "properties": {
+                "group": {
+                    "$ref": "#/definitions/routes.listenGroup"
+                },
+                "listener_names": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "routes.listenTrack": {
+            "type": "object",
+            "properties": {
+                "bitrate": {
+                    "type": "integer",
+                    "example": 320000
+                },
+                "duration": {
+                    "type": "number",
+                    "example": 245.3
+                },
+                "format": {
+                    "type": "string",
+                    "example": "mp3"
+                },
+                "is_stream": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "name": {
+                    "type": "string",
+                    "example": "song.mp3"
                 }
             }
         },
@@ -3375,6 +3800,30 @@ const docTemplate = `{
                 }
             }
         },
+        "routes.peerContentResponse": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "routes.peerFavoriteRequest": {
+            "type": "object",
+            "properties": {
+                "favorite": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "peer_id": {
+                    "type": "string",
+                    "example": "12D3KooWXxx..."
+                }
+            }
+        },
         "routes.quickSettingsRequest": {
             "type": "object",
             "properties": {
@@ -3442,12 +3891,111 @@ const docTemplate = `{
                 }
             }
         },
+        "routes.serviceHealthEntry": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "ok": {
+                    "type": "boolean"
+                },
+                "status": {}
+            }
+        },
+        "routes.servicesHealthResponse": {
+            "type": "object",
+            "properties": {
+                "bridge": {
+                    "$ref": "#/definitions/routes.serviceHealthEntry"
+                },
+                "credits": {
+                    "$ref": "#/definitions/routes.serviceHealthEntry"
+                },
+                "email": {
+                    "$ref": "#/definitions/routes.serviceHealthEntry"
+                },
+                "encryption": {
+                    "$ref": "#/definitions/routes.serviceHealthEntry"
+                },
+                "registration": {
+                    "$ref": "#/definitions/routes.serviceHealthEntry"
+                },
+                "templates": {
+                    "$ref": "#/definitions/routes.serviceHealthEntry"
+                }
+            }
+        },
         "routes.statusOK": {
             "type": "object",
             "properties": {
                 "status": {
                     "type": "string",
                     "example": "ok"
+                }
+            }
+        },
+        "routes.subscriptionInfo": {
+            "type": "object",
+            "properties": {
+                "app_type": {
+                    "type": "string",
+                    "example": "listen"
+                },
+                "group_id": {
+                    "type": "string",
+                    "example": "a1b2c3d4e5f6a1b2"
+                },
+                "group_name": {
+                    "type": "string",
+                    "example": "My Group"
+                },
+                "host_name": {
+                    "type": "string",
+                    "example": "Eggman"
+                },
+                "host_peer_id": {
+                    "type": "string",
+                    "example": "12D3KooWXxx..."
+                },
+                "host_reachable": {
+                    "type": "boolean"
+                },
+                "max_members": {
+                    "type": "integer",
+                    "example": 20
+                },
+                "member_count": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "role": {
+                    "type": "string",
+                    "example": "member"
+                },
+                "subscribed_at": {
+                    "type": "string",
+                    "example": "2026-03-08T12:00:00Z"
+                },
+                "volatile": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "routes.subscriptionsResponse": {
+            "type": "object",
+            "properties": {
+                "active_groups": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "subscriptions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/routes.subscriptionInfo"
+                    }
                 }
             }
         },
