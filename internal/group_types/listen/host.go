@@ -25,12 +25,12 @@ import (
 // and subscribes to group events for listen control messages.
 func New(h libhost.Host, grp *group.Manager, mqMgr *mq.Manager, selfID, dataDir string) *Manager {
 	m := &Manager{
-		host:    h,
-		grp:     grp,
-		mq:      mqMgr,
-		selfID:  selfID,
-		dataDir: dataDir,
-		pipes:   make(map[string]*listenerPipe),
+		host:   h,
+		grp:    grp,
+		mq:     mqMgr,
+		selfID: selfID,
+		store:  newStateStore(dataDir),
+		pipes:  make(map[string]*listenerPipe),
 	}
 
 	// Recover any listen group left over from a previous session.
@@ -47,7 +47,7 @@ func New(h libhost.Host, grp *group.Manager, mqMgr *mq.Manager, selfID, dataDir 
 				m.stopCh = make(chan struct{})
 				log.Printf("LISTEN: Recovered group %s (%s) from previous session", g.ID, g.Name)
 
-				if qs := m.loadQueueFromDiskForGroup(g.ID); qs != nil && len(qs.Paths) > 0 {
+				if qs := m.loadQueueFromDisk(); qs != nil && len(qs.Paths) > 0 {
 					m.queue = qs.Paths
 					m.queueIdx = qs.Index
 					if m.queueIdx >= len(m.queue) {

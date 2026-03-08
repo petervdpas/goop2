@@ -21,8 +21,8 @@ type Manager struct {
 	host    host.Host
 	grp     *group.Manager
 	mq      *mq.Manager
-	selfID  string
-	dataDir string // directory for persisting queue state
+	selfID string
+	store  *group.StateStore
 
 	mu    sync.RWMutex
 	group *Group

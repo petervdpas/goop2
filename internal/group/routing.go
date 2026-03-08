@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"time"
 )
 
 func (m *Manager) handleMQMessage(from, groupID, msgType string, payload any) {
@@ -42,7 +41,7 @@ func (m *Manager) handleHostMessage(from string, hg *hostedGroup, groupID, msgTy
 		}
 		if hg.info.MaxMembers > 0 && currentCount >= hg.info.MaxMembers {
 			hg.mu.Unlock()
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), SendTimeout)
 			defer cancel()
 			_, _ = m.mq.Send(ctx, from, "group:"+groupID+":"+TypeError,
 				Message{Type: TypeError, Group: groupID, Payload: ErrorPayload{Code: "full", Message: "group is full"}})
@@ -58,7 +57,7 @@ func (m *Manager) handleHostMessage(from string, hg *hostedGroup, groupID, msgTy
 
 		log.Printf("GROUP: %s joined group %s", shortID(from), groupID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), BroadcastTimeout)
 		_, _ = m.mq.Send(ctx, from, "group:"+groupID+":"+TypeWelcome, WelcomePayload{
 			GroupName:  name,
 			AppType:    appType,
@@ -155,7 +154,7 @@ func (m *Manager) handleMemberMessage(from string, cc *clientConn, groupID, msgT
 
 	case TypePing:
 		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), SendTimeout)
 			defer cancel()
 			_, _ = m.mq.Send(ctx, from, "group:"+groupID+":"+TypePong, Message{Type: TypePong, Group: groupID})
 		}()

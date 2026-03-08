@@ -17,6 +17,7 @@ import (
 	goopCrypto "github.com/petervdpas/goop2/internal/crypto"
 	"github.com/petervdpas/goop2/internal/docs"
 	"github.com/petervdpas/goop2/internal/group"
+	clusterType "github.com/petervdpas/goop2/internal/group_types/cluster"
 	"github.com/petervdpas/goop2/internal/group_types/listen"
 	luapkg "github.com/petervdpas/goop2/internal/lua"
 	"github.com/petervdpas/goop2/internal/mq"
@@ -319,7 +320,7 @@ func RunPeer(p PeerParams) error {
 	log.Printf("🎵 Listen room enabled")
 
 	// ── Cluster compute
-	clusterMgr, _ := setupCluster(mqMgr, grpMgr, node.ID())
+	clusterMgr := clusterType.New(mqMgr, grpMgr, node.ID())
 	defer clusterMgr.Close()
 	log.Printf("🖥️ Cluster compute enabled")
 

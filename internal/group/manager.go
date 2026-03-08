@@ -5,7 +5,6 @@ import (
 	"log"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/petervdpas/goop2/internal/mq"
 	"github.com/petervdpas/goop2/internal/storage"
@@ -84,7 +83,7 @@ type clientConn struct {
 }
 
 const (
-	pingInterval    = 60 * time.Second
+	pingInterval    = PingInterval
 	maxHostedGroups = 50 // hard cap on hosted groups per peer
 )
 

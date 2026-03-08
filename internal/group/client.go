@@ -23,7 +23,7 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 	m.mu.Unlock()
 
 	if old != nil {
-		leaveCtx, leaveCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		leaveCtx, leaveCancel := context.WithTimeout(context.Background(), SendTimeout)
 		_, _ = m.mq.Send(leaveCtx, old.hostPeerID, "group:"+groupID+":"+TypeLeave, Message{Type: TypeLeave, Group: groupID})
 		leaveCancel()
 		m.db.RemoveSubscription(old.hostPeerID, old.groupID) //nolint:errcheck
@@ -50,7 +50,7 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 	}()
 
 	// Set a timeout for the entire join handshake
-	joinCtx, joinCancel := context.WithTimeout(ctx, 30*time.Second)
+	joinCtx, joinCancel := context.WithTimeout(ctx, JoinTimeout)
 	defer joinCancel()
 
 	// Send join
@@ -137,7 +137,7 @@ func (m *Manager) SendToGroup(groupID string, payload any) error {
 		return fmt.Errorf("not connected to group %s", groupID)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), BroadcastTimeout)
 	defer cancel()
 	_, err := m.mq.Send(ctx, cc.hostPeerID, "group:"+groupID+":"+TypeMsg, payload)
 	return err
@@ -158,7 +158,7 @@ func (m *Manager) LeaveGroup(groupID string) error {
 
 	appType := cc.appType
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), SendTimeout)
 	defer cancel()
 	_, _ = m.mq.Send(ctx, cc.hostPeerID, "group:"+groupID+":"+TypeLeave, Message{Type: TypeLeave, Group: groupID})
 
@@ -244,7 +244,7 @@ func (m *Manager) RemoveSubscription(hostPeerID, groupID string) error {
 }
 
 func (m *Manager) reconnectSubscriptions() {
-	time.Sleep(6 * time.Second)
+	time.Sleep(DiscoveryWait)
 
 	subs, err := m.db.ListSubscriptions()
 	if err != nil || len(subs) == 0 {
@@ -259,7 +259,7 @@ func (m *Manager) reconnectSubscriptions() {
 			continue
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), ReconnectTimeout)
 		err := m.RejoinSubscription(ctx, sub.HostPeerID, sub.GroupID)
 		cancel()
 

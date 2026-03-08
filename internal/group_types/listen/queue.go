@@ -3,53 +3,38 @@ package listen
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
-	"os"
-	"path/filepath"
+
+	"github.com/petervdpas/goop2/internal/group"
 )
 
-func (m *Manager) queueFilePath() string {
-	if m.dataDir == "" {
-		return ""
-	}
-	return filepath.Join(m.dataDir, "listen-queue.json")
-}
-
-func (m *Manager) queueFilePathForGroup(_ string) string {
-	return m.queueFilePath()
-}
-
 func (m *Manager) saveQueueToDisk() {
-	p := m.queueFilePath()
-	if p == "" {
+	if m.store == nil {
 		return
 	}
 	groupID := ""
 	if m.group != nil {
 		groupID = m.group.ID
 	}
-	qs := queueState{GroupID: groupID, Paths: m.queue, Index: m.queueIdx}
-	data, err := json.Marshal(qs)
-	if err != nil {
-		return
-	}
-	_ = os.WriteFile(p, data, 0644)
+	_ = m.store.Save("listen-queue", &queueState{
+		GroupID: groupID,
+		Paths:   m.queue,
+		Index:   m.queueIdx,
+	})
 }
 
-func (m *Manager) loadQueueFromDiskForGroup(groupID string) *queueState {
-	p := m.queueFilePathForGroup(groupID)
-	if p == "" {
-		return nil
-	}
-	data, err := os.ReadFile(p)
-	if err != nil {
+func (m *Manager) loadQueueFromDisk() *queueState {
+	if m.store == nil {
 		return nil
 	}
 	var qs queueState
-	if err := json.Unmarshal(data, &qs); err != nil {
+	if !m.store.Load("listen-queue", &qs) {
 		return nil
 	}
 	return &qs
+}
+
+func newStateStore(dataDir string) *group.StateStore {
+	return group.NewStateStore(dataDir)
 }
 
 func generateListenID() string {

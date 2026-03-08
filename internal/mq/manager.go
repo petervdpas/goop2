@@ -29,8 +29,7 @@ const (
 	// traffic with plenty of headroom.
 	listenerCap = 256
 
-	// ackTimeout is how long a single send attempt waits for a transport ACK.
-	ackTimeout = 10 * time.Second
+	ackTimeout = AckTimeout
 )
 
 // Manager owns the MQ P2P handler, per-peer in-memory inbox, and SSE listeners.
@@ -106,7 +105,7 @@ func (m *Manager) Send(ctx context.Context, peerID, topic string, payload any) (
 	select {
 	case <-ctx.Done():
 		return "", err
-	case <-time.After(300 * time.Millisecond):
+	case <-time.After(RetryDelay):
 	}
 	return m.sendOnce(ctx, peerID, topic, payload)
 }
@@ -203,7 +202,7 @@ func (m *Manager) handleIncoming(stream network.Stream) {
 
 	remotePeer := stream.Conn().RemotePeer().String()
 
-	_ = stream.SetReadDeadline(time.Now().Add(30 * time.Second))
+	_ = stream.SetReadDeadline(time.Now().Add(ReadDeadline))
 
 	var msg MQMsg
 	if err := json.NewDecoder(bufio.NewReader(stream)).Decode(&msg); err != nil {
@@ -219,7 +218,7 @@ func (m *Manager) handleIncoming(stream network.Stream) {
 
 	// Send transport ACK immediately — bytes are in the buffer.
 	ack := MQAck{Type: MsgTypeAck, ID: msg.ID, Seq: msg.Seq}
-	_ = stream.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	_ = stream.SetWriteDeadline(time.Now().Add(WriteDeadline))
 	if err := json.NewEncoder(stream).Encode(ack); err != nil {
 		log.Printf("MQ: ack write error to %s: %v", remotePeer[:8], err)
 		// Continue dispatching even if ACK write failed.

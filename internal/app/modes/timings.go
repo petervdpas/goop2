@@ -10,5 +10,4 @@ const (
 	PruneCheckInterval        = 1 * time.Second
 	ConfigRereadInterval      = 300 // in prune ticks (= 5 minutes at 1s tick)
 	MQCallSignalTimeout       = 2 * time.Second
-	MQClusterSendTimeout      = 3 * time.Second
 )

@@ -1,7 +1,6 @@
 package listen
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -13,15 +12,7 @@ func (m *Manager) sendControl(msg ControlMsg) {
 	if m.group == nil {
 		return
 	}
-	payload := map[string]any{
-		"app_type": "listen",
-		"listen":   msg,
-	}
-	if m.group.Role == "host" {
-		_ = m.grp.SendToGroupAsHost(m.group.ID, payload)
-	} else {
-		_ = m.grp.SendToGroup(m.group.ID, payload)
-	}
+	_ = m.grp.SendControl(m.group.ID, "listen", msg)
 }
 
 // OnCreate is called when a listen group is created.
@@ -178,38 +169,14 @@ func (m *Manager) OnEvent(evt *group.Event) {
 }
 
 func (m *Manager) handleMembersEvent(evt *group.Event) {
-	mp, ok := evt.Payload.(map[string]any)
-	if !ok {
-		return
-	}
-	members, ok := mp["members"].([]any)
-	if !ok {
-		return
-	}
-
 	m.mu.Lock()
 
-	oldSet := make(map[string]bool, len(m.group.Listeners))
-	for _, pid := range m.group.Listeners {
-		oldSet[pid] = true
+	members, hasNewListeners := group.ParseMembers(evt.Payload, m.selfID, m.group.Listeners)
+	if members == nil {
+		m.mu.Unlock()
+		return
 	}
-
-	m.group.Listeners = make([]string, 0, len(members))
-	for _, member := range members {
-		if mi, ok := member.(map[string]any); ok {
-			if pid, ok := mi["peer_id"].(string); ok && pid != m.selfID {
-				m.group.Listeners = append(m.group.Listeners, pid)
-			}
-		}
-	}
-
-	hasNewListeners := false
-	for _, pid := range m.group.Listeners {
-		if !oldSet[pid] {
-			hasNewListeners = true
-			break
-		}
-	}
+	m.group.Listeners = members
 
 	var syncTrack *Track
 	var syncQueue []string
@@ -258,22 +225,8 @@ func (m *Manager) handleMembersEvent(evt *group.Event) {
 }
 
 func (m *Manager) handleControlEvent(payload any) {
-	mp, ok := payload.(map[string]any)
-	if !ok {
-		return
-	}
-
-	listenRaw, ok := mp["listen"]
-	if !ok {
-		return
-	}
-
-	data, err := json.Marshal(listenRaw)
-	if err != nil {
-		return
-	}
 	var ctrl ControlMsg
-	if err := json.Unmarshal(data, &ctrl); err != nil {
+	if !group.ParseControl(payload, "listen", &ctrl) {
 		return
 	}
 

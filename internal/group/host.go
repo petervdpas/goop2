@@ -104,7 +104,7 @@ func (m *Manager) CloseGroup(groupID string) error {
 		}
 		pid := mi.PeerID
 		go func(p string) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), SendTimeout)
 			defer cancel()
 			_, _ = m.mq.Send(ctx, p, "group:"+groupID+":"+TypeClose, Message{Type: TypeClose, Group: groupID})
 		}(pid)
@@ -154,7 +154,7 @@ func (m *Manager) KickMember(groupID, peerID string) error {
 	}
 
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), SendTimeout)
 		defer cancel()
 		_, _ = m.mq.Send(ctx, peerID, "group:"+groupID+":"+TypeClose, Message{Type: TypeClose, Group: groupID})
 	}()
@@ -373,7 +373,7 @@ func (m *Manager) broadcastToGroup(hg *hostedGroup, groupID, msgType string, pay
 		}
 		pid := mi.PeerID
 		go func(p string) {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), BroadcastTimeout)
 			defer cancel()
 			if _, err := m.mq.Send(ctx, p, "group:"+groupID+":"+msgType, payload); err != nil {
 				log.Printf("GROUP: MQ send to %s failed: %v, removing from group", shortID(p), err)
@@ -442,7 +442,7 @@ func (m *Manager) pingGroupLoop(ctx context.Context, groupID string) {
 				}
 				pid := mi.PeerID
 				go func(p string) {
-					sendCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+					sendCtx, cancel := context.WithTimeout(context.Background(), BroadcastTimeout)
 					defer cancel()
 					if _, err := m.mq.Send(sendCtx, p, "group:"+groupID+":"+TypePing, Message{Type: TypePing, Group: groupID}); err != nil {
 						log.Printf("GROUP: Ping to %s failed: %v, removing from group", shortID(p), err)
