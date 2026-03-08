@@ -221,7 +221,7 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 				libp2p.EnableHolePunching(),
 				libp2p.EnableAutoRelayWithStaticRelays([]peer.AddrInfo{*ri},
 					autorelay.WithBootDelay(0),
-					autorelay.WithBackoff(5*time.Second),
+					autorelay.WithBackoff(AutoRelayBackoff),
 				),
 				libp2p.ForceReachabilityPrivate(),
 			)
@@ -319,10 +319,10 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 			n.relayPeer = ri
 		}
 		// Extract timing from server-pushed config (0 = use default).
-		n.relayCleanupDelay = durOrDefault(relayInfo.CleanupDelaySec, 3*time.Second)
-		n.relayPollDeadline = durOrDefault(relayInfo.PollDeadlineSec, 25*time.Second)
-		n.relayConnectTimeout = durOrDefault(relayInfo.ConnectTimeoutSec, 15*time.Second)
-		n.relayRecoveryGrace = durOrDefault(relayInfo.RecoveryGraceSec, 5*time.Second)
+		n.relayCleanupDelay = durOrDefault(relayInfo.CleanupDelaySec, RelayCleanupDelay)
+		n.relayPollDeadline = durOrDefault(relayInfo.PollDeadlineSec, RelayPollDeadline)
+		n.relayConnectTimeout = durOrDefault(relayInfo.ConnectTimeoutSec, RelayConnectTimeout)
+		n.relayRecoveryGrace = durOrDefault(relayInfo.RecoveryGraceSec, RelayRecoveryGrace)
 	}
 
 	// Diagnostic protocol — the rendezvous server queries this via
@@ -865,21 +865,21 @@ func (n *Node) AddPeerAddrs(peerID string, addrs []string) {
 	}
 	ttl := n.presenceTTL
 	if ttl <= 0 {
-		ttl = 20 * time.Second
+		ttl = DirectAddrTTL
 	}
 	// Keep addresses in the peerstore long enough to survive a network
 	// switch.  Heartbeats refresh them, so a 2-minute floor is safe and
 	// means LAN addresses are still available when probing after switching
 	// from WAN→LAN (before mDNS rediscovers).
 	addrTTL := ttl
-	if addrTTL < 2*time.Minute {
-		addrTTL = 2 * time.Minute
+	if addrTTL < AddrTTLMin {
+		addrTTL = AddrTTLMin
 	}
 	if len(direct) > 0 {
 		n.Host.Peerstore().AddAddrs(pid, direct, addrTTL)
 	}
 	if len(circuit) > 0 {
-		n.Host.Peerstore().AddAddrs(pid, circuit, addrTTL*5)
+		n.Host.Peerstore().AddAddrs(pid, circuit, addrTTL)
 	}
 
 	// If the peer published no circuit address but we have a relay configured,
@@ -962,7 +962,7 @@ func (n *Node) ProbePeer(ctx context.Context, rawID string) {
 	// Cooldown: don't re-probe a peer that failed recently.
 	// This prevents multiple code paths from hammering an unreachable peer.
 	n.probeMu.Lock()
-	if last, ok := n.probeLastFail[rawID]; ok && time.Since(last) < 3*time.Second {
+	if last, ok := n.probeLastFail[rawID]; ok && time.Since(last) < ProbeCooldown {
 		n.probeMu.Unlock()
 		return
 	}
@@ -971,7 +971,7 @@ func (n *Node) ProbePeer(ctx context.Context, rawID string) {
 	if sw, ok := n.Host.Network().(*swarm.Swarm); ok {
 		sw.Backoff().Clear(pid)
 	}
-	probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	probeCtx, cancel := context.WithTimeout(ctx, ProbeTimeout)
 	defer cancel()
 	s, err := n.Host.NewStream(probeCtx, pid, protocol.ID(proto.ContentProtoID))
 	if err != nil {
@@ -1001,6 +1001,26 @@ func (n *Node) ProbePeer(ctx context.Context, rawID string) {
 		log.Printf("probe %s: REACHABLE", rawID[:16])
 	}
 	n.peers.SetReachable(rawID, true)
+
+	// If we have both direct and relay connections to this peer, close
+	// the relay ones. The ConnectedF handler does this for new connections,
+	// but a successful probe via an existing relay connection won't trigger it.
+	var hasDirect, hasRelay bool
+	for _, c := range n.Host.Network().ConnsToPeer(pid) {
+		if isCircuitAddr(c.RemoteMultiaddr()) {
+			hasRelay = true
+		} else {
+			hasDirect = true
+		}
+	}
+	if hasDirect && hasRelay {
+		for _, c := range n.Host.Network().ConnsToPeer(pid) {
+			if isCircuitAddr(c.RemoteMultiaddr()) {
+				log.Printf("probe: closing relay conn to %s (direct available)", pid.ShortString())
+				_ = c.Close()
+			}
+		}
+	}
 }
 
 // SubscribeConnectionEvents watches for new peer connections (e.g. mDNS)

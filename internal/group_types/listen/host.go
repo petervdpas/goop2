@@ -480,7 +480,7 @@ func (m *Manager) advanceQueue() {
 const syncPulseTicks = 10
 
 func (m *Manager) trackTimerGoroutine(stopCh chan struct{}) {
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(StreamPollInterval)
 	defer ticker.Stop()
 	var ticks int
 	for {
@@ -763,7 +763,7 @@ func (m *Manager) handleAudioStream(s network.Stream) {
 		defer cancel()
 
 		go func() {
-			ticker := time.NewTicker(500 * time.Millisecond)
+			ticker := time.NewTicker(StreamPollInterval)
 			defer ticker.Stop()
 			for {
 				select {

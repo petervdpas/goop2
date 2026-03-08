@@ -13,7 +13,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/petervdpas/goop2/internal/storage"
 
@@ -140,7 +139,7 @@ func doHTTPRequest(inv *invocationCtx, method, rawURL, payload string) (string, 
 	// Use an SSRF-safe client that pins DNS resolution in the dialer,
 	// eliminating the TOCTOU window of DNS rebinding attacks.
 	client := &http.Client{
-		Timeout:   10 * time.Second,
+		Timeout:   HTTPTimeout,
 		Transport: ssrfSafeTransport(),
 	}
 	resp, err := client.Do(req)

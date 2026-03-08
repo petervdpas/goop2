@@ -298,7 +298,7 @@ func (s *Server) handleServiceLogs(w http.ResponseWriter, r *http.Request) {
 		entries []string
 	}
 	ch := make(chan result, len(svcs))
-	client := &http.Client{Timeout: 2 * time.Second}
+	client := &http.Client{Timeout: HealthCheckTimeout}
 
 	for _, svc := range svcs {
 		go func(name, baseURL string) {
@@ -337,7 +337,7 @@ func (s *Server) handleServiceLogs(w http.ResponseWriter, r *http.Request) {
 
 // checkServiceHealth pings a service's /healthz endpoint.
 func checkServiceHealth(baseURL string) bool {
-	client := &http.Client{Timeout: 3 * time.Second}
+	client := &http.Client{Timeout: PulseTimeout}
 	resp, err := client.Get(util.NormalizeURL(baseURL) + "/healthz")
 	if err != nil {
 		return false
@@ -364,7 +364,7 @@ func topologyPath(name string) string {
 
 // fetchTopology calls a service's topology endpoint and decodes the response.
 func fetchTopology(baseURL, serviceName string) (topologyInfo, error) {
-	client := &http.Client{Timeout: 3 * time.Second}
+	client := &http.Client{Timeout: PulseTimeout}
 	resp, err := client.Get(util.NormalizeURL(baseURL) + topologyPath(serviceName))
 	if err != nil {
 		return topologyInfo{}, err

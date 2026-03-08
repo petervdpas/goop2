@@ -412,7 +412,7 @@ func (e *Engine) executeScript(ctx context.Context, inv *invocationCtx, proto *l
 		// Drain goroutine so it doesn't leak
 		select {
 		case <-ch:
-		case <-time.After(500 * time.Millisecond):
+		case <-time.After(ShutdownTimeout):
 		}
 		if memMon.wasExceeded() {
 			return "", fmt.Errorf("script killed: memory limit exceeded")
@@ -600,7 +600,7 @@ func (e *Engine) executeDataFunction(ctx context.Context, inv *invocationCtx, pr
 		closeL()
 		select {
 		case <-ch:
-		case <-time.After(500 * time.Millisecond):
+		case <-time.After(ShutdownTimeout):
 		}
 		if memMon.wasExceeded() {
 			return nil, fmt.Errorf("script killed: memory limit exceeded")

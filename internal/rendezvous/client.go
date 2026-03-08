@@ -380,7 +380,7 @@ func (c *Client) SubscribeEvents(ctx context.Context, onMsg func(proto.PresenceM
 		return
 	}
 
-	backoff := 250 * time.Millisecond
+	backoff := WSBackoff
 	for {
 		select {
 		case <-ctx.Done():
@@ -467,7 +467,7 @@ func (c *Client) ConnectWebSocket(ctx context.Context, peerID string, onMsg func
 		return
 	}
 
-	backoff := 250 * time.Millisecond
+	backoff := WSBackoff
 	for {
 		select {
 		case <-ctx.Done():
@@ -499,7 +499,7 @@ func (c *Client) ConnectWebSocket(ctx context.Context, peerID string, onMsg func
 					if c.probeWS(ctx, peerID) {
 						log.Printf("rendezvous: WS now available at %s, switching from SSE", c.BaseURL)
 						sseCancel()
-						backoff = 250 * time.Millisecond
+						backoff = WSBackoff
 						break
 					}
 					probeWait = WSProbeNextInterval

@@ -139,7 +139,7 @@ func StartRelay(port int, keyFile string, externalURL string, logFn func(string)
 	tracer := &relayTracer{logFn: logFn}
 	if _, err := relayv2.New(h, relayv2.WithResources(relayv2.Resources{
 		Limit: &relayv2.RelayLimit{
-			Duration: 30 * time.Minute,
+			Duration: RelayDuration,
 			Data:     1 << 24, // 16 MB
 		},
 		ReservationTTL:         time.Hour,

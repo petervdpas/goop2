@@ -284,7 +284,7 @@ func (s *Server) Topology() map[string]any {
 
 // cleanupStalePeers removes peers that haven't been seen in 30+ seconds
 func (s *Server) cleanupStalePeers(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(PunchCheckInterval)
 	defer ticker.Stop()
 
 	for {
@@ -327,7 +327,7 @@ func (s *Server) cleanupStalePeers(ctx context.Context) {
 			}
 
 			// Clean up stale punch cooldown entries (older than 5 minutes)
-			punchCutoff := time.Now().Add(-5 * time.Minute)
+			punchCutoff := time.Now().Add(-PunchCutoffAge)
 			s.mu.Lock()
 			for key, ts := range s.punchCooldowns {
 				if ts.Before(punchCutoff) {
@@ -363,7 +363,7 @@ func (s *Server) loadPeersFromDB() {
 // syncFromDB periodically merges peer state from SQLite so that peers
 // registered by other instances become visible.
 func (s *Server) syncFromDB(ctx context.Context) {
-	ticker := time.NewTicker(3 * time.Second)
+	ticker := time.NewTicker(RelayStatusInterval)
 	defer ticker.Stop()
 
 	var lastKnownMax int64

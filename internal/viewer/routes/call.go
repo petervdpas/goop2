@@ -202,7 +202,7 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager, mqMgr *mq.Manager) 
 				if !ok {
 					return
 				}
-				_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+				_ = conn.SetWriteDeadline(time.Now().Add(CallWriteDeadline))
 				if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
 					return
 				}
@@ -262,7 +262,7 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager, mqMgr *mq.Manager) 
 				if !ok {
 					return
 				}
-				_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+				_ = conn.SetWriteDeadline(time.Now().Add(CallWriteDeadline))
 				if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
 					return
 				}

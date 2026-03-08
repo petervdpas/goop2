@@ -16,6 +16,7 @@ const (
 	DefaultFetchTimeout   = 5 * time.Second
 	DefaultConnectTimeout = 3 * time.Second
 	ShortTimeout          = 2 * time.Second
+	PollInterval          = 100 * time.Millisecond
 )
 
 // NormalizeURL strips trailing slashes from a base URL.

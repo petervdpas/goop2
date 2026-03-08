@@ -28,7 +28,7 @@ func newRemoteBase(baseURL, adminToken string) remoteBase {
 	return remoteBase{
 		baseURL:    util.NormalizeURL(baseURL),
 		adminToken: adminToken,
-		client:     &http.Client{Timeout: 5 * time.Second},
+		client:     &http.Client{Timeout: PresenceClientTimeout},
 	}
 }
 

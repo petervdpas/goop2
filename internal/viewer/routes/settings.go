@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/petervdpas/goop2/internal/config"
 	"github.com/petervdpas/goop2/internal/ui/render"
@@ -173,23 +172,6 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			cfg.Presence.RelayKeyFile = rkf
 		}
 
-		// Relay timing
-		if v := getTrimmedPostFormValue(r.PostForm, "presence_relay_cleanup_delay_sec"); v != "" {
-			cfg.Presence.RelayCleanupDelaySec, _ = strconv.Atoi(v)
-		}
-		if v := getTrimmedPostFormValue(r.PostForm, "presence_relay_poll_deadline_sec"); v != "" {
-			cfg.Presence.RelayPollDeadlineSec, _ = strconv.Atoi(v)
-		}
-		if v := getTrimmedPostFormValue(r.PostForm, "presence_relay_connect_timeout_sec"); v != "" {
-			cfg.Presence.RelayConnectTimeoutSec, _ = strconv.Atoi(v)
-		}
-		if v := getTrimmedPostFormValue(r.PostForm, "presence_relay_refresh_interval_sec"); v != "" {
-			cfg.Presence.RelayRefreshIntervalSec, _ = strconv.Atoi(v)
-		}
-		if v := getTrimmedPostFormValue(r.PostForm, "presence_relay_recovery_grace_sec"); v != "" {
-			cfg.Presence.RelayRecoveryGraceSec, _ = strconv.Atoi(v)
-		}
-
 		// Services toggle + URLs + admin tokens
 		cfg.Presence.UseServices = formBool(r.PostForm, "presence_use_services")
 		cfg.Presence.CreditsURL = getTrimmedPostFormValue(r.PostForm, "presence_credits_url")
@@ -230,7 +212,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			return
 		}
 
-		client := &http.Client{Timeout: 3 * time.Second}
+		client := &http.Client{Timeout: ServiceCheckTimeout}
 
 		var rvStatus []map[string]any
 		for _, c := range d.RVClients {
@@ -294,7 +276,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 		req.Header.Set("Content-Type", "application/json")
 
-		client := &http.Client{Timeout: 10 * time.Second}
+		client := &http.Client{Timeout: BridgeCheckTimeout}
 		resp, err := client.Do(req)
 		if err != nil {
 			writeJSON(w, map[string]string{"error": fmt.Sprintf("bridge request failed: %v", err)})
@@ -324,7 +306,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			writeJSON(w, map[string]interface{}{"error": "no url"})
 			return
 		}
-		client := &http.Client{Timeout: 5 * time.Second}
+		client := &http.Client{Timeout: ProxyTimeout}
 		resp, err := client.Get(strings.TrimRight(rvURL, "/") + "/api/capabilities")
 		if err != nil {
 			writeJSON(w, map[string]interface{}{"error": "unreachable"})
@@ -361,7 +343,7 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			"encryption":   "/api/encryption/status",
 		}
 
-		client := &http.Client{Timeout: 3 * time.Second}
+		client := &http.Client{Timeout: ServiceCheckTimeout}
 		result := fetchServiceHealth(client, svcURL, statusPaths[svcType], []string{"dummy_mode"})
 		if !result["ok"].(bool) {
 			result["error"] = "not reachable"

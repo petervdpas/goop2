@@ -31,7 +31,7 @@ func setAuthHeader(req *http.Request, token string) {
 func fetchCachedStatus(mu *sync.RWMutex, cachedAt *time.Time,
 	client *http.Client, url, logPrefix string, result any, apply func()) {
 
-	const cacheTTL = 30 * time.Second
+	const cacheTTL = StatusCacheTTL
 
 	mu.RLock()
 	if time.Since(*cachedAt) < cacheTTL {

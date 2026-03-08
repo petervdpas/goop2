@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/petervdpas/goop2/internal/storage"
@@ -251,6 +252,9 @@ func (m *Manager) reconnectSubscriptions() {
 		return
 	}
 
+	// Reconnect all subscriptions in parallel — sequential reconnection
+	// blocks for N × ReconnectTimeout when multiple hosts are unreachable.
+	var wg sync.WaitGroup
 	for _, sub := range subs {
 		m.mu.RLock()
 		_, alreadyConnected := m.activeConns[sub.GroupID]
@@ -259,18 +263,23 @@ func (m *Manager) reconnectSubscriptions() {
 			continue
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), ReconnectTimeout)
-		err := m.RejoinSubscription(ctx, sub.HostPeerID, sub.GroupID)
-		cancel()
+		wg.Add(1)
+		go func(s storage.SubscriptionRow) {
+			defer wg.Done()
+			ctx, cancel := context.WithTimeout(context.Background(), ReconnectTimeout)
+			err := m.RejoinSubscription(ctx, s.HostPeerID, s.GroupID)
+			cancel()
 
-		if err != nil {
-			msg := err.Error()
-			if i := strings.Index(msg, "\n"); i > 0 {
-				msg = msg[:i]
+			if err != nil {
+				msg := err.Error()
+				if i := strings.Index(msg, "\n"); i > 0 {
+					msg = msg[:i]
+				}
+				log.Printf("GROUP: Auto-reconnect to %s failed: %s", s.GroupID, msg)
+			} else {
+				log.Printf("GROUP: Auto-reconnected to group %s on host %s", s.GroupID, shortID(s.HostPeerID))
 			}
-			log.Printf("GROUP: Auto-reconnect to %s failed: %s", sub.GroupID, msg)
-		} else {
-			log.Printf("GROUP: Auto-reconnected to group %s on host %s", sub.GroupID, shortID(sub.HostPeerID))
-		}
+		}(sub)
 	}
+	wg.Wait()
 }

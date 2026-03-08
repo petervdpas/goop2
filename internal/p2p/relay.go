@@ -45,7 +45,7 @@ func (n *Node) hasCircuitAddr() bool {
 // This ensures the first publish includes relay addresses.
 func (n *Node) WaitForRelay(ctx context.Context, timeout time.Duration) bool {
 	deadline := time.After(timeout)
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(RelayWaitPoll)
 	defer ticker.Stop()
 
 	log.Printf("relay: waiting for circuit address...")
@@ -112,7 +112,7 @@ func (n *Node) SubscribeAddressChanges(ctx context.Context, onChange func(), onC
 							// after recovery grace period. Transient address
 							// reshuffles resolve within seconds.
 							select {
-							case <-time.After(n.relayRecoveryGrace + 3*time.Second):
+							case <-time.After(n.relayRecoveryGrace + RelayCleanupDelay):
 							case <-ctx.Done():
 								return
 							}
@@ -160,7 +160,7 @@ func (n *Node) refreshRelay(ctx context.Context, label string) bool {
 	if sw, ok := n.Host.Network().(*swarm.Swarm); ok {
 		sw.Backoff().Clear(n.relayPeer.ID)
 	}
-	n.Host.Peerstore().AddAddrs(n.relayPeer.ID, n.relayPeer.Addrs, 10*time.Minute)
+	n.Host.Peerstore().AddAddrs(n.relayPeer.ID, n.relayPeer.Addrs, PeerstoreAddrTTL)
 
 	connCtx, cancel := context.WithTimeout(ctx, n.relayConnectTimeout)
 	defer cancel()
@@ -173,7 +173,7 @@ func (n *Node) refreshRelay(ctx context.Context, label string) bool {
 	// internally, but we do it explicitly to (a) get the exact error if
 	// it fails, and (b) kick-start the reservation without waiting for
 	// AutoRelay's backoff timer.
-	resCtx, resCancel := context.WithTimeout(ctx, 15*time.Second)
+	resCtx, resCancel := context.WithTimeout(ctx, RelayReserveTimeout)
 	rsvp, resErr := relayv2client.Reserve(resCtx, n.Host, *n.relayPeer)
 	resCancel()
 	if resErr != nil {
@@ -184,7 +184,7 @@ func (n *Node) refreshRelay(ctx context.Context, label string) bool {
 	}
 
 	deadline := time.After(n.relayPollDeadline)
-	tick := time.NewTicker(500 * time.Millisecond)
+	tick := time.NewTicker(RelayWaitPoll)
 	defer tick.Stop()
 	for {
 		select {
@@ -229,7 +229,7 @@ func (n *Node) recoverRelay(ctx context.Context) {
 	defer n.relayRecoveryMu.Unlock()
 
 	// Retry with exponential backoff: 10s, 20s, 40s
-	delays := []time.Duration{0, 10 * time.Second, 20 * time.Second, 40 * time.Second}
+	delays := RelayRetryDelays
 	for i, delay := range delays {
 		if delay > 0 {
 			n.diag("relay: attempt %d failed, retrying in %s", i, delay)
@@ -292,7 +292,7 @@ func (n *Node) nudgeRelay() {
 	if sw, ok := n.Host.Network().(*swarm.Swarm); ok {
 		sw.Backoff().Clear(n.relayPeer.ID)
 	}
-	n.Host.Peerstore().AddAddrs(n.relayPeer.ID, n.relayPeer.Addrs, 10*time.Minute)
+	n.Host.Peerstore().AddAddrs(n.relayPeer.ID, n.relayPeer.Addrs, PeerstoreAddrTTL)
 
 	conns := n.Host.Network().ConnsToPeer(n.relayPeer.ID)
 	if len(conns) == 0 {
@@ -358,7 +358,7 @@ func (n *Node) injectRelayAddrs(pid peer.ID, logIt bool) {
 		if logIt {
 			n.diag("relay: injecting circuit addr for %s: %s", pid.ShortString(), circuitAddr)
 		}
-		n.Host.Peerstore().AddAddr(pid, circuitAddr, 10*time.Minute)
+		n.Host.Peerstore().AddAddr(pid, circuitAddr, PeerstoreAddrTTL)
 	}
 }
 

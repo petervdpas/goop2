@@ -50,7 +50,7 @@ func (m *memoryMonitor) watch(ctx context.Context, L *glua.LState, scriptName st
 	monCtx, cancel := context.WithCancel(ctx)
 
 	go func() {
-		ticker := time.NewTicker(100 * time.Millisecond)
+		ticker := time.NewTicker(MemCheckInterval)
 		defer ticker.Stop()
 
 		for {

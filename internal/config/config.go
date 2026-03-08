@@ -179,10 +179,10 @@ func Default() Config {
 			RelayPort:               0,
 			RelayKeyFile:            "data/relay.key",
 			RelayCleanupDelaySec:    3,
-			RelayPollDeadlineSec:    25,
-			RelayConnectTimeoutSec:  15,
+			RelayPollDeadlineSec:    10,
+			RelayConnectTimeoutSec:  5,
 			RelayRefreshIntervalSec: 90,
-			RelayRecoveryGraceSec:   3,
+			RelayRecoveryGraceSec:   5,
 		},
 		Profile: Profile{
 			Label: "hello",

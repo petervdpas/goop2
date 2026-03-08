@@ -115,7 +115,7 @@ func newSession(channelID, remotePeer string, sig Signaler, isOrigin bool, logFn
 			select {
 			case <-s.hangupCh:
 				return // normal path — call ended before 10 s
-			case <-time.After(10 * time.Second):
+			case <-time.After(ICEGatherTimeout):
 				// Check if the PC has made any progress (received an offer → pcState set)
 				s.mu.Lock()
 				started := s.remoteDescSet
@@ -359,7 +359,7 @@ func (s *Session) streamVideoTrack(track *webrtc.TrackRemote) {
 	// request the first keyframe.  After init: maintains keyframe cadence for
 	// packet-loss recovery and quality maintenance.
 	go func() {
-		ticker := time.NewTicker(2 * time.Second)
+		ticker := time.NewTicker(AudioCheckInterval)
 		defer ticker.Stop()
 		for {
 			select {
@@ -380,7 +380,7 @@ func (s *Session) streamVideoTrack(track *webrtc.TrackRemote) {
 
 	// Log stats periodically; exit on hangup.
 	go func() {
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(VideoCheckInterval)
 		defer ticker.Stop()
 		for {
 			select {
@@ -430,7 +430,7 @@ func (s *Session) streamAudioTrack(track *webrtc.TrackRemote) {
 
 	// Log stats periodically; exit on hangup.
 	go func() {
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(VideoCheckInterval)
 		defer ticker.Stop()
 		for {
 			select {

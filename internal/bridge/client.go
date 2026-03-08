@@ -38,7 +38,7 @@ func New(bridgeURL, email, token, peerID, label, publicKey string, encSupport bo
 		publicKey:  publicKey,
 		encSupport: encSupport,
 		peers:      peers,
-		httpClient: &http.Client{Timeout: 10 * time.Second},
+		httpClient: &http.Client{Timeout: HTTPClientTimeout},
 	}
 }
 
@@ -83,7 +83,7 @@ func (c *Client) Register(ctx context.Context) (string, error) {
 // Connect opens the WebSocket tunnel and processes events until ctx is cancelled.
 // Reconnects automatically on disconnect.
 func (c *Client) Connect(ctx context.Context, onPresence func(data json.RawMessage)) {
-	backoff := 500 * time.Millisecond
+	backoff := WSReconnectBackoff
 	for {
 		select {
 		case <-ctx.Done():
@@ -117,7 +117,7 @@ func (c *Client) connectOnce(ctx context.Context, onPresence func(data json.RawM
 	wsURL = strings.Replace(wsURL, "http://", "ws://", 1)
 	wsURL += "/api/bridge/ws/" + c.peerID
 
-	dialer := websocket.Dialer{HandshakeTimeout: 10 * time.Second}
+	dialer := websocket.Dialer{HandshakeTimeout: HTTPClientTimeout}
 	header := http.Header{}
 	header.Set("X-Goop-Email", c.email)
 	header.Set("X-Bridge-Token", c.token)
@@ -130,20 +130,20 @@ func (c *Client) connectOnce(ctx context.Context, onPresence func(data json.RawM
 
 	log.Printf("bridge ws: connected to %s", wsURL)
 
-	conn.SetReadDeadline(time.Now().Add(45 * time.Second))
+	conn.SetReadDeadline(time.Now().Add(WSReadDeadline))
 	conn.SetPongHandler(func(string) error {
-		conn.SetReadDeadline(time.Now().Add(45 * time.Second))
+		conn.SetReadDeadline(time.Now().Add(WSReadDeadline))
 		return nil
 	})
 
 	pingDone := make(chan struct{})
 	go func() {
-		ticker := time.NewTicker(15 * time.Second)
+		ticker := time.NewTicker(WSPingInterval)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+				conn.SetWriteDeadline(time.Now().Add(WSWriteDeadline))
 				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 					return
 				}
@@ -164,7 +164,7 @@ func (c *Client) connectOnce(ctx context.Context, onPresence func(data json.RawM
 		if err != nil {
 			return fmt.Errorf("bridge ws read: %w", err)
 		}
-		conn.SetReadDeadline(time.Now().Add(45 * time.Second))
+		conn.SetReadDeadline(time.Now().Add(WSReadDeadline))
 
 		var evt struct {
 			Type string          `json:"type"`

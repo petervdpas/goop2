@@ -491,7 +491,7 @@ func (s *Server) Start(ctx context.Context) error {
 		// likely have a broken reservation — log them so the admin can see it
 		// without clicking Diagnose on each peer.
 		go func() {
-			t := time.NewTicker(60 * time.Second)
+			t := time.NewTicker(PeerLogInterval)
 			defer t.Stop()
 			for {
 				select {
@@ -683,7 +683,7 @@ func (s *Server) Start(ctx context.Context) error {
 		_, _ = w.Write([]byte(": ok\n\n"))
 		flusher.Flush()
 
-		heartbeat := time.NewTicker(25 * time.Second)
+		heartbeat := time.NewTicker(WSHeartbeatInterval)
 		defer heartbeat.Stop()
 
 		for {
@@ -816,7 +816,7 @@ func (s *Server) Start(ctx context.Context) error {
 	s.srv = &http.Server{
 		Addr:              s.addr,
 		Handler:           mux,
-		ReadHeaderTimeout: 5 * time.Second,
+		ReadHeaderTimeout: ReadHeaderTimeout,
 	}
 
 	// Stop server when ctx ends

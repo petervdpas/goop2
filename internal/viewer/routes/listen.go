@@ -160,7 +160,7 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager, peerName func(string
 		flusher, _ := w.(http.Flusher)
 
 		buf := make([]byte, 4096)
-		ticker := time.NewTicker(500 * time.Millisecond)
+		ticker := time.NewTicker(ListenPollInterval)
 		defer ticker.Stop()
 		lastDataTime := time.Now()
 

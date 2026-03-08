@@ -5,6 +5,8 @@ import (
 	"log"
 	"net"
 	"time"
+
+	"github.com/petervdpas/goop2/internal/util"
 )
 
 func WaitTCP(addr string, timeout time.Duration) error {
@@ -15,7 +17,7 @@ func WaitTCP(addr string, timeout time.Duration) error {
 			_ = c.Close()
 			return nil
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(util.PollInterval)
 	}
 	return fmt.Errorf("timeout waiting for %s", addr)
 }
