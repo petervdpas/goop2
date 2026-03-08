@@ -195,7 +195,7 @@
       delete:  function ()    { return _delete('/api/avatar/delete'); },
       upload:  function (file) {
         var fd = new FormData();
-        fd.append('file', file);
+        fd.append('avatar', file);
         return _upload('/api/avatar/upload', fd);
       },
     },

@@ -59,13 +59,4 @@ func (c *Cache) Put(peerID, hash string, data []byte) error {
 	return os.WriteFile(c.hashPath(peerID), []byte(hash), 0644)
 }
 
-// HasHash returns true if the cached hash matches for this peer.
-func (c *Cache) HasHash(peerID, hash string) bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	stored, err := os.ReadFile(c.hashPath(peerID))
-	if err != nil {
-		return false
-	}
-	return string(stored) == hash
-}
+

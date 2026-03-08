@@ -188,7 +188,7 @@
           }
 
           var fd = new FormData();
-          fd.append('file', blob, 'avatar.png');
+          fd.append('avatar', blob, 'avatar.png');
 
           Goop.api.avatar.upload(blob)
             .then(function(data) {

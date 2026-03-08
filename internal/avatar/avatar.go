@@ -69,11 +69,6 @@ func (s *Store) Delete() error {
 	return err
 }
 
-// PeerDir returns the peer directory path (used by p2p avatar handler).
-func (s *Store) PeerDir() string {
-	return s.peerDir
-}
-
 func (s *Store) computeHash() string {
 	data, err := os.ReadFile(s.avatarPath())
 	if err != nil {

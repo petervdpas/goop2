@@ -1303,7 +1303,7 @@ func swagAvatarGet() {}
 //	@Tags		avatar
 //	@Accept		multipart/form-data
 //	@Produce	json
-//	@Param		file	formData	file	true	"Avatar image"
+//	@Param		avatar	formData	file	true	"Avatar image"
 //	@Success	200		{object}	map[string]any
 //	@Router		/api/avatar/upload [post]
 func swagAvatarUpload() {}
