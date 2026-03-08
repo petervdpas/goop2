@@ -2,9 +2,10 @@ package call
 
 import "time"
 
+// Native call stack (Pion WebRTC) timings.
 const (
-	ICEGatherTimeout    = 10 * time.Second
-	AudioCheckInterval  = 2 * time.Second
-	VideoCheckInterval  = 5 * time.Second
-	SelfViewInterval    = 5 * time.Second
+	ICEGatherTimeout   = 5 * time.Second // wait for ICE candidate gathering
+	AudioCheckInterval = 2 * time.Second // poll audio track liveness
+	VideoCheckInterval = 5 * time.Second // poll video track liveness
+	SelfViewInterval   = 5 * time.Second // self-view frame check
 )

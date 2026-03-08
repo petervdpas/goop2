@@ -2,8 +2,9 @@ package lua
 
 import "time"
 
+// Lua scripting engine timings.
 const (
-	HTTPTimeout      = 10 * time.Second
-	ShutdownTimeout  = 500 * time.Millisecond
-	MemCheckInterval = 100 * time.Millisecond
+	HTTPTimeout      = 5 * time.Second        // Lua http.get/post calls
+	ShutdownTimeout  = 500 * time.Millisecond // graceful VM shutdown wait
+	MemCheckInterval = 100 * time.Millisecond // memory limit enforcement poll
 )
