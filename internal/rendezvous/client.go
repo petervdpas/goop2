@@ -561,12 +561,10 @@ func isWSTooEarly(err error) bool {
 	return strings.Contains(err.Error(), "425")
 }
 
-// wsURL builds the WebSocket URL for this client.
-// Converts http(s):// to ws(s):// and enforces TLS for non-localhost.
-func (c *Client) wsURL(peerID string) string {
+func (c *Client) wsBase() string {
 	u := c.BaseURL
-	if strings.HasPrefix(u, "http://") {
-		host := strings.TrimPrefix(u, "http://")
+	if after, ok := strings.CutPrefix(u, "http://"); ok {
+		host := after
 		if idx := strings.Index(host, "/"); idx != -1 {
 			host = host[:idx]
 		}
@@ -574,31 +572,20 @@ func (c *Client) wsURL(peerID string) string {
 			host = h
 		}
 		if host != "127.0.0.1" && host != "localhost" && host != "::1" {
-			u = "https://" + strings.TrimPrefix(u, "http://")
+			u = "https://" + after
 		}
 	}
 	u = strings.Replace(u, "https://", "wss://", 1)
 	u = strings.Replace(u, "http://", "ws://", 1)
-	return u + "/ws?peer_id=" + peerID
+	return u + "/ws"
+}
+
+func (c *Client) wsURL(peerID string) string {
+	return c.wsBase() + "?peer_id=" + peerID
 }
 
 func (c *Client) wsProbeURL() string {
-	u := c.BaseURL
-	if strings.HasPrefix(u, "http://") {
-		host := strings.TrimPrefix(u, "http://")
-		if idx := strings.Index(host, "/"); idx != -1 {
-			host = host[:idx]
-		}
-		if h, _, err := net.SplitHostPort(host); err == nil {
-			host = h
-		}
-		if host != "127.0.0.1" && host != "localhost" && host != "::1" {
-			u = "https://" + strings.TrimPrefix(u, "http://")
-		}
-	}
-	u = strings.Replace(u, "https://", "wss://", 1)
-	u = strings.Replace(u, "http://", "ws://", 1)
-	return u + "/ws?probe=1"
+	return c.wsBase() + "?probe=1"
 }
 
 func (c *Client) connectWSOnce(ctx context.Context, peerID string, onMsg func(proto.PresenceMsg)) error {
@@ -608,9 +595,14 @@ func (c *Client) connectWSOnce(ctx context.Context, peerID string, onMsg func(pr
 		HandshakeTimeout: WSHandshakeTimeout,
 	}
 
-	conn, _, err := dialer.DialContext(ctx, wsURL, nil)
+	conn, resp, err := dialer.DialContext(ctx, wsURL, nil)
 	if err != nil {
-		return fmt.Errorf("ws dial %s: %w", wsURL, err)
+		status := 0
+		if resp != nil {
+			status = resp.StatusCode
+			resp.Body.Close()
+		}
+		return fmt.Errorf("ws dial %s (status %d): %w", wsURL, status, err)
 	}
 
 	sendCh := make(chan []byte, 64)

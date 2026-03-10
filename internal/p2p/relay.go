@@ -205,12 +205,14 @@ func (n *Node) refreshRelay(ctx context.Context, label string) bool {
 }
 
 // recoverRelay is called when the circuit address is lost (from
-// SubscribeAddressChanges). Gives AutoRelay a grace period to self-recover first.
+// SubscribeAddressChanges). Uses a graduated approach: nudge first (non-destructive),
+// then escalate to full refresh only if nudging doesn't work.
 func (n *Node) recoverRelay(ctx context.Context) {
 	if n.relayPeer == nil {
 		return
 	}
 
+	// Phase 1: give AutoRelay a chance to self-recover.
 	select {
 	case <-time.After(n.relayRecoveryGrace):
 	case <-ctx.Done():
@@ -222,13 +224,27 @@ func (n *Node) recoverRelay(ctx context.Context) {
 		return
 	}
 
+	// Phase 2: nudge — clear backoff and refresh peerstore without killing
+	// the existing connection. This lets AutoRelay retry immediately.
+	n.nudgeRelay()
+	select {
+	case <-time.After(n.relayRecoveryGrace):
+	case <-ctx.Done():
+		return
+	}
+
+	if n.hasCircuitAddr() {
+		n.diag("relay: recovered after nudge")
+		return
+	}
+
+	// Phase 3: destructive recovery — only if nudging didn't work.
 	if !n.relayRecoveryMu.TryLock() {
 		n.diag("relay: recovery already in progress, skipping")
 		return
 	}
 	defer n.relayRecoveryMu.Unlock()
 
-	// Retry with exponential backoff: 10s, 20s, 40s
 	delays := RelayRetryDelays
 	for i, delay := range delays {
 		if delay > 0 {
@@ -255,8 +271,9 @@ func (n *Node) recoverRelay(ctx context.Context) {
 	log.Printf("relay: all recovery attempts exhausted")
 }
 
-// StartRelayRefresh periodically checks the relay reservation and forces
-// a refresh only when the circuit address is missing.
+// StartRelayRefresh periodically checks the relay reservation and nudges
+// AutoRelay when the circuit address is missing. Only escalates to a full
+// destructive refresh if nudging fails twice.
 func (n *Node) StartRelayRefresh(ctx context.Context, interval time.Duration) {
 	if n.relayPeer == nil {
 		return
@@ -264,16 +281,25 @@ func (n *Node) StartRelayRefresh(ctx context.Context, interval time.Duration) {
 	go func() {
 		t := time.NewTicker(interval)
 		defer t.Stop()
+		nudgeCount := 0
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-t.C:
 				if n.hasCircuitAddr() {
-					continue // reservation healthy, nothing to do
+					nudgeCount = 0
+					continue
 				}
-				n.diag("relay: periodic check — no circuit address, refreshing")
-				n.ensureRelayReservation(ctx)
+				nudgeCount++
+				if nudgeCount <= 2 {
+					n.diag("relay: periodic check — no circuit address, nudging (%d)", nudgeCount)
+					n.nudgeRelay()
+				} else {
+					n.diag("relay: periodic check — nudge ineffective, full refresh")
+					n.ensureRelayReservation(ctx)
+					nudgeCount = 0
+				}
 			}
 		}
 	}()

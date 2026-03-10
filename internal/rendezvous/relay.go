@@ -72,7 +72,9 @@ func (t *relayTracer) ReservationAllowed(isRenewal bool) {
 }
 
 func (t *relayTracer) ReservationClosed(cnt int) {
-	t.logFn(fmt.Sprintf("reservation closed (%d remaining)", cnt))
+	if cnt > 0 {
+		t.logFn(fmt.Sprintf("reservation closed (%d expired)", cnt))
+	}
 }
 
 func (t *relayTracer) ReservationRequestHandled(status pbv2.Status) {
@@ -142,13 +144,13 @@ func StartRelay(port int, keyFile string, externalURL string, logFn func(string)
 			Duration: RelayDuration,
 			Data:     1 << 24, // 16 MB
 		},
-		ReservationTTL:         time.Hour,
-		MaxReservations:        128,
-		MaxCircuits:            64,
+		ReservationTTL:         RelayReservationTTL,
+		MaxReservations:        RelayMaxReservations,
+		MaxCircuits:            RelayMaxCircuits,
 		BufferSize:             4096,
-		MaxReservationsPerPeer: 8,
-		MaxReservationsPerIP:   16,
-		MaxReservationsPerASN:  64,
+		MaxReservationsPerPeer: RelayMaxPerPeer,
+		MaxReservationsPerIP:   RelayMaxPerIP,
+		MaxReservationsPerASN:  RelayMaxPerASN,
 	}), relayv2.WithMetricsTracer(tracer)); err != nil {
 		_ = h.Close()
 		return nil, nil, fmt.Errorf("relay service: %w", err)
@@ -163,11 +165,12 @@ func StartRelay(port int, keyFile string, externalURL string, logFn func(string)
 		info.Addrs = append(info.Addrs, a.String())
 	}
 
-	// If we have an external URL, resolve its hostname to an IP and prepend
-	// a public multiaddr so WAN peers can reach this relay.
+	// If we have an external URL, append a public multiaddr so WAN peers
+	// can reach this relay. LAN addresses come first so LAN peers connect
+	// directly without hairpin NAT (which routers may drop after idle timeout).
 	if externalURL != "" {
 		if pubAddr := buildPublicAddr(externalURL, port, h.ID().String()); pubAddr != "" {
-			info.Addrs = append([]string{pubAddr}, info.Addrs...)
+			info.Addrs = append(info.Addrs, pubAddr)
 		}
 	}
 
