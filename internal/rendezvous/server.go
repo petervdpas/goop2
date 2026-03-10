@@ -29,6 +29,7 @@ var embedded embed.FS
 const (
 	maxSSEClients      = 1024 // global SSE connection limit
 	maxSSEClientsPerIP = 10   // per-IP SSE connection limit
+	maxWSClientsPerIP  = 100  // per-IP WebSocket connection limit (cluster workers behind same NAT)
 )
 
 // RelayTimingConfig holds relay timing values from the config file.

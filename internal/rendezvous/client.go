@@ -483,6 +483,14 @@ func (c *Client) ConnectWebSocket(ctx context.Context, peerID string, onMsg func
 		c.wsMu.Unlock()
 
 		if err != nil {
+			if isWSTooEarly(err) {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(WSBackoff):
+				}
+				continue
+			}
 			if isWSUnsupported(err) {
 				log.Printf("rendezvous: WS unavailable at %s, using SSE (probing WS in %v)", c.BaseURL, WSProbeFirstInterval)
 				sseCtx, sseCancel := context.WithCancel(ctx)
@@ -545,6 +553,12 @@ func isWSUnsupported(err error) bool {
 		strings.Contains(s, "404") ||
 		strings.Contains(s, "403") ||
 		strings.Contains(s, "501")
+}
+
+// isWSTooEarly returns true if the server rejected the WS because the peer
+// hasn't published yet (425 Too Early). The client should retry shortly.
+func isWSTooEarly(err error) bool {
+	return strings.Contains(err.Error(), "425")
 }
 
 // wsURL builds the WebSocket URL for this client.

@@ -52,6 +52,33 @@ func (s *Server) handleWS(ctx context.Context, w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// Only allow peers that have published presence.
+	// New peers hit /publish first (HTTP POST), then connect WS.
+	// If a peer races and WS arrives before publish, the WS reconnect
+	// loop retries after 250ms — by which time publish has completed.
+	s.mu.Lock()
+	_, knownPeer := s.peers[peerID]
+	s.mu.Unlock()
+	if !knownPeer {
+		http.Error(w, "unknown peer — publish first", http.StatusTooEarly)
+		return
+	}
+
+	// Per-IP WebSocket connection limit.
+	remoteIP := extractIP(r.RemoteAddr)
+	s.wsClientsMu.RLock()
+	ipCount := 0
+	for _, wsc := range s.wsClients {
+		if extractIP(wsc.conn.RemoteAddr().String()) == remoteIP {
+			ipCount++
+		}
+	}
+	s.wsClientsMu.RUnlock()
+	if ipCount >= maxWSClientsPerIP {
+		http.Error(w, "too many WebSocket connections from this IP", http.StatusTooManyRequests)
+		return
+	}
+
 	conn, err := wsUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("ws: upgrade failed for %s: %v", peerID[:min(8, len(peerID))], err)

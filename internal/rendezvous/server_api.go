@@ -216,6 +216,12 @@ func (s *Server) handlePulse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ip := extractIP(r.RemoteAddr)
+	if !s.allowPublish(ip) {
+		http.Error(w, "rate limited", http.StatusTooManyRequests)
+		return
+	}
+
 	peerIDStr := r.URL.Query().Get("peer")
 	if peerIDStr == "" {
 		http.Error(w, "missing ?peer= parameter", http.StatusBadRequest)
