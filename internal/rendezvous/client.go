@@ -504,7 +504,7 @@ func (c *Client) ConnectWebSocket(ctx context.Context, peerID string, onMsg func
 						return
 					case <-time.After(probeWait):
 					}
-					if c.probeWS(ctx, peerID) {
+					if c.probeWS(ctx) {
 						log.Printf("rendezvous: WS now available at %s, switching from SSE", c.BaseURL)
 						sseCancel()
 						backoff = WSBackoff
@@ -530,8 +530,8 @@ func (c *Client) ConnectWebSocket(ctx context.Context, peerID string, onMsg func
 
 // probeWS checks if the server supports WebSocket without disrupting any
 // existing connection. Opens a WS, immediately closes it, returns success.
-func (c *Client) probeWS(ctx context.Context, peerID string) bool {
-	wsURL := c.wsURL(peerID)
+func (c *Client) probeWS(ctx context.Context) bool {
+	wsURL := c.wsProbeURL()
 	probeCtx, cancel := context.WithTimeout(ctx, WSProbeTimeout)
 	defer cancel()
 
@@ -580,6 +580,25 @@ func (c *Client) wsURL(peerID string) string {
 	u = strings.Replace(u, "https://", "wss://", 1)
 	u = strings.Replace(u, "http://", "ws://", 1)
 	return u + "/ws?peer_id=" + peerID
+}
+
+func (c *Client) wsProbeURL() string {
+	u := c.BaseURL
+	if strings.HasPrefix(u, "http://") {
+		host := strings.TrimPrefix(u, "http://")
+		if idx := strings.Index(host, "/"); idx != -1 {
+			host = host[:idx]
+		}
+		if h, _, err := net.SplitHostPort(host); err == nil {
+			host = h
+		}
+		if host != "127.0.0.1" && host != "localhost" && host != "::1" {
+			u = "https://" + strings.TrimPrefix(u, "http://")
+		}
+	}
+	u = strings.Replace(u, "https://", "wss://", 1)
+	u = strings.Replace(u, "http://", "ws://", 1)
+	return u + "/ws?probe=1"
 }
 
 func (c *Client) connectWSOnce(ctx context.Context, peerID string, onMsg func(proto.PresenceMsg)) error {

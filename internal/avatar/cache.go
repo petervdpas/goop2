@@ -59,4 +59,9 @@ func (c *Cache) Put(peerID, hash string, data []byte) error {
 	return os.WriteFile(c.hashPath(peerID), []byte(hash), 0644)
 }
 
-
+// Clear removes all cached files.
+func (c *Cache) Clear() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	os.RemoveAll(c.dir)
+}

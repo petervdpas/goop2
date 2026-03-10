@@ -630,5 +630,6 @@ func RunPeer(p PeerParams) error {
 	log.Println("========================================")
 	publish(context.Background(), proto.TypeOffline)
 	log.Println("PEER: Offline message sent")
+	avatarCache.Clear()
 	return nil
 }

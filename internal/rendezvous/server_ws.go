@@ -46,6 +46,17 @@ func (s *Server) sendToPeer(peerID string, msg []byte) bool {
 // The peer sends heartbeat/presence messages; the server pushes presence
 // updates and punch hints through the same connection.
 func (s *Server) handleWS(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("probe") == "1" {
+		conn, err := wsUpgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		conn.WriteMessage(websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseNormalClosure, "probe-ok"))
+		conn.Close()
+		return
+	}
+
 	peerID := r.URL.Query().Get("peer_id")
 	if peerID == "" {
 		http.Error(w, "peer_id required", http.StatusBadRequest)
