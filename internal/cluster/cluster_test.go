@@ -80,7 +80,6 @@ func TestQueueFailRetry(t *testing.T) {
 		t.Fatalf("expected 1 retry, got %d", js.Retries)
 	}
 
-	// Second failure
 	q.Assign(id, "w2")
 	q.Fail(id, "oops again")
 	js, _ = q.Get(id)
@@ -88,7 +87,6 @@ func TestQueueFailRetry(t *testing.T) {
 		t.Fatalf("expected pending after 2nd fail, got %s", js.Status)
 	}
 
-	// Third failure — exhausted
 	q.Assign(id, "w3")
 	q.Fail(id, "final fail")
 	js, _ = q.Get(id)
@@ -109,7 +107,6 @@ func TestQueueCancel(t *testing.T) {
 		t.Fatalf("expected cancelled, got %s", js.Status)
 	}
 
-	// Can't cancel again
 	if err := q.Cancel(id); err == nil {
 		t.Fatal("expected error cancelling terminal job")
 	}
@@ -132,14 +129,59 @@ func TestQueueStats(t *testing.T) {
 	}
 }
 
+func TestQueueUpdateProgress(t *testing.T) {
+	q := NewQueue()
+	id := q.Submit(Job{Type: "slow"})
+	q.Assign(id, "w1")
+	q.MarkRunning(id)
+
+	q.UpdateProgress(id, 42, "halfway there")
+	js, _ := q.Get(id)
+	if js.Progress != 42 {
+		t.Fatalf("expected progress 42, got %d", js.Progress)
+	}
+	if js.ProgressMsg != "halfway there" {
+		t.Fatalf("expected progress msg, got %q", js.ProgressMsg)
+	}
+}
+
+func TestQueueWorkerJobIDs(t *testing.T) {
+	q := NewQueue()
+	id1 := q.Submit(Job{Type: "a"})
+	id2 := q.Submit(Job{Type: "b"})
+	q.Submit(Job{Type: "c"})
+
+	q.Assign(id1, "w1")
+	q.Assign(id2, "w1")
+
+	ids := q.WorkerJobIDs("w1")
+	if len(ids) != 2 {
+		t.Fatalf("expected 2 jobs for w1, got %d", len(ids))
+	}
+}
+
 // ── Scheduler tests ─────────────────────────────────────────────────────────
 
-func TestSchedulerDispatch(t *testing.T) {
+func TestSchedulerDispatchOnlyVerified(t *testing.T) {
+	q := NewQueue()
+	q.Submit(Job{Type: "render", Priority: 1})
+
+	sendFn := func(peerID, topic string, payload any) error {
+		t.Fatal("should not dispatch to unverified worker")
+		return nil
+	}
+
+	s := NewScheduler(q, sendFn)
+	s.AddWorker("peer-A")
+	s.dispatch("test-group")
+}
+
+func TestSchedulerDispatchVerified(t *testing.T) {
 	q := NewQueue()
 	jobID := q.Submit(Job{Type: "render", Priority: 1})
 
 	var mu sync.Mutex
-	sent := make(map[string]string) // peerID → topic
+	sent := make(map[string]string)
 
 	sendFn := func(peerID, topic string, payload any) error {
 		mu.Lock()
@@ -150,8 +192,7 @@ func TestSchedulerDispatch(t *testing.T) {
 
 	s := NewScheduler(q, sendFn)
 	s.AddWorker("peer-A")
-
-	// Manually call dispatch instead of running the loop
+	s.SetWorkerVerified("peer-A", true, []string{"render"}, 1)
 	s.dispatch("test-group")
 
 	mu.Lock()
@@ -165,7 +206,6 @@ func TestSchedulerDispatch(t *testing.T) {
 		t.Fatalf("unexpected topic: %s", topic)
 	}
 
-	// Job should be assigned now
 	js, _ := q.Get(jobID)
 	if js.Status != StatusAssigned {
 		t.Fatalf("expected assigned, got %s", js.Status)
@@ -185,7 +225,7 @@ func TestSchedulerNoIdleWorkers(t *testing.T) {
 	}
 
 	s := NewScheduler(q, sendFn)
-	s.dispatch("g1") // no workers registered — should be a no-op
+	s.dispatch("g1")
 }
 
 func TestSchedulerRemoveWorker(t *testing.T) {
@@ -199,24 +239,76 @@ func TestSchedulerRemoveWorker(t *testing.T) {
 
 	s := NewScheduler(q, sendFn)
 	s.AddWorker("peer-A")
+	s.SetWorkerVerified("peer-A", true, nil, 1)
 	s.RemoveWorker("peer-A")
 	s.dispatch("g1")
 }
 
+func TestSchedulerWorkerBinaryTracking(t *testing.T) {
+	q := NewQueue()
+	s := NewScheduler(q, func(string, string, any) error { return nil })
+
+	s.AddWorker("peer-A")
+	s.SetWorkerBinary("peer-A", "/usr/bin/renderer", "oneshot")
+
+	workers := s.Workers()
+	if len(workers) != 1 {
+		t.Fatalf("expected 1 worker, got %d", len(workers))
+	}
+	if workers[0].BinaryPath != "/usr/bin/renderer" {
+		t.Fatalf("expected binary path, got %q", workers[0].BinaryPath)
+	}
+	if workers[0].BinaryMode != "oneshot" {
+		t.Fatalf("expected oneshot mode, got %q", workers[0].BinaryMode)
+	}
+	if workers[0].Verified {
+		t.Fatal("expected unverified before SetWorkerVerified")
+	}
+}
+
 // ── Worker tests ────────────────────────────────────────────────────────────
+
+func TestWorkerSetBinary(t *testing.T) {
+	sendFn := func(peerID, topic string, payload any) error { return nil }
+	w := NewWorker(sendFn, "g1")
+
+	if err := w.SetBinary("/usr/bin/compute", "oneshot"); err != nil {
+		t.Fatalf("SetBinary: %v", err)
+	}
+	if w.BinaryPath() != "/usr/bin/compute" {
+		t.Fatalf("expected path, got %q", w.BinaryPath())
+	}
+	if w.BinaryMode() != "oneshot" {
+		t.Fatalf("expected oneshot, got %q", w.BinaryMode())
+	}
+
+	if err := w.SetBinary("", "oneshot"); err == nil {
+		t.Fatal("expected error for empty path")
+	}
+	if err := w.SetBinary("/bin/x", "bogus"); err == nil {
+		t.Fatal("expected error for invalid mode")
+	}
+}
+
+func TestWorkerSetBinaryDefaultsToOneshot(t *testing.T) {
+	sendFn := func(peerID, topic string, payload any) error { return nil }
+	w := NewWorker(sendFn, "g1")
+
+	if err := w.SetBinary("/usr/bin/compute", ""); err != nil {
+		t.Fatalf("SetBinary: %v", err)
+	}
+	if w.BinaryMode() != "oneshot" {
+		t.Fatalf("expected oneshot default, got %q", w.BinaryMode())
+	}
+}
 
 func TestWorkerHandleJob(t *testing.T) {
 	var mu sync.Mutex
-	messages := make([]map[string]any, 0)
+	var topics []string
 
 	sendFn := func(peerID, topic string, payload any) error {
 		mu.Lock()
-		data, _ := payload.(map[string]any)
-		messages = append(messages, map[string]any{
-			"peer":  peerID,
-			"topic": topic,
-			"data":  data,
-		})
+		topics = append(topics, topic)
 		mu.Unlock()
 		return nil
 	}
@@ -224,72 +316,34 @@ func TestWorkerHandleJob(t *testing.T) {
 	w := NewWorker(sendFn, "g1")
 	w.HandleJob("host-peer", Job{ID: "j1", Type: "echo", TimeoutS: 5})
 
-	// Job should be parked in pending
-	pending := w.PendingJobs()
-	if len(pending) != 1 {
-		t.Fatalf("expected 1 pending job, got %d", len(pending))
+	if w.RunningCount() != 1 {
+		t.Fatalf("expected 1 running, got %d", w.RunningCount())
+	}
+	if w.Status() != WorkerBusy {
+		t.Fatalf("expected busy, got %s", w.Status())
 	}
 
 	mu.Lock()
-	if len(messages) != 1 || messages[0]["topic"] != "cluster:g1:job:ack" {
-		t.Fatalf("expected 1 ack message, got %d messages", len(messages))
+	if len(topics) != 1 || topics[0] != "cluster:g1:job:ack" {
+		t.Fatalf("expected ack, got %v", topics)
 	}
 	mu.Unlock()
-
-	// Executor accepts the job
-	pj, err := w.AcceptJob("j1")
-	if err != nil {
-		t.Fatalf("accept: %v", err)
-	}
-	if pj.Job.Type != "echo" {
-		t.Fatalf("expected echo job, got %s", pj.Job.Type)
-	}
-	if len(w.PendingJobs()) != 0 {
-		t.Fatalf("expected 0 pending after accept")
-	}
-
-	// Executor reports result
-	if err := w.ReportResult("j1", true, map[string]any{"ok": true}, ""); err != nil {
-		t.Fatalf("result: %v", err)
-	}
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	if len(messages) < 2 {
-		t.Fatalf("expected at least 2 messages (ack + result), got %d", len(messages))
-	}
-
-	// Second message should be result
-	if messages[1]["topic"] != "cluster:g1:job:result" {
-		t.Fatalf("expected result topic, got %s", messages[1]["topic"])
-	}
-
-	if w.Status() != WorkerIdle {
-		t.Fatalf("expected idle after result, got %s", w.Status())
-	}
 }
 
 func TestWorkerCancel(t *testing.T) {
 	sendFn := func(peerID, topic string, payload any) error { return nil }
-
 	w := NewWorker(sendFn, "g1")
 	w.HandleJob("host", Job{ID: "j1", Type: "slow", TimeoutS: 60})
 
-	// Cancel pending job
 	w.Cancel("j1")
 
 	if w.RunningCount() != 0 {
-		t.Fatalf("expected 0 running jobs after cancel, got %d", w.RunningCount())
-	}
-	if len(w.PendingJobs()) != 0 {
-		t.Fatalf("expected 0 pending after cancel, got %d", len(w.PendingJobs()))
+		t.Fatalf("expected 0 after cancel, got %d", w.RunningCount())
 	}
 }
 
 func TestWorkerClose(t *testing.T) {
 	sendFn := func(peerID, topic string, payload any) error { return nil }
-
 	w := NewWorker(sendFn, "g1")
 	w.HandleJob("host", Job{ID: "j1", Type: "test", TimeoutS: 60})
 
@@ -299,12 +353,28 @@ func TestWorkerClose(t *testing.T) {
 	}
 }
 
+func TestWorkerVerified(t *testing.T) {
+	sendFn := func(peerID, topic string, payload any) error { return nil }
+	w := NewWorker(sendFn, "g1")
+
+	if w.Verified() {
+		t.Fatal("expected unverified initially")
+	}
+	w.SetVerified(true)
+	if !w.Verified() {
+		t.Fatal("expected verified after SetVerified(true)")
+	}
+	if w.Status() != WorkerIdle {
+		t.Fatalf("expected idle after verified, got %s", w.Status())
+	}
+}
+
 // ── Manager tests ───────────────────────────────────────────────────────────
 
 func TestManagerCreateAndJoinCluster(t *testing.T) {
 	sendFn := func(peerID, topic string, payload any) error { return nil }
 	subFn := func(fn func(from, topic string, payload any)) func() {
-		return func() {} // no-op unsubscribe
+		return func() {}
 	}
 
 	m := New("self", sendFn, subFn)
@@ -317,7 +387,6 @@ func TestManagerCreateAndJoinCluster(t *testing.T) {
 		t.Fatalf("expected host role, got %s", m.Role())
 	}
 
-	// Can't join while hosting
 	if err := m.JoinCluster("g2"); err == nil {
 		t.Fatal("expected error joining while already in cluster")
 	}
@@ -327,7 +396,6 @@ func TestManagerCreateAndJoinCluster(t *testing.T) {
 		t.Fatalf("expected empty role after leave, got %s", m.Role())
 	}
 
-	// Now can join
 	if err := m.JoinCluster("g2"); err != nil {
 		t.Fatalf("join failed: %v", err)
 	}
@@ -345,7 +413,6 @@ func TestManagerSubmitJob(t *testing.T) {
 	m := New("self", sendFn, subFn)
 	defer m.Close()
 
-	// Can't submit without being host
 	_, err := m.SubmitJob(Job{Type: "test"})
 	if err == nil {
 		t.Fatal("expected error submitting as non-host")
@@ -372,6 +439,29 @@ func TestManagerSubmitJob(t *testing.T) {
 	}
 }
 
+func TestManagerSetBinary(t *testing.T) {
+	sendFn := func(peerID, topic string, payload any) error { return nil }
+	subFn := func(fn func(from, topic string, payload any)) func() {
+		return func() {}
+	}
+
+	m := New("self", sendFn, subFn)
+	defer m.Close()
+
+	if err := m.SetBinary("/bin/x", "oneshot"); err == nil {
+		t.Fatal("expected error setting binary as non-worker")
+	}
+
+	m.JoinCluster("g1")
+
+	if err := m.SetBinary("/usr/bin/compute", "oneshot"); err != nil {
+		t.Fatalf("SetBinary failed: %v", err)
+	}
+	if m.BinaryPath() != "/usr/bin/compute" {
+		t.Fatalf("expected path, got %q", m.BinaryPath())
+	}
+}
+
 func TestManagerGroupEvents(t *testing.T) {
 	var mu sync.Mutex
 	sent := make(map[string]bool)
@@ -392,14 +482,17 @@ func TestManagerGroupEvents(t *testing.T) {
 	m.CreateCluster("g1")
 	m.SubmitJob(Job{Type: "test"})
 
-	// Simulate worker join
 	m.HandleGroupEvent(&GroupEvent{
 		Type:  "join",
 		Group: "g1",
 		From:  "worker-1",
 	})
 
-	// Give scheduler time to dispatch
+	// Verify worker, then give scheduler time to dispatch
+	m.mu.Lock()
+	m.scheduler.SetWorkerVerified("worker-1", true, nil, 1)
+	m.mu.Unlock()
+
 	time.Sleep(200 * time.Millisecond)
 
 	mu.Lock()
@@ -407,7 +500,7 @@ func TestManagerGroupEvents(t *testing.T) {
 	mu.Unlock()
 
 	if !dispatched {
-		t.Fatal("expected job to be dispatched to worker-1 after join")
+		t.Fatal("expected job to be dispatched to worker-1 after join+verify")
 	}
 
 	workers := m.GetWorkers()
@@ -415,7 +508,6 @@ func TestManagerGroupEvents(t *testing.T) {
 		t.Fatalf("expected 1 worker, got %d", len(workers))
 	}
 
-	// Simulate worker leave
 	m.HandleGroupEvent(&GroupEvent{
 		Type:  "leave",
 		Group: "g1",
@@ -443,19 +535,16 @@ func TestHandlerJobAckAndResult(t *testing.T) {
 	m.CreateCluster("g1")
 	id, _ := m.SubmitJob(Job{Type: "test"})
 
-	// Manually assign to simulate scheduler
 	m.mu.Lock()
 	m.queue.Assign(id, "worker-1")
 	m.mu.Unlock()
 
-	// Simulate ack
 	m.handleClusterMessage("worker-1", "job:ack", map[string]any{"job_id": id})
 	js, _ := m.queue.Get(id)
 	if js.Status != StatusRunning {
 		t.Fatalf("expected running after ack, got %s", js.Status)
 	}
 
-	// Simulate result
 	m.handleClusterMessage("worker-1", "job:result", map[string]any{
 		"job_id": id,
 		"status": "completed",
@@ -464,5 +553,72 @@ func TestHandlerJobAckAndResult(t *testing.T) {
 	js, _ = m.queue.Get(id)
 	if js.Status != StatusCompleted {
 		t.Fatalf("expected completed, got %s", js.Status)
+	}
+}
+
+func TestHandlerProgressStored(t *testing.T) {
+	sendFn := func(peerID, topic string, payload any) error { return nil }
+	subFn := func(fn func(from, topic string, payload any)) func() {
+		return func() {}
+	}
+
+	m := New("host", sendFn, subFn)
+	defer m.Close()
+
+	m.CreateCluster("g1")
+	id, _ := m.SubmitJob(Job{Type: "slow"})
+
+	m.mu.Lock()
+	m.queue.Assign(id, "worker-1")
+	m.queue.MarkRunning(id)
+	m.mu.Unlock()
+
+	m.handleClusterMessage("worker-1", "job:progress", map[string]any{
+		"job_id":  id,
+		"percent": float64(55),
+		"message": "more than half",
+	})
+
+	js, _ := m.queue.Get(id)
+	if js.Progress != 55 {
+		t.Fatalf("expected progress 55, got %d", js.Progress)
+	}
+	if js.ProgressMsg != "more than half" {
+		t.Fatalf("expected progress msg, got %q", js.ProgressMsg)
+	}
+}
+
+func TestHandlerWorkerVerified(t *testing.T) {
+	sendFn := func(peerID, topic string, payload any) error { return nil }
+	subFn := func(fn func(from, topic string, payload any)) func() {
+		return func() {}
+	}
+
+	m := New("host", sendFn, subFn)
+	defer m.Close()
+
+	m.CreateCluster("g1")
+
+	m.HandleGroupEvent(&GroupEvent{Type: "join", Group: "g1", From: "w1"})
+
+	m.handleClusterMessage("w1", "worker:verified", map[string]any{
+		"ok":       true,
+		"types":    []any{"render", "transcode"},
+		"capacity": float64(4),
+	})
+
+	workers := m.GetWorkers()
+	if len(workers) != 1 {
+		t.Fatalf("expected 1 worker, got %d", len(workers))
+	}
+	w := workers[0]
+	if !w.Verified {
+		t.Fatal("expected verified")
+	}
+	if w.Capacity != 4 {
+		t.Fatalf("expected capacity 4, got %d", w.Capacity)
+	}
+	if len(w.JobTypes) != 2 || w.JobTypes[0] != "render" {
+		t.Fatalf("expected types [render transcode], got %v", w.JobTypes)
 	}
 }

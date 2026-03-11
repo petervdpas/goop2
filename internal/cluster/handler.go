@@ -2,8 +2,6 @@ package cluster
 
 import "log"
 
-// handleGroupEvent processes group membership events.
-// Called by the manager when a group.Handler event arrives.
 func (m *Manager) handleGroupEvent(evt *GroupEvent) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -22,9 +20,7 @@ func (m *Manager) handleGroupEvent(evt *GroupEvent) {
 		if m.role == roleHost && evt.From != m.selfID {
 			log.Printf("CLUSTER: worker left: %s", evt.From)
 			m.scheduler.RemoveWorker(evt.From)
-			// Re-queue any job assigned to this worker
-			jobID := m.queue.WorkerJobID(evt.From)
-			if jobID != "" {
+			for _, jobID := range m.queue.WorkerJobIDs(evt.From) {
 				m.queue.Fail(jobID, "worker left")
 			}
 		}
@@ -34,10 +30,9 @@ func (m *Manager) handleGroupEvent(evt *GroupEvent) {
 	}
 }
 
-// handleClusterMessage routes incoming job protocol messages.
 func (m *Manager) handleClusterMessage(from, msgType string, payload any) {
 	m.mu.Lock()
-	role := m.role
+	r := m.role
 	m.mu.Unlock()
 
 	data, _ := payload.(map[string]any)
@@ -46,8 +41,7 @@ func (m *Manager) handleClusterMessage(from, msgType string, payload any) {
 	}
 
 	switch {
-	// Host receives from workers
-	case role == roleHost:
+	case r == roleHost:
 		switch msgType {
 		case "job:ack":
 			jobID, _ := data["job_id"].(string)
@@ -71,16 +65,34 @@ func (m *Manager) handleClusterMessage(from, msgType string, payload any) {
 				m.scheduler.UpdateWorkerStatus(from, WorkerIdle)
 			}
 		case "job:progress":
-			// v1: log only
 			jobID, _ := data["job_id"].(string)
-			log.Printf("CLUSTER: progress for job %s from %s", jobID, from)
+			pct, _ := data["percent"].(float64)
+			msg, _ := data["message"].(string)
+			if jobID != "" {
+				m.queue.UpdateProgress(jobID, int(pct), msg)
+			}
+		case "worker:verified":
+			ok, _ := data["ok"].(bool)
+			capacity, _ := data["capacity"].(float64)
+			var types []string
+			if raw, _ := data["types"].([]any); raw != nil {
+				for _, v := range raw {
+					if s, _ := v.(string); s != "" {
+						types = append(types, s)
+					}
+				}
+			}
+			m.scheduler.SetWorkerVerified(from, ok, types, int(capacity))
+		case "worker:binary":
+			path, _ := data["path"].(string)
+			mode, _ := data["mode"].(string)
+			m.scheduler.SetWorkerBinary(from, path, mode)
 		case "worker:status":
 			statusStr, _ := data["status"].(string)
 			m.scheduler.UpdateWorkerStatus(from, WorkerStatus(statusStr))
 		}
 
-	// Worker receives from host
-	case role == roleWorker:
+	case r == roleWorker:
 		switch msgType {
 		case "job:assign":
 			jobID, _ := data["job_id"].(string)

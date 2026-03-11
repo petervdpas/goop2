@@ -9,18 +9,15 @@ import (
 	"encoding/hex"
 )
 
-// Queue manages jobs on the host side.
 type Queue struct {
 	mu   sync.Mutex
 	jobs map[string]*JobState
 }
 
-// NewQueue creates an empty job queue.
 func NewQueue() *Queue {
 	return &Queue{jobs: make(map[string]*JobState)}
 }
 
-// Submit adds a job to the queue and returns its assigned ID.
 func (q *Queue) Submit(job Job) string {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -36,7 +33,6 @@ func (q *Queue) Submit(job Job) string {
 	return job.ID
 }
 
-// Cancel marks a job as cancelled. Returns error if not found or already done.
 func (q *Queue) Cancel(jobID string) error {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -54,7 +50,6 @@ func (q *Queue) Cancel(jobID string) error {
 	return nil
 }
 
-// NextPending returns the highest-priority pending job, or nil if none.
 func (q *Queue) NextPending() *Job {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -75,7 +70,6 @@ func (q *Queue) NextPending() *Job {
 	return &j
 }
 
-// Assign marks a job as assigned to a worker.
 func (q *Queue) Assign(jobID, workerID string) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -89,7 +83,6 @@ func (q *Queue) Assign(jobID, workerID string) {
 	js.StartedAt = time.Now()
 }
 
-// MarkRunning transitions a job from assigned to running.
 func (q *Queue) MarkRunning(jobID string) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -103,7 +96,6 @@ func (q *Queue) MarkRunning(jobID string) {
 	}
 }
 
-// Complete marks a job as successfully completed.
 func (q *Queue) Complete(jobID string, result map[string]any) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -120,7 +112,6 @@ func (q *Queue) Complete(jobID string, result map[string]any) {
 	}
 }
 
-// Fail marks a job as failed. Re-queues if retries remain.
 func (q *Queue) Fail(jobID string, errMsg string) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -144,7 +135,18 @@ func (q *Queue) Fail(jobID string, errMsg string) {
 	}
 }
 
-// State returns a snapshot of all jobs.
+func (q *Queue) UpdateProgress(jobID string, pct int, msg string) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	js, ok := q.jobs[jobID]
+	if !ok {
+		return
+	}
+	js.Progress = pct
+	js.ProgressMsg = msg
+}
+
 func (q *Queue) State() []JobState {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -156,7 +158,6 @@ func (q *Queue) State() []JobState {
 	return out
 }
 
-// Get returns a single job state by ID.
 func (q *Queue) Get(jobID string) (JobState, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -168,7 +169,6 @@ func (q *Queue) Get(jobID string) (JobState, bool) {
 	return *js, true
 }
 
-// Stats returns aggregate counters.
 func (q *Queue) Stats() QueueStats {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -189,17 +189,17 @@ func (q *Queue) Stats() QueueStats {
 	return s
 }
 
-// WorkerJobID returns the job ID assigned to a worker, if any.
-func (q *Queue) WorkerJobID(workerID string) string {
+func (q *Queue) WorkerJobIDs(workerID string) []string {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
+	var ids []string
 	for _, js := range q.jobs {
 		if js.WorkerID == workerID && (js.Status == StatusAssigned || js.Status == StatusRunning) {
-			return js.Job.ID
+			ids = append(ids, js.Job.ID)
 		}
 	}
-	return ""
+	return ids
 }
 
 func generateID() string {

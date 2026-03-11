@@ -1,23 +1,34 @@
 openapi: "3.0.3"
 info:
-  title: Goop2 Cluster Executor API
+  title: Goop2 Cluster Binary Protocol
   description: |
-    Standalone contract for external executors that process jobs in a goop2 cluster.
+    Contract for binaries that execute jobs in a goop2 cluster.
 
-    An executor is any process — script, binary, container — that runs on the same
-    machine as a goop2 worker node. It talks to localhost only. goop2 handles all
-    P2P routing to the cluster host.
+    A binary is a child process started by the worker peer (goop2). It communicates
+    over stdin/stdout using newline-delimited JSON. The worker peer sends jobs on
+    stdin and reads results from stdout. The binary never touches the network —
+    goop2 handles all P2P routing to the cluster host.
 
     ## Lifecycle
 
     ```
-    1. Poll    GET  /api/cluster/job        → discover pending jobs
-    2. Claim   POST /api/cluster/accept     → claim a job for execution
-    3. Work    POST /api/cluster/progress   → report progress (repeat)
-    4. Done    POST /api/cluster/result     → report success or failure
-    5. Alive   POST /api/cluster/heartbeat  → periodic liveness + stats
+    1. Worker peer starts the binary
+    2. Worker peer sends check-job on stdin  → binary responds on stdout
+    3. Worker peer sends real jobs on stdin   → binary responds with progress/result on stdout
+    4. Worker peer kills binary on cancel or shutdown
     ```
-  version: "1.0.0"
+
+    ## Binary modes
+
+    - **oneshot** (default): started per job, exits after result
+    - **daemon**: started once, handles multiple jobs via newline-delimited JSON on stdin
+
+    ## Code examples
+
+    Complete working binaries in Bash, Python, Go, C, and C++:
+
+    **[View code examples](/api/executor-examples)**
+  version: "2.0.0"
   license:
     name: GPL-2.0-only
 
@@ -26,316 +37,346 @@ servers:
     description: Default goop2 viewer port
 
 paths:
-  /api/cluster/job:
-    get:
-      operationId: getJobs
-      summary: Fetch pending and accepted jobs
+  /api/cluster/binary:
+    post:
+      operationId: setBinary
+      summary: Set the binary path for this worker
       description: |
-        Returns jobs waiting to be claimed (pending) and jobs already claimed
-        by this or another executor (accepted). Poll this endpoint to discover
-        new work.
+        Sets the local binary that will execute jobs for this cluster. The binary
+        is a child process that speaks the goop2 cluster JSON protocol over
+        stdin/stdout. Setting the binary resets the verified flag — the worker
+        peer must re-run the check-job before the host dispatches real work.
       x-codeSamples:
         - lang: Bash
           source: |
-            curl -sf http://localhost:8787/api/cluster/job
+            curl -sf -X POST http://localhost:8787/api/cluster/binary \
+              -H 'Content-Type: application/json' \
+              -d '{"path":"/usr/bin/renderer","mode":"oneshot"}'
         - lang: Python
           source: |
             import requests
-            jobs = requests.get("http://localhost:8787/api/cluster/job").json()
-            for pj in jobs["pending"]:
-                print(f"Job {pj['job']['id']} type={pj['job']['type']}")
+            requests.post("http://localhost:8787/api/cluster/binary",
+                json={"path": "/usr/bin/renderer", "mode": "oneshot"})
         - lang: Go
           source: |
-            resp, _ := http.Get("http://localhost:8787/api/cluster/job")
-            var data struct {
-                Pending  []struct{ Job struct{ ID, Type string } }
-                Accepted []struct{ Job struct{ ID, Type string } }
-            }
-            json.NewDecoder(resp.Body).Decode(&data)
-            resp.Body.Close()
+            postJSON("http://localhost:8787/api/cluster/binary",
+                map[string]any{"path": "/usr/bin/renderer", "mode": "oneshot"})
         - lang: C
           source: |
-            /* libcurl + cJSON */
-            cJSON *data = http_get("http://localhost:8787/api/cluster/job");
-            cJSON *pending = cJSON_GetObjectItem(data, "pending");
-            int count = cJSON_GetArraySize(pending);
-            cJSON_Delete(data);
+            /* libcurl */
+            CURL *c = curl_easy_init();
+            struct curl_slist *h = curl_slist_append(NULL, "Content-Type: application/json");
+            curl_easy_setopt(c, CURLOPT_URL, "http://localhost:8787/api/cluster/binary");
+            curl_easy_setopt(c, CURLOPT_POSTFIELDS,
+                "{\"path\":\"/usr/bin/renderer\",\"mode\":\"oneshot\"}");
+            curl_easy_setopt(c, CURLOPT_HTTPHEADER, h);
+            curl_easy_perform(c);
+            curl_slist_free_all(h);
+            curl_easy_cleanup(c);
         - lang: C++
           source: |
             // libcurl + nlohmann/json
-            json data = http_get("http://localhost:8787/api/cluster/job");
-            for (auto& pj : data["pending"]) {
-                std::cout << pj["job"]["id"] << "\n";
+            json body = {{"path", "/usr/bin/renderer"}, {"mode", "oneshot"}};
+            post_json("http://localhost:8787/api/cluster/binary", body);
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BinaryRequest"
+      responses:
+        "200":
+          description: Binary path set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BinaryResponse"
+        "400":
+          description: Missing binary path
+        "409":
+          description: Not a cluster worker
+
+  /_protocol/check-job:
+    post:
+      operationId: checkJob
+      summary: "stdin/stdout: Check-job handshake"
+      tags: [Binary Protocol]
+      description: |
+        Not an HTTP endpoint — this documents the stdin/stdout check-job protocol.
+
+        The worker peer sends a check-job on stdin before dispatching real work.
+        The binary proves it speaks the protocol and reports its capabilities.
+      x-codeSamples:
+        - lang: Bash
+          source: |
+            # Read from stdin
+            read -r line
+            TYPE=$(echo "$line" | python3 -c "import sys,json; print(json.load(sys.stdin)['type'])")
+
+            if [ "$TYPE" = "__check__" ]; then
+              echo '{"status":"done","result":{"types":["render"],"version":"1.0"}}'
+            fi
+        - lang: Python
+          source: |
+            import sys, json
+
+            for line in sys.stdin:
+                job = json.loads(line)
+                if job["type"] == "__check__":
+                    print(json.dumps({
+                        "status": "done",
+                        "result": {
+                            "types": ["render", "transcode"],
+                            "version": "1.0",
+                            "capacity": 2
+                        }
+                    }), flush=True)
+        - lang: Go
+          source: |
+            scanner := bufio.NewScanner(os.Stdin)
+            for scanner.Scan() {
+                var job struct {
+                    Type string `json:"type"`
+                }
+                json.Unmarshal(scanner.Bytes(), &job)
+
+                if job.Type == "__check__" {
+                    json.NewEncoder(os.Stdout).Encode(map[string]any{
+                        "status": "done",
+                        "result": map[string]any{
+                            "types": []string{"render"}, "version": "1.0", "capacity": 4,
+                        },
+                    })
+                }
             }
-      responses:
-        "200":
-          description: Job lists
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/JobListResponse"
-
-  /api/cluster/accept:
-    post:
-      operationId: acceptJob
-      summary: Claim a pending job
-      description: |
-        Moves a job from pending to accepted. The executor is now responsible
-        for reporting progress and a final result. A job can only be accepted
-        once — subsequent calls return 409.
-      x-codeSamples:
-        - lang: Bash
-          source: |
-            curl -sf -X POST http://localhost:8787/api/cluster/accept \
-              -H 'Content-Type: application/json' \
-              -d '{"job_id":"j-a1b2c3d4"}'
-        - lang: Python
-          source: |
-            resp = requests.post("http://localhost:8787/api/cluster/accept",
-                json={"job_id": job_id})
-            job = resp.json()["job"]
-        - lang: Go
-          source: |
-            postJSON("http://localhost:8787/api/cluster/accept",
-                map[string]any{"job_id": jobID})
         - lang: C
           source: |
-            post_json("http://localhost:8787/api/cluster/accept",
-                "{\"job_id\":\"j-a1b2c3d4\"}");
+            char line[65536];
+            while (fgets(line, sizeof(line), stdin)) {
+                cJSON *job = cJSON_Parse(line);
+                const char *type = cJSON_GetObjectItem(job, "type")->valuestring;
+                if (strcmp(type, "__check__") == 0) {
+                    printf("{\"status\":\"done\",\"result\":"
+                           "{\"types\":[\"render\"],\"version\":\"1.0\"}}\n");
+                    fflush(stdout);
+                }
+                cJSON_Delete(job);
+            }
         - lang: C++
           source: |
-            post_json("http://localhost:8787/api/cluster/accept",
-                {{"job_id", job_id}});
+            std::string line;
+            while (std::getline(std::cin, line)) {
+                auto job = json::parse(line);
+                if (job["type"] == "__check__") {
+                    json result = {{"status","done"},{"result",{
+                        {"types", {"render","transcode"}},
+                        {"version","1.0"}, {"capacity",4}
+                    }}};
+                    std::cout << result.dump() << std::endl;
+                }
+            }
       requestBody:
-        required: true
+        description: "Worker peer writes to binary's stdin"
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AcceptRequest"
+              $ref: "#/components/schemas/JobInput"
+            example:
+              job_id: "__check__"
+              type: "__check__"
+              payload: {}
       responses:
         "200":
-          description: Job accepted
+          description: "Binary writes to stdout"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AcceptResponse"
-        "400":
-          description: Missing job_id
-        "409":
-          description: Not a worker, job not found, or already accepted
+                $ref: "#/components/schemas/DoneOutput"
+              example:
+                status: "done"
+                result:
+                  types: ["render", "transcode"]
+                  version: "1.0"
+                  capacity: 2
 
-  /api/cluster/progress:
+  /_protocol/job-execution:
     post:
-      operationId: reportProgress
-      summary: Report job progress
+      operationId: executeJob
+      summary: "stdin/stdout: Execute a job"
+      tags: [Binary Protocol]
       description: |
-        Send an intermediate progress update to the cluster host. Call this
-        as often as needed — the host relays it to its UI and any monitoring.
-        The stats field is free-form: use it for throughput, ETA, frame count,
-        or any executor-specific metrics.
+        Not an HTTP endpoint — this documents the stdin/stdout job execution protocol.
+
+        The worker peer sends a job on stdin. The binary does the work, optionally
+        writes progress lines to stdout, then writes exactly one done or error line.
       x-codeSamples:
         - lang: Bash
           source: |
-            curl -sf -X POST http://localhost:8787/api/cluster/progress \
-              -H 'Content-Type: application/json' \
-              -d '{"job_id":"j-a1b2c3d4","percent":42,"message":"rendering frame 84/200","stats":{"fps":2.4}}'
+            while IFS= read -r line; do
+              JOB_ID=$(echo "$line" | python3 -c "import sys,json; print(json.load(sys.stdin)['job_id'])")
+              TYPE=$(echo "$line" | python3 -c "import sys,json; print(json.load(sys.stdin)['type'])")
+
+              [ "$TYPE" = "__check__" ] && echo '{"status":"done","result":{}}' && continue
+
+              # Do work + progress
+              for pct in 25 50 75 100; do
+                sleep 1
+                echo "{\"status\":\"progress\",\"pct\":$pct,\"msg\":\"$pct%\"}"
+              done
+
+              # Final result
+              echo '{"status":"done","result":{"output":"complete"}}'
+            done
         - lang: Python
           source: |
-            requests.post("http://localhost:8787/api/cluster/progress",
-                json={
-                    "job_id": job_id,
-                    "percent": 42,
-                    "message": "rendering frame 84/200",
-                    "stats": {"fps": 2.4, "memory_mb": 1024},
-                })
+            import sys, json, time
+
+            for line in sys.stdin:
+                job = json.loads(line)
+                job_id = job["job_id"]
+
+                if job["type"] == "__check__":
+                    print(json.dumps({"status":"done","result":{"types":["render"]}}), flush=True)
+                    continue
+
+                # Do work + progress
+                for pct in range(25, 101, 25):
+                    time.sleep(1)
+                    print(json.dumps({"status":"progress","pct":pct,"msg":f"{pct}%"}), flush=True)
+
+                # Final result
+                try:
+                    result = do_work(job)  # your logic here
+                    print(json.dumps({"status":"done","result":result}), flush=True)
+                except Exception as e:
+                    print(json.dumps({"status":"error","error":str(e)}), flush=True)
         - lang: Go
           source: |
-            postJSON("http://localhost:8787/api/cluster/progress",
-                map[string]any{
-                    "job_id":  jobID,
-                    "percent": 42,
-                    "message": "rendering frame 84/200",
-                    "stats":   map[string]any{"fps": 2.4},
-                })
+            scanner := bufio.NewScanner(os.Stdin)
+            for scanner.Scan() {
+                var job struct {
+                    JobID   string         `json:"job_id"`
+                    Type    string         `json:"type"`
+                    Payload map[string]any `json:"payload"`
+                }
+                json.Unmarshal(scanner.Bytes(), &job)
+
+                if job.Type == "__check__" {
+                    emit(map[string]any{"status":"done","result":map[string]any{"types":[]string{"render"}}})
+                    continue
+                }
+
+                // Do work + progress
+                for pct := 25; pct <= 100; pct += 25 {
+                    time.Sleep(1 * time.Second)
+                    emit(map[string]any{"status":"progress","pct":pct,"msg":fmt.Sprintf("%d%%",pct)})
+                }
+
+                // Final result
+                emit(map[string]any{"status":"done","result":map[string]any{"output":"complete"}})
+            }
         - lang: C
           source: |
-            char body[512];
-            snprintf(body, sizeof(body),
-                "{\"job_id\":\"%s\",\"percent\":%d,\"message\":\"frame 84/200\"}",
-                job_id, 42);
-            post_json("http://localhost:8787/api/cluster/progress", body);
+            char line[65536];
+            while (fgets(line, sizeof(line), stdin)) {
+                cJSON *job = cJSON_Parse(line);
+                const char *type = cJSON_GetObjectItem(job, "type")->valuestring;
+
+                if (strcmp(type, "__check__") == 0) {
+                    printf("{\"status\":\"done\",\"result\":{\"types\":[\"render\"]}}\n");
+                    fflush(stdout);
+                    cJSON_Delete(job);
+                    continue;
+                }
+
+                // Do work + progress
+                for (int pct = 25; pct <= 100; pct += 25) {
+                    sleep(1);
+                    printf("{\"status\":\"progress\",\"pct\":%d,\"msg\":\"%d%%\"}\n", pct, pct);
+                    fflush(stdout);
+                }
+
+                printf("{\"status\":\"done\",\"result\":{\"output\":\"complete\"}}\n");
+                fflush(stdout);
+                cJSON_Delete(job);
+            }
         - lang: C++
           source: |
-            post_json("http://localhost:8787/api/cluster/progress", {
-                {"job_id", job_id}, {"percent", 42},
-                {"message", "rendering frame 84/200"},
-                {"stats", {{"fps", 2.4}}},
-            });
+            std::string line;
+            while (std::getline(std::cin, line)) {
+                auto job = json::parse(line);
+
+                if (job["type"] == "__check__") {
+                    std::cout << json{{"status","done"},{"result",{{"types",{"render"}}}}}.dump() << "\n";
+                    continue;
+                }
+
+                // Do work + progress
+                for (int pct = 25; pct <= 100; pct += 25) {
+                    std::this_thread::sleep_for(1s);
+                    std::cout << json{{"status","progress"},{"pct",pct},{"msg",std::to_string(pct)+"%"}}.dump() << "\n";
+                }
+
+                std::cout << json{{"status","done"},{"result",{{"output","complete"}}}}.dump() << std::endl;
+            }
       requestBody:
-        required: true
+        description: "Worker peer writes to binary's stdin"
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ProgressRequest"
+              $ref: "#/components/schemas/JobInput"
+            example:
+              job_id: "j-a1b2c3d4"
+              type: "render"
+              payload: { "scene": "intro.blend", "frame": 42 }
       responses:
         "200":
-          description: Progress recorded
+          description: "Binary writes to stdout (progress lines + final result)"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/StatusResponse"
-        "400":
-          description: Missing job_id
-        "409":
-          description: Not a worker or job not accepted
-
-  /api/cluster/result:
-    post:
-      operationId: reportResult
-      summary: Report job completion or failure
-      description: |
-        Send the final outcome. On success, include a result payload.
-        On failure, include an error message. The job is removed from the
-        accepted set after this call. goop2 relays the result to the host
-        which updates the queue and may re-dispatch on failure (if retries
-        remain).
-      x-codeSamples:
-        - lang: Bash
-          source: |
-            # Success
-            curl -sf -X POST http://localhost:8787/api/cluster/result \
-              -H 'Content-Type: application/json' \
-              -d '{"job_id":"j-a1b2c3d4","success":true,"result":{"frames":200}}'
-
-            # Failure
-            curl -sf -X POST http://localhost:8787/api/cluster/result \
-              -H 'Content-Type: application/json' \
-              -d '{"job_id":"j-a1b2c3d4","success":false,"error":"out of memory"}'
-        - lang: Python
-          source: |
-            # Success
-            requests.post("http://localhost:8787/api/cluster/result",
-                json={"job_id": job_id, "success": True,
-                      "result": {"frames": 200, "output": "/tmp/out.png"}})
-
-            # Failure
-            requests.post("http://localhost:8787/api/cluster/result",
-                json={"job_id": job_id, "success": False,
-                      "error": "out of memory"})
-        - lang: Go
-          source: |
-            // Success
-            postJSON("http://localhost:8787/api/cluster/result",
-                map[string]any{"job_id": jobID, "success": true,
-                    "result": map[string]any{"frames": 200}})
-
-            // Failure
-            postJSON("http://localhost:8787/api/cluster/result",
-                map[string]any{"job_id": jobID, "success": false,
-                    "error": "out of memory"})
-        - lang: C
-          source: |
-            /* Success */
-            post_json("http://localhost:8787/api/cluster/result",
-                "{\"job_id\":\"j-a1b2c3d4\",\"success\":true,"
-                "\"result\":{\"frames\":200}}");
-
-            /* Failure */
-            post_json("http://localhost:8787/api/cluster/result",
-                "{\"job_id\":\"j-a1b2c3d4\",\"success\":false,"
-                "\"error\":\"out of memory\"}");
-        - lang: C++
-          source: |
-            // Success
-            post_json("http://localhost:8787/api/cluster/result",
-                {{"job_id", job_id}, {"success", true},
-                 {"result", {{"frames", 200}}}});
-
-            // Failure
-            post_json("http://localhost:8787/api/cluster/result",
-                {{"job_id", job_id}, {"success", false},
-                 {"error", "out of memory"}});
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ResultRequest"
-      responses:
-        "200":
-          description: Result recorded
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StatusResponse"
-        "400":
-          description: Missing job_id
-        "409":
-          description: Not a worker or job not accepted
-
-  /api/cluster/heartbeat:
-    post:
-      operationId: sendHeartbeat
-      summary: Report executor liveness and stats
-      description: |
-        Periodic liveness signal with optional processing stats. The host uses
-        this to detect stale workers and display resource utilization. The stats
-        field is free-form — report whatever is relevant to your executor
-        (CPU, memory, GPU, queue depth, throughput, etc.).
-      x-codeSamples:
-        - lang: Bash
-          source: |
-            curl -sf -X POST http://localhost:8787/api/cluster/heartbeat \
-              -H 'Content-Type: application/json' \
-              -d '{"stats":{"cpu_percent":78,"memory_mb":2048,"gpu_util":95}}'
-        - lang: Python
-          source: |
-            import psutil  # optional, for real stats
-            requests.post("http://localhost:8787/api/cluster/heartbeat",
-                json={"stats": {
-                    "cpu_percent": psutil.cpu_percent(),
-                    "memory_mb": psutil.virtual_memory().used // 1048576,
-                }})
-        - lang: Go
-          source: |
-            postJSON("http://localhost:8787/api/cluster/heartbeat",
-                map[string]any{"stats": map[string]any{
-                    "executor": "go",
-                    "pid":      os.Getpid(),
-                    "goroutines": runtime.NumGoroutine(),
-                }})
-        - lang: C
-          source: |
-            char body[256];
-            snprintf(body, sizeof(body),
-                "{\"stats\":{\"executor\":\"c\",\"pid\":%d}}", (int)getpid());
-            post_json("http://localhost:8787/api/cluster/heartbeat", body);
-        - lang: C++
-          source: |
-            post_json("http://localhost:8787/api/cluster/heartbeat",
-                {{"stats", {{"executor","cpp"},{"pid",getpid()}}}});
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/HeartbeatRequest"
-      responses:
-        "200":
-          description: Heartbeat recorded
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StatusResponse"
-        "409":
-          description: Not a worker or no host known
+                oneOf:
+                  - $ref: "#/components/schemas/ProgressOutput"
+                  - $ref: "#/components/schemas/DoneOutput"
+                  - $ref: "#/components/schemas/ErrorOutput"
 
 components:
   schemas:
-    Job:
+    BinaryRequest:
       type: object
       properties:
-        id:
+        path:
+          type: string
+          description: Absolute path to the binary
+          example: "/usr/bin/renderer"
+        mode:
+          type: string
+          enum: [oneshot, daemon]
+          default: oneshot
+          description: |
+            oneshot = started per job, exits after result.
+            daemon = started once, handles multiple jobs over stdin.
+          example: "oneshot"
+      required: [path]
+
+    BinaryResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "ok"
+        path:
+          type: string
+          example: "/usr/bin/renderer"
+        mode:
+          type: string
+          example: "oneshot"
+
+    JobInput:
+      type: object
+      description: Sent to binary on stdin (one JSON line)
+      properties:
+        job_id:
           type: string
           example: "j-a1b2c3d4"
         type:
@@ -345,117 +386,65 @@ components:
           type: object
           additionalProperties: true
           example: { "scene": "intro.blend", "frame": 42 }
-        priority:
-          type: integer
-          example: 5
-        timeout_s:
-          type: integer
-          description: Max execution time in seconds (0 = no limit)
-          example: 300
-        max_retry:
-          type: integer
-          example: 2
-      required: [id, type]
+      required: [job_id, type]
 
-    PendingJob:
+    ProgressOutput:
       type: object
-      properties:
-        job:
-          $ref: "#/components/schemas/Job"
-        host_peer_id:
-          type: string
-          description: Opaque host identifier (executor does not need this)
-        received_at:
-          type: string
-          format: date-time
-      required: [job, received_at]
-
-    JobListResponse:
-      type: object
-      properties:
-        pending:
-          type: array
-          items:
-            $ref: "#/components/schemas/PendingJob"
-          description: Jobs waiting to be claimed
-        accepted:
-          type: array
-          items:
-            $ref: "#/components/schemas/PendingJob"
-          description: Jobs already claimed by an executor
-      required: [pending, accepted]
-
-    AcceptRequest:
-      type: object
-      properties:
-        job_id:
-          type: string
-          example: "j-a1b2c3d4"
-      required: [job_id]
-
-    AcceptResponse:
-      type: object
+      description: Written by binary to stdout (optional, zero or more lines)
       properties:
         status:
           type: string
-          example: "accepted"
-        job:
-          $ref: "#/components/schemas/Job"
-      required: [status, job]
-
-    ProgressRequest:
-      type: object
-      properties:
-        job_id:
-          type: string
-          example: "j-a1b2c3d4"
-        percent:
+          enum: [progress]
+        pct:
           type: integer
           minimum: 0
           maximum: 100
           example: 42
-        message:
+        msg:
           type: string
           example: "rendering frame 84/200"
-        stats:
-          type: object
-          additionalProperties: true
-          description: Free-form executor metrics
-          example: { "fps": 2.4, "memory_mb": 1024 }
-      required: [job_id, percent]
+      required: [status, pct]
 
-    ResultRequest:
+    DoneOutput:
       type: object
-      properties:
-        job_id:
-          type: string
-          example: "j-a1b2c3d4"
-        success:
-          type: boolean
-          example: true
-        result:
-          type: object
-          additionalProperties: true
-          description: Output payload on success
-          example: { "output_path": "/tmp/render_0042.png", "frames": 200 }
-        error:
-          type: string
-          description: Error message on failure
-          example: "out of memory"
-      required: [job_id, success]
-
-    HeartbeatRequest:
-      type: object
-      properties:
-        stats:
-          type: object
-          additionalProperties: true
-          description: Free-form worker metrics
-          example: { "cpu_percent": 78, "memory_mb": 2048, "gpu_util": 95 }
-
-    StatusResponse:
-      type: object
+      description: Written by binary to stdout (exactly one line)
       properties:
         status:
           type: string
-          example: "ok"
+          enum: [done]
+        result:
+          type: object
+          additionalProperties: true
+          example: { "output_path": "/tmp/render_0042.png" }
+      required: [status, result]
+
+    ErrorOutput:
+      type: object
+      description: Written by binary to stdout (exactly one line, instead of DoneOutput)
+      properties:
+        status:
+          type: string
+          enum: [error]
+        error:
+          type: string
+          example: "out of memory"
+      required: [status, error]
+
+    CheckJobResult:
+      type: object
+      description: Result field in DoneOutput when type is "__check__"
+      properties:
+        types:
+          type: array
+          items:
+            type: string
+          description: Job types this binary handles
+          example: ["render", "transcode"]
+        version:
+          type: string
+          description: Binary version for diagnostics
+          example: "1.0"
+        capacity:
+          type: integer
+          description: Max concurrent jobs
+          example: 2

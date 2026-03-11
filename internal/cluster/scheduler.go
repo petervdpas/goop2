@@ -9,17 +9,15 @@ import (
 
 const schedulerTick = 100 * time.Millisecond
 
-// Scheduler matches pending jobs to idle workers.
 type Scheduler struct {
 	queue *Queue
 	send  SendFunc
 
 	mu      sync.Mutex
 	workers map[string]*WorkerInfo
-	robin   int // round-robin index
+	robin   int
 }
 
-// NewScheduler creates a scheduler bound to a queue and send function.
 func NewScheduler(queue *Queue, send SendFunc) *Scheduler {
 	return &Scheduler{
 		queue:   queue,
@@ -28,32 +26,63 @@ func NewScheduler(queue *Queue, send SendFunc) *Scheduler {
 	}
 }
 
-// AddWorker registers a worker.
 func (s *Scheduler) AddWorker(peerID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if _, exists := s.workers[peerID]; exists {
-		s.workers[peerID].Status = WorkerIdle
 		s.workers[peerID].LastSeen = time.Now()
 		return
 	}
 	s.workers[peerID] = &WorkerInfo{
 		PeerID:   peerID,
-		Status:   WorkerIdle,
+		Status:   WorkerJoined,
 		Capacity: 1,
 		LastSeen: time.Now(),
 	}
 }
 
-// RemoveWorker unregisters a worker.
 func (s *Scheduler) RemoveWorker(peerID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.workers, peerID)
 }
 
-// UpdateWorkerStatus updates a worker's status and last-seen timestamp.
+func (s *Scheduler) SetWorkerVerified(peerID string, ok bool, types []string, capacity int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	w, exists := s.workers[peerID]
+	if !exists {
+		return
+	}
+	w.Verified = ok
+	w.JobTypes = types
+	if capacity > 0 {
+		w.Capacity = capacity
+	}
+	if ok {
+		w.Status = WorkerIdle
+	} else {
+		w.Status = WorkerJoined
+	}
+	w.LastSeen = time.Now()
+	log.Printf("CLUSTER: worker %s verified=%v types=%v capacity=%d", peerID, ok, types, w.Capacity)
+}
+
+func (s *Scheduler) SetWorkerBinary(peerID, path, mode string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	w, exists := s.workers[peerID]
+	if !exists {
+		return
+	}
+	w.BinaryPath = path
+	w.BinaryMode = mode
+	w.LastSeen = time.Now()
+}
+
 func (s *Scheduler) UpdateWorkerStatus(peerID string, status WorkerStatus) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -69,7 +98,6 @@ func (s *Scheduler) UpdateWorkerStatus(peerID string, status WorkerStatus) {
 	}
 }
 
-// Workers returns a snapshot of all workers.
 func (s *Scheduler) Workers() []WorkerInfo {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -81,8 +109,6 @@ func (s *Scheduler) Workers() []WorkerInfo {
 	return out
 }
 
-// Run is the scheduler main loop. It polls the queue and dispatches jobs
-// to idle workers. Blocks until ctx is cancelled.
 func (s *Scheduler) Run(ctx context.Context, groupID string) {
 	ticker := time.NewTicker(schedulerTick)
 	defer ticker.Stop()
@@ -106,7 +132,7 @@ func (s *Scheduler) dispatch(groupID string) {
 
 		worker := s.pickWorker()
 		if worker == "" {
-			return // no idle workers
+			return
 		}
 
 		s.queue.Assign(job.ID, worker)
@@ -143,7 +169,7 @@ func (s *Scheduler) pickWorker() string {
 
 	ids := make([]string, 0, len(s.workers))
 	for id, w := range s.workers {
-		if w.Status == WorkerIdle && w.RunningJobs < w.Capacity {
+		if w.Verified && w.RunningJobs < w.Capacity {
 			ids = append(ids, id)
 		}
 	}

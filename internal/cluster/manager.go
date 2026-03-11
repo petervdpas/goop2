@@ -16,9 +16,6 @@ const (
 	roleWorker
 )
 
-// Manager is the unified entry point for cluster compute.
-// It implements group.Handler (via HandleGroupEvent) for membership events
-// and processes job protocol messages from the MQ adapter.
 type Manager struct {
 	selfID    string
 	send      SendFunc
@@ -31,20 +28,16 @@ type Manager struct {
 	queue     *Queue
 	scheduler *Scheduler
 	worker    *Worker
-	unsub     func() // MQ topic unsubscribe
+	unsub     func()
 }
 
-// New creates a cluster manager. send and subscribe are provided by the MQ adapter.
 func New(selfID string, send SendFunc, subscribe SubscribeFunc) *Manager {
 	m := &Manager{
 		selfID:    selfID,
 		send:      send,
 		subscribe: subscribe,
 	}
-	// Subscribe to cluster topic messages
 	m.unsub = subscribe(func(from, topic string, payload any) {
-		// topic format: cluster:{groupID}:{msgType}
-		// We receive the full topic from the adapter
 		parts := strings.SplitN(topic, ":", 3)
 		if len(parts) < 3 {
 			return
@@ -65,13 +58,10 @@ func New(selfID string, send SendFunc, subscribe SubscribeFunc) *Manager {
 	return m
 }
 
-// HandleGroupEvent implements group.Handler. Called by the group manager
-// for membership events (join, leave, close) on cluster-type groups.
 func (m *Manager) HandleGroupEvent(evt *GroupEvent) {
 	m.handleGroupEvent(evt)
 }
 
-// CreateCluster sets up this node as the cluster host.
 func (m *Manager) CreateCluster(groupID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -93,7 +83,6 @@ func (m *Manager) CreateCluster(groupID string) error {
 	return nil
 }
 
-// JoinCluster sets up this node as a cluster worker.
 func (m *Manager) JoinCluster(groupID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -110,14 +99,14 @@ func (m *Manager) JoinCluster(groupID string) error {
 	return nil
 }
 
-// LeaveCluster tears down the current cluster role.
 func (m *Manager) LeaveCluster() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.cleanup()
 }
 
-// SubmitJob adds a job to the queue (host only).
+// ── Host API ────────────────────────────────────────────────────────────────
+
 func (m *Manager) SubmitJob(job Job) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -130,7 +119,6 @@ func (m *Manager) SubmitJob(job Job) (string, error) {
 	return id, nil
 }
 
-// CancelJob cancels a job (host only).
 func (m *Manager) CancelJob(jobID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -139,7 +127,6 @@ func (m *Manager) CancelJob(jobID string) error {
 		return fmt.Errorf("not a cluster host")
 	}
 
-	// Find worker and send cancel
 	js, ok := m.queue.Get(jobID)
 	if ok && js.WorkerID != "" && (js.Status == StatusAssigned || js.Status == StatusRunning) {
 		topic := "cluster:" + m.groupID + ":job:cancel"
@@ -149,7 +136,6 @@ func (m *Manager) CancelJob(jobID string) error {
 	return m.queue.Cancel(jobID)
 }
 
-// GetJobs returns all job states (host only).
 func (m *Manager) GetJobs() []JobState {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -160,7 +146,6 @@ func (m *Manager) GetJobs() []JobState {
 	return m.queue.State()
 }
 
-// GetWorkers returns all worker infos (host only).
 func (m *Manager) GetWorkers() []WorkerInfo {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -171,7 +156,6 @@ func (m *Manager) GetWorkers() []WorkerInfo {
 	return m.scheduler.Workers()
 }
 
-// GetStats returns queue statistics (host only).
 func (m *Manager) GetStats() QueueStats {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -186,81 +170,45 @@ func (m *Manager) GetStats() QueueStats {
 	return stats
 }
 
-// ── Executor API (worker side) ───────────────────────────────────────────────
+// ── Worker API ──────────────────────────────────────────────────────────────
 
-// PendingJobs returns jobs waiting for an executor to claim (worker only).
-func (m *Manager) PendingJobs() []PendingJob {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.role != roleWorker || m.worker == nil {
-		return nil
-	}
-	return m.worker.PendingJobs()
-}
-
-// AcceptedJobs returns jobs claimed by an executor (worker only).
-func (m *Manager) AcceptedJobs() []PendingJob {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.role != roleWorker || m.worker == nil {
-		return nil
-	}
-	return m.worker.AcceptedJobs()
-}
-
-// AcceptJob claims a pending job for execution (worker only).
-func (m *Manager) AcceptJob(jobID string) (PendingJob, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.role != roleWorker || m.worker == nil {
-		return PendingJob{}, fmt.Errorf("not a cluster worker")
-	}
-	return m.worker.AcceptJob(jobID)
-}
-
-// ReportProgress sends a progress update to the host (worker only).
-func (m *Manager) ReportProgress(jobID string, percent int, message string, stats map[string]any) error {
+func (m *Manager) SetBinary(path, mode string) error {
 	m.mu.Lock()
 	if m.role != roleWorker || m.worker == nil {
 		m.mu.Unlock()
 		return fmt.Errorf("not a cluster worker")
 	}
 	w := m.worker
+	groupID := m.groupID
+	send := m.send
 	m.mu.Unlock()
 
-	return w.ReportProgress(jobID, percent, message, stats)
-}
-
-// ReportResult sends a job completion or failure to the host (worker only).
-func (m *Manager) ReportResult(jobID string, succeeded bool, result map[string]any, errMsg string) error {
-	m.mu.Lock()
-	if m.role != roleWorker || m.worker == nil {
-		m.mu.Unlock()
-		return fmt.Errorf("not a cluster worker")
+	if err := w.SetBinary(path, mode); err != nil {
+		return err
 	}
-	w := m.worker
-	m.mu.Unlock()
 
-	return w.ReportResult(jobID, succeeded, result, errMsg)
+	// Notify host that we set our binary
+	topic := "cluster:" + groupID + ":worker:binary"
+	_ = send("", topic, map[string]any{
+		"path": path,
+		"mode": mode,
+	})
+
+	return nil
 }
 
-// WorkerHeartbeat sends worker stats to the host (worker only).
-func (m *Manager) WorkerHeartbeat(stats map[string]any) error {
+func (m *Manager) BinaryPath() string {
 	m.mu.Lock()
-	if m.role != roleWorker || m.worker == nil {
-		m.mu.Unlock()
-		return fmt.Errorf("not a cluster worker")
-	}
-	w := m.worker
-	m.mu.Unlock()
+	defer m.mu.Unlock()
 
-	return w.Heartbeat(stats)
+	if m.worker == nil {
+		return ""
+	}
+	return m.worker.BinaryPath()
 }
 
-// Role returns "host", "worker", or "" for the current role.
+// ── Common ──────────────────────────────────────────────────────────────────
+
 func (m *Manager) Role() string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -275,14 +223,12 @@ func (m *Manager) Role() string {
 	}
 }
 
-// GroupID returns the active cluster group ID.
 func (m *Manager) GroupID() string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.groupID
 }
 
-// Close shuts down the manager and releases all resources.
 func (m *Manager) Close() {
 	if m.unsub != nil {
 		m.unsub()
@@ -292,7 +238,6 @@ func (m *Manager) Close() {
 	m.cleanup()
 }
 
-// cleanup tears down the current role. Caller must hold m.mu.
 func (m *Manager) cleanup() {
 	if m.cancel != nil {
 		m.cancel()

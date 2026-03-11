@@ -369,25 +369,31 @@ type clusterJob struct {
 
 // clusterJobState describes a job with its execution state.
 type clusterJobState struct {
-	Job       clusterJob     `json:"job"`
-	Status    string         `json:"status"               example:"running"`
-	WorkerID  string         `json:"worker_id,omitempty"  example:"12D3KooWXxx..."`
-	Result    map[string]any `json:"result,omitempty"`
-	Error     string         `json:"error,omitempty"`
-	Retries   int            `json:"retries"              example:"0"`
-	CreatedAt string         `json:"created_at"           example:"2026-03-08T12:00:00Z"`
-	StartedAt string         `json:"started_at,omitempty"`
-	DoneAt    string         `json:"done_at,omitempty"`
-	ElapsedMs int64          `json:"elapsed_ms,omitempty" example:"1234"`
+	Job         clusterJob     `json:"job"`
+	Status      string         `json:"status"               example:"running"`
+	WorkerID    string         `json:"worker_id,omitempty"  example:"12D3KooWXxx..."`
+	Result      map[string]any `json:"result,omitempty"`
+	Error       string         `json:"error,omitempty"`
+	Progress    int            `json:"progress,omitempty"    example:"42"`
+	ProgressMsg string         `json:"progress_msg,omitempty" example:"rendering frame 84/200"`
+	Retries     int            `json:"retries"              example:"0"`
+	CreatedAt   string         `json:"created_at"           example:"2026-03-08T12:00:00Z"`
+	StartedAt   string         `json:"started_at,omitempty"`
+	DoneAt      string         `json:"done_at,omitempty"`
+	ElapsedMs   int64          `json:"elapsed_ms,omitempty" example:"1234"`
 }
 
 // clusterWorkerInfo describes a cluster worker.
 type clusterWorkerInfo struct {
-	PeerID      string `json:"peer_id"       example:"12D3KooWXxx..."`
-	Status      string `json:"status"        example:"idle"`
-	Capacity    int    `json:"capacity"      example:"4"`
-	RunningJobs int    `json:"running_jobs"  example:"1"`
-	LastSeen    string `json:"last_seen"     example:"2026-03-08T12:00:00Z"`
+	PeerID      string   `json:"peer_id"                example:"12D3KooWXxx..."`
+	Status      string   `json:"status"                 example:"idle"`
+	BinaryPath  string   `json:"binary_path,omitempty"  example:"/usr/bin/renderer"`
+	BinaryMode  string   `json:"binary_mode,omitempty"  example:"oneshot"`
+	Verified    bool     `json:"verified"               example:"true"`
+	JobTypes    []string `json:"job_types,omitempty"`
+	Capacity    int      `json:"capacity"               example:"4"`
+	RunningJobs int      `json:"running_jobs"           example:"1"`
+	LastSeen    string   `json:"last_seen"              example:"2026-03-08T12:00:00Z"`
 }
 
 // clusterQueueStats describes cluster queue statistics.
@@ -397,25 +403,6 @@ type clusterQueueStats struct {
 	Completed int `json:"completed" example:"15"`
 	Failed    int `json:"failed"    example:"1"`
 	Workers   int `json:"workers"   example:"4"`
-}
-
-// clusterPendingJob describes a pending job available to a worker.
-type clusterPendingJob struct {
-	Job        clusterJob `json:"job"`
-	HostPeerID string     `json:"host_peer_id" example:"12D3KooWXxx..."`
-	ReceivedAt string     `json:"received_at"  example:"2026-03-08T12:00:00Z"`
-}
-
-// clusterWorkerJobsResponse is the body for GET /api/cluster/job (worker side).
-type clusterWorkerJobsResponse struct {
-	Pending  []clusterPendingJob `json:"pending"`
-	Accepted []clusterPendingJob `json:"accepted"`
-}
-
-// clusterAcceptResponse is the body for POST /api/cluster/accept.
-type clusterAcceptResponse struct {
-	Status string     `json:"status" example:"accepted"`
-	Job    clusterJob `json:"job"`
 }
 
 // ── Peer response types ──────────────────────────────────────────────────────
@@ -480,8 +467,9 @@ type docFileInfo struct {
 
 // clusterStatusResponse is the body for GET /api/cluster/status.
 type clusterStatusResponse struct {
-	Role    string `json:"role"     example:"host"`
-	GroupID string `json:"group_id" example:"a1b2c3d4e5f6a1b2"`
+	Role       string `json:"role"                    example:"host"`
+	GroupID    string `json:"group_id"                example:"a1b2c3d4e5f6a1b2"`
+	BinaryPath string `json:"binary_path,omitempty"   example:"/usr/bin/renderer"`
 }
 
 // clusterCreateRequest is the body for POST /api/cluster/create.
@@ -621,95 +609,34 @@ func swagClusterWorkers() {}
 //	@Router		/api/cluster/stats [get]
 func swagClusterStats() {}
 
-// ── Cluster Executor API ─────────────────────────────────────────────────────
+// ── Cluster Worker API ───────────────────────────────────────────────────────
 
-// clusterJobIDRequest is a single job_id body (accept, progress, result, cancel).
-type clusterJobIDRequest struct {
-	JobID string `json:"job_id" example:"j-abc123"`
+// clusterBinaryRequest is the body for POST /api/cluster/binary.
+type clusterBinaryRequest struct {
+	Path string `json:"path" example:"/usr/bin/renderer"`
+	Mode string `json:"mode" example:"oneshot"`
 }
 
-// clusterProgressRequest is the body for POST /api/cluster/progress.
-type clusterProgressRequest struct {
-	JobID   string         `json:"job_id"             example:"j-abc123"`
-	Percent int            `json:"percent"            example:"42"`
-	Message string         `json:"message,omitempty"  example:"processing frame 84/200"`
-	Stats   map[string]any `json:"stats,omitempty"`
+// clusterBinaryResponse is the body for POST /api/cluster/binary.
+type clusterBinaryResponse struct {
+	Status string `json:"status" example:"ok"`
+	Path   string `json:"path"   example:"/usr/bin/renderer"`
+	Mode   string `json:"mode"   example:"oneshot"`
 }
 
-// clusterResultRequest is the body for POST /api/cluster/result.
-type clusterResultRequest struct {
-	JobID   string         `json:"job_id"            example:"j-abc123"`
-	Success bool           `json:"success"           example:"true"`
-	Result  map[string]any `json:"result,omitempty"`
-	Error   string         `json:"error,omitempty"`
-}
-
-// clusterHeartbeatRequest is the body for POST /api/cluster/heartbeat.
-type clusterHeartbeatRequest struct {
-	Stats map[string]any `json:"stats,omitempty"`
-}
-
-// swagClusterJob is a documentation stub for GET /api/cluster/job.
+// swagClusterBinary is a documentation stub for POST /api/cluster/binary.
 //
-//	@Summary	Fetch pending and accepted jobs for this worker
-//	@Description	Returns jobs waiting for an executor to claim (pending) and jobs already claimed (accepted). Any executor — browser, script, agent — can poll this endpoint on localhost.
-//	@Tags		cluster
-//	@Produce	json
-//	@Success	200	{object}	clusterWorkerJobsResponse
-//	@Router		/api/cluster/job [get]
-func swagClusterJob() {}
-
-// swagClusterAccept is a documentation stub for POST /api/cluster/accept.
-//
-//	@Summary	Claim a pending job for execution (worker only)
-//	@Description	Moves a job from pending to accepted. The executor is now responsible for reporting progress and result.
+//	@Summary	Set the binary path for this worker (worker only)
+//	@Description	Sets the local binary that will execute jobs for this cluster. The binary is a child process that speaks the goop2 cluster JSON protocol over stdin/stdout. Mode can be "oneshot" (started per job) or "daemon" (long-running). Setting the binary resets the verified flag — the host must re-verify via check-job before dispatching work.
 //	@Tags		cluster
 //	@Accept		json
 //	@Produce	json
-//	@Param		body	body		clusterJobIDRequest	true	"Accept request"
-//	@Success	200		{object}	clusterAcceptResponse
-//	@Failure	409		{string}	string	"not a worker or job not pending"
-//	@Router		/api/cluster/accept [post]
-func swagClusterAccept() {}
-
-// swagClusterProgress is a documentation stub for POST /api/cluster/progress.
-//
-//	@Summary	Report job progress to the cluster host (worker only)
-//	@Description	Sends a progress update (percent, message, custom stats) to the host via MQ. The host can broadcast this to its browser.
-//	@Tags		cluster
-//	@Accept		json
-//	@Produce	json
-//	@Param		body	body		clusterProgressRequest	true	"Progress report"
-//	@Success	200		{object}	statusOK
-//	@Failure	409		{string}	string	"not a worker or job not accepted"
-//	@Router		/api/cluster/progress [post]
-func swagClusterProgress() {}
-
-// swagClusterResult is a documentation stub for POST /api/cluster/result.
-//
-//	@Summary	Report job completion or failure to the cluster host (worker only)
-//	@Description	Sends the final result to the host. On success, include result payload. On failure, include error message. The job is removed from the accepted set.
-//	@Tags		cluster
-//	@Accept		json
-//	@Produce	json
-//	@Param		body	body		clusterResultRequest	true	"Result report"
-//	@Success	200		{object}	statusOK
-//	@Failure	409		{string}	string	"not a worker or job not accepted"
-//	@Router		/api/cluster/result [post]
-func swagClusterResult() {}
-
-// swagClusterHeartbeat is a documentation stub for POST /api/cluster/heartbeat.
-//
-//	@Summary	Report worker liveness and processing stats (worker only)
-//	@Description	Sends a heartbeat with optional stats (CPU, memory, throughput, custom metrics) to the host. The stats map is free-form — each executor defines its own keys.
-//	@Tags		cluster
-//	@Accept		json
-//	@Produce	json
-//	@Param		body	body		clusterHeartbeatRequest	true	"Heartbeat"
-//	@Success	200		{object}	statusOK
-//	@Failure	409		{string}	string	"not a worker or no host known"
-//	@Router		/api/cluster/heartbeat [post]
-func swagClusterHeartbeat() {}
+//	@Param		body	body		clusterBinaryRequest	true	"Binary configuration"
+//	@Success	200		{object}	clusterBinaryResponse
+//	@Failure	400		{string}	string	"missing binary path"
+//	@Failure	409		{string}	string	"not a cluster worker"
+//	@Router		/api/cluster/binary [post]
+func swagClusterBinary() {}
 
 // ── MQ ───────────────────────────────────────────────────────────────────────
 
