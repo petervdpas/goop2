@@ -322,6 +322,18 @@ func RunPeer(p PeerParams) error {
 	// ── Cluster compute
 	clusterMgr := clusterType.New(mqMgr, grpMgr, node.ID())
 	defer clusterMgr.Close()
+	if hosted, err := grpMgr.ListHostedGroups(); err == nil {
+		for _, g := range hosted {
+			if g.AppType == "cluster" {
+				if err := grpMgr.RestoreGroup(g.ID); err == nil {
+					if err := clusterMgr.CreateCluster(g.ID); err == nil {
+						log.Printf("🖥️ Cluster auto-activated: %s (%s)", g.Name, g.ID)
+					}
+				}
+				break
+			}
+		}
+	}
 	log.Printf("🖥️ Cluster compute enabled")
 
 	// ── File sharing store

@@ -79,6 +79,35 @@ func (m *Manager) CreateGroup(id, name, appType string, maxMembers int, volatile
 	return nil
 }
 
+// RestoreGroup re-registers a persisted group into the in-memory state.
+// Used on startup to restore groups that were active before a restart.
+func (m *Manager) RestoreGroup(groupID string) error {
+	g, err := m.db.GetGroup(groupID)
+	if err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	if _, exists := m.groups[groupID]; exists {
+		m.mu.Unlock()
+		return nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	hg := &hostedGroup{
+		info:       g,
+		members:    make(map[string]*memberMeta),
+		cancelPing: cancel,
+	}
+	m.groups[groupID] = hg
+	m.mu.Unlock()
+
+	go m.pingGroupLoop(ctx, groupID)
+
+	log.Printf("GROUP: Restored group %s (%s)", groupID, g.Name)
+	return nil
+}
+
 // CloseGroup closes a hosted group, notifying all members.
 func (m *Manager) CloseGroup(groupID string) error {
 	m.mu.Lock()

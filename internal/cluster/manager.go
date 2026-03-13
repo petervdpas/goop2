@@ -239,6 +239,13 @@ func (m *Manager) Close() {
 }
 
 func (m *Manager) cleanup() {
+	if m.role == roleHost && m.scheduler != nil && m.groupID != "" {
+		topic := "cluster:" + m.groupID + ":shutdown"
+		for _, w := range m.scheduler.Workers() {
+			_ = m.send(w.PeerID, topic, map[string]any{"reason": "cluster closed"})
+		}
+		log.Printf("CLUSTER: sent shutdown to %d workers", len(m.scheduler.Workers()))
+	}
 	if m.cancel != nil {
 		m.cancel()
 		m.cancel = nil

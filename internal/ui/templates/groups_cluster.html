@@ -74,30 +74,32 @@
 
           <div class="panel cl-submit">
             <h4>Submit Job</h4>
+            <p class="muted small">Dispatch a job to an available worker. The scheduler assigns it to a worker whose declared job types match. Workers with no declared types accept any job. The payload is a free-form JSON object passed as stdin to the worker binary &mdash; use it to specify inputs, parameters, or configuration the worker needs to execute the task.</p>
             <div class="cl-submit-form">
               <div class="cl-submit-row">
-                <label>Type</label>
-                <input type="text" id="cl-job-type" class="form-input" placeholder="render, transcode, ..." />
+                <label>Type <span class="muted small">(lowercase, no spaces &mdash; e.g. render, transcode, resize)</span></label>
+                <input type="text" id="cl-job-type" class="form-input" placeholder="render" />
               </div>
               <div class="cl-submit-row">
-                <label>Payload (JSON)</label>
-                <textarea id="cl-job-payload" class="form-input cl-textarea" placeholder='{"input": "file.mp4"}'></textarea>
+                <label>Payload <span class="muted small">(JSON object &mdash; worker receives this as stdin)</span></label>
+                <textarea id="cl-job-payload" class="form-input cl-textarea" placeholder='Example:
+{"input": "video.mp4", "format": "webm", "quality": 80}'></textarea>
               </div>
               <div class="cl-submit-row cl-submit-opts">
                 <div>
-                  <label>Priority</label>
+                  <label>Priority <span class="muted small">(higher = first)</span></label>
                   <input type="number" id="cl-job-priority" class="form-input" value="0" />
                 </div>
                 <div>
-                  <label>Timeout (s)</label>
-                  <input type="number" id="cl-job-timeout" class="form-input" value="0" placeholder="0 = none" />
+                  <label>Timeout <span class="muted small">(seconds, 0 = none)</span></label>
+                  <input type="number" id="cl-job-timeout" class="form-input" value="0" />
                 </div>
                 <div>
-                  <label>Max Retry</label>
+                  <label>Max Retry <span class="muted small">(0 = no retry)</span></label>
                   <input type="number" id="cl-job-retry" class="form-input" value="0" />
                 </div>
               </div>
-              <button id="cl-submit-btn" class="btn btn-primary">Submit</button>
+              <button id="cl-submit-btn" class="btn btn-primary">Submit Job</button>
             </div>
           </div>
 

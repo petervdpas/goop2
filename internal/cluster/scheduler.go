@@ -130,7 +130,7 @@ func (s *Scheduler) dispatch(groupID string) {
 			return
 		}
 
-		worker := s.pickWorker()
+		worker := s.pickWorkerForType(job.Type)
 		if worker == "" {
 			return
 		}
@@ -163,13 +163,16 @@ func (s *Scheduler) dispatch(groupID string) {
 	}
 }
 
-func (s *Scheduler) pickWorker() string {
+func (s *Scheduler) pickWorkerForType(jobType string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	ids := make([]string, 0, len(s.workers))
 	for id, w := range s.workers {
-		if w.Verified && w.RunningJobs < w.Capacity {
+		if !w.Verified || w.RunningJobs >= w.Capacity {
+			continue
+		}
+		if len(w.JobTypes) == 0 || sliceContains(w.JobTypes, jobType) {
 			ids = append(ids, id)
 		}
 	}
@@ -179,4 +182,13 @@ func (s *Scheduler) pickWorker() string {
 	pick := ids[s.robin%len(ids)]
 	s.robin++
 	return pick
+}
+
+func sliceContains(ss []string, s string) bool {
+	for _, v := range ss {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }

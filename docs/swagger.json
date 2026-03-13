@@ -583,9 +583,9 @@
                 }
             }
         },
-        "/api/cluster/accept": {
+        "/api/cluster/binary": {
             "post": {
-                "description": "Moves a job from pending to accepted. The executor is now responsible for reporting progress and result.",
+                "description": "Sets the local binary that will execute jobs for this cluster. The binary is a child process that speaks the goop2 cluster JSON protocol over stdin/stdout. Mode can be \"oneshot\" (started per job) or \"daemon\" (long-running). Setting the binary resets the verified flag — the host must re-verify via check-job before dispatching work.",
                 "consumes": [
                     "application/json"
                 ],
@@ -595,15 +595,15 @@
                 "tags": [
                     "cluster"
                 ],
-                "summary": "Claim a pending job for execution (worker only)",
+                "summary": "Set the binary path for this worker (worker only)",
                 "parameters": [
                     {
-                        "description": "Accept request",
+                        "description": "Binary configuration",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/routes.clusterJobIDRequest"
+                            "$ref": "#/definitions/routes.clusterBinaryRequest"
                         }
                     }
                 ],
@@ -611,11 +611,17 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/routes.clusterAcceptResponse"
+                            "$ref": "#/definitions/routes.clusterBinaryResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "missing binary path",
+                        "schema": {
+                            "type": "string"
                         }
                     },
                     "409": {
-                        "description": "not a worker or job not pending",
+                        "description": "not a cluster worker",
                         "schema": {
                             "type": "string"
                         }
@@ -670,7 +676,7 @@
         },
         "/api/cluster/create": {
             "post": {
-                "description": "Creates a volatile group with app_type=\"cluster\" and sets this node as host.",
+                "description": "Creates a new cluster group and sets this node as host. If group_id is provided, activates an existing group instead of creating a new one.",
                 "consumes": [
                     "application/json"
                 ],
@@ -680,7 +686,7 @@
                 "tags": [
                     "cluster"
                 ],
-                "summary": "Create a new cluster (become host)",
+                "summary": "Create or activate a cluster (become host)",
                 "parameters": [
                     {
                         "description": "Create request",
@@ -703,66 +709,6 @@
                         "description": "already in a cluster",
                         "schema": {
                             "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/cluster/heartbeat": {
-            "post": {
-                "description": "Sends a heartbeat with optional stats (CPU, memory, throughput, custom metrics) to the host. The stats map is free-form — each executor defines its own keys.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "cluster"
-                ],
-                "summary": "Report worker liveness and processing stats (worker only)",
-                "parameters": [
-                    {
-                        "description": "Heartbeat",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/routes.clusterHeartbeatRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/routes.statusOK"
-                        }
-                    },
-                    "409": {
-                        "description": "not a worker or no host known",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/cluster/job": {
-            "get": {
-                "description": "Returns jobs waiting for an executor to claim (pending) and jobs already claimed (accepted). Any executor — browser, script, agent — can poll this endpoint on localhost.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "cluster"
-                ],
-                "summary": "Fetch pending and accepted jobs for this worker",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/routes.clusterWorkerJobsResponse"
                         }
                     }
                 }
@@ -844,98 +790,19 @@
         },
         "/api/cluster/leave": {
             "post": {
+                "description": "Sends shutdown to all workers, leaves the cluster, and deletes the group.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "cluster"
                 ],
-                "summary": "Leave the current cluster",
+                "summary": "Close the current cluster",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/routes.statusOK"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/cluster/progress": {
-            "post": {
-                "description": "Sends a progress update (percent, message, custom stats) to the host via MQ. The host can broadcast this to its browser.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "cluster"
-                ],
-                "summary": "Report job progress to the cluster host (worker only)",
-                "parameters": [
-                    {
-                        "description": "Progress report",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/routes.clusterProgressRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/routes.statusOK"
-                        }
-                    },
-                    "409": {
-                        "description": "not a worker or job not accepted",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/cluster/result": {
-            "post": {
-                "description": "Sends the final result to the host. On success, include result payload. On failure, include error message. The job is removed from the accepted set.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "cluster"
-                ],
-                "summary": "Report job completion or failure to the cluster host (worker only)",
-                "parameters": [
-                    {
-                        "description": "Result report",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/routes.clusterResultRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/routes.statusOK"
-                        }
-                    },
-                    "409": {
-                        "description": "not a worker or job not accepted",
-                        "schema": {
-                            "type": "string"
                         }
                     }
                 }
@@ -2394,6 +2261,41 @@
                 }
             }
         },
+        "/api/lua/content": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "lua"
+                ],
+                "summary": "Fetch a Lua script's content",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Script name (without .lua)",
+                        "name": "name",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Set to 1 for data functions",
+                        "name": "func",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/api/mq/ack": {
             "post": {
                 "description": "Called by the browser after processing an incoming MQ message.\\nRelays an application-level ACK to the sender.\\nIf from_peer_id is empty (PublishLocal event) the ACK is silently dropped.",
@@ -2742,6 +2644,37 @@
                 }
             }
         },
+        "/api/site/content": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "site"
+                ],
+                "summary": "Fetch a site file's content and ETag",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "File path relative to site root",
+                        "name": "path",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/topology": {
             "get": {
                 "description": "Returns this peer's view of the network: self node, relay node (if configured), and all known peers with connection type (direct/relay/none).",
@@ -2908,15 +2841,33 @@
                 }
             }
         },
-        "routes.clusterAcceptResponse": {
+        "routes.clusterBinaryRequest": {
             "type": "object",
             "properties": {
-                "job": {
-                    "$ref": "#/definitions/routes.clusterJob"
+                "mode": {
+                    "type": "string",
+                    "example": "oneshot"
+                },
+                "path": {
+                    "type": "string",
+                    "example": "/usr/bin/renderer"
+                }
+            }
+        },
+        "routes.clusterBinaryResponse": {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "type": "string",
+                    "example": "oneshot"
+                },
+                "path": {
+                    "type": "string",
+                    "example": "/usr/bin/renderer"
                 },
                 "status": {
                     "type": "string",
-                    "example": "accepted"
+                    "example": "ok"
                 }
             }
         },
@@ -2932,6 +2883,10 @@
         "routes.clusterCreateRequest": {
             "type": "object",
             "properties": {
+                "group_id": {
+                    "type": "string",
+                    "example": "a1b2c3d4e5f6a1b2"
+                },
                 "name": {
                     "type": "string",
                     "example": "My Cluster"
@@ -2948,15 +2903,6 @@
                 "status": {
                     "type": "string",
                     "example": "created"
-                }
-            }
-        },
-        "routes.clusterHeartbeatRequest": {
-            "type": "object",
-            "properties": {
-                "stats": {
-                    "type": "object",
-                    "additionalProperties": {}
                 }
             }
         },
@@ -2989,15 +2935,6 @@
                 }
             }
         },
-        "routes.clusterJobIDRequest": {
-            "type": "object",
-            "properties": {
-                "job_id": {
-                    "type": "string",
-                    "example": "j-abc123"
-                }
-            }
-        },
         "routes.clusterJobState": {
             "type": "object",
             "properties": {
@@ -3017,6 +2954,14 @@
                 },
                 "job": {
                     "$ref": "#/definitions/routes.clusterJob"
+                },
+                "progress": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "progress_msg": {
+                    "type": "string",
+                    "example": "rendering frame 84/200"
                 },
                 "result": {
                     "type": "object",
@@ -3052,43 +2997,6 @@
                 }
             }
         },
-        "routes.clusterPendingJob": {
-            "type": "object",
-            "properties": {
-                "host_peer_id": {
-                    "type": "string",
-                    "example": "12D3KooWXxx..."
-                },
-                "job": {
-                    "$ref": "#/definitions/routes.clusterJob"
-                },
-                "received_at": {
-                    "type": "string",
-                    "example": "2026-03-08T12:00:00Z"
-                }
-            }
-        },
-        "routes.clusterProgressRequest": {
-            "type": "object",
-            "properties": {
-                "job_id": {
-                    "type": "string",
-                    "example": "j-abc123"
-                },
-                "message": {
-                    "type": "string",
-                    "example": "processing frame 84/200"
-                },
-                "percent": {
-                    "type": "integer",
-                    "example": 42
-                },
-                "stats": {
-                    "type": "object",
-                    "additionalProperties": {}
-                }
-            }
-        },
         "routes.clusterQueueStats": {
             "type": "object",
             "properties": {
@@ -3114,29 +3022,13 @@
                 }
             }
         },
-        "routes.clusterResultRequest": {
-            "type": "object",
-            "properties": {
-                "error": {
-                    "type": "string"
-                },
-                "job_id": {
-                    "type": "string",
-                    "example": "j-abc123"
-                },
-                "result": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "success": {
-                    "type": "boolean",
-                    "example": true
-                }
-            }
-        },
         "routes.clusterStatusResponse": {
             "type": "object",
             "properties": {
+                "binary_path": {
+                    "type": "string",
+                    "example": "/usr/bin/renderer"
+                },
                 "group_id": {
                     "type": "string",
                     "example": "a1b2c3d4e5f6a1b2"
@@ -3188,9 +3080,23 @@
         "routes.clusterWorkerInfo": {
             "type": "object",
             "properties": {
+                "binary_mode": {
+                    "type": "string",
+                    "example": "oneshot"
+                },
+                "binary_path": {
+                    "type": "string",
+                    "example": "/usr/bin/renderer"
+                },
                 "capacity": {
                     "type": "integer",
                     "example": 4
+                },
+                "job_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "last_seen": {
                     "type": "string",
@@ -3207,23 +3113,10 @@
                 "status": {
                     "type": "string",
                     "example": "idle"
-                }
-            }
-        },
-        "routes.clusterWorkerJobsResponse": {
-            "type": "object",
-            "properties": {
-                "accepted": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/routes.clusterPendingJob"
-                    }
                 },
-                "pending": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/routes.clusterPendingJob"
-                    }
+                "verified": {
+                    "type": "boolean",
+                    "example": true
                 }
             }
         },

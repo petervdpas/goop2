@@ -70,7 +70,11 @@ func RegisterCluster(mux *http.ServeMux, cm *cluster.Manager, grpMgr *group.Mana
 	})
 
 	handlePostAction(mux, "/api/cluster/leave", func(w http.ResponseWriter, r *http.Request) {
+		groupID := cm.GroupID()
 		cm.LeaveCluster()
+		if groupID != "" {
+			_ = grpMgr.CloseGroup(groupID)
+		}
 		writeJSON(w, map[string]any{"status": "ok"})
 	})
 

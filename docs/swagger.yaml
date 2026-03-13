@@ -93,12 +93,25 @@ definitions:
         example: call
         type: string
     type: object
-  routes.clusterAcceptResponse:
+  routes.clusterBinaryRequest:
     properties:
-      job:
-        $ref: '#/definitions/routes.clusterJob'
+      mode:
+        example: oneshot
+        type: string
+      path:
+        example: /usr/bin/renderer
+        type: string
+    type: object
+  routes.clusterBinaryResponse:
+    properties:
+      mode:
+        example: oneshot
+        type: string
+      path:
+        example: /usr/bin/renderer
+        type: string
       status:
-        example: accepted
+        example: ok
         type: string
     type: object
   routes.clusterCancelRequest:
@@ -109,6 +122,9 @@ definitions:
     type: object
   routes.clusterCreateRequest:
     properties:
+      group_id:
+        example: a1b2c3d4e5f6a1b2
+        type: string
       name:
         example: My Cluster
         type: string
@@ -121,12 +137,6 @@ definitions:
       status:
         example: created
         type: string
-    type: object
-  routes.clusterHeartbeatRequest:
-    properties:
-      stats:
-        additionalProperties: {}
-        type: object
     type: object
   routes.clusterJob:
     properties:
@@ -149,12 +159,6 @@ definitions:
         example: render
         type: string
     type: object
-  routes.clusterJobIDRequest:
-    properties:
-      job_id:
-        example: j-abc123
-        type: string
-    type: object
   routes.clusterJobState:
     properties:
       created_at:
@@ -169,6 +173,12 @@ definitions:
         type: string
       job:
         $ref: '#/definitions/routes.clusterJob'
+      progress:
+        example: 42
+        type: integer
+      progress_msg:
+        example: rendering frame 84/200
+        type: string
       result:
         additionalProperties: {}
         type: object
@@ -193,32 +203,6 @@ definitions:
         example: 12D3KooWXxx...
         type: string
     type: object
-  routes.clusterPendingJob:
-    properties:
-      host_peer_id:
-        example: 12D3KooWXxx...
-        type: string
-      job:
-        $ref: '#/definitions/routes.clusterJob'
-      received_at:
-        example: "2026-03-08T12:00:00Z"
-        type: string
-    type: object
-  routes.clusterProgressRequest:
-    properties:
-      job_id:
-        example: j-abc123
-        type: string
-      message:
-        example: processing frame 84/200
-        type: string
-      percent:
-        example: 42
-        type: integer
-      stats:
-        additionalProperties: {}
-        type: object
-    type: object
   routes.clusterQueueStats:
     properties:
       completed:
@@ -237,22 +221,11 @@ definitions:
         example: 4
         type: integer
     type: object
-  routes.clusterResultRequest:
-    properties:
-      error:
-        type: string
-      job_id:
-        example: j-abc123
-        type: string
-      result:
-        additionalProperties: {}
-        type: object
-      success:
-        example: true
-        type: boolean
-    type: object
   routes.clusterStatusResponse:
     properties:
+      binary_path:
+        example: /usr/bin/renderer
+        type: string
       group_id:
         example: a1b2c3d4e5f6a1b2
         type: string
@@ -289,9 +262,19 @@ definitions:
     type: object
   routes.clusterWorkerInfo:
     properties:
+      binary_mode:
+        example: oneshot
+        type: string
+      binary_path:
+        example: /usr/bin/renderer
+        type: string
       capacity:
         example: 4
         type: integer
+      job_types:
+        items:
+          type: string
+        type: array
       last_seen:
         example: "2026-03-08T12:00:00Z"
         type: string
@@ -304,17 +287,9 @@ definitions:
       status:
         example: idle
         type: string
-    type: object
-  routes.clusterWorkerJobsResponse:
-    properties:
-      accepted:
-        items:
-          $ref: '#/definitions/routes.clusterPendingJob'
-        type: array
-      pending:
-        items:
-          $ref: '#/definitions/routes.clusterPendingJob'
-        type: array
+      verified:
+        example: true
+        type: boolean
     type: object
   routes.dataColumnRequest:
     properties:
@@ -1292,31 +1267,38 @@ paths:
       summary: Get chat history with a peer
       tags:
       - chat
-  /api/cluster/accept:
+  /api/cluster/binary:
     post:
       consumes:
       - application/json
-      description: Moves a job from pending to accepted. The executor is now responsible
-        for reporting progress and result.
+      description: Sets the local binary that will execute jobs for this cluster.
+        The binary is a child process that speaks the goop2 cluster JSON protocol
+        over stdin/stdout. Mode can be "oneshot" (started per job) or "daemon" (long-running).
+        Setting the binary resets the verified flag — the host must re-verify via
+        check-job before dispatching work.
       parameters:
-      - description: Accept request
+      - description: Binary configuration
         in: body
         name: body
         required: true
         schema:
-          $ref: '#/definitions/routes.clusterJobIDRequest'
+          $ref: '#/definitions/routes.clusterBinaryRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/routes.clusterAcceptResponse'
-        "409":
-          description: not a worker or job not pending
+            $ref: '#/definitions/routes.clusterBinaryResponse'
+        "400":
+          description: missing binary path
           schema:
             type: string
-      summary: Claim a pending job for execution (worker only)
+        "409":
+          description: not a cluster worker
+          schema:
+            type: string
+      summary: Set the binary path for this worker (worker only)
       tags:
       - cluster
   /api/cluster/cancel:
@@ -1352,8 +1334,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Creates a volatile group with app_type="cluster" and sets this
-        node as host.
+      description: Creates a new cluster group and sets this node as host. If group_id
+        is provided, activates an existing group instead of creating a new one.
       parameters:
       - description: Create request
         in: body
@@ -1372,50 +1354,7 @@ paths:
           description: already in a cluster
           schema:
             type: string
-      summary: Create a new cluster (become host)
-      tags:
-      - cluster
-  /api/cluster/heartbeat:
-    post:
-      consumes:
-      - application/json
-      description: Sends a heartbeat with optional stats (CPU, memory, throughput,
-        custom metrics) to the host. The stats map is free-form — each executor defines
-        its own keys.
-      parameters:
-      - description: Heartbeat
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/routes.clusterHeartbeatRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/routes.statusOK'
-        "409":
-          description: not a worker or no host known
-          schema:
-            type: string
-      summary: Report worker liveness and processing stats (worker only)
-      tags:
-      - cluster
-  /api/cluster/job:
-    get:
-      description: Returns jobs waiting for an executor to claim (pending) and jobs
-        already claimed (accepted). Any executor — browser, script, agent — can poll
-        this endpoint on localhost.
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/routes.clusterWorkerJobsResponse'
-      summary: Fetch pending and accepted jobs for this worker
+      summary: Create or activate a cluster (become host)
       tags:
       - cluster
   /api/cluster/jobs:
@@ -1468,6 +1407,8 @@ paths:
       - cluster
   /api/cluster/leave:
     post:
+      description: Sends shutdown to all workers, leaves the cluster, and deletes
+        the group.
       produces:
       - application/json
       responses:
@@ -1475,62 +1416,7 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/routes.statusOK'
-      summary: Leave the current cluster
-      tags:
-      - cluster
-  /api/cluster/progress:
-    post:
-      consumes:
-      - application/json
-      description: Sends a progress update (percent, message, custom stats) to the
-        host via MQ. The host can broadcast this to its browser.
-      parameters:
-      - description: Progress report
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/routes.clusterProgressRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/routes.statusOK'
-        "409":
-          description: not a worker or job not accepted
-          schema:
-            type: string
-      summary: Report job progress to the cluster host (worker only)
-      tags:
-      - cluster
-  /api/cluster/result:
-    post:
-      consumes:
-      - application/json
-      description: Sends the final result to the host. On success, include result
-        payload. On failure, include error message. The job is removed from the accepted
-        set.
-      parameters:
-      - description: Result report
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/routes.clusterResultRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/routes.statusOK'
-        "409":
-          description: not a worker or job not accepted
-          schema:
-            type: string
-      summary: Report job completion or failure to the cluster host (worker only)
+      summary: Close the current cluster
       tags:
       - cluster
   /api/cluster/stats:
@@ -2465,6 +2351,29 @@ paths:
       summary: SSE stream of new Go process log lines
       tags:
       - logs
+  /api/lua/content:
+    get:
+      parameters:
+      - description: Script name (without .lua)
+        in: query
+        name: name
+        required: true
+        type: string
+      - description: Set to 1 for data functions
+        in: query
+        name: func
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Fetch a Lua script's content
+      tags:
+      - lua
   /api/mq/ack:
     post:
       consumes:
@@ -2696,6 +2605,26 @@ paths:
       summary: Read current quick settings (label, email, theme, device prefs, flags)
       tags:
       - settings
+  /api/site/content:
+    get:
+      parameters:
+      - description: File path relative to site root
+        in: query
+        name: path
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Fetch a site file's content and ETag
+      tags:
+      - site
   /api/topology:
     get:
       description: 'Returns this peer''s view of the network: self node, relay node

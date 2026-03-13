@@ -474,7 +474,8 @@ type clusterStatusResponse struct {
 
 // clusterCreateRequest is the body for POST /api/cluster/create.
 type clusterCreateRequest struct {
-	Name string `json:"name" example:"My Cluster"`
+	Name    string `json:"name"              example:"My Cluster"`
+	GroupID string `json:"group_id,omitempty" example:"a1b2c3d4e5f6a1b2"`
 }
 
 // clusterCreateResponse is the body for POST /api/cluster/create.
@@ -521,8 +522,8 @@ func swagClusterStatus() {}
 
 // swagClusterCreate is a documentation stub for POST /api/cluster/create.
 //
-//	@Summary	Create a new cluster (become host)
-//	@Description	Creates a volatile group with app_type="cluster" and sets this node as host.
+//	@Summary	Create or activate a cluster (become host)
+//	@Description	Creates a new cluster group and sets this node as host. If group_id is provided, activates an existing group instead of creating a new one.
 //	@Tags		cluster
 //	@Accept		json
 //	@Produce	json
@@ -549,7 +550,8 @@ func swagClusterJoin() {}
 
 // swagClusterLeave is a documentation stub for POST /api/cluster/leave.
 //
-//	@Summary	Leave the current cluster
+//	@Summary	Close the current cluster
+//	@Description	Sends shutdown to all workers, leaves the cluster, and deletes the group.
 //	@Tags		cluster
 //	@Produce	json
 //	@Success	200	{object}	statusOK

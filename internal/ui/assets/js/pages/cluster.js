@@ -59,6 +59,8 @@
     setHidden(idleSection,   role !== "none");
     setHidden(hostSection,   role !== "host");
     setHidden(workerSection, role !== "worker");
+    createBtn.disabled = role !== "none";
+    createNameInput.disabled = role !== "none";
   }
 
   function loadClusterGroups() {
@@ -124,7 +126,6 @@
         api.cluster.create({ name: "", group_id: gid }).catch(function () {
           return api.cluster.join({ group_id: gid, host_peer_id: "" });
         }).then(function () {
-          toast("Cluster activated");
           loadStatus();
           loadClusterGroups();
         }).catch(function (err) { toast("Failed: " + err.message, true); });
