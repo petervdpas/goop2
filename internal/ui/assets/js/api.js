@@ -195,6 +195,19 @@
       delete:        function (p) { return _post('/api/data/delete', p); },
     },
 
+    // ── Site (editor) ─────────────────────────────────────────────────────────
+    site: {
+      files:   function ()     { return _get('/api/site/files'); },
+      content: function (path) { return _get('/api/site/content?path=' + encodeURIComponent(path)); },
+    },
+
+    // ── Lua ──────────────────────────────────────────────────────────────────
+    lua: {
+      content: function (name, isFunc) {
+        return _get('/api/lua/content?name=' + encodeURIComponent(name) + (isFunc ? '&func=1' : ''));
+      },
+    },
+
     // ── Chat ───────────────────────────────────────────────────────────────────
     chat: {
       history: function (peerId) { return _get('/api/chat/history?peer_id=' + encodeURIComponent(peerId)); },

@@ -217,6 +217,34 @@ func registerLuaRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		http.Redirect(w, r, "/lua", http.StatusFound)
 	})
 
+	// GET /api/lua/content?name=X&func=0|1 — fetch script content
+	handleGet(mux, "/api/lua/content", func(w http.ResponseWriter, r *http.Request) {
+		if !requireLocal(w, r) {
+			return
+		}
+		name := strings.TrimSpace(r.URL.Query().Get("name"))
+		if name == "" || !validScriptName.MatchString(name) {
+			http.Error(w, "invalid script name", http.StatusBadRequest)
+			return
+		}
+		isFunc := r.URL.Query().Get("func") == "1"
+		dir, err := resolveTargetDir(d, isFunc)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		data, err := os.ReadFile(filepath.Join(dir, name+".lua"))
+		if err != nil {
+			http.Error(w, "script not found", http.StatusNotFound)
+			return
+		}
+		writeJSON(w, map[string]any{
+			"name":    name,
+			"func":    isFunc,
+			"content": string(data),
+		})
+	})
+
 	// POST /api/lua/prefabs/apply — install prefab scripts
 	handlePost(mux, "/api/lua/prefabs/apply", func(w http.ResponseWriter, r *http.Request, req struct {
 		Prefab string `json:"prefab"`

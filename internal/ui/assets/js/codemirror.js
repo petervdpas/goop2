@@ -48,6 +48,18 @@
 
   cm.setSize("100%", "70vh");
 
+  window.Goop = window.Goop || {};
+  window.Goop.cm = {
+    instance: cm,
+    modeFromPath: modeFromPath,
+    setContent: function (content, path) {
+      cm.setValue(content || "");
+      cm.setOption("mode", modeFromPath(path) || undefined);
+      cm.clearHistory();
+      cm.markClean();
+    },
+  };
+
   if (Theme) {
     window.addEventListener(Theme.EVT, (e) => {
       const t = e?.detail?.theme === "light" ? "light" : "dark";

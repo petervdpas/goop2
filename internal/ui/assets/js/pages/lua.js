@@ -60,6 +60,48 @@
     form.submit();
   }
 
+  // Script click — load content via API instead of full page reload
+  document.querySelectorAll('.lua-script-row').forEach(function(link) {
+    link.addEventListener('click', function(e) {
+      var cm = window.Goop && window.Goop.cm;
+      var luaApi = window.Goop && window.Goop.api && window.Goop.api.lua;
+      if (!cm || !luaApi) return; // fall through to href
+
+      var href = link.getAttribute('href') || '';
+      var params = new URLSearchParams(href.split('?')[1] || '');
+      var name = params.get('edit');
+      var isFunc = params.get('func') === '1';
+      if (!name) return;
+
+      e.preventDefault();
+
+      luaApi.content(name, isFunc).then(function(data) {
+        cm.setContent(data.content, name + '.lua');
+
+        var nameInput = document.querySelector('input[name="name"]');
+        if (nameInput) nameInput.value = name;
+        var funcInput = document.querySelector('input[name="is_func"]');
+        if (funcInput) funcInput.value = isFunc ? '1' : '';
+
+        var titleEl = document.querySelector('.ed-right-title');
+        if (titleEl) titleEl.textContent = name + '.lua';
+
+        if (delBtn) {
+          delBtn.setAttribute('data-name', name);
+          delBtn.setAttribute('data-func', isFunc ? '1' : '0');
+          delBtn.style.display = '';
+        }
+
+        document.querySelectorAll('.lua-script-row').forEach(function(r) { r.classList.remove('selected'); });
+        link.classList.add('selected');
+
+        history.replaceState(null, '', '/lua?edit=' + encodeURIComponent(name) + (isFunc ? '&func=1' : ''));
+      }).catch(function() {
+        window.location.href = href;
+      });
+    });
+  });
+
   // Prefab "Install all" buttons
   document.querySelectorAll('.lua-prefab-apply').forEach(function(btn) {
     btn.addEventListener('click', function() {

@@ -236,6 +236,43 @@
     window.location.reload();
   }
 
+  function loadFile(p) {
+    if (!p || isImageExt(p)) {
+      window.location.href = "/edit?path=" + encodeURIComponent(p);
+      return;
+    }
+    var api = window.Goop.api;
+    var cm = window.Goop.cm;
+    if (!api || !api.site || !cm) {
+      window.location.href = "/edit?path=" + encodeURIComponent(p);
+      return;
+    }
+    api.site.content(p).then(function (data) {
+      cm.setContent(data.content, p);
+      state.openPath = p;
+      ed.dataset.openPath = p;
+      var pathInput = qs("input[name='path']");
+      if (pathInput) pathInput.value = p;
+      var etagInput = qs("input[name='if_match']");
+      if (etagInput) etagInput.value = data.etag;
+      var nameEl = qs(".ed-savebar-title code");
+      if (nameEl) nameEl.textContent = p;
+      var etagEl = qs(".ed-savebar-etag code");
+      if (etagEl) etagEl.textContent = data.etag;
+      setSelectedDir(dirname(p));
+      setSelectedNode("file", p);
+      var form = qs("form[data-saveable]");
+      if (form && form._saveableReset) form._saveableReset();
+      history.replaceState(null, "", "/edit?path=" + encodeURIComponent(p));
+    }).catch(function () {
+      window.location.href = "/edit?path=" + encodeURIComponent(p);
+    });
+  }
+
+  function isImageExt(p) {
+    return /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(p);
+  }
+
   // Tree click
   tree.addEventListener("click", (e) => {
     const li = closest(e.target, ".ed-tree-item");
@@ -245,7 +282,7 @@
     if (isDirItem(li)) {
       setSelectedDir(p);
     } else {
-      window.location.href = "/edit?path=" + encodeURIComponent(p);
+      loadFile(p);
     }
   });
 
@@ -359,7 +396,7 @@
 
       case "open": {
         if (t.type === "file") {
-          window.location.href = "/edit?path=" + encodeURIComponent(t.path);
+          loadFile(t.path);
         }
         break;
       }

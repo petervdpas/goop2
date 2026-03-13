@@ -24,6 +24,29 @@ func registerSiteAPIRoutes(mux *http.ServeMux, d Deps) {
 		writeJSON(w, tree)
 	})
 
+	// Fetch a single file's content + etag
+	handleGet(mux, "/api/site/content", func(w http.ResponseWriter, r *http.Request) {
+		if d.Content == nil {
+			http.Error(w, "content store not configured", http.StatusInternalServerError)
+			return
+		}
+		p := normalizeRel(r.URL.Query().Get("path"))
+		if p == "" {
+			http.Error(w, "path required", http.StatusBadRequest)
+			return
+		}
+		b, etag, err := d.Content.Read(r.Context(), p)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		writeJSON(w, map[string]string{
+			"content": string(b),
+			"etag":    etag,
+			"path":    p,
+		})
+	})
+
 	// Upload a file to the site content store (multipart)
 	handlePostAction(mux, "/api/site/upload", func(w http.ResponseWriter, r *http.Request) {
 		if d.Content == nil {

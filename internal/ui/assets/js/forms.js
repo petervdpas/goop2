@@ -156,6 +156,13 @@
     form.addEventListener('input', function() { didUndo = false; updateButtons(); });
     form.addEventListener('change', function() { didUndo = false; updateButtons(); });
     if (cmInstance) cmInstance.on('change', function() { didUndo = false; updateButtons(); });
+
+    form._saveableReset = function() {
+      saved = snap();
+      previous = null;
+      didUndo = false;
+      updateButtons();
+    };
   }
 
   function init() {
