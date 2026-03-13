@@ -5,8 +5,8 @@ import (
 
 	"github.com/petervdpas/goop2/internal/avatar"
 	"github.com/petervdpas/goop2/internal/content"
-	"github.com/petervdpas/goop2/internal/docs"
 	"github.com/petervdpas/goop2/internal/group"
+	"github.com/petervdpas/goop2/internal/group_types/files"
 	"github.com/petervdpas/goop2/internal/p2p"
 	"github.com/petervdpas/goop2/internal/rendezvous"
 	"github.com/petervdpas/goop2/internal/state"
@@ -49,7 +49,7 @@ type Deps struct {
 	TopologyFunc func() any
 
 	// Document sharing
-	DocsStore    *docs.Store
+	DocsStore    *files.Store
 	GroupManager *group.Manager
 
 	// EnsureLua is called when a template with Lua files is applied.

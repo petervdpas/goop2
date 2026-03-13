@@ -16,13 +16,20 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/petervdpas/goop2/internal/docs"
 	"github.com/petervdpas/goop2/internal/proto"
 
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 )
+
+const docMaxFileSize = 50 * 1024 * 1024 // 50 MB
+
+// DocStore is the interface for document storage used by the P2P docs protocol.
+type DocStore interface {
+	ListJSON(groupID string) ([]byte, error)
+	Read(groupID, filename string) ([]byte, string, error)
+}
 
 // GroupChecker is the interface used to verify group membership.
 type GroupChecker interface {
@@ -32,7 +39,7 @@ type GroupChecker interface {
 }
 
 // EnableDocs registers the docs stream handler.
-func (n *Node) EnableDocs(store *docs.Store, gc GroupChecker) {
+func (n *Node) EnableDocs(store DocStore, gc GroupChecker) {
 	n.docsStore = store
 	n.groupChecker = gc
 	n.Host.SetStreamHandler(protocol.ID(proto.DocsProtoID), n.handleDocsStream)
@@ -47,9 +54,9 @@ type docsRequest struct {
 
 // docsListResponse is the response for a "list" operation.
 type docsListResponse struct {
-	OK    bool        `json:"ok"`
-	Files []docs.DocInfo `json:"files,omitempty"`
-	Error string      `json:"error,omitempty"`
+	OK    bool            `json:"ok"`
+	Files json.RawMessage `json:"files,omitempty"`
+	Error string          `json:"error,omitempty"`
 }
 
 func (n *Node) handleDocsStream(s network.Stream) {
@@ -113,13 +120,13 @@ func (n *Node) handleDocsStream(s network.Stream) {
 }
 
 func (n *Node) handleDocsList(s network.Stream, remotePeer string, req docsRequest) {
-	files, err := n.docsStore.List(req.GroupID)
+	filesJSON, err := n.docsStore.ListJSON(req.GroupID)
 	if err != nil {
 		writeDocsError(s, "list failed: "+err.Error())
 		return
 	}
 
-	resp := docsListResponse{OK: true, Files: files}
+	resp := docsListResponse{OK: true, Files: json.RawMessage(filesJSON)}
 	b, _ := json.Marshal(resp)
 	if n.enc != nil {
 		if sealed, err := n.enc.Seal(remotePeer, b); err == nil {
@@ -143,7 +150,7 @@ func (n *Node) handleDocsGet(s network.Stream, remotePeer string, req docsReques
 		return
 	}
 
-	if len(data) > docs.MaxFileSize {
+	if len(data) > docMaxFileSize {
 		writeDocsError(s, "file too large")
 		return
 	}
@@ -173,7 +180,7 @@ func writeDocsError(s network.Stream, msg string) {
 }
 
 // FetchDocList retrieves the file list from a remote peer for a group.
-func (n *Node) FetchDocList(ctx context.Context, peerID, groupID string) ([]docs.DocInfo, error) {
+func (n *Node) FetchDocList(ctx context.Context, peerID, groupID string) (json.RawMessage, error) {
 	pid, err := peer.Decode(peerID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid peer ID: %w", err)
@@ -312,7 +319,7 @@ func (n *Node) FetchDocFile(ctx context.Context, peerID, groupID, filename strin
 			if err != nil {
 				return "", nil, fmt.Errorf("bad size: %w", err)
 			}
-			if size < 0 || size > docs.MaxFileSize*2 {
+			if size < 0 || size > docMaxFileSize*2 {
 				return "", nil, fmt.Errorf("refusing size %d", size)
 			}
 			sealedData := make([]byte, size)
@@ -370,7 +377,7 @@ func (n *Node) FetchDocFile(ctx context.Context, peerID, groupID, filename strin
 	if err != nil {
 		return "", nil, fmt.Errorf("bad size: %w", err)
 	}
-	if size < 0 || size > docs.MaxFileSize {
+	if size < 0 || size > docMaxFileSize {
 		return "", nil, fmt.Errorf("refusing size %d", size)
 	}
 

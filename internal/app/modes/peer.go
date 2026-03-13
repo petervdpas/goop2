@@ -15,9 +15,9 @@ import (
 	"github.com/petervdpas/goop2/internal/config"
 	"github.com/petervdpas/goop2/internal/content"
 	goopCrypto "github.com/petervdpas/goop2/internal/crypto"
-	"github.com/petervdpas/goop2/internal/docs"
 	"github.com/petervdpas/goop2/internal/group"
 	clusterType "github.com/petervdpas/goop2/internal/group_types/cluster"
+	filesType "github.com/petervdpas/goop2/internal/group_types/files"
 	"github.com/petervdpas/goop2/internal/group_types/listen"
 	luapkg "github.com/petervdpas/goop2/internal/lua"
 	"github.com/petervdpas/goop2/internal/mq"
@@ -325,11 +325,12 @@ func RunPeer(p PeerParams) error {
 	log.Printf("🖥️ Cluster compute enabled")
 
 	// ── File sharing store
-	docStore, err := docs.NewStore(o.PeerDir)
+	docStore, err := filesType.NewStore(o.PeerDir)
 	if err != nil {
 		log.Printf("WARNING: Failed to create file sharing store: %v", err)
 	} else {
 		node.EnableDocs(docStore, grpMgr)
+		filesType.New(mqMgr, grpMgr, docStore)
 		log.Printf("📄 File sharing enabled: /goop/docs/1.0.0")
 	}
 

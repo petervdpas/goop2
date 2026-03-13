@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/petervdpas/goop2/internal/avatar"
-	"github.com/petervdpas/goop2/internal/docs"
 	"github.com/petervdpas/goop2/internal/proto"
 	"github.com/petervdpas/goop2/internal/rendezvous"
 	"github.com/petervdpas/goop2/internal/state"
@@ -92,7 +91,7 @@ type Node struct {
 	avatarStore *avatar.Store
 
 	// Set by EnableDocs in docs.go
-	docsStore    *docs.Store
+	docsStore    DocStore
 	groupChecker GroupChecker
 
 	// Diagnostic ring buffer for relay operations.

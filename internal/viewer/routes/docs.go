@@ -11,7 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/petervdpas/goop2/internal/docs"
+	"encoding/json"
+
+	files "github.com/petervdpas/goop2/internal/group_types/files"
 )
 
 func registerDocsRoutes(mux *http.ServeMux, d Deps) {
@@ -27,7 +29,7 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 			GroupID   string         `json:"group_id"`
 			GroupName string         `json:"group_name"`
 			Source    string         `json:"source"` // "hosted", "subscribed", "local"
-			Files     []docs.DocInfo `json:"files"`
+			Files     []files.DocInfo `json:"files"`
 		}
 
 		seen := map[string]*docGroup{}
@@ -61,11 +63,11 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 
 		// Populate each group with its local files
 		for _, g := range seen {
-			files, err := d.DocsStore.List(g.GroupID)
-			if err != nil || files == nil {
-				g.Files = []docs.DocInfo{}
+			docFiles, err := d.DocsStore.List(g.GroupID)
+			if err != nil || docFiles == nil {
+				g.Files = []files.DocInfo{}
 			} else {
-				g.Files = files
+				g.Files = docFiles
 			}
 		}
 
@@ -85,7 +87,7 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 			return
 		}
 
-		files, err := d.DocsStore.List(groupID)
+		docFiles, err := d.DocsStore.List(groupID)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to list files: %v", err), http.StatusInternalServerError)
 			return
@@ -97,7 +99,7 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 		}
 
 		writeJSON(w, map[string]any{
-			"files":   files,
+			"files":   docFiles,
 			"peer_id": selfID,
 		})
 	})
@@ -112,7 +114,7 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 		}
 
 		// Parse multipart: max 50 MB + overhead
-		if err := r.ParseMultipartForm(docs.MaxFileSize + 1024); err != nil {
+		if err := r.ParseMultipartForm(files.MaxFileSize + 1024); err != nil {
 			http.Error(w, "File too large or bad form", http.StatusBadRequest)
 			return
 		}
@@ -130,17 +132,17 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 		}
 		defer file.Close()
 
-		if header.Size > docs.MaxFileSize {
+		if header.Size > files.MaxFileSize {
 			http.Error(w, "File exceeds 50 MB limit", http.StatusRequestEntityTooLarge)
 			return
 		}
 
-		data, err := io.ReadAll(io.LimitReader(file, docs.MaxFileSize+1))
+		data, err := io.ReadAll(io.LimitReader(file, files.MaxFileSize+1))
 		if err != nil {
 			http.Error(w, "Failed to read file", http.StatusInternalServerError)
 			return
 		}
-		if len(data) > docs.MaxFileSize {
+		if len(data) > files.MaxFileSize {
 			http.Error(w, "File exceeds 50 MB limit", http.StatusRequestEntityTooLarge)
 			return
 		}
@@ -223,7 +225,7 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 		type peerFiles struct {
 			PeerID string         `json:"peer_id"`
 			Label  string         `json:"label"`
-			Files  []docs.DocInfo `json:"files"`
+			Files  []files.DocInfo `json:"files"`
 			Self   bool           `json:"self"`
 			Error  string         `json:"error,omitempty"`
 		}
@@ -233,7 +235,7 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 		// My own files
 		myFiles, err := d.DocsStore.List(groupID)
 		if err != nil {
-			myFiles = []docs.DocInfo{}
+			myFiles = []files.DocInfo{}
 		}
 		myLabel := ""
 		if d.SelfLabel != nil {
@@ -282,7 +284,7 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 						ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 						defer cancel()
 
-						files, err := d.Node.FetchDocList(ctx, peerID, groupID)
+						rawFiles, err := d.Node.FetchDocList(ctx, peerID, groupID)
 
 						// Resolve peer label: live table first, persistent cache as fallback
 						label := peerID
@@ -304,13 +306,16 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 						}
 						if err != nil {
 							log.Printf("DOCS: Failed to fetch list from %s: %v", peerID, err)
-							pf.Error = err.Error()
-							pf.Files = []docs.DocInfo{}
+							pf.Files = []files.DocInfo{}
 						} else {
-							if files == nil {
-								files = []docs.DocInfo{}
+							var parsed []files.DocInfo
+							if rawFiles != nil {
+								json.Unmarshal(rawFiles, &parsed) //nolint:errcheck
 							}
-							pf.Files = files
+							if parsed == nil {
+								parsed = []files.DocInfo{}
+							}
+							pf.Files = parsed
 						}
 
 						mu.Lock()

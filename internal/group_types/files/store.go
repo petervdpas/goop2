@@ -1,12 +1,9 @@
-// Shared document storage for group file sharing.
-// Each group gets a subdirectory under the shared/ root.
-// Files are namespaced by owner peer - only the local peer's files live here.
-
-package docs
+package files
 
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
@@ -177,26 +174,21 @@ func (s *Store) List(groupID string) ([]DocInfo, error) {
 	return out, nil
 }
 
-// groupDir returns the absolute path of a group's shared directory.
 func (s *Store) groupDir(groupID string) string {
-	// Sanitize groupID to prevent path traversal
 	safe := sanitizeSegment(groupID)
 	return filepath.Join(s.root, safe)
 }
 
-// cleanAbs resolves the absolute path and verifies it stays within the root.
 func (s *Store) cleanAbs(groupID, filename string) (string, error) {
 	dir := s.groupDir(groupID)
 	safe := sanitizeSegment(filename)
 	abs := filepath.Clean(filepath.Join(dir, safe))
 
-	// Verify within root
 	rootPrefix := filepath.Clean(s.root) + string(filepath.Separator)
 	if !strings.HasPrefix(abs, rootPrefix) {
 		return "", ErrOutsideRoot
 	}
 
-	// Verify within group dir
 	dirPrefix := filepath.Clean(dir) + string(filepath.Separator)
 	if !strings.HasPrefix(abs, dirPrefix) {
 		return "", ErrOutsideRoot
@@ -205,7 +197,6 @@ func (s *Store) cleanAbs(groupID, filename string) (string, error) {
 	return abs, nil
 }
 
-// validateFilename checks that a filename is safe.
 func validateFilename(name string) error {
 	name = strings.TrimSpace(name)
 	if name == "" || name == "." || name == ".." {
@@ -217,7 +208,6 @@ func validateFilename(name string) error {
 	if strings.HasPrefix(name, ".") {
 		return ErrBadName
 	}
-	// Check for filesystem-unsafe chars
 	for _, ch := range name {
 		if ch < 32 {
 			return ErrBadName
@@ -226,7 +216,6 @@ func validateFilename(name string) error {
 	return nil
 }
 
-// sanitizeSegment removes dangerous characters from a path segment.
 func sanitizeSegment(s string) string {
 	s = strings.TrimSpace(s)
 	s = strings.ReplaceAll(s, "..", "")
@@ -244,7 +233,17 @@ func hashBytes(b []byte) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
-// HasFiles checks if a group has any shared files (used by fs.WalkDir).
+// ListJSON returns the file list as pre-marshaled JSON bytes.
+// Satisfies the p2p.DocStore interface without type coupling.
+func (s *Store) ListJSON(groupID string) ([]byte, error) {
+	files, err := s.List(groupID)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(files)
+}
+
+// HasFiles checks if a group has any shared files.
 func (s *Store) HasFiles(groupID string) bool {
 	dir := s.groupDir(groupID)
 	entries, err := os.ReadDir(dir)

@@ -7,8 +7,8 @@ import (
 	"github.com/petervdpas/goop2/internal/call"
 	"github.com/petervdpas/goop2/internal/cluster"
 	"github.com/petervdpas/goop2/internal/content"
-	"github.com/petervdpas/goop2/internal/docs"
 	"github.com/petervdpas/goop2/internal/group"
+	"github.com/petervdpas/goop2/internal/group_types/files"
 	"github.com/petervdpas/goop2/internal/group_types/listen"
 	"github.com/petervdpas/goop2/internal/mq"
 	"github.com/petervdpas/goop2/internal/p2p"
@@ -35,7 +35,7 @@ type Viewer struct {
 	Groups  *group.Manager
 	Listen  *listen.Manager
 	DB       *storage.DB // SQLite database for peer data
-	Docs    *docs.Store // shared documents store
+	Docs    *files.Store // shared documents store
 
 	AvatarStore *avatar.Store
 	AvatarCache *avatar.Cache
