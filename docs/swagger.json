@@ -1411,6 +1411,26 @@
                 }
             }
         },
+        "/api/docs/groups": {
+            "get": {
+                "description": "Returns hosted, subscribed, and local file groups with per-group file lists.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "docs"
+                ],
+                "summary": "List all file-sharing groups with their local files",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.docGroupsResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/docs/my": {
             "get": {
                 "produces": [
@@ -2296,6 +2316,51 @@
                 }
             }
         },
+        "/api/lua/prefabs/apply": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "lua"
+                ],
+                "summary": "Install scripts from a prefab pack",
+                "parameters": [
+                    {
+                        "description": "Prefab install request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.luaPrefabApplyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.luaPrefabApplyResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "prefab name required / prefab not found / script not found in prefab",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "bad csrf",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/api/mq/ack": {
             "post": {
                 "description": "Called by the browser after processing an incoming MQ message.\\nRelays an application-level ACK to the sender.\\nIf from_peer_id is empty (PublishLocal event) the ACK is silently dropped.",
@@ -2391,6 +2456,26 @@
                         "description": "peer unreachable",
                         "schema": {
                             "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/my-balance": {
+            "get": {
+                "description": "Queries the credits service via the rendezvous server. Returns credits_active=false when no service is configured.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "credits"
+                ],
+                "summary": "Get this peer's credit balance",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.myBalanceResponse"
                         }
                     }
                 }
@@ -2514,6 +2599,36 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/routes.statusOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/rendezvous/check": {
+            "get": {
+                "description": "Fetches /api/capabilities from the given rendezvous URL and returns the capabilities map.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rendezvous"
+                ],
+                "summary": "Check a rendezvous server's capabilities",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Rendezvous server URL",
+                        "name": "url",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Capabilities map from remote server",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 }
@@ -2670,6 +2785,372 @@
                             "additionalProperties": {
                                 "type": "string"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/site/delete": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "site"
+                ],
+                "summary": "Delete a file from the site content store",
+                "parameters": [
+                    {
+                        "description": "File to delete",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.siteDeleteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "status: deleted",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    },
+                    "400": {
+                        "description": "path required",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/site/export": {
+            "get": {
+                "description": "Exports manifest, schema, site files, and Lua scripts into a zip. The response is an attachment download.",
+                "produces": [
+                    "application/zip"
+                ],
+                "tags": [
+                    "site"
+                ],
+                "summary": "Download the entire site as a zip archive",
+                "responses": {
+                    "200": {
+                        "description": "Zip archive",
+                        "schema": {
+                            "type": "file"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/site/files": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "site"
+                ],
+                "summary": "List site files as a flat tree",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/routes.siteFileItem"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/site/import": {
+            "post": {
+                "description": "Uploads a zip (manifest + schema + site/ + lua/) and applies it, replacing the current site and database.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "site"
+                ],
+                "summary": "Import a site from a zip archive",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "CSRF token",
+                        "name": "csrf",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Zip archive to import",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.siteImportResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "file required / failed to extract zip",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "bad csrf",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/site/upload": {
+            "post": {
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "site"
+                ],
+                "summary": "Upload a file to the site content store",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Destination path relative to site root",
+                        "name": "path",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "File to upload",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.siteUploadResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "path required / file required",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/templates/apply": {
+            "post": {
+                "description": "Resets the site and database, then applies the named built-in template.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "templates"
+                ],
+                "summary": "Apply a built-in template",
+                "parameters": [
+                    {
+                        "description": "Template to apply",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.templateApplyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.templateApplyResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "template name required / template not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "bad csrf",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/templates/apply-local": {
+            "post": {
+                "description": "Reads all files from the given directory (must contain manifest.json), resets site and database, then applies the template.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "templates"
+                ],
+                "summary": "Apply a template from a local folder",
+                "parameters": [
+                    {
+                        "description": "Folder path and CSRF",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.templateApplyLocalRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.templateApplyResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "path required / invalid path / not a directory / manifest.json not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "bad csrf",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/templates/apply-store": {
+            "post": {
+                "description": "Spends credits if required, downloads the template bundle from the rendezvous server, resets site and database, then applies the template.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "templates"
+                ],
+                "summary": "Apply a store template (download, spend credits, apply)",
+                "parameters": [
+                    {
+                        "description": "Store template to apply",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.templateApplyStoreRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.templateApplyStoreResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "template name required",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "402": {
+                        "description": "insufficient credits",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "bad csrf",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "502": {
+                        "description": "failed to download template",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/templates/validate-local": {
+            "post": {
+                "description": "Reads manifest.json from the given absolute path and returns its metadata for preview.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "templates"
+                ],
+                "summary": "Validate a local template folder",
+                "parameters": [
+                    {
+                        "description": "Folder path",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.templateValidateLocalRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.templateValidateLocalResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "path required / not a directory / manifest.json not found",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 }
@@ -3036,6 +3517,9 @@
                 "role": {
                     "type": "string",
                     "example": "host"
+                },
+                "stats": {
+                    "$ref": "#/definitions/routes.clusterQueueStats"
                 }
             }
         },
@@ -3265,6 +3749,38 @@
                 "size": {
                     "type": "integer",
                     "example": 1048576
+                }
+            }
+        },
+        "routes.docGroupItem": {
+            "type": "object",
+            "properties": {
+                "files": {
+                    "type": "array",
+                    "items": {}
+                },
+                "group_id": {
+                    "type": "string",
+                    "example": "g-abc123"
+                },
+                "group_name": {
+                    "type": "string",
+                    "example": "Shared Files"
+                },
+                "source": {
+                    "type": "string",
+                    "example": "hosted"
+                }
+            }
+        },
+        "routes.docGroupsResponse": {
+            "type": "object",
+            "properties": {
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/routes.docGroupItem"
+                    }
                 }
             }
         },
@@ -3645,6 +4161,36 @@
                 }
             }
         },
+        "routes.luaPrefabApplyRequest": {
+            "type": "object",
+            "properties": {
+                "csrf": {
+                    "type": "string",
+                    "example": "token123"
+                },
+                "prefab": {
+                    "type": "string",
+                    "example": "quiz-tools"
+                },
+                "script": {
+                    "type": "string",
+                    "example": "score-tracker"
+                }
+            }
+        },
+        "routes.luaPrefabApplyResponse": {
+            "type": "object",
+            "properties": {
+                "prefab": {
+                    "type": "string",
+                    "example": "quiz-tools"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "installed"
+                }
+            }
+        },
         "routes.mqAckRequest": {
             "type": "object",
             "properties": {
@@ -3686,6 +4232,19 @@
                 "status": {
                     "type": "string",
                     "example": "delivered"
+                }
+            }
+        },
+        "routes.myBalanceResponse": {
+            "type": "object",
+            "properties": {
+                "balance": {
+                    "type": "integer",
+                    "example": 500
+                },
+                "credits_active": {
+                    "type": "boolean",
+                    "example": true
                 }
             }
         },
@@ -3815,6 +4374,58 @@
                 }
             }
         },
+        "routes.siteDeleteRequest": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "example": "css/style.css"
+                }
+            }
+        },
+        "routes.siteFileItem": {
+            "type": "object",
+            "properties": {
+                "depth": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "is_dir": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "path": {
+                    "type": "string",
+                    "example": "index.html"
+                }
+            }
+        },
+        "routes.siteImportResponse": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "example": "imported"
+                }
+            }
+        },
+        "routes.siteUploadResponse": {
+            "type": "object",
+            "properties": {
+                "etag": {
+                    "type": "string",
+                    "example": "abc123"
+                },
+                "path": {
+                    "type": "string",
+                    "example": "img/logo.png"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "uploaded"
+                }
+            }
+        },
         "routes.statusOK": {
             "type": "object",
             "properties": {
@@ -3885,6 +4496,105 @@
                     "items": {
                         "$ref": "#/definitions/routes.subscriptionInfo"
                     }
+                }
+            }
+        },
+        "routes.templateApplyLocalRequest": {
+            "type": "object",
+            "properties": {
+                "csrf": {
+                    "type": "string",
+                    "example": "token123"
+                },
+                "path": {
+                    "type": "string",
+                    "example": "/home/user/my-template"
+                }
+            }
+        },
+        "routes.templateApplyRequest": {
+            "type": "object",
+            "properties": {
+                "csrf": {
+                    "type": "string",
+                    "example": "token123"
+                },
+                "template": {
+                    "type": "string",
+                    "example": "corkboard"
+                }
+            }
+        },
+        "routes.templateApplyResponse": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "example": "applied"
+                },
+                "template": {
+                    "type": "string",
+                    "example": "corkboard"
+                }
+            }
+        },
+        "routes.templateApplyStoreRequest": {
+            "type": "object",
+            "properties": {
+                "csrf": {
+                    "type": "string",
+                    "example": "token123"
+                },
+                "template": {
+                    "type": "string",
+                    "example": "kanban"
+                }
+            }
+        },
+        "routes.templateApplyStoreResponse": {
+            "type": "object",
+            "properties": {
+                "balance": {
+                    "type": "integer",
+                    "example": 450
+                },
+                "status": {
+                    "type": "string",
+                    "example": "applied"
+                },
+                "template": {
+                    "type": "string",
+                    "example": "kanban"
+                }
+            }
+        },
+        "routes.templateValidateLocalRequest": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "example": "/home/user/my-template"
+                }
+            }
+        },
+        "routes.templateValidateLocalResponse": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "example": "blog"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "A custom template"
+                },
+                "icon": {
+                    "type": "string",
+                    "example": "pencil"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "My Template"
                 }
             }
         },

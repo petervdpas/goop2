@@ -74,7 +74,7 @@
 
           <div class="panel cl-submit">
             <h4>Submit Job</h4>
-            <p class="muted small">Dispatch a job to an available worker. The scheduler assigns it to a worker whose declared job types match. Workers with no declared types accept any job. The payload is a free-form JSON object passed as stdin to the worker binary &mdash; use it to specify inputs, parameters, or configuration the worker needs to execute the task.</p>
+            <div class="panel-info">i<div class="panel-info-text">The scheduler assigns jobs to workers whose declared types match. Workers with no declared types accept any job. The payload is a free-form JSON object passed as stdin to the worker binary &mdash; use it for inputs, parameters, or configuration.</div></div>
             <div class="cl-submit-form">
               <div class="cl-submit-row">
                 <label>Type <span class="muted small">(lowercase, no spaces &mdash; e.g. render, transcode, resize)</span></label>

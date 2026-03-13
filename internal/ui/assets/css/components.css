@@ -7,7 +7,59 @@
   background: linear-gradient(180deg, var(--chip), color-mix(in srgb, var(--chip) 55%, transparent));
   border-radius: var(--radius);
   padding: 14px;
+  position: relative;
   box-shadow: var(--shadow-sm);
+}
+
+/* Panel info — hover tooltip in upper-right corner */
+.panel-info {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--muted);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  font-style: italic;
+  font-family: Georgia, serif;
+  line-height: 20px;
+  text-align: center;
+  cursor: help;
+  z-index: 2;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.panel-info:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.panel-info-text {
+  display: none;
+  position: absolute;
+  top: 30px;
+  right: 0;
+  width: 320px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-md);
+  font-size: 12px;
+  font-weight: 400;
+  font-style: normal;
+  font-family: inherit;
+  line-height: 1.5;
+  color: var(--muted);
+  white-space: normal;
+  z-index: 10;
+}
+
+.panel-info:hover .panel-info-text {
+  display: block;
 }
 
 /* Any container with stacked panels gets flex column + gap automatically.

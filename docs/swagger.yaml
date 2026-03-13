@@ -232,6 +232,8 @@ definitions:
       role:
         example: host
         type: string
+      stats:
+        $ref: '#/definitions/routes.clusterQueueStats'
     type: object
   routes.clusterSubmitRequest:
     properties:
@@ -393,6 +395,28 @@ definitions:
       size:
         example: 1048576
         type: integer
+    type: object
+  routes.docGroupItem:
+    properties:
+      files:
+        items: {}
+        type: array
+      group_id:
+        example: g-abc123
+        type: string
+      group_name:
+        example: Shared Files
+        type: string
+      source:
+        example: hosted
+        type: string
+    type: object
+  routes.docGroupsResponse:
+    properties:
+      groups:
+        items:
+          $ref: '#/definitions/routes.docGroupItem'
+        type: array
     type: object
   routes.docsDeleteRequest:
     properties:
@@ -652,6 +676,27 @@ definitions:
       sdp:
         type: string
     type: object
+  routes.luaPrefabApplyRequest:
+    properties:
+      csrf:
+        example: token123
+        type: string
+      prefab:
+        example: quiz-tools
+        type: string
+      script:
+        example: score-tracker
+        type: string
+    type: object
+  routes.luaPrefabApplyResponse:
+    properties:
+      prefab:
+        example: quiz-tools
+        type: string
+      status:
+        example: installed
+        type: string
+    type: object
   routes.mqAckRequest:
     properties:
       from_peer_id:
@@ -682,6 +727,15 @@ definitions:
       status:
         example: delivered
         type: string
+    type: object
+  routes.myBalanceResponse:
+    properties:
+      balance:
+        example: 500
+        type: integer
+      credits_active:
+        example: true
+        type: boolean
     type: object
   routes.peerContentResponse:
     properties:
@@ -766,6 +820,42 @@ definitions:
       templates:
         $ref: '#/definitions/routes.serviceHealthEntry'
     type: object
+  routes.siteDeleteRequest:
+    properties:
+      path:
+        example: css/style.css
+        type: string
+    type: object
+  routes.siteFileItem:
+    properties:
+      depth:
+        example: 0
+        type: integer
+      is_dir:
+        example: false
+        type: boolean
+      path:
+        example: index.html
+        type: string
+    type: object
+  routes.siteImportResponse:
+    properties:
+      status:
+        example: imported
+        type: string
+    type: object
+  routes.siteUploadResponse:
+    properties:
+      etag:
+        example: abc123
+        type: string
+      path:
+        example: img/logo.png
+        type: string
+      status:
+        example: uploaded
+        type: string
+    type: object
   routes.statusOK:
     properties:
       status:
@@ -816,6 +906,75 @@ definitions:
         items:
           $ref: '#/definitions/routes.subscriptionInfo'
         type: array
+    type: object
+  routes.templateApplyLocalRequest:
+    properties:
+      csrf:
+        example: token123
+        type: string
+      path:
+        example: /home/user/my-template
+        type: string
+    type: object
+  routes.templateApplyRequest:
+    properties:
+      csrf:
+        example: token123
+        type: string
+      template:
+        example: corkboard
+        type: string
+    type: object
+  routes.templateApplyResponse:
+    properties:
+      status:
+        example: applied
+        type: string
+      template:
+        example: corkboard
+        type: string
+    type: object
+  routes.templateApplyStoreRequest:
+    properties:
+      csrf:
+        example: token123
+        type: string
+      template:
+        example: kanban
+        type: string
+    type: object
+  routes.templateApplyStoreResponse:
+    properties:
+      balance:
+        example: 450
+        type: integer
+      status:
+        example: applied
+        type: string
+      template:
+        example: kanban
+        type: string
+    type: object
+  routes.templateValidateLocalRequest:
+    properties:
+      path:
+        example: /home/user/my-template
+        type: string
+    type: object
+  routes.templateValidateLocalResponse:
+    properties:
+      category:
+        example: blog
+        type: string
+      description:
+        example: A custom template
+        type: string
+      icon:
+        example: pencil
+        type: string
+      name:
+        example: My Template
+        type: string
     type: object
   routes.topologyNode:
     properties:
@@ -1807,6 +1966,20 @@ paths:
       summary: Download a file (local store or proxied from remote peer)
       tags:
       - docs
+  /api/docs/groups:
+    get:
+      description: Returns hosted, subscribed, and local file groups with per-group
+        file lists.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.docGroupsResponse'
+      summary: List all file-sharing groups with their local files
+      tags:
+      - docs
   /api/docs/my:
     get:
       parameters:
@@ -2374,6 +2547,36 @@ paths:
       summary: Fetch a Lua script's content
       tags:
       - lua
+  /api/lua/prefabs/apply:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Prefab install request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.luaPrefabApplyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.luaPrefabApplyResponse'
+        "400":
+          description: prefab name required / prefab not found / script not found
+            in prefab
+          schema:
+            type: string
+        "403":
+          description: bad csrf
+          schema:
+            type: string
+      summary: Install scripts from a prefab pack
+      tags:
+      - lua
   /api/mq/ack:
     post:
       consumes:
@@ -2446,6 +2649,20 @@ paths:
       summary: Send an MQ message to a peer
       tags:
       - mq
+  /api/my-balance:
+    get:
+      description: Queries the credits service via the rendezvous server. Returns
+        credits_active=false when no service is configured.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.myBalanceResponse'
+      summary: Get this peer's credit balance
+      tags:
+      - credits
   /api/openapi.json:
     get:
       produces:
@@ -2525,6 +2742,27 @@ paths:
       summary: Probe all known peers for reachability
       tags:
       - peers
+  /api/rendezvous/check:
+    get:
+      description: Fetches /api/capabilities from the given rendezvous URL and returns
+        the capabilities map.
+      parameters:
+      - description: Rendezvous server URL
+        in: query
+        name: url
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Capabilities map from remote server
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Check a rendezvous server's capabilities
+      tags:
+      - rendezvous
   /api/self:
     get:
       produces:
@@ -2625,6 +2863,251 @@ paths:
       summary: Fetch a site file's content and ETag
       tags:
       - site
+  /api/site/delete:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: File to delete
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.siteDeleteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'status: deleted'
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+        "400":
+          description: path required
+          schema:
+            type: string
+      summary: Delete a file from the site content store
+      tags:
+      - site
+  /api/site/export:
+    get:
+      description: Exports manifest, schema, site files, and Lua scripts into a zip.
+        The response is an attachment download.
+      produces:
+      - application/zip
+      responses:
+        "200":
+          description: Zip archive
+          schema:
+            type: file
+      summary: Download the entire site as a zip archive
+      tags:
+      - site
+  /api/site/files:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/routes.siteFileItem'
+            type: array
+      summary: List site files as a flat tree
+      tags:
+      - site
+  /api/site/import:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Uploads a zip (manifest + schema + site/ + lua/) and applies it,
+        replacing the current site and database.
+      parameters:
+      - description: CSRF token
+        in: formData
+        name: csrf
+        required: true
+        type: string
+      - description: Zip archive to import
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.siteImportResponse'
+        "400":
+          description: file required / failed to extract zip
+          schema:
+            type: string
+        "403":
+          description: bad csrf
+          schema:
+            type: string
+      summary: Import a site from a zip archive
+      tags:
+      - site
+  /api/site/upload:
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: Destination path relative to site root
+        in: formData
+        name: path
+        required: true
+        type: string
+      - description: File to upload
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.siteUploadResponse'
+        "400":
+          description: path required / file required
+          schema:
+            type: string
+      summary: Upload a file to the site content store
+      tags:
+      - site
+  /api/templates/apply:
+    post:
+      consumes:
+      - application/json
+      description: Resets the site and database, then applies the named built-in template.
+      parameters:
+      - description: Template to apply
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.templateApplyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.templateApplyResponse'
+        "400":
+          description: template name required / template not found
+          schema:
+            type: string
+        "403":
+          description: bad csrf
+          schema:
+            type: string
+      summary: Apply a built-in template
+      tags:
+      - templates
+  /api/templates/apply-local:
+    post:
+      consumes:
+      - application/json
+      description: Reads all files from the given directory (must contain manifest.json),
+        resets site and database, then applies the template.
+      parameters:
+      - description: Folder path and CSRF
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.templateApplyLocalRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.templateApplyResponse'
+        "400":
+          description: path required / invalid path / not a directory / manifest.json
+            not found
+          schema:
+            type: string
+        "403":
+          description: bad csrf
+          schema:
+            type: string
+      summary: Apply a template from a local folder
+      tags:
+      - templates
+  /api/templates/apply-store:
+    post:
+      consumes:
+      - application/json
+      description: Spends credits if required, downloads the template bundle from
+        the rendezvous server, resets site and database, then applies the template.
+      parameters:
+      - description: Store template to apply
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.templateApplyStoreRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.templateApplyStoreResponse'
+        "400":
+          description: template name required
+          schema:
+            type: string
+        "402":
+          description: insufficient credits
+          schema:
+            type: string
+        "403":
+          description: bad csrf
+          schema:
+            type: string
+        "502":
+          description: failed to download template
+          schema:
+            type: string
+      summary: Apply a store template (download, spend credits, apply)
+      tags:
+      - templates
+  /api/templates/validate-local:
+    post:
+      consumes:
+      - application/json
+      description: Reads manifest.json from the given absolute path and returns its
+        metadata for preview.
+      parameters:
+      - description: Folder path
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.templateValidateLocalRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.templateValidateLocalResponse'
+        "400":
+          description: path required / not a directory / manifest.json not found
+          schema:
+            type: string
+      summary: Validate a local template folder
+      tags:
+      - templates
   /api/topology:
     get:
       description: 'Returns this peer''s view of the network: self node, relay node

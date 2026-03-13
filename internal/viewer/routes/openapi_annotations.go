@@ -467,9 +467,10 @@ type docFileInfo struct {
 
 // clusterStatusResponse is the body for GET /api/cluster/status.
 type clusterStatusResponse struct {
-	Role       string `json:"role"                    example:"host"`
-	GroupID    string `json:"group_id"                example:"a1b2c3d4e5f6a1b2"`
-	BinaryPath string `json:"binary_path,omitempty"   example:"/usr/bin/renderer"`
+	Role       string           `json:"role"                    example:"host"`
+	GroupID    string           `json:"group_id"                example:"a1b2c3d4e5f6a1b2"`
+	Stats      *clusterQueueStats `json:"stats,omitempty"`
+	BinaryPath string           `json:"binary_path,omitempty"   example:"/usr/bin/renderer"`
 }
 
 // clusterCreateRequest is the body for POST /api/cluster/create.
@@ -1532,3 +1533,273 @@ func swagSiteContent() {}
 //	@Success	200		{object}	map[string]interface{}
 //	@Router		/api/lua/content [get]
 func swagLuaContent() {}
+
+// swagLuaPrefabsApply is a documentation stub for POST /api/lua/prefabs/apply.
+//
+//	@Summary	Install scripts from a prefab pack
+//	@Tags		lua
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		luaPrefabApplyRequest	true	"Prefab install request"
+//	@Success	200		{object}	luaPrefabApplyResponse
+//	@Failure	400		{string}	string	"prefab name required / prefab not found / script not found in prefab"
+//	@Failure	403		{string}	string	"bad csrf"
+//	@Router		/api/lua/prefabs/apply [post]
+func swagLuaPrefabsApply() {}
+
+// ── Docs ─────────────────────────────────────────────────────────────────────
+
+// docGroupItem is an entry in the GET /api/docs/groups response.
+type docGroupItem struct {
+	GroupID   string `json:"group_id"   example:"g-abc123"`
+	GroupName string `json:"group_name" example:"Shared Files"`
+	Source    string `json:"source"     example:"hosted"`
+	Files     []any  `json:"files"`
+}
+
+// docGroupsResponse is the body for GET /api/docs/groups.
+type docGroupsResponse struct {
+	Groups []docGroupItem `json:"groups"`
+}
+
+// swagDocsGroups is a documentation stub for GET /api/docs/groups.
+//
+//	@Summary	List all file-sharing groups with their local files
+//	@Description	Returns hosted, subscribed, and local file groups with per-group file lists.
+//	@Tags		docs
+//	@Produce	json
+//	@Success	200	{object}	docGroupsResponse
+//	@Router		/api/docs/groups [get]
+func swagDocsGroups() {}
+
+// ── Credits ──────────────────────────────────────────────────────────────────
+
+// myBalanceResponse is the body for GET /api/my-balance.
+type myBalanceResponse struct {
+	CreditsActive bool `json:"credits_active" example:"true"`
+	Balance       int  `json:"balance,omitempty" example:"500"`
+}
+
+// swagMyBalance is a documentation stub for GET /api/my-balance.
+//
+//	@Summary	Get this peer's credit balance
+//	@Description	Queries the credits service via the rendezvous server. Returns credits_active=false when no service is configured.
+//	@Tags		credits
+//	@Produce	json
+//	@Success	200	{object}	myBalanceResponse
+//	@Router		/api/my-balance [get]
+func swagMyBalance() {}
+
+// ── Rendezvous ───────────────────────────────────────────────────────────────
+
+// swagRendezvousCheck is a documentation stub for GET /api/rendezvous/check.
+//
+//	@Summary	Check a rendezvous server's capabilities
+//	@Description	Fetches /api/capabilities from the given rendezvous URL and returns the capabilities map.
+//	@Tags		rendezvous
+//	@Produce	json
+//	@Param		url	query		string					true	"Rendezvous server URL"
+//	@Success	200	{object}	map[string]interface{}	"Capabilities map from remote server"
+//	@Router		/api/rendezvous/check [get]
+func swagRendezvousCheck() {}
+
+// ── Site (additional) ────────────────────────────────────────────────────────
+
+// siteFileItem represents an entry from content.ListTree.
+type siteFileItem struct {
+	Path  string `json:"path"   example:"index.html"`
+	IsDir bool   `json:"is_dir" example:"false"`
+	Depth int    `json:"depth"  example:"0"`
+}
+
+// swagSiteFiles is a documentation stub for GET /api/site/files.
+//
+//	@Summary	List site files as a flat tree
+//	@Tags		site
+//	@Produce	json
+//	@Success	200	{array}		siteFileItem
+//	@Router		/api/site/files [get]
+func swagSiteFiles() {}
+
+// siteDeleteRequest is the body for POST /api/site/delete.
+type siteDeleteRequest struct {
+	Path string `json:"path" example:"css/style.css"`
+}
+
+// swagSiteDelete is a documentation stub for POST /api/site/delete.
+//
+//	@Summary	Delete a file from the site content store
+//	@Tags		site
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		siteDeleteRequest	true	"File to delete"
+//	@Success	200		{object}	statusOK			"status: deleted"
+//	@Failure	400		{string}	string				"path required"
+//	@Router		/api/site/delete [post]
+func swagSiteDelete() {}
+
+// siteUploadResponse is the body for POST /api/site/upload.
+type siteUploadResponse struct {
+	Status string `json:"status" example:"uploaded"`
+	Path   string `json:"path"   example:"img/logo.png"`
+	ETag   string `json:"etag"   example:"abc123"`
+}
+
+// swagSiteUpload is a documentation stub for POST /api/site/upload.
+//
+//	@Summary	Upload a file to the site content store
+//	@Tags		site
+//	@Accept		multipart/form-data
+//	@Produce	json
+//	@Param		path	formData	string				true	"Destination path relative to site root"
+//	@Param		file	formData	file				true	"File to upload"
+//	@Success	200		{object}	siteUploadResponse
+//	@Failure	400		{string}	string	"path required / file required"
+//	@Router		/api/site/upload [post]
+func swagSiteUpload() {}
+
+// swagSiteExport is a documentation stub for GET /api/site/export.
+//
+//	@Summary	Download the entire site as a zip archive
+//	@Description	Exports manifest, schema, site files, and Lua scripts into a zip. The response is an attachment download.
+//	@Tags		site
+//	@Produce	application/zip
+//	@Success	200	{file}	binary	"Zip archive"
+//	@Router		/api/site/export [get]
+func swagSiteExport() {}
+
+// siteImportResponse is the body for POST /api/site/import.
+type siteImportResponse struct {
+	Status string `json:"status" example:"imported"`
+}
+
+// swagSiteImport is a documentation stub for POST /api/site/import.
+//
+//	@Summary	Import a site from a zip archive
+//	@Description	Uploads a zip (manifest + schema + site/ + lua/) and applies it, replacing the current site and database.
+//	@Tags		site
+//	@Accept		multipart/form-data
+//	@Produce	json
+//	@Param		csrf	formData	string				true	"CSRF token"
+//	@Param		file	formData	file				true	"Zip archive to import"
+//	@Success	200		{object}	siteImportResponse
+//	@Failure	400		{string}	string	"file required / failed to extract zip"
+//	@Failure	403		{string}	string	"bad csrf"
+//	@Router		/api/site/import [post]
+func swagSiteImport() {}
+
+// ── Templates ────────────────────────────────────────────────────────────────
+
+// luaPrefabApplyRequest is the body for POST /api/lua/prefabs/apply.
+type luaPrefabApplyRequest struct {
+	Prefab string `json:"prefab" example:"quiz-tools"`
+	Script string `json:"script,omitempty" example:"score-tracker"`
+	CSRF   string `json:"csrf"   example:"token123"`
+}
+
+// luaPrefabApplyResponse is the body for POST /api/lua/prefabs/apply.
+type luaPrefabApplyResponse struct {
+	Status string `json:"status" example:"installed"`
+	Prefab string `json:"prefab" example:"quiz-tools"`
+}
+
+// templateApplyRequest is the body for POST /api/templates/apply.
+type templateApplyRequest struct {
+	Template string `json:"template" example:"corkboard"`
+	CSRF     string `json:"csrf"     example:"token123"`
+}
+
+// templateApplyResponse is the body for POST /api/templates/apply.
+type templateApplyResponse struct {
+	Status   string `json:"status"   example:"applied"`
+	Template string `json:"template" example:"corkboard"`
+}
+
+// swagTemplatesApply is a documentation stub for POST /api/templates/apply.
+//
+//	@Summary	Apply a built-in template
+//	@Description	Resets the site and database, then applies the named built-in template.
+//	@Tags		templates
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		templateApplyRequest	true	"Template to apply"
+//	@Success	200		{object}	templateApplyResponse
+//	@Failure	400		{string}	string	"template name required / template not found"
+//	@Failure	403		{string}	string	"bad csrf"
+//	@Router		/api/templates/apply [post]
+func swagTemplatesApply() {}
+
+// templateValidateLocalRequest is the body for POST /api/templates/validate-local.
+type templateValidateLocalRequest struct {
+	Path string `json:"path" example:"/home/user/my-template"`
+}
+
+// templateValidateLocalResponse is the body for POST /api/templates/validate-local.
+type templateValidateLocalResponse struct {
+	Name        string `json:"name"        example:"My Template"`
+	Description string `json:"description" example:"A custom template"`
+	Category    string `json:"category"    example:"blog"`
+	Icon        string `json:"icon"        example:"pencil"`
+}
+
+// swagTemplatesValidateLocal is a documentation stub for POST /api/templates/validate-local.
+//
+//	@Summary	Validate a local template folder
+//	@Description	Reads manifest.json from the given absolute path and returns its metadata for preview.
+//	@Tags		templates
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		templateValidateLocalRequest		true	"Folder path"
+//	@Success	200		{object}	templateValidateLocalResponse
+//	@Failure	400		{string}	string	"path required / not a directory / manifest.json not found"
+//	@Router		/api/templates/validate-local [post]
+func swagTemplatesValidateLocal() {}
+
+// templateApplyLocalRequest is the body for POST /api/templates/apply-local.
+type templateApplyLocalRequest struct {
+	Path string `json:"path" example:"/home/user/my-template"`
+	CSRF string `json:"csrf" example:"token123"`
+}
+
+// swagTemplatesApplyLocal is a documentation stub for POST /api/templates/apply-local.
+//
+//	@Summary	Apply a template from a local folder
+//	@Description	Reads all files from the given directory (must contain manifest.json), resets site and database, then applies the template.
+//	@Tags		templates
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		templateApplyLocalRequest	true	"Folder path and CSRF"
+//	@Success	200		{object}	templateApplyResponse
+//	@Failure	400		{string}	string	"path required / invalid path / not a directory / manifest.json not found"
+//	@Failure	403		{string}	string	"bad csrf"
+//	@Router		/api/templates/apply-local [post]
+func swagTemplatesApplyLocal() {}
+
+// templateApplyStoreRequest is the body for POST /api/templates/apply-store.
+type templateApplyStoreRequest struct {
+	Template string `json:"template" example:"kanban"`
+	CSRF     string `json:"csrf"     example:"token123"`
+}
+
+// templateApplyStoreResponse is the body for POST /api/templates/apply-store.
+type templateApplyStoreResponse struct {
+	Status   string `json:"status"   example:"applied"`
+	Template string `json:"template" example:"kanban"`
+	Balance  int    `json:"balance,omitempty" example:"450"`
+}
+
+// swagTemplatesApplyStore is a documentation stub for POST /api/templates/apply-store.
+//
+//	@Summary	Apply a store template (download, spend credits, apply)
+//	@Description	Spends credits if required, downloads the template bundle from the rendezvous server, resets site and database, then applies the template.
+//	@Tags		templates
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		templateApplyStoreRequest	true	"Store template to apply"
+//	@Success	200		{object}	templateApplyStoreResponse
+//	@Failure	400		{string}	string	"template name required"
+//	@Failure	402		{string}	string	"insufficient credits"
+//	@Failure	403		{string}	string	"bad csrf"
+//	@Failure	502		{string}	string	"failed to download template"
+//	@Router		/api/templates/apply-store [post]
+func swagTemplatesApplyStore() {}
