@@ -637,9 +637,14 @@
 
   function shortLabel(label, id) {
     if (label && label !== id) return label;
+    if (id && window.Goop && window.Goop.mq && window.Goop.mq.getPeerName) {
+      var mqName = window.Goop.mq.getPeerName(id);
+      if (mqName) return mqName;
+    }
     if (!id || id.length <= 12) return id || "Unknown";
     return id.substring(0, 8) + "\u2026";
   }
+
 
   function formatSize(bytes) {
     if (bytes === 0) return "0 B";

@@ -48,6 +48,18 @@ func (c *Cache) Get(peerID, hash string) ([]byte, error) {
 	return data, err
 }
 
+// GetAny returns whatever cached avatar exists for a peer, ignoring hash.
+func (c *Cache) GetAny(peerID string) ([]byte, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	data, err := os.ReadFile(c.filePath(peerID))
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	return data, err
+}
+
 // Put stores a peer's avatar and its hash.
 func (c *Cache) Put(peerID, hash string, data []byte) error {
 	c.mu.Lock()

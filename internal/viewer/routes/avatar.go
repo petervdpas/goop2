@@ -173,6 +173,14 @@ func serveRemoteAvatar(w http.ResponseWriter, r *http.Request, d Deps, peerID st
 }
 
 func servePeerFallback(w http.ResponseWriter, d Deps, peerID string) {
+	if d.AvatarCache != nil {
+		if cached, err := d.AvatarCache.GetAny(peerID); err == nil && cached != nil {
+			w.Header().Set("Content-Type", "image/png")
+			w.Header().Set("Cache-Control", "public, max-age=60")
+			w.Write(cached)
+			return
+		}
+	}
 	label := ""
 	email := ""
 	if d.Peers != nil {
