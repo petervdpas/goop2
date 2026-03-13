@@ -77,13 +77,31 @@
             <div class="panel-info">i<div class="panel-info-text">The scheduler assigns jobs to workers whose declared types match. Workers with no declared types accept any job. The payload is a free-form JSON object passed as stdin to the worker binary &mdash; use it for inputs, parameters, or configuration.</div></div>
             <div class="cl-submit-form">
               <div class="cl-submit-row">
-                <label>Type <span class="muted small">(lowercase, no spaces &mdash; e.g. render, transcode, resize)</span></label>
-                <input type="text" id="cl-job-type" class="form-input" placeholder="render" />
+                <label>Mode</label>
+                <div id="cl-job-mode" class="gsel" data-value="oneshot">
+                  <button type="button" class="gsel-trigger">
+                    <span class="gsel-text">oneshot</span>
+                    <span class="gsel-arrow">&#9662;</span>
+                  </button>
+                  <div class="gsel-dropdown">
+                    <button type="button" class="gsel-option selected" data-value="oneshot">oneshot &mdash; run once, return result</button>
+                    <button type="button" class="gsel-option" data-value="continuous">continuous &mdash; keep running, stream output</button>
+                  </div>
+                </div>
               </div>
               <div class="cl-submit-row">
-                <label>Payload <span class="muted small">(JSON object &mdash; worker receives this as stdin)</span></label>
-                <textarea id="cl-job-payload" class="form-input cl-textarea" placeholder='Example:
-{"input": "video.mp4", "format": "webm", "quality": 80}'></textarea>
+                <label>Type</label>
+                <div id="cl-job-type" class="gsel" data-value="" data-placeholder="Select job type">
+                  <button type="button" class="gsel-trigger">
+                    <span class="gsel-text">Select job type</span>
+                    <span class="gsel-arrow">&#9662;</span>
+                  </button>
+                  <div class="gsel-dropdown"></div>
+                </div>
+              </div>
+              <div class="cl-submit-row">
+                <label>Payload <span id="cl-payload-info" class="panel-info-inline hidden">i<span class="panel-info-text"></span></span></label>
+                <textarea id="cl-job-payload" class="form-input cl-textarea" rows="6"></textarea>
               </div>
               <div class="cl-submit-row cl-submit-opts">
                 <div>

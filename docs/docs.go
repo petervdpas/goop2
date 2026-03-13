@@ -896,6 +896,29 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/cluster/types": {
+            "get": {
+                "description": "Returns the 7 predefined job types (calculate, construct, transform, search, validate, distribute, custom) with descriptions, JSON payload templates, and help text.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "List predefined job types with payload templates",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/cluster.JobType"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/cluster/workers": {
             "get": {
                 "produces": [
@@ -3188,6 +3211,23 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "cluster.JobType": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "help": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "template": {
+                    "type": "string"
+                }
+            }
+        },
         "routes.avatarUploadResponse": {
             "type": "object",
             "properties": {
@@ -3534,6 +3574,10 @@ const docTemplate = `{
                     "type": "integer",
                     "example": 2
                 },
+                "mode": {
+                    "type": "string",
+                    "example": "oneshot"
+                },
                 "payload": {
                     "type": "object",
                     "additionalProperties": {}
@@ -3548,7 +3592,7 @@ const docTemplate = `{
                 },
                 "type": {
                     "type": "string",
-                    "example": "render"
+                    "example": "calculate"
                 }
             }
         },

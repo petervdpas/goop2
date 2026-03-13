@@ -1,5 +1,16 @@
 basePath: /
 definitions:
+  cluster.JobType:
+    properties:
+      description:
+        type: string
+      help:
+        type: string
+      name:
+        type: string
+      template:
+        type: string
+    type: object
   routes.avatarUploadResponse:
     properties:
       hash:
@@ -240,6 +251,9 @@ definitions:
       max_retry:
         example: 2
         type: integer
+      mode:
+        example: oneshot
+        type: string
       payload:
         additionalProperties: {}
         type: object
@@ -250,7 +264,7 @@ definitions:
         example: 300
         type: integer
       type:
-        example: render
+        example: calculate
         type: string
     type: object
   routes.clusterSubmitResponse:
@@ -1631,6 +1645,23 @@ paths:
           schema:
             type: string
       summary: Submit a job to the cluster queue (host only)
+      tags:
+      - cluster
+  /api/cluster/types:
+    get:
+      description: Returns the 7 predefined job types (calculate, construct, transform,
+        search, validate, distribute, custom) with descriptions, JSON payload templates,
+        and help text.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/cluster.JobType'
+            type: array
+      summary: List predefined job types with payload templates
       tags:
       - cluster
   /api/cluster/workers:

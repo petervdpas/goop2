@@ -23,6 +23,23 @@ info:
     - **oneshot** (default): started per job, exits after result
     - **daemon**: started once, handles multiple jobs via newline-delimited JSON on stdin
 
+    ## Job modes
+
+    - **oneshot**: run once, return a single result, then the job completes
+    - **continuous**: keep running and stream output indefinitely until cancelled
+
+    ## Predefined job types
+
+    | Type | Description | Payload fields |
+    |------|-------------|----------------|
+    | calculate | Compute a result from inputs | expression, parameters |
+    | construct | Build or assemble output from parts | source, output, options |
+    | transform | Convert input from one form to another | input, output, format, options |
+    | search | Find or query across data | query, scope, limit |
+    | validate | Check or verify something | target, rules |
+    | distribute | Spread data to multiple targets | source, targets |
+    | custom | User-defined job type | type_name, payload |
+
     ## Code examples
 
     Complete working binaries in Bash, Python, Go, C, and C++:
@@ -114,7 +131,7 @@ paths:
             TYPE=$(echo "$line" | python3 -c "import sys,json; print(json.load(sys.stdin)['type'])")
 
             if [ "$TYPE" = "__check__" ]; then
-              echo '{"status":"done","result":{"types":["render"],"version":"1.0"}}'
+              echo '{"status":"done","result":{"types":["calculate"],"version":"1.0"}}'
             fi
         - lang: Python
           source: |
@@ -126,7 +143,7 @@ paths:
                     print(json.dumps({
                         "status": "done",
                         "result": {
-                            "types": ["render", "transcode"],
+                            "types": ["calculate", "transform"],
                             "version": "1.0",
                             "capacity": 2
                         }
@@ -144,7 +161,7 @@ paths:
                     json.NewEncoder(os.Stdout).Encode(map[string]any{
                         "status": "done",
                         "result": map[string]any{
-                            "types": []string{"render"}, "version": "1.0", "capacity": 4,
+                            "types": []string{"calculate"}, "version": "1.0", "capacity": 4,
                         },
                     })
                 }
@@ -169,7 +186,7 @@ paths:
                 auto job = json::parse(line);
                 if (job["type"] == "__check__") {
                     json result = {{"status","done"},{"result",{
-                        {"types", {"render","transcode"}},
+                        {"types", {"calculate","transcode"}},
                         {"version","1.0"}, {"capacity",4}
                     }}};
                     std::cout << result.dump() << std::endl;
@@ -195,7 +212,7 @@ paths:
               example:
                 status: "done"
                 result:
-                  types: ["render", "transcode"]
+                  types: ["calculate", "transform"]
                   version: "1.0"
                   capacity: 2
 
@@ -236,7 +253,7 @@ paths:
                 job_id = job["job_id"]
 
                 if job["type"] == "__check__":
-                    print(json.dumps({"status":"done","result":{"types":["render"]}}), flush=True)
+                    print(json.dumps({"status":"done","result":{"types":["calculate"]}}), flush=True)
                     continue
 
                 # Do work + progress
@@ -262,7 +279,7 @@ paths:
                 json.Unmarshal(scanner.Bytes(), &job)
 
                 if job.Type == "__check__" {
-                    emit(map[string]any{"status":"done","result":map[string]any{"types":[]string{"render"}}})
+                    emit(map[string]any{"status":"done","result":map[string]any{"types":[]string{"calculate"}}})
                     continue
                 }
 
@@ -307,7 +324,7 @@ paths:
                 auto job = json::parse(line);
 
                 if (job["type"] == "__check__") {
-                    std::cout << json{{"status","done"},{"result",{{"types",{"render"}}}}}.dump() << "\n";
+                    std::cout << json{{"status","done"},{"result",{{"types",{"calculate"}}}}}.dump() << "\n";
                     continue;
                 }
 
@@ -327,7 +344,7 @@ paths:
               $ref: "#/components/schemas/JobInput"
             example:
               job_id: "j-a1b2c3d4"
-              type: "render"
+              type: "calculate"
               payload: { "scene": "intro.blend", "frame": 42 }
       responses:
         "200":
@@ -381,11 +398,23 @@ components:
           example: "j-a1b2c3d4"
         type:
           type: string
-          example: "render"
+          description: One of the predefined types (calculate, construct, transform, search, validate, distribute) or a custom type name
+          example: "calculate"
+        mode:
+          type: string
+          enum: [oneshot, continuous]
+          default: oneshot
+          description: "oneshot = run once and return result. continuous = keep running and stream output until cancelled."
+          example: "oneshot"
         payload:
           type: object
           additionalProperties: true
-          example: { "scene": "intro.blend", "frame": 42 }
+          description: Type-specific parameters. See predefined job types table for expected fields.
+          example: { "expression": "pi(10000)", "parameters": {} }
+        timeout_s:
+          type: integer
+          description: Max execution time in seconds (0 = unlimited)
+          example: 300
       required: [job_id, type]
 
     ProgressOutput:
@@ -439,7 +468,7 @@ components:
           items:
             type: string
           description: Job types this binary handles
-          example: ["render", "transcode"]
+          example: ["calculate", "transform"]
         version:
           type: string
           description: Binary version for diagnostics

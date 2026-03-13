@@ -177,6 +177,7 @@
       workers: function ()  { return _get('/api/cluster/workers'); },
       stats:   function ()  { return _get('/api/cluster/stats'); },
       binary:  function (p) { return _post('/api/cluster/binary', p); },
+      types:   function ()  { return _get('/api/cluster/types'); },
     },
 
     // ── Data ───────────────────────────────────────────────────────────────────

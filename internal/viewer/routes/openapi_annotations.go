@@ -493,7 +493,8 @@ type clusterJoinRequest struct {
 
 // clusterSubmitRequest is the body for POST /api/cluster/submit.
 type clusterSubmitRequest struct {
-	Type     string         `json:"type"                example:"render"`
+	Type     string         `json:"type"                example:"calculate"`
+	Mode     string         `json:"mode,omitempty"      example:"oneshot"`
 	Payload  map[string]any `json:"payload,omitempty"`
 	Priority int            `json:"priority,omitempty"  example:"5"`
 	TimeoutS int            `json:"timeout_s,omitempty" example:"300"`
@@ -611,6 +612,16 @@ func swagClusterWorkers() {}
 //	@Success	200	{object}	clusterQueueStats
 //	@Router		/api/cluster/stats [get]
 func swagClusterStats() {}
+
+// swagClusterTypes is a documentation stub for GET /api/cluster/types.
+//
+//	@Summary	List predefined job types with payload templates
+//	@Description	Returns the 7 predefined job types (calculate, construct, transform, search, validate, distribute, custom) with descriptions, JSON payload templates, and help text.
+//	@Tags		cluster
+//	@Produce	json
+//	@Success	200	{array}	cluster.JobType
+//	@Router		/api/cluster/types [get]
+func swagClusterTypes() {}
 
 // ── Cluster Worker API ───────────────────────────────────────────────────────
 

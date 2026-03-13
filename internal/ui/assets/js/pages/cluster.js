@@ -34,7 +34,8 @@
   var statFailed    = qs("#cl-stat-failed");
 
   var jobType     = qs("#cl-job-type");
-  var jobPayload  = qs("#cl-job-payload");
+  var jobMode     = qs("#cl-job-mode");
+  var jobFieldsEl = qs("#cl-job-fields");
   var jobPriority = qs("#cl-job-priority");
   var jobTimeout  = qs("#cl-job-timeout");
   var jobRetry    = qs("#cl-job-retry");
@@ -322,34 +323,73 @@
     }
   });
 
-  var jobTypeOpts = {
-    lowercase: true, noSpaces: true,
-    pattern: /^[a-z][a-z0-9_-]*$/, patternHint: 'lowercase letters, digits, hyphens, underscores only'
-  };
+  var _jobTypes = [];
+  var jobPayload = qs("#cl-job-payload");
+  var payloadInfo = qs("#cl-payload-info");
 
-  core.bindValidation(jobType, jobTypeOpts);
+  function loadJobTypes() {
+    api.cluster.types().then(function (types) {
+      _jobTypes = types || [];
+      var opts = _jobTypes.map(function (t) {
+        return { value: t.name, label: t.name + ' \u2014 ' + t.description };
+      });
+      gsel.setOpts(jobType, { options: opts }, "");
+    });
+  }
+
+  gsel.init(jobMode);
+  gsel.init(jobType, function (val) {
+    var t = _jobTypes.find(function (t) { return t.name === val; });
+    if (t && t.template) jobPayload.value = t.template;
+    if (payloadInfo) {
+      var helpText = payloadInfo.querySelector('.panel-info-text');
+      if (t && t.help) {
+        if (helpText) helpText.textContent = t.help;
+        setHidden(payloadInfo, false);
+      } else {
+        setHidden(payloadInfo, true);
+      }
+    }
+    validatePayload();
+  });
+
+  function validatePayload() {
+    var v = jobPayload.value.trim();
+    if (!v) { jobPayload.classList.remove('json-valid', 'json-invalid'); return; }
+    var r = core.validateJSON(v);
+    jobPayload.classList.toggle('json-valid', r.ok);
+    jobPayload.classList.toggle('json-invalid', !r.ok);
+  }
+
+  on(jobPayload, 'blur', validatePayload);
+  on(jobPayload, 'input', function () {
+    jobPayload.classList.remove('json-valid', 'json-invalid');
+  });
 
   on(submitBtn, "click", function () {
-    var v = core.validateInput(jobType.value, jobTypeOpts);
-    if (!v.ok) { toast("Job type: " + v.error, true); jobType.focus(); return; }
-    jobType.value = v.value;
+    var type = gsel.val(jobType);
+    if (!type) { toast("Select a job type", true); return; }
 
     var p = core.validateJSON(jobPayload.value);
     if (!p.ok) { toast("Payload: " + p.error, true); jobPayload.focus(); return; }
 
     api.cluster.submit({
-      type:      v.value,
+      type:      type,
+      mode:      gsel.val(jobMode) || 'oneshot',
       payload:   p.value || {},
       priority:  parseInt(jobPriority.value, 10) || 0,
       timeout_s: parseInt(jobTimeout.value, 10) || 0,
       max_retry: parseInt(jobRetry.value, 10) || 0,
     }).then(function () {
       toast("Job submitted");
-      jobType.value = "";
+      gsel.setVal(jobType, "");
       jobPayload.value = "";
+      jobPayload.classList.remove('json-valid', 'json-invalid');
       loadJobs();
     }).catch(function (err) { toast("Submit failed: " + err.message, true); });
   });
+
+  loadJobTypes();
 
   if (binaryModeEl) gsel.init(binaryModeEl);
 

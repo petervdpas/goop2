@@ -80,6 +80,7 @@ func RegisterCluster(mux *http.ServeMux, cm *cluster.Manager, grpMgr *group.Mana
 
 	handlePost(mux, "/api/cluster/submit", func(w http.ResponseWriter, r *http.Request, req struct {
 		Type     string         `json:"type"`
+		Mode     string         `json:"mode"`
 		Payload  map[string]any `json:"payload,omitempty"`
 		Priority int            `json:"priority"`
 		TimeoutS int            `json:"timeout_s"`
@@ -89,8 +90,13 @@ func RegisterCluster(mux *http.ServeMux, cm *cluster.Manager, grpMgr *group.Mana
 			http.Error(w, "missing job type", http.StatusBadRequest)
 			return
 		}
+		mode := cluster.JobOneshot
+		if req.Mode == "continuous" {
+			mode = cluster.JobContinuous
+		}
 		job := cluster.Job{
 			Type:     req.Type,
+			Mode:     mode,
 			Payload:  req.Payload,
 			Priority: req.Priority,
 			TimeoutS: req.TimeoutS,
@@ -136,6 +142,10 @@ func RegisterCluster(mux *http.ServeMux, cm *cluster.Manager, grpMgr *group.Mana
 
 	handleGet(mux, "/api/cluster/stats", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, cm.GetStats())
+	})
+
+	handleGet(mux, "/api/cluster/types", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, cluster.PredefinedJobTypes)
 	})
 
 	// ── Worker API ──────────────────────────────────────────────────────────

@@ -62,6 +62,56 @@
   display: block;
 }
 
+/* Inline info icon — sits next to text, tooltip drops below */
+.panel-info-inline {
+  display: inline-block;
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--muted);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  font-style: italic;
+  font-family: Georgia, serif;
+  line-height: 14px;
+  text-align: center;
+  cursor: help;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
+.panel-info-inline:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.panel-info-inline .panel-info-text {
+  display: none;
+  position: absolute;
+  top: 22px;
+  left: 0;
+  width: 300px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-md);
+  font-size: 12px;
+  font-weight: 400;
+  font-style: normal;
+  font-family: inherit;
+  line-height: 1.5;
+  color: var(--muted);
+  white-space: normal;
+  z-index: 10;
+}
+
+.panel-info-inline:hover .panel-info-text {
+  display: block;
+}
+
 /* Any container with stacked panels gets flex column + gap automatically.
    Zero specificity so explicit display:grid on page layouts still wins. */
 :where(:has(> .panel + .panel)){
@@ -755,6 +805,14 @@ input:checked + .slider::before {
   border-color: color-mix(in srgb, var(--accent) 60%, transparent);
   box-shadow: var(--ring);
   background: var(--field-bg-2);
+}
+
+.json-valid {
+  border-color: color-mix(in srgb, #4ade80 60%, transparent);
+}
+
+.json-invalid {
+  border-color: color-mix(in srgb, #f87171 60%, transparent);
 }
 
 /* Form actions row */
