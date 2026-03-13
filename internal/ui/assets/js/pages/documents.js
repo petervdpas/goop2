@@ -247,8 +247,8 @@
     if (!currentGroupID) return;
 
     clearPreview();
-    myList.innerHTML = '<p class="docs-empty">Loading...</p>';
-    peersList.innerHTML = '<p class="docs-empty">Loading...</p>';
+    myList.innerHTML = '<p class="empty-state">Loading...</p>';
+    peersList.innerHTML = '<p class="empty-state">Loading...</p>';
 
     api.docs.browse(currentGroupID)
       .then(function(data) {
@@ -271,7 +271,7 @@
           bindDeleteButtons(myList);
           bindRowClicks(myList);
         } else {
-          myList.innerHTML = '<p class="docs-empty">No files shared yet. Use the upload form above.</p>';
+          myList.innerHTML = '<p class="empty-state">No files shared yet. Use the upload form above.</p>';
         }
 
         // Render peer files
@@ -303,21 +303,21 @@
           if (html) {
             peersList.innerHTML = html;
           } else {
-            peersList.innerHTML = '<p class="docs-empty">No other members in this group.</p>';
+            peersList.innerHTML = '<p class="empty-state">No other members in this group.</p>';
           }
           bindRowClicks(peersList);
         } else {
-          peersList.innerHTML = '<p class="docs-empty">No other members in this group.</p>';
+          peersList.innerHTML = '<p class="empty-state">No other members in this group.</p>';
         }
       })
       .catch(function(err) {
-        myList.innerHTML = '<p class="docs-empty">Failed to load: ' + escapeHtml(err.message) + '</p>';
+        myList.innerHTML = '<p class="empty-state">Failed to load: ' + escapeHtml(err.message) + '</p>';
         peersList.innerHTML = '';
       });
   }
 
   function renderFileTable(files, peerID, isSelf) {
-    var html = '<table class="docs-table"><thead><tr>' +
+    var html = '<table class="data-table"><thead><tr>' +
       '<th>Name</th><th>Size</th><th>Actions</th>' +
       '</tr></thead><tbody>';
 

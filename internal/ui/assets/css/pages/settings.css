@@ -45,7 +45,7 @@
   padding-right: 6px;
 }
 
-.settings-nav-item{
+.sidebar-item{
   font-weight: 600;
 }
 
@@ -71,7 +71,7 @@
   display:block;
 }
 
-.settings-section-title{
+.section-title{
   font-size: 15px;
   margin: 0 0 14px 0;
 }

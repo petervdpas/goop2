@@ -77,13 +77,13 @@
   if (eventsEl) {
     if (clearBtn) {
       clearBtn.addEventListener('click', function() {
-        eventsEl.innerHTML = '<p class="groups-empty">Waiting for events...</p>';
+        eventsEl.innerHTML = '<p class="empty-state">Waiting for events...</p>';
       });
     }
 
     function addEventToLog(evt) {
       if (!evt) return;
-      var placeholder = eventsEl.querySelector('.groups-empty');
+      var placeholder = eventsEl.querySelector('.empty-state');
       if (placeholder) placeholder.remove();
 
       var div = document.createElement('div');

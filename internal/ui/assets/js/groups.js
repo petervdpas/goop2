@@ -27,7 +27,7 @@
 
   function typeBadge(appType) {
     if (!appType) return '';
-    return ' <span class="groups-type-badge groups-type-' + escapeHtml(appType) + '">' + escapeHtml(appType) + '</span>';
+    return ' <span class="badge badge-' + escapeHtml(appType) + '">' + escapeHtml(appType) + '</span>';
   }
 
   function formatEventPayload(evt) {
@@ -126,7 +126,7 @@
     cleanupListenSubs();
     Goop.api.groups.list().then(function(groups) {
       if (!groups || groups.length === 0) {
-        containerEl.innerHTML = '<p class="groups-empty">' +
+        containerEl.innerHTML = '<p class="empty-state">' +
           (showMgmt ? 'No hosted groups. Go to Create &gt; Groups to create one.' : 'No hosted groups yet.') +
           '</p>';
         return;
@@ -149,7 +149,7 @@
             '<div class="groups-card-info">' +
               '<div class="groups-card-name">' + escapeHtml(g.name) +
                 typeBadge(g.app_type) +
-                (g.host_in_group ? ' <span class="groups-status-connected">joined</span>' : '') +
+                (g.host_in_group ? ' <span class="badge badge-connected">joined</span>' : '') +
               '</div>' +
               '<div class="groups-card-meta">' +
                 (showMgmt ? '<code>' : 'ID: <code>') + escapeHtml(shortId(g.id)) + '</code>' +
@@ -177,7 +177,7 @@
                   g.members.map(function(m) {
                     var isSelf = m.peer_id === selfId;
                     var label = m.name || shortId(m.peer_id);
-                    return '<span class="groups-member-chip">' +
+                    return '<span class="avatar-chip">' +
                       '<img src="/api/avatar/peer/' + encodeURIComponent(m.peer_id) + '">' +
                       '<span>' + escapeHtml(label) + '</span>' +
                       (!isSelf ? '<button class="groups-kick-btn" data-group="' + escapeHtml(g.id) + '" data-peer="' + escapeHtml(m.peer_id) + '" title="Remove">&#10005;</button>' : '') +
@@ -286,7 +286,7 @@
         listenSubs[subKey] = sub;
       }
     }).catch(function(err) {
-      containerEl.innerHTML = '<p class="groups-empty">Failed to load: ' + escapeHtml(err.message) + '</p>';
+      containerEl.innerHTML = '<p class="empty-state">Failed to load: ' + escapeHtml(err.message) + '</p>';
     });
   }
 
@@ -295,7 +295,7 @@
     Goop.api.groups.subscriptions().then(function(data) {
       var subs = data.subscriptions;
       if (!subs || subs.length === 0) {
-        containerEl.innerHTML = '<p class="groups-empty">No subscriptions. Use Goop.group.join() from a peer\'s site to join a group.</p>';
+        containerEl.innerHTML = '<p class="empty-state">No subscriptions. Use Goop.group.join() from a peer\'s site to join a group.</p>';
         return;
       }
       var activeGroupIds = {};
@@ -317,7 +317,7 @@
             '<div class="groups-card-info">' +
               '<div class="groups-card-name">' + escapeHtml(displayName) +
                 typeBadge(s.app_type) +
-                (isActive ? ' <span class="groups-status-connected">connected</span>' : '') +
+                (isActive ? ' <span class="badge badge-connected">connected</span>' : '') +
               '</div>' +
               '<div class="groups-card-meta">Host: <code>' + escapeHtml(s.host_name || shortId(s.host_peer_id)) + '</code>' +
                 (s.role ? ' &middot; ' + escapeHtml(s.role) : '') +
@@ -404,7 +404,7 @@
         listenSubs[subKey] = sub;
       }
     }).catch(function(err) {
-      containerEl.innerHTML = '<p class="groups-empty">Failed to load: ' + escapeHtml(err.message) + '</p>';
+      containerEl.innerHTML = '<p class="empty-state">Failed to load: ' + escapeHtml(err.message) + '</p>';
     });
   }
 

@@ -2,41 +2,84 @@
 /* -----------------------------
    Cluster page layout
 ------------------------------ */
-.cluster-page {
+.cluster-page {}
+
+.cl-layout {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  gap: 18px;
+  min-height: 0;
+}
+
+.cl-sidebar {
+  flex: 0 0 300px;
+}
+
+.cl-dashboard {
+  flex: 1;
+  min-width: 0;
 }
 
 .cl-section.hidden { display: none; }
 
 /* -----------------------------
-   Idle state (no cluster)
+   Sidebar: create + groups list
 ------------------------------ */
-.cl-idle-panel {
-  max-width: 520px;
-}
-
-.cl-idle-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  margin-top: 12px;
-}
-
-.cl-idle-create {
+.cl-create-form {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.cl-idle-create .groups-input {
-  width: 100%;
+.cl-groups-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.cl-idle-join {
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
+.cl-group-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.cl-group-item:hover {
+  border-color: var(--accent, #60a5fa);
+}
+
+.cl-group-item.cl-active {
+  border-color: var(--accent, #60a5fa);
+  background: color-mix(in srgb, var(--accent, #60a5fa) 8%, transparent);
+}
+
+.cl-group-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cl-group-name {
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cl-group-id {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.cl-group-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
 /* -----------------------------
@@ -63,19 +106,6 @@
   gap: 6px;
 }
 
-/* Badges */
-.cl-badge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.cl-badge-host   { background: var(--accent-bg, #2563eb22); color: var(--accent, #60a5fa); border: 1px solid var(--accent, #60a5fa); }
-.cl-badge-worker { background: #16a34a22; color: #4ade80; border: 1px solid #4ade80; }
-
 /* -----------------------------
    Stats bar
 ------------------------------ */
@@ -83,6 +113,14 @@
   display: flex;
   gap: 24px;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.cl-stats-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .cl-stat {
@@ -137,7 +175,7 @@
   flex: 1;
 }
 
-.cl-submit-opts .groups-input {
+.cl-submit-opts .form-input {
   max-width: 120px;
 }
 
@@ -155,36 +193,18 @@
 }
 
 /* -----------------------------
-   Tables (workers, jobs)
+   Panel head (title + actions)
 ------------------------------ */
+.cl-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cl-panel-head h4 { margin: 0; }
+
 .cl-table-wrap {
   overflow-x: auto;
-}
-
-.cl-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.cl-table th {
-  text-align: left;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--muted);
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--border);
-}
-
-.cl-table td {
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
-}
-
-.cl-table tr:last-child td {
-  border-bottom: none;
 }
 
 /* Status colors */
@@ -200,24 +220,6 @@
 .cl-status-completed { color: #4ade80; }
 .cl-status-failed    { color: #f87171; }
 .cl-status-cancelled { color: var(--muted); }
-
-/* Progress bar within job row */
-.cl-progress {
-  display: inline-block;
-  width: 60px;
-  height: 6px;
-  background: var(--border);
-  border-radius: 3px;
-  overflow: hidden;
-  vertical-align: middle;
-  margin-left: 6px;
-}
-
-.cl-progress-fill {
-  height: 100%;
-  background: var(--accent, #60a5fa);
-  transition: width 0.3s;
-}
 
 /* Cancel button in job rows */
 .cl-cancel-btn {

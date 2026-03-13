@@ -131,7 +131,7 @@
 }
 
 /* Database forms */
-.db-form-group .gsel-trigger,
+.form-group .gsel-trigger,
 .db-col-row .gsel-trigger{
   padding: 10px 12px;
   border-radius: 999px;

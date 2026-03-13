@@ -60,27 +60,27 @@
   <div class="settings-page">
     <!-- ── Sidebar ── -->
     <div class="settings-sidebar panel">
-      <div class="settings-sidebar-head">
-        <span class="settings-sidebar-title">Settings</span>
+      <div class="section-head">
+        <span class="section-title">Settings</span>
       </div>
       <ul class="settings-nav">
-        <li class="settings-nav-item active" data-section="viewer">Viewer</li>
-        <li class="settings-nav-item" data-section="splash">Splash</li>
-        <li class="settings-nav-item" data-section="calls">Calls</li>
-        <li class="settings-nav-item" data-section="network">Network</li>
-        <li class="settings-nav-item" data-section="rendezvous">Rendezvous</li>
-        <li class="settings-nav-item" data-section="server">Server</li>
-        <li class="settings-nav-item rv-server-nav" data-section="relay" id="nav-relay"
+        <li class="sidebar-item active" data-section="viewer">Viewer</li>
+        <li class="sidebar-item" data-section="splash">Splash</li>
+        <li class="sidebar-item" data-section="calls">Calls</li>
+        <li class="sidebar-item" data-section="network">Network</li>
+        <li class="sidebar-item" data-section="rendezvous">Rendezvous</li>
+        <li class="sidebar-item" data-section="server">Server</li>
+        <li class="sidebar-item rv-server-nav" data-section="relay" id="nav-relay"
             style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">Relay</li>
-        <li class="settings-nav-item rv-server-nav" data-section="admin" id="nav-admin"
+        <li class="sidebar-item rv-server-nav" data-section="admin" id="nav-admin"
             style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">Admin</li>
-        <li class="settings-nav-item rv-server-nav" data-section="local-templates" id="nav-local-templates"
+        <li class="sidebar-item rv-server-nav" data-section="local-templates" id="nav-local-templates"
             style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">Templates</li>
-        <li class="settings-nav-item rv-server-nav" data-section="services" id="nav-services"
+        <li class="sidebar-item rv-server-nav" data-section="services" id="nav-services"
             style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">Services</li>
         {{if not .RendezvousOnly}}
-        <li class="settings-nav-item" data-section="scripting">Scripting</li>
-        <li class="settings-nav-item" data-section="data">Data</li>
+        <li class="sidebar-item" data-section="scripting">Scripting</li>
+        <li class="sidebar-item" data-section="data">Data</li>
         {{end}}
       </ul>
     </div>
@@ -92,7 +92,7 @@
 
         <!-- Viewer -->
         <div class="settings-section active" data-section="viewer">
-          <h3 class="settings-section-title">Viewer</h3>
+          <h3 class="section-title">Viewer</h3>
 
           <div class="grid2">
             <div class="field">
@@ -164,7 +164,7 @@
 
         <!-- Splash -->
         <div class="settings-section" data-section="splash">
-          <h3 class="settings-section-title">Splash</h3>
+          <h3 class="section-title">Splash</h3>
           <p class="muted small" style="margin-bottom:12px">Choose the splash image shown on the Peers page and in the launcher.</p>
 
           <div class="splash-picker">
@@ -188,7 +188,7 @@
 
         <!-- Calls -->
         <div class="settings-section" data-section="calls">
-          <h3 class="settings-section-title">Video / Audio Calls</h3>
+          <h3 class="section-title">Video / Audio Calls</h3>
 
           {{if eq .WhichOS "linux"}}
           <div class="banner warn small" style="margin-bottom: 10px;">
@@ -216,7 +216,7 @@
 
         <!-- Network -->
         <div class="settings-section" data-section="network">
-          <h3 class="settings-section-title">Network</h3>
+          <h3 class="section-title">Network</h3>
 
           <div class="grid2">
             <div class="field">
@@ -267,7 +267,7 @@
 
         <!-- Rendezvous -->
         <div class="settings-section" data-section="rendezvous">
-          <h3 class="settings-section-title">Rendezvous</h3>
+          <h3 class="section-title">Rendezvous</h3>
 
           <div class="field">
             <label>WAN rendezvous</label>
@@ -323,7 +323,7 @@
 
         <!-- Server Setup -->
         <div class="settings-section" data-section="server">
-          <h3 class="settings-section-title">Server Setup</h3>
+          <h3 class="section-title">Server Setup</h3>
 
           <div class="rv-local rv-local--title-only">
             <div class="rv-local-title">Run as Rendezvous Server</div>
@@ -380,7 +380,7 @@
 
         <!-- Relay (visible when server is enabled) -->
         <div class="settings-section rv-server-section" data-section="relay" style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">
-          <h3 class="settings-section-title">Relay</h3>
+          <h3 class="section-title">Relay</h3>
           <p class="muted small" style="margin-bottom:14px">
             Circuit relay v2 enables NAT traversal via hole-punching.
             Peers behind NAT connect through this relay, then upgrade to a direct connection.
@@ -466,7 +466,7 @@
 
         <!-- Admin (visible when server is enabled) -->
         <div class="settings-section rv-server-section" data-section="admin" style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">
-          <h3 class="settings-section-title">Admin</h3>
+          <h3 class="section-title">Admin</h3>
 
           <div class="field">
             <label>Admin password</label>
@@ -483,7 +483,7 @@
 
         <!-- Local Templates (visible when server is enabled) -->
         <div class="settings-section rv-server-section" data-section="local-templates" style="{{if not .Cfg.Presence.RendezvousOnly}}display:none{{end}}">
-          <h3 class="settings-section-title">Local Templates</h3>
+          <h3 class="section-title">Local Templates</h3>
           <p class="muted small" style="margin-bottom:14px">
             Serve a template store directly from a folder on disk — no microservices needed.
             Peers can browse and apply these templates for free.
@@ -712,7 +712,7 @@
         <!-- Scripting (peer only) -->
         {{if not .RendezvousOnly}}
         <div class="settings-section" data-section="scripting">
-          <h3 class="settings-section-title">Lua Scripting</h3>
+          <h3 class="section-title">Lua Scripting</h3>
           <div style="display: flex; align-items: center; gap: 8px;">
             <span class="muted small">Off</span>
             <label class="switch" title="Enable Lua chat scripts">
@@ -739,7 +739,7 @@
       <!-- Data (peer only, outside form) -->
       {{if not .RendezvousOnly}}
       <div class="settings-section" data-section="data">
-        <h3 class="settings-section-title">Import / Export</h3>
+        <h3 class="section-title">Import / Export</h3>
         <p class="muted small">Export your site as a .zip archive (files, database, lua scripts) or import one to restore.</p>
         <div style="display:flex;gap:0.75rem;margin-top:0.5rem;flex-wrap:wrap;">
           <button type="button" class="btn secondary" id="export-btn">Export site (.zip)</button>

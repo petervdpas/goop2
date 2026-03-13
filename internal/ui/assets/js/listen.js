@@ -242,8 +242,8 @@
         '</div>';
       if (!g.track.is_stream) {
         html += '<div class="listen-progress">' +
-          '<div class="listen-progress-bar glisten-progress-bar">' +
-            '<div class="listen-progress-fill glisten-progress-fill"></div>' +
+          '<div class="progress-bar gprogress-bar">' +
+            '<div class="progress-fill gprogress-fill"></div>' +
           '</div>' +
           '<div class="listen-time">' +
             '<span class="glisten-time-current">0:00</span>' +
@@ -273,7 +273,7 @@
           '<div class="listen-listener-list">';
         g.listeners.forEach(function(pid) {
           var label = (g.listener_names && g.listener_names[pid]) || pid.substring(0, 8) + '\u2026';
-          html += '<span class="listen-listener-chip">' +
+          html += '<span class="avatar-chip">' +
             '<img src="/api/avatar/peer/' + encodeURIComponent(pid) + '">' +
             '<span>' + escapeHtml(label) + '</span></span>';
         });
@@ -285,7 +285,7 @@
     wrapperEl.innerHTML = html;
 
     if (g && g.play_state && g.track && g.track.duration > 0 && !g.track.is_stream) {
-      var fillEl = wrapperEl.querySelector('.glisten-progress-fill');
+      var fillEl = wrapperEl.querySelector('.gprogress-fill');
       var curEl = wrapperEl.querySelector('.glisten-time-current');
       var pos = g.play_state.position;
       if (fillEl) fillEl.style.width = Math.min(100, (pos / g.track.duration) * 100) + '%';
@@ -421,7 +421,7 @@
       }
     }
 
-    var progressBar = wrapperEl.querySelector('.glisten-progress-bar');
+    var progressBar = wrapperEl.querySelector('.gprogress-bar');
     if (progressBar && g && g.track && !g.track.is_stream) {
       on(progressBar, 'click', function(e) {
         var rect = progressBar.getBoundingClientRect();
@@ -431,7 +431,7 @@
     }
 
     if (g && g.play_state && g.play_state.playing && g.track && !g.track.is_stream) {
-      var fillEl = wrapperEl.querySelector('.glisten-progress-fill');
+      var fillEl = wrapperEl.querySelector('.gprogress-fill');
       var curEl = wrapperEl.querySelector('.glisten-time-current');
       if (fillEl && curEl) {
         listenTimers[gid] = setInterval(function() {
@@ -473,8 +473,8 @@
       '<canvas class="glisten-wave"></canvas>';
     if (!g.track.is_stream) {
       html += '<div class="listen-progress">' +
-        '<div class="listen-progress-bar">' +
-          '<div class="listen-progress-fill glisten-progress-fill"></div>' +
+        '<div class="progress-bar">' +
+          '<div class="progress-fill gprogress-fill"></div>' +
         '</div>' +
         '<div class="listen-time">' +
           '<span class="glisten-time-current">0:00</span>' +
@@ -494,7 +494,7 @@
     wrapperEl.innerHTML = html;
 
     if (g.play_state) {
-      var fillEl = wrapperEl.querySelector('.glisten-progress-fill');
+      var fillEl = wrapperEl.querySelector('.gprogress-fill');
       var curEl = wrapperEl.querySelector('.glisten-time-current');
       if (fillEl && curEl && g.track.duration > 0 && !g.track.is_stream) {
         fillEl.style.width = Math.min(100, (g.play_state.position / g.track.duration) * 100) + '%';

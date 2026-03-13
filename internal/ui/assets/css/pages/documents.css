@@ -13,9 +13,6 @@
 
 /* Left browser column — scrolls internally */
 .docs-browser {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
@@ -125,31 +122,6 @@
 }
 
 
-/* -----------------------------
-   File table
------------------------------- */
-.docs-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.docs-table th {
-  text-align: left;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--line);
-  font-weight: 600;
-  color: var(--muted);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.docs-table td {
-  padding: 8px 10px;
-  border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
-}
-
 .docs-data-row {
   cursor: pointer;
 }
@@ -256,13 +228,7 @@
   font-size: 12px;
 }
 
-/* -----------------------------
-   Empty state
------------------------------- */
-.docs-empty {
-  color: var(--muted);
-  font-size: 13px;
-  padding: 10px 0;
+/* Peer blocks
 }
 
 /* Hidden */

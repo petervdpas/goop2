@@ -95,17 +95,17 @@
     tables.forEach(function(t) {
       var policy = t.insert_policy || "owner";
       const li = document.createElement("li");
-      li.className = "db-table-item";
+      li.className = "sidebar-item";
       li.dataset.table = t.name;
       li.innerHTML = '<span class="db-table-name">' + escapeHtml(t.name) + '</span>' +
-        '<span class="db-policy-badge db-policy-' + policy + '" title="Insert policy: ' + policy + '">' + (policyLabels[policy] || policy) + '</span>';
+        '<span class="badge badge-' + policy + '" title="Insert policy: ' + policy + '">' + (policyLabels[policy] || policy) + '</span>';
       on(li, "click", function() { selectTable(t.name); });
       tableListEl.appendChild(li);
     });
   }
 
   function highlightActive(name) {
-    qsa(".db-table-item", tableListEl).forEach(function(el) {
+    qsa(".sidebar-item", tableListEl).forEach(function(el) {
       el.classList.toggle("active", el.dataset.table === name);
     });
   }
@@ -117,7 +117,7 @@
     hiddenCols = loadHiddenCols(name);
     highlightActive(name);
     tableTitleEl.innerHTML = escapeHtml(name) +
-      ' <span class="db-policy-badge db-policy-' + currentPolicy + '">' + (policyLabels[currentPolicy] || currentPolicy) + '</span>';
+      ' <span class="badge badge-' + currentPolicy + '">' + (policyLabels[currentPolicy] || currentPolicy) + '</span>';
     setHidden(actionsEl, false);
     setHidden(createFormEl, true);
     setHidden(insertFormEl, true);
@@ -135,7 +135,7 @@
       renderColPicker();
       renderDataGrid(rows || [], false);
     } catch (err) {
-      gridEl.innerHTML = '<p class="db-empty">Error loading table: ' + escapeHtml(err.message) + '</p>';
+      gridEl.innerHTML = '<p class="empty-state">Error loading table: ' + escapeHtml(err.message) + '</p>';
     }
   }
 
@@ -237,7 +237,7 @@
       hasMore = (rows || []).length >= pageSize;
       renderDataGrid(rows || [], false);
     } catch (err) {
-      gridEl.innerHTML = '<p class="db-empty">Search error: ' + escapeHtml(err.message) + '</p>';
+      gridEl.innerHTML = '<p class="empty-state">Search error: ' + escapeHtml(err.message) + '</p>';
     }
   }
 
@@ -325,7 +325,7 @@
 
   function renderDataGrid(rows, append) {
     if (columns.length === 0) {
-      gridEl.innerHTML = '<p class="db-empty">No columns found.</p>';
+      gridEl.innerHTML = '<p class="empty-state">No columns found.</p>';
       return;
     }
 
@@ -360,7 +360,7 @@
         html += '<th>' + escapeHtml(col.name) + '</th>';
       });
       html += '<th></th></tr></thead>';
-      html += '<tbody><tr><td colspan="' + (vc.length + 1) + '" class="db-empty">No rows. Click "+ Row" to add data.</td></tr></tbody></table>';
+      html += '<tbody><tr><td colspan="' + (vc.length + 1) + '" class="empty-state">No rows. Click "+ Row" to add data.</td></tr></tbody></table>';
       gridEl.innerHTML = html;
       return;
     }
@@ -497,23 +497,23 @@
 
     createFormEl.innerHTML =
       '<h3>Create New Table</h3>' +
-      '<div class="db-form-group">' +
+      '<div class="form-group">' +
         '<label>Table Name</label>' +
-        '<input type="text" id="db-new-name" class="db-input" placeholder="my_table" />' +
+        '<input type="text" id="db-new-name" class="form-input" placeholder="my_table" />' +
       '</div>' +
-      '<div class="db-form-group">' +
+      '<div class="form-group">' +
         '<label>Insert Policy</label>' +
         gsel.html({ id: "db-new-policy", value: "owner", options: policyOptions() }) +
         '<div class="hint">Controls who can insert rows into this table via P2P.</div>' +
       '</div>' +
-      '<div class="db-form-group">' +
+      '<div class="form-group">' +
         '<label>Columns</label>' +
         '<div id="db-col-defs">' +
           colRowHtml() +
         '</div>' +
         '<button id="db-add-col" class="db-action-btn" style="margin-top:6px">+ Column</button>' +
       '</div>' +
-      '<div class="db-form-actions">' +
+      '<div class="form-actions">' +
         '<button id="db-create-cancel" class="db-action-btn">Cancel</button>' +
         '<button id="db-create-submit" class="db-action-btn" style="background:color-mix(in srgb,var(--accent) 22%,transparent);border-color:color-mix(in srgb,var(--accent) 40%,transparent)">Create</button>' +
       '</div>';
@@ -553,7 +553,7 @@
 
   function colRowHtml() {
     return '<div class="db-col-row">' +
-      '<input type="text" class="db-input db-col-name" placeholder="column name" />' +
+      '<input type="text" class="form-input db-col-name" placeholder="column name" />' +
       gsel.html({ className: "db-col-type", value: "TEXT", options: colTypeOptions() }) +
       '<label class="db-col-notnull"><input type="checkbox" /> NOT NULL</label>' +
       '<button class="db-col-remove">x</button>' +
@@ -647,7 +647,7 @@
       tableTitleEl.textContent = "Select a table";
       setHidden(actionsEl, true);
       setHidden(searchBarEl, true);
-      gridEl.innerHTML = '<p class="db-empty">Select a table from the sidebar to view its data.</p>';
+      gridEl.innerHTML = '<p class="empty-state">Select a table from the sidebar to view its data.</p>';
       await loadTables();
     } catch (err) {
       toast("Drop failed: " + err.message, true);
@@ -670,10 +670,10 @@
     userCols.forEach(function(col) {
       html += '<div class="db-insert-field">' +
         '<label>' + escapeHtml(col.name) + ' <span style="opacity:0.5;font-size:11px">(' + escapeHtml(col.type) + ')</span></label>' +
-        '<input type="text" data-col="' + escapeHtml(col.name) + '" class="db-input" />' +
+        '<input type="text" data-col="' + escapeHtml(col.name) + '" class="form-input" />' +
       '</div>';
     });
-    html += '<div class="db-form-actions">' +
+    html += '<div class="form-actions">' +
       '<button id="db-insert-cancel" class="db-action-btn">Cancel</button>' +
       '<button id="db-insert-submit" class="db-action-btn" style="background:color-mix(in srgb,var(--accent) 22%,transparent);border-color:color-mix(in srgb,var(--accent) 40%,transparent)">Insert</button>' +
     '</div>';
@@ -719,7 +719,7 @@
     var html = '<h3>Alter Table: ' + escapeHtml(currentTable) + '</h3>';
 
     // Insert policy section
-    html += '<div class="db-form-group">' +
+    html += '<div class="form-group">' +
       '<label>Insert Policy</label>' +
       '<div style="display:flex;gap:8px;align-items:center">' +
         gsel.html({ id: "db-policy-select", value: currentPolicy || "owner", options: policyOptions(), style: "flex:1" }) +
@@ -729,16 +729,16 @@
     '</div>';
 
     // Rename section
-    html += '<div class="db-form-group">' +
+    html += '<div class="form-group">' +
       '<label>Rename Table</label>' +
       '<div style="display:flex;gap:8px">' +
-        '<input type="text" id="db-rename-input" class="db-input" value="' + escapeHtml(currentTable) + '" style="flex:1" />' +
+        '<input type="text" id="db-rename-input" class="form-input" value="' + escapeHtml(currentTable) + '" style="flex:1" />' +
         '<button id="db-rename-btn" class="db-action-btn">Rename</button>' +
       '</div>' +
     '</div>';
 
     // Existing columns
-    html += '<div class="db-form-group">' +
+    html += '<div class="form-group">' +
       '<label>Columns</label>';
     userCols.forEach(function(col) {
       html += '<div class="db-alter-col">' +
@@ -753,16 +753,16 @@
     html += '</div>';
 
     // Add column section
-    html += '<div class="db-form-group">' +
+    html += '<div class="form-group">' +
       '<label>Add Column</label>' +
       '<div class="db-col-row">' +
-        '<input type="text" class="db-input db-col-name" id="db-addcol-name" placeholder="column name" />' +
+        '<input type="text" class="form-input db-col-name" id="db-addcol-name" placeholder="column name" />' +
         gsel.html({ id: "db-addcol-type", className: "db-col-type", value: "TEXT", options: colTypeOptions() }) +
         '<button id="db-addcol-btn" class="db-action-btn">Add</button>' +
       '</div>' +
     '</div>';
 
-    html += '<div class="db-form-actions">' +
+    html += '<div class="form-actions">' +
       '<button id="db-alter-close" class="db-action-btn">Close</button>' +
     '</div>';
 
@@ -779,7 +779,7 @@
         toast("Insert policy set to " + newPolicy);
         // Update header badge
         tableTitleEl.innerHTML = escapeHtml(currentTable) +
-          ' <span class="db-policy-badge db-policy-' + newPolicy + '">' + (policyLabels[newPolicy] || newPolicy) + '</span>';
+          ' <span class="badge badge-' + newPolicy + '">' + (policyLabels[newPolicy] || newPolicy) + '</span>';
         // Update sidebar badge
         await loadTables();
         highlightActive(currentTable);

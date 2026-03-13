@@ -3,143 +3,163 @@
   {{template "groups.tabs" .}}
 
   <div id="cluster-page" class="cluster-page">
+    <div class="cl-layout">
 
-    <div id="cl-idle" class="cl-section">
-      <div class="panel cl-idle-panel">
-        <h3>No Active Cluster</h3>
-        <p class="muted small">Create a new cluster to coordinate distributed jobs, or join an existing one as a worker.</p>
-        <div class="cl-idle-actions">
-          <div class="cl-idle-create">
-            <label>Cluster Name</label>
-            <input type="text" id="cl-create-name" class="groups-input" placeholder="My Cluster" />
-            <button id="cl-create-btn" class="btn btn-primary">Create Cluster</button>
+      <!-- Left: cluster groups + create -->
+      <div class="cl-sidebar">
+        <div class="panel cl-create-panel">
+          <h4>New Cluster</h4>
+          <div class="cl-create-form">
+            <input type="text" id="cl-create-name" class="form-input" placeholder="Cluster name" />
+            <button id="cl-create-btn" class="groups-action-btn groups-btn-primary">Create</button>
           </div>
-          <div class="cl-idle-join">
-            <label>Join Existing</label>
-            <p class="muted small">Accept a cluster group invite from a peer, or join from the Hosted tab.</p>
+        </div>
+
+        <div class="panel cl-groups-panel">
+          <div class="section-head">
+            <span class="section-title">Cluster Groups</span>
+            <button id="cl-refresh-btn" class="groups-action-btn">Refresh</button>
+          </div>
+          <div id="cl-groups-list" class="cl-groups-list">
+            <p class="empty-state">No cluster groups.</p>
           </div>
         </div>
       </div>
-    </div>
 
-    <div id="cl-host" class="cl-section hidden">
-      <div class="cl-header">
-        <div class="cl-header-info">
-          <h3 id="cl-host-title">Cluster</h3>
-          <span class="cl-badge cl-badge-host">HOST</span>
-          <span id="cl-host-group-id" class="muted small"></span>
-        </div>
-        <div class="cl-header-actions">
-          <button id="cl-invite-btn" class="btn btn-secondary btn-small">Invite</button>
-          <button id="cl-leave-host-btn" class="btn btn-danger btn-small">Close</button>
-        </div>
-      </div>
+      <!-- Right: active cluster dashboard -->
+      <div class="cl-dashboard">
 
-      <div class="cl-stats panel">
-        <div class="cl-stat">
-          <span class="cl-stat-val" id="cl-stat-workers">0</span>
-          <span class="cl-stat-label">Workers</span>
-        </div>
-        <div class="cl-stat">
-          <span class="cl-stat-val" id="cl-stat-pending">0</span>
-          <span class="cl-stat-label">Pending</span>
-        </div>
-        <div class="cl-stat">
-          <span class="cl-stat-val" id="cl-stat-running">0</span>
-          <span class="cl-stat-label">Running</span>
-        </div>
-        <div class="cl-stat">
-          <span class="cl-stat-val" id="cl-stat-completed">0</span>
-          <span class="cl-stat-label">Completed</span>
-        </div>
-        <div class="cl-stat">
-          <span class="cl-stat-val" id="cl-stat-failed">0</span>
-          <span class="cl-stat-label">Failed</span>
-        </div>
-      </div>
-
-      <div class="panel cl-submit">
-        <h4>Submit Job</h4>
-        <div class="cl-submit-form">
-          <div class="cl-submit-row">
-            <label>Type</label>
-            <input type="text" id="cl-job-type" class="groups-input" placeholder="render, transcode, ..." />
+        <!-- No active cluster -->
+        <div id="cl-idle" class="cl-section">
+          <div class="cl-idle-msg">
+            <p class="muted">Select a cluster group to host or join, or create a new one.</p>
           </div>
-          <div class="cl-submit-row">
-            <label>Payload (JSON)</label>
-            <textarea id="cl-job-payload" class="groups-input cl-textarea" placeholder='{"input": "file.mp4"}'></textarea>
-          </div>
-          <div class="cl-submit-row cl-submit-opts">
-            <div>
-              <label>Priority</label>
-              <input type="number" id="cl-job-priority" class="groups-input" value="0" />
-            </div>
-            <div>
-              <label>Timeout (s)</label>
-              <input type="number" id="cl-job-timeout" class="groups-input" value="0" placeholder="0 = none" />
-            </div>
-            <div>
-              <label>Max Retry</label>
-              <input type="number" id="cl-job-retry" class="groups-input" value="0" />
+        </div>
+
+        <!-- Host view -->
+        <div id="cl-host" class="cl-section hidden">
+          <div class="cl-header">
+            <div class="cl-header-info">
+              <h3 id="cl-host-title">Cluster</h3>
+              <span class="badge badge-host">HOST</span>
+              <span id="cl-host-group-id" class="muted small"></span>
             </div>
           </div>
-          <button id="cl-submit-btn" class="btn btn-primary">Submit</button>
-        </div>
-      </div>
 
-      <div class="panel cl-workers">
-        <h4>Workers</h4>
-        <div id="cl-workers-list" class="cl-table-wrap">
-          <p class="muted small">No workers connected.</p>
-        </div>
-      </div>
-
-      <div class="panel cl-jobs">
-        <h4>Job Queue</h4>
-        <div id="cl-jobs-list" class="cl-table-wrap">
-          <p class="muted small">No jobs submitted.</p>
-        </div>
-      </div>
-    </div>
-
-    <div id="cl-worker" class="cl-section hidden">
-      <div class="cl-header">
-        <div class="cl-header-info">
-          <h3>Cluster Worker</h3>
-          <span class="cl-badge cl-badge-worker">WORKER</span>
-          <span id="cl-worker-group-id" class="muted small"></span>
-        </div>
-        <div class="cl-header-actions">
-          <button id="cl-leave-worker-btn" class="btn btn-danger btn-small">Leave</button>
-        </div>
-      </div>
-
-      <div class="panel cl-worker-config">
-        <h4>Binary Configuration</h4>
-        <div class="cl-worker-binary-form">
-          <div class="cl-submit-row">
-            <label>Binary Path</label>
-            <input type="text" id="cl-binary-path" class="groups-input" placeholder="/usr/local/bin/worker" />
+          <div class="cl-stats panel">
+            <div class="cl-stat">
+              <span class="cl-stat-val" id="cl-stat-workers">0</span>
+              <span class="cl-stat-label">Workers</span>
+            </div>
+            <div class="cl-stat">
+              <span class="cl-stat-val" id="cl-stat-pending">0</span>
+              <span class="cl-stat-label">Pending</span>
+            </div>
+            <div class="cl-stat">
+              <span class="cl-stat-val" id="cl-stat-running">0</span>
+              <span class="cl-stat-label">Running</span>
+            </div>
+            <div class="cl-stat">
+              <span class="cl-stat-val" id="cl-stat-completed">0</span>
+              <span class="cl-stat-label">Completed</span>
+            </div>
+            <div class="cl-stat">
+              <span class="cl-stat-val" id="cl-stat-failed">0</span>
+              <span class="cl-stat-label">Failed</span>
+            </div>
+            <div class="cl-stats-actions">
+              <button id="cl-leave-host-btn" class="btn btn-danger btn-small">Close</button>
+            </div>
           </div>
-          <div class="cl-submit-row">
-            <label>Mode</label>
-            <div id="cl-binary-mode" class="gsel" data-value="oneshot" data-placeholder="Mode">
-              <button type="button" class="gsel-trigger">
-                <span class="gsel-text">oneshot</span>
-                <span class="gsel-arrow">&#9662;</span>
-              </button>
-              <div class="gsel-dropdown">
-                <button type="button" class="gsel-option selected" data-value="oneshot">oneshot</button>
-                <button type="button" class="gsel-option" data-value="daemon">daemon</button>
+
+          <div class="panel cl-submit">
+            <h4>Submit Job</h4>
+            <div class="cl-submit-form">
+              <div class="cl-submit-row">
+                <label>Type</label>
+                <input type="text" id="cl-job-type" class="form-input" placeholder="render, transcode, ..." />
               </div>
+              <div class="cl-submit-row">
+                <label>Payload (JSON)</label>
+                <textarea id="cl-job-payload" class="form-input cl-textarea" placeholder='{"input": "file.mp4"}'></textarea>
+              </div>
+              <div class="cl-submit-row cl-submit-opts">
+                <div>
+                  <label>Priority</label>
+                  <input type="number" id="cl-job-priority" class="form-input" value="0" />
+                </div>
+                <div>
+                  <label>Timeout (s)</label>
+                  <input type="number" id="cl-job-timeout" class="form-input" value="0" placeholder="0 = none" />
+                </div>
+                <div>
+                  <label>Max Retry</label>
+                  <input type="number" id="cl-job-retry" class="form-input" value="0" />
+                </div>
+              </div>
+              <button id="cl-submit-btn" class="btn btn-primary">Submit</button>
             </div>
           </div>
-          <button id="cl-binary-btn" class="btn btn-primary">Set Binary</button>
+
+          <div class="panel cl-workers">
+            <div class="cl-panel-head">
+              <h4>Workers</h4>
+              <button id="cl-invite-btn" class="btn btn-secondary btn-small">Invite Worker</button>
+            </div>
+            <div id="cl-workers-list" class="cl-table-wrap">
+              <p class="muted small">No workers connected.</p>
+            </div>
+          </div>
+
+          <div class="panel cl-jobs">
+            <h4>Job Queue</h4>
+            <div id="cl-jobs-list" class="cl-table-wrap">
+              <p class="muted small">No jobs submitted.</p>
+            </div>
+          </div>
         </div>
-        <div id="cl-worker-status" class="cl-worker-status"></div>
+
+        <!-- Worker view -->
+        <div id="cl-worker" class="cl-section hidden">
+          <div class="cl-header">
+            <div class="cl-header-info">
+              <h3>Cluster Worker</h3>
+              <span class="badge badge-worker">WORKER</span>
+              <span id="cl-worker-group-id" class="muted small"></span>
+            </div>
+            <div class="cl-header-actions">
+              <button id="cl-leave-worker-btn" class="btn btn-danger btn-small">Leave</button>
+            </div>
+          </div>
+
+          <div class="panel cl-worker-config">
+            <h4>Binary Configuration</h4>
+            <div class="cl-worker-binary-form">
+              <div class="cl-submit-row">
+                <label>Binary Path</label>
+                <input type="text" id="cl-binary-path" class="form-input" placeholder="/usr/local/bin/worker" />
+              </div>
+              <div class="cl-submit-row">
+                <label>Mode</label>
+                <div id="cl-binary-mode" class="gsel" data-value="oneshot" data-placeholder="Mode">
+                  <button type="button" class="gsel-trigger">
+                    <span class="gsel-text">oneshot</span>
+                    <span class="gsel-arrow">&#9662;</span>
+                  </button>
+                  <div class="gsel-dropdown">
+                    <button type="button" class="gsel-option selected" data-value="oneshot">oneshot</button>
+                    <button type="button" class="gsel-option" data-value="daemon">daemon</button>
+                  </div>
+                </div>
+              </div>
+              <button id="cl-binary-btn" class="btn btn-primary">Set Binary</button>
+            </div>
+            <div id="cl-worker-status" class="cl-worker-status"></div>
+          </div>
+        </div>
+
       </div>
     </div>
-
   </div>
 </div>
 {{end}}

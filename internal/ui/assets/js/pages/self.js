@@ -133,7 +133,7 @@
   });
 
   // ── Settings sidebar navigation ──
-  var navItems = document.querySelectorAll('.settings-nav-item');
+  var navItems = document.querySelectorAll('.sidebar-item');
   var sections = document.querySelectorAll('.settings-section');
   var saveBar  = document.getElementById('settings-save-bar');
 

@@ -17,8 +17,10 @@
   var hostSection   = qs("#cl-host");
   var workerSection = qs("#cl-worker");
 
+  var groupsListEl  = qs("#cl-groups-list");
   var createNameInput = qs("#cl-create-name");
-  var createBtn       = qs("#cl-create-btn");
+  var createBtn     = qs("#cl-create-btn");
+  var refreshBtn    = qs("#cl-refresh-btn");
 
   var hostTitle   = qs("#cl-host-title");
   var hostGroupId = qs("#cl-host-group-id");
@@ -51,11 +53,95 @@
   var _groupID = "";
   var _role = "none";
   var _pollTimer = null;
+  var _clusterGroups = [];
 
   function showSection(role) {
     setHidden(idleSection,   role !== "none");
     setHidden(hostSection,   role !== "host");
     setHidden(workerSection, role !== "worker");
+  }
+
+  function loadClusterGroups() {
+    Promise.all([
+      api.groups.list().catch(function () { return []; }),
+      api.groups.subscriptions().catch(function () { return { subscriptions: [] }; })
+    ]).then(function (results) {
+      var hosted = (results[0] || []).filter(function (g) { return g.app_type === "cluster"; });
+      var subsData = results[1] || {};
+      var subs = (subsData.subscriptions || []).filter(function (s) { return s.app_type === "cluster"; });
+
+      _clusterGroups = [];
+      hosted.forEach(function (g) {
+        _clusterGroups.push({ id: g.id, name: g.name, source: "hosted", members: g.members || 0 });
+      });
+      subs.forEach(function (s) {
+        _clusterGroups.push({ id: s.group_id, name: s.group_name || s.group_id, source: "joined" });
+      });
+
+      renderClusterGroups();
+    });
+  }
+
+  function renderClusterGroups() {
+    if (_clusterGroups.length === 0) {
+      groupsListEl.innerHTML = '<p class="empty-state">No cluster groups.</p>';
+      return;
+    }
+    var html = "";
+    _clusterGroups.forEach(function (g) {
+      var isActive = g.id === _groupID;
+      var shortId = g.id.substring(0, 10) + "\u2026";
+      var badge = g.source === "hosted" ? "hosted" : "joined";
+      var actionBtn = "";
+
+      if (isActive) {
+        actionBtn = '<span class="badge badge-' + (_role === "host" ? "host" : "worker") + '">' +
+          escapeHtml(_role.toUpperCase()) + '</span>';
+      } else if (_role === "none") {
+        if (g.source === "hosted") {
+          actionBtn = '<button class="groups-action-btn groups-btn-primary cl-host-btn" data-group-id="' +
+            escapeHtml(g.id) + '">Host</button>';
+        } else {
+          actionBtn = '<button class="groups-action-btn groups-btn-primary cl-join-btn" data-group-id="' +
+            escapeHtml(g.id) + '" data-host-peer="">Join</button>';
+        }
+      }
+
+      html += '<div class="cl-group-item' + (isActive ? ' cl-active' : '') + '" data-group-id="' + escapeHtml(g.id) + '">' +
+        '<div class="cl-group-info">' +
+          '<span class="cl-group-name">' + escapeHtml(g.name) + '</span>' +
+          '<span class="cl-group-id">' + escapeHtml(shortId) + ' &middot; ' + badge + '</span>' +
+        '</div>' +
+        '<div class="cl-group-actions">' + actionBtn + '</div>' +
+      '</div>';
+    });
+    groupsListEl.innerHTML = html;
+
+    groupsListEl.querySelectorAll(".cl-host-btn").forEach(function (btn) {
+      on(btn, "click", function (e) {
+        e.stopPropagation();
+        var gid = btn.getAttribute("data-group-id");
+        api.cluster.create({ name: "", group_id: gid }).catch(function () {
+          return api.cluster.join({ group_id: gid, host_peer_id: "" });
+        }).then(function () {
+          toast("Cluster activated");
+          loadStatus();
+          loadClusterGroups();
+        }).catch(function (err) { toast("Failed: " + err.message, true); });
+      });
+    });
+
+    groupsListEl.querySelectorAll(".cl-join-btn").forEach(function (btn) {
+      on(btn, "click", function (e) {
+        e.stopPropagation();
+        var gid = btn.getAttribute("data-group-id");
+        api.cluster.join({ group_id: gid, host_peer_id: "" }).then(function () {
+          toast("Joined cluster");
+          loadStatus();
+          loadClusterGroups();
+        }).catch(function (err) { toast("Failed: " + err.message, true); });
+      });
+    });
   }
 
   function loadStatus() {
@@ -65,6 +151,8 @@
       showSection(_role);
 
       if (_role === "host") {
+        var grp = _clusterGroups.find(function (g) { return g.id === _groupID; });
+        hostTitle.textContent = (grp && grp.name) || "Cluster";
         hostGroupId.textContent = _groupID ? _groupID.substring(0, 12) + "\u2026" : "";
         if (data.stats) updateStats(data.stats);
         loadWorkers();
@@ -77,6 +165,8 @@
       } else {
         stopPolling();
       }
+
+      renderClusterGroups();
     }).catch(function () {
       showSection("none");
     });
@@ -96,7 +186,7 @@
         workersListEl.innerHTML = '<p class="muted small">No workers connected.</p>';
         return;
       }
-      var html = '<table class="cl-table"><thead><tr>' +
+      var html = '<table class="data-table"><thead><tr>' +
         '<th>Peer</th><th>Status</th><th>Binary</th><th>Mode</th><th>Capacity</th><th>Running</th>' +
         '</tr></thead><tbody>';
       workers.forEach(function (w) {
@@ -125,7 +215,7 @@
         jobsListEl.innerHTML = '<p class="muted small">No jobs submitted.</p>';
         return;
       }
-      var html = '<table class="cl-table"><thead><tr>' +
+      var html = '<table class="data-table"><thead><tr>' +
         '<th>ID</th><th>Type</th><th>Status</th><th>Progress</th><th>Worker</th><th>Retries</th><th>Actions</th>' +
         '</tr></thead><tbody>';
       jobs.forEach(function (j) {
@@ -135,7 +225,7 @@
         var progressHtml = "";
         if (j.progress > 0) {
           progressHtml = j.progress + '%' +
-            '<div class="cl-progress"><div class="cl-progress-fill" style="width:' + Math.min(j.progress, 100) + '%"></div></div>';
+            '<div class="progress-bar"><div class="progress-fill" style="width:' + Math.min(j.progress, 100) + '%"></div></div>';
           if (j.progress_msg) progressHtml += ' <span class="muted small">' + escapeHtml(j.progress_msg) + '</span>';
         } else {
           progressHtml = "-";
@@ -190,9 +280,16 @@
     var name = createNameInput.value.trim() || "Cluster";
     api.cluster.create({ name: name }).then(function (data) {
       toast("Cluster created");
+      createNameInput.value = "";
       _groupID = data.group_id;
+      loadClusterGroups();
       loadStatus();
     }).catch(function (err) { toast("Failed: " + err.message, true); });
+  });
+
+  on(refreshBtn, "click", function () {
+    loadClusterGroups();
+    loadStatus();
   });
 
   on(leaveHostBtn, "click", function () {
@@ -213,6 +310,7 @@
       _groupID = "";
       showSection("none");
       stopPolling();
+      loadClusterGroups();
     }).catch(function (err) { toast("Failed: " + err.message, true); });
   }
 
@@ -260,5 +358,6 @@
     }).catch(function (err) { toast("Failed: " + err.message, true); });
   });
 
+  loadClusterGroups();
   loadStatus();
 })();
