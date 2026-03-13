@@ -321,20 +321,24 @@
     }
   });
 
+  var jobTypeOpts = {
+    lowercase: true, noSpaces: true,
+    pattern: /^[a-z][a-z0-9_-]*$/, patternHint: 'lowercase letters, digits, hyphens, underscores only'
+  };
+
+  core.bindValidation(jobType, jobTypeOpts);
+
   on(submitBtn, "click", function () {
-    var type = jobType.value.trim();
-    if (!type) { toast("Job type is required", true); return; }
-    var payload = {};
-    var raw = jobPayload.value.trim();
-    if (raw) {
-      try { payload = JSON.parse(raw); } catch (_) {
-        toast("Invalid JSON payload", true);
-        return;
-      }
-    }
+    var v = core.validateInput(jobType.value, jobTypeOpts);
+    if (!v.ok) { toast("Job type: " + v.error, true); jobType.focus(); return; }
+    jobType.value = v.value;
+
+    var p = core.validateJSON(jobPayload.value);
+    if (!p.ok) { toast("Payload: " + p.error, true); jobPayload.focus(); return; }
+
     api.cluster.submit({
-      type:      type,
-      payload:   payload,
+      type:      v.value,
+      payload:   p.value || {},
       priority:  parseInt(jobPriority.value, 10) || 0,
       timeout_s: parseInt(jobTimeout.value, 10) || 0,
       max_retry: parseInt(jobRetry.value, 10) || 0,

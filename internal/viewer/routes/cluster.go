@@ -27,15 +27,19 @@ func RegisterCluster(mux *http.ServeMux, cm *cluster.Manager, grpMgr *group.Mana
 	})
 
 	handlePost(mux, "/api/cluster/create", func(w http.ResponseWriter, r *http.Request, req struct {
-		Name string `json:"name"`
+		Name    string `json:"name"`
+		GroupID string `json:"group_id"`
 	}) {
-		if req.Name == "" {
-			req.Name = "Cluster"
-		}
-		id := generateGroupID()
-		if err := grpMgr.CreateGroup(id, req.Name, "cluster", 0, true); err != nil {
-			http.Error(w, fmt.Sprintf("create group: %v", err), http.StatusInternalServerError)
-			return
+		id := req.GroupID
+		if id == "" {
+			if req.Name == "" {
+				req.Name = "Cluster"
+			}
+			id = generateGroupID()
+			if err := grpMgr.CreateGroup(id, req.Name, "cluster", 0, true); err != nil {
+				http.Error(w, fmt.Sprintf("create group: %v", err), http.StatusInternalServerError)
+				return
+			}
 		}
 		if err := cm.CreateCluster(id); err != nil {
 			http.Error(w, fmt.Sprintf("create cluster: %v", err), http.StatusConflict)

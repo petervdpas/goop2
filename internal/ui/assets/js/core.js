@@ -140,6 +140,32 @@
   }, true); // capture phase so we beat all other handlers
 
   // Lightweight namespace
+  function validateInput(value, opts) {
+    opts = opts || {};
+    var v = (value || '').trim();
+    if (!v) return opts.allowEmpty ? { ok: true, value: '' } : { ok: false, value: v, error: 'required' };
+    if (opts.lowercase) v = v.toLowerCase();
+    if (opts.noSpaces && /\s/.test(v)) return { ok: false, value: v, error: 'no spaces allowed' };
+    if (opts.maxLength && v.length > opts.maxLength) return { ok: false, value: v, error: 'max ' + opts.maxLength + ' characters' };
+    if (opts.pattern && !opts.pattern.test(v)) return { ok: false, value: v, error: opts.patternHint || 'invalid characters' };
+    return { ok: true, value: v };
+  }
+
+  function validateJSON(value) {
+    var v = (value || '').trim();
+    if (!v) return { ok: true, value: null };
+    try { return { ok: true, value: JSON.parse(v) }; }
+    catch (e) { return { ok: false, error: e.message }; }
+  }
+
+  function bindValidation(input, opts) {
+    if (!input) return;
+    on(input, 'blur', function () {
+      var r = validateInput(input.value, opts);
+      input.value = r.value;
+    });
+  }
+
   window.Goop = window.Goop || {};
   window.Goop.core = {
     onReady,
@@ -157,5 +183,8 @@
     copyToClipboard,
     callDisabledReason,
     callButtonsHTML,
+    validateInput,
+    validateJSON,
+    bindValidation,
   };
 })();

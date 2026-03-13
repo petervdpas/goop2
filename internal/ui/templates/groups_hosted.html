@@ -2,51 +2,49 @@
 <div class="page page-groups">
   {{template "groups.tabs" .}}
 
-  <div id="groups-page" class="groups-page">
-    <div class="groups-create-layout">
-      <div class="groups-create-left panel">
-        <h3 class="section-title">Create a Group</h3>
-        <p class="muted small" style="margin-bottom:14px">Create a new group that you will host. Other peers can join via the group protocol.</p>
+  <div class="groups-create-layout">
+    <div class="groups-create-left panel">
+      <h3 class="section-title">Create a Group</h3>
+      <p class="muted small" style="margin-bottom:14px">Create a new group that you will host. Other peers can join via the group protocol.</p>
 
-        <div id="cg-create-form" class="groups-create-form">
-          <div class="form-group">
-            <label>Group Name</label>
-            <input type="text" id="cg-name" class="form-input" placeholder="My Group" />
-          </div>
-          <div class="form-group">
-            <label>Type</label>
-            <div id="cg-apptype" class="gsel" data-value="general">
-              <button type="button" class="gsel-trigger">
-                <span class="gsel-text">General</span>
-                <span class="gsel-arrow">&#9662;</span>
-              </button>
-              <div class="gsel-dropdown">
-                <button type="button" class="gsel-option selected" data-value="general">General</button>
-                <button type="button" class="gsel-option" data-value="message">Message</button>
-                <button type="button" class="gsel-option" data-value="files">Files</button>
-                <button type="button" class="gsel-option" data-value="cluster">Cluster</button>
-                <button type="button" class="gsel-option" data-value="listen">Listen</button>
-              </div>
+      <div id="cg-create-form" class="groups-create-form">
+        <div class="form-group">
+          <label>Group Name</label>
+          <input type="text" id="cg-name" class="form-input" placeholder="My Group" />
+        </div>
+        <div class="form-group">
+          <label>Type</label>
+          <div id="cg-apptype" class="gsel" data-value="general">
+            <button type="button" class="gsel-trigger">
+              <span class="gsel-text">General</span>
+              <span class="gsel-arrow">&#9662;</span>
+            </button>
+            <div class="gsel-dropdown">
+              <button type="button" class="gsel-option selected" data-value="general">General</button>
+              <button type="button" class="gsel-option" data-value="message">Message</button>
+              <button type="button" class="gsel-option" data-value="files">Files</button>
+              <button type="button" class="gsel-option" data-value="cluster">Cluster</button>
+              <button type="button" class="gsel-option" data-value="listen">Listen</button>
             </div>
           </div>
-          <div class="form-group">
-            <label>Max Members <span class="muted small">(0 = unlimited)</span></label>
-            <input type="number" id="cg-maxmembers" class="form-input" value="0" min="0" />
-          </div>
-          <div class="form-actions">
-            <button id="cg-create-btn" class="groups-action-btn groups-btn-primary">Create Group</button>
-          </div>
+        </div>
+        <div class="form-group">
+          <label>Max Members <span class="muted small">(0 = unlimited)</span></label>
+          <input type="number" id="cg-maxmembers" class="form-input" value="0" min="0" />
+        </div>
+        <div class="form-actions">
+          <button id="cg-create-btn" class="groups-action-btn groups-btn-primary">Create Group</button>
         </div>
       </div>
+    </div>
 
-      <div class="groups-create-right panel">
-        <div class="section-head">
-          <span class="section-title">Hosted Groups</span>
-          <button id="groups-refresh" class="groups-action-btn">Refresh</button>
-        </div>
-        <div id="cg-hosted-list" class="groups-list">
-          <p class="empty-state">Loading...</p>
-        </div>
+    <div class="groups-create-right panel">
+      <div class="section-head">
+        <span class="section-title">Hosted Groups</span>
+        <button id="groups-refresh" class="groups-action-btn">Refresh</button>
+      </div>
+      <div id="cg-hosted-list" class="groups-list">
+        <p class="empty-state">Loading...</p>
       </div>
     </div>
   </div>
