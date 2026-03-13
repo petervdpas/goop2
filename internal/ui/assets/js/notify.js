@@ -11,8 +11,8 @@
       var p = (payload && payload.payload) || {};
       var name = p.group_name || p.group_id || 'a group';
       var href = (p.app_type === 'files' && p.group_id)
-        ? '/documents?group_id=' + encodeURIComponent(p.group_id)
-        : '/self/groups';
+        ? '/groups/files?group_id=' + encodeURIComponent(p.group_id)
+        : '/groups/joined';
       if (window.Goop && window.Goop.toast) {
         window.Goop.toast({
           icon: '👥',

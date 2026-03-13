@@ -74,10 +74,28 @@ func Register(mux *http.ServeMux, d Deps) {
 	registerSimplePages(mux, d, []simplePage{
 		{"/logs", "Logs", "logs", "page.logs"},
 		{"/database", "Database", "database", "page.database"},
-		{"/documents", "Files", "documents", "page.documents"},
-		{"/self/groups", "Groups", "self", "page.groups"},
-		{"/create/groups", "Create Groups", "create", "page.create_groups"},
+		{"/groups/files", "Groups - Files", "groups", "page.groups_files"},
+		{"/groups/cluster", "Groups - Cluster", "groups", "page.groups_cluster"},
+		{"/groups/hosted", "Groups - Hosted", "groups", "page.groups_hosted"},
+		{"/groups/joined", "Groups - Joined", "groups", "page.groups_joined"},
+		{"/groups/events", "Groups - Events", "groups", "page.groups_events"},
 		{"/view", "View", "view", "page.view"},
+	})
+	mux.HandleFunc("/groups", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, d.BaseURL+"/groups/hosted", http.StatusFound)
+	})
+	// Keep old routes as redirects
+	mux.HandleFunc("/documents", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, d.BaseURL+"/groups/files", http.StatusFound)
+	})
+	mux.HandleFunc("/cluster", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, d.BaseURL+"/groups/cluster", http.StatusFound)
+	})
+	mux.HandleFunc("/self/groups", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, d.BaseURL+"/groups/hosted", http.StatusFound)
+	})
+	mux.HandleFunc("/create/groups", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, d.BaseURL+"/groups/hosted", http.StatusFound)
 	})
 	registerOfflineRoutes(mux, d)
 	registerSiteAPIRoutes(mux, d)

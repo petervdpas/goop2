@@ -15,7 +15,7 @@
   var maxMembersInput = document.getElementById('cg-maxmembers');
   var createBtn = document.getElementById('cg-create-btn');
 
-  var hostedOpts = { showMgmt: false };
+  var hostedOpts = { showMgmt: true };
 
   gsel.init(appTypeSelect);
   g.renderHostedGroups(hostedListEl, hostedOpts);

@@ -1,11 +1,6 @@
 {{define "page.editor"}}
 <div class="page page-editor">
-  <div class="create-tabs">
-    <a class="create-tab active" href="/edit">Editor</a>
-    <a class="create-tab" href="/templates">Templates</a>
-    <a class="create-tab" href="/lua">Lua Scripts</a>
-    <a class="create-tab" href="/create/groups">Groups</a>
-  </div>
+  {{template "create.tabs" .}}
 
   {{if .Error}}
     <div class="banner err">{{.Error}}</div>

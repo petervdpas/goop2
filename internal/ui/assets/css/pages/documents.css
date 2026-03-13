@@ -321,12 +321,12 @@
   min-width: 0;
 }
 
-/* Fullscreen overlay — fills .content, nav and footer stay visible */
-.content:has(.docs-fullscreen) {
+/* Fullscreen overlay — fills #docs-page, tab bar stays visible */
+#docs-page:has(.docs-fullscreen) {
   position: relative;
 }
 
-.content:has(.docs-fullscreen) .docs-browser {
+#docs-page:has(.docs-fullscreen) .docs-browser {
   display: none;
 }
 

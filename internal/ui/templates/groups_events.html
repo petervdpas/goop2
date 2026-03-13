@@ -1,0 +1,17 @@
+{{define "page.groups_events"}}
+<div class="page page-groups">
+  {{template "groups.tabs" .}}
+
+  <div id="groups-events-page" class="groups-page">
+    <div class="groups-section panel">
+      <div class="groups-section-head">
+        <span class="groups-section-title">Live Events</span>
+        <button id="groups-clear-events" class="groups-action-btn">Clear</button>
+      </div>
+      <div id="groups-events" class="groups-events">
+        <p class="groups-empty">Waiting for events...</p>
+      </div>
+    </div>
+  </div>
+</div>
+{{end}}

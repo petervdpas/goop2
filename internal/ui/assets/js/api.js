@@ -165,6 +165,20 @@
       },
     },
 
+    // ── Cluster ──────────────────────────────────────────────────────────────────
+    cluster: {
+      status:  function ()  { return _get('/api/cluster/status'); },
+      create:  function (p) { return _post('/api/cluster/create', p); },
+      join:    function (p) { return _post('/api/cluster/join', p); },
+      leave:   function ()  { return _post('/api/cluster/leave'); },
+      submit:  function (p) { return _post('/api/cluster/submit', p); },
+      cancel:  function (p) { return _post('/api/cluster/cancel', p); },
+      jobs:    function ()  { return _get('/api/cluster/jobs'); },
+      workers: function ()  { return _get('/api/cluster/workers'); },
+      stats:   function ()  { return _get('/api/cluster/stats'); },
+      binary:  function (p) { return _post('/api/cluster/binary', p); },
+    },
+
     // ── Data ───────────────────────────────────────────────────────────────────
     data: {
       tables:        function ()  { return _get('/api/data/tables'); },

@@ -1,10 +1,6 @@
 {{define "page.self"}}
 <div class="page page-self" data-csrf="{{.CSRF}}" data-bridge-url="{{.BridgeURL}}">
   {{if not .RendezvousOnly}}
-  <div class="create-tabs">
-    <a class="create-tab active" href="/self">My Settings</a>
-    <a class="create-tab" href="/self/groups">Groups</a>
-  </div>
   {{end}}
 
   {{if .RendezvousOnly}}

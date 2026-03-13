@@ -1,0 +1,17 @@
+{{define "page.groups_joined"}}
+<div class="page page-groups">
+  {{template "groups.tabs" .}}
+
+  <div id="groups-joined-page" class="groups-page">
+    <div class="groups-section panel">
+      <div class="groups-section-head">
+        <span class="groups-section-title">Joined Groups</span>
+        <button id="groups-joined-refresh" class="groups-action-btn">Refresh</button>
+      </div>
+      <div id="groups-sub-list" class="groups-list">
+        <p class="groups-empty">No subscriptions.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{{end}}

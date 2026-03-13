@@ -1,0 +1,9 @@
+{{define "groups.tabs"}}
+<div class="create-tabs">
+  <a class="create-tab {{if eq .ContentTmpl "page.groups_hosted"}}active{{end}}" href="/groups/hosted">Hosted</a>
+  <a class="create-tab {{if eq .ContentTmpl "page.groups_joined"}}active{{end}}" href="/groups/joined">Joined</a>
+  <a class="create-tab {{if eq .ContentTmpl "page.groups_files"}}active{{end}}" href="/groups/files">Files</a>
+  <a class="create-tab {{if eq .ContentTmpl "page.groups_cluster"}}active{{end}}" href="/groups/cluster">Cluster</a>
+  <a class="create-tab {{if eq .ContentTmpl "page.groups_events"}}active{{end}}" href="/groups/events">Events</a>
+</div>
+{{end}}

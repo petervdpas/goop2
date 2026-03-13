@@ -1,11 +1,6 @@
 {{define "page.templates"}}
 <div class="page page-templates" data-csrf="{{.CSRF}}">
-  <div class="create-tabs">
-    <a class="create-tab" href="/edit">Editor</a>
-    <a class="create-tab active" href="/templates">Templates</a>
-    <a class="create-tab" href="/lua">Lua Scripts</a>
-    <a class="create-tab" href="/create/groups">Groups</a>
-  </div>
+  {{template "create.tabs" .}}
 
   <h2 class="tpl-heading">Choose a template</h2>
   <p class="muted small tpl-sub">Applying a template will replace your entire site and database.</p>

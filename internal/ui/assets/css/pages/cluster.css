@@ -1,0 +1,245 @@
+
+/* -----------------------------
+   Cluster page layout
+------------------------------ */
+.cluster-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cl-section.hidden { display: none; }
+
+/* -----------------------------
+   Idle state (no cluster)
+------------------------------ */
+.cl-idle-panel {
+  max-width: 520px;
+}
+
+.cl-idle-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.cl-idle-create {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cl-idle-create .groups-input {
+  width: 100%;
+}
+
+.cl-idle-join {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+/* -----------------------------
+   Header bar (host / worker)
+------------------------------ */
+.cl-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cl-header-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cl-header-info h3 { margin: 0; }
+
+.cl-header-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* Badges */
+.cl-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cl-badge-host   { background: var(--accent-bg, #2563eb22); color: var(--accent, #60a5fa); border: 1px solid var(--accent, #60a5fa); }
+.cl-badge-worker { background: #16a34a22; color: #4ade80; border: 1px solid #4ade80; }
+
+/* -----------------------------
+   Stats bar
+------------------------------ */
+.cl-stats {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.cl-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 60px;
+}
+
+.cl-stat-val {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.cl-stat-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* -----------------------------
+   Submit job form
+------------------------------ */
+.cl-submit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cl-submit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cl-submit-row label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.cl-submit-opts {
+  flex-direction: row;
+  gap: 12px;
+}
+
+.cl-submit-opts > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.cl-submit-opts .groups-input {
+  max-width: 120px;
+}
+
+.cl-textarea {
+  min-height: 60px;
+  resize: vertical;
+  font-family: monospace;
+  font-size: 12px;
+  border-radius: 12px;
+}
+
+.cl-submit-form .btn {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+/* -----------------------------
+   Tables (workers, jobs)
+------------------------------ */
+.cl-table-wrap {
+  overflow-x: auto;
+}
+
+.cl-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.cl-table th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cl-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.cl-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Status colors */
+.cl-status-idle      { color: #4ade80; }
+.cl-status-busy      { color: #fbbf24; }
+.cl-status-verified  { color: #60a5fa; }
+.cl-status-joined    { color: var(--muted); }
+.cl-status-offline   { color: #f87171; }
+
+.cl-status-pending   { color: var(--muted); }
+.cl-status-assigned  { color: #60a5fa; }
+.cl-status-running   { color: #fbbf24; }
+.cl-status-completed { color: #4ade80; }
+.cl-status-failed    { color: #f87171; }
+.cl-status-cancelled { color: var(--muted); }
+
+/* Progress bar within job row */
+.cl-progress {
+  display: inline-block;
+  width: 60px;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+.cl-progress-fill {
+  height: 100%;
+  background: var(--accent, #60a5fa);
+  transition: width 0.3s;
+}
+
+/* Cancel button in job rows */
+.cl-cancel-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+/* -----------------------------
+   Worker config
+------------------------------ */
+.cl-worker-binary-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 400px;
+}
+
+.cl-worker-binary-form .btn {
+  align-self: flex-start;
+}
+
+.cl-worker-status {
+  margin-top: 8px;
+  font-size: 13px;
+}
