@@ -9,6 +9,9 @@ timeout /t 2 /nobreak >nul
 REM Remove old binary before build to avoid directory lock issues
 del /F /Q "build\bin\goop2.exe" >nul 2>&1
 
+echo Regenerating OpenAPI spec...
+swag init --quiet
+
 echo Building application...
 wails build -windowsconsole
 if %errorlevel% neq 0 (

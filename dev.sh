@@ -4,6 +4,9 @@
 
 set -e
 
+echo "📝 Regenerating OpenAPI spec..."
+swag init --quiet
+
 echo "🔨 Building application..."
 wails build -clean
 

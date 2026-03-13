@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+echo "📝 Regenerating OpenAPI spec..."
+swag init --quiet
+
 echo "🔨 Building application..."
 wails build -clean -platform linux/arm64 -tags webkit2_41
 

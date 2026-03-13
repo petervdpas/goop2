@@ -1505,3 +1505,28 @@ func swagChatHistory() {}
 //	@Success	200		{object}	statusOK
 //	@Router		/api/chat/history [delete]
 func swagChatClear() {}
+
+// ── Site ─────────────────────────────────────────────────────────────────────
+
+// swagSiteContent is a documentation stub for GET /api/site/content.
+//
+//	@Summary	Fetch a site file's content and ETag
+//	@Tags		site
+//	@Produce	json
+//	@Param		path	query		string	true	"File path relative to site root"
+//	@Success	200		{object}	map[string]string
+//	@Router		/api/site/content [get]
+func swagSiteContent() {}
+
+// ── Lua ──────────────────────────────────────────────────────────────────────
+
+// swagLuaContent is a documentation stub for GET /api/lua/content.
+//
+//	@Summary	Fetch a Lua script's content
+//	@Tags		lua
+//	@Produce	json
+//	@Param		name	query		string	true	"Script name (without .lua)"
+//	@Param		func	query		string	false	"Set to 1 for data functions"
+//	@Success	200		{object}	map[string]interface{}
+//	@Router		/api/lua/content [get]
+func swagLuaContent() {}
