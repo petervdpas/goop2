@@ -78,7 +78,7 @@
         _clusterGroups.push({ id: g.id, name: g.name, source: "hosted", members: g.members || 0 });
       });
       subs.forEach(function (s) {
-        _clusterGroups.push({ id: s.group_id, name: s.group_name || s.group_id, source: "joined" });
+        _clusterGroups.push({ id: s.group_id, name: s.group_name || s.group_id, source: "joined", hostPeerID: s.host_peer_id || "" });
       });
 
       renderClusterGroups();
@@ -106,7 +106,7 @@
             escapeHtml(g.id) + '">Host</button>';
         } else {
           actionBtn = '<button class="groups-action-btn groups-btn-primary cl-join-btn" data-group-id="' +
-            escapeHtml(g.id) + '" data-host-peer="">Join</button>';
+            escapeHtml(g.id) + '" data-host-peer="' + escapeHtml(g.hostPeerID || '') + '">Join</button>';
         }
       }
 
@@ -137,7 +137,8 @@
       on(btn, "click", function (e) {
         e.stopPropagation();
         var gid = btn.getAttribute("data-group-id");
-        api.cluster.join({ group_id: gid, host_peer_id: "" }).then(function () {
+        var hostPeer = btn.getAttribute("data-host-peer") || "";
+        api.groups.join({ group_id: gid, host_peer_id: hostPeer }).then(function () {
           toast("Joined cluster");
           loadStatus();
           loadClusterGroups();

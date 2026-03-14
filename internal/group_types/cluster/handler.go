@@ -43,10 +43,22 @@ func (h *Handler) subscribe(fn func(from, topic string, payload any)) func() {
 	})
 }
 
-func (h *Handler) OnCreate(_, _ string, _ int, _ bool) error          { return nil }
-func (h *Handler) OnJoin(_, _ string, _ *group.WelcomePayload) error  { return nil }
-func (h *Handler) OnLeave(_, _ string)                                {}
-func (h *Handler) OnClose(_ string)                                   {}
+func (h *Handler) OnCreate(_, _ string, _ int, _ bool) error { return nil }
+
+func (h *Handler) OnJoin(groupID, _ string, _ *group.WelcomePayload) error {
+	if h.clusterMgr.Role() == "" {
+		return h.clusterMgr.JoinCluster(groupID)
+	}
+	return nil
+}
+
+func (h *Handler) OnLeave(_, _ string) {
+	h.clusterMgr.LeaveCluster()
+}
+
+func (h *Handler) OnClose(_ string) {
+	h.clusterMgr.LeaveCluster()
+}
 
 func (h *Handler) OnEvent(evt *group.Event) {
 	h.clusterMgr.HandleGroupEvent(&coreCluster.GroupEvent{

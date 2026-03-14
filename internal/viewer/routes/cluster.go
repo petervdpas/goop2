@@ -62,17 +62,14 @@ func RegisterCluster(mux *http.ServeMux, cm *cluster.Manager, grpMgr *group.Mana
 			http.Error(w, fmt.Sprintf("join group: %v", err), http.StatusBadGateway)
 			return
 		}
-		if err := cm.JoinCluster(req.GroupID); err != nil {
-			http.Error(w, fmt.Sprintf("join cluster: %v", err), http.StatusConflict)
-			return
-		}
 		writeJSON(w, map[string]any{"status": "joined", "group_id": req.GroupID})
 	})
 
 	handlePostAction(mux, "/api/cluster/leave", func(w http.ResponseWriter, r *http.Request) {
+		role := cm.Role()
 		groupID := cm.GroupID()
 		cm.LeaveCluster()
-		if groupID != "" {
+		if groupID != "" && role == "host" {
 			_ = grpMgr.CloseGroup(groupID)
 		}
 		writeJSON(w, map[string]any{"status": "ok"})
