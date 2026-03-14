@@ -19,6 +19,7 @@
 
   var groupsListEl  = qs("#cl-groups-list");
   var createNameInput = qs("#cl-create-name");
+  var createMaxInput  = qs("#cl-create-max");
   var createBtn     = qs("#cl-create-btn");
   var refreshBtn    = qs("#cl-refresh-btn");
 
@@ -60,8 +61,10 @@
     setHidden(idleSection,   role !== "none");
     setHidden(hostSection,   role !== "host");
     setHidden(workerSection, role !== "worker");
-    createBtn.disabled = role !== "none";
-    createNameInput.disabled = role !== "none";
+    var inactive = role !== "none";
+    createBtn.disabled = inactive;
+    createNameInput.disabled = inactive;
+    if (createMaxInput) createMaxInput.disabled = inactive;
   }
 
   function loadClusterGroups() {
@@ -75,7 +78,7 @@
 
       _clusterGroups = [];
       hosted.forEach(function (g) {
-        _clusterGroups.push({ id: g.id, name: g.name, source: "hosted", members: g.members || 0 });
+        _clusterGroups.push({ id: g.id, name: g.name, source: "hosted", members: g.members || 0, maxMembers: g.max_members || 0 });
       });
       subs.forEach(function (s) {
         _clusterGroups.push({ id: s.group_id, name: s.group_name || s.group_id, source: "joined", hostPeerID: s.host_peer_id || "" });
@@ -157,6 +160,8 @@
         var grp = _clusterGroups.find(function (g) { return g.id === _groupID; });
         hostTitle.textContent = (grp && grp.name) || "Cluster";
         hostGroupId.textContent = _groupID ? _groupID.substring(0, 12) + "\u2026" : "";
+        var maxEl = qs("#cl-max-workers");
+        if (maxEl && grp) maxEl.value = grp.maxMembers || 0;
         if (data.stats) updateStats(data.stats);
         loadWorkers();
         loadJobs();
@@ -281,9 +286,11 @@
 
   on(createBtn, "click", function () {
     var name = createNameInput.value.trim() || "Cluster";
-    api.cluster.create({ name: name }).then(function (data) {
+    var maxMembers = parseInt((createMaxInput && createMaxInput.value) || "0", 10) || 0;
+    api.cluster.create({ name: name, max_members: maxMembers }).then(function (data) {
       toast("Cluster created");
       createNameInput.value = "";
+      if (createMaxInput) createMaxInput.value = "0";
       _groupID = data.group_id;
       loadClusterGroups();
       loadStatus();
@@ -293,6 +300,17 @@
   on(refreshBtn, "click", function () {
     loadClusterGroups();
     loadStatus();
+  });
+
+  var maxSetBtn = qs("#cl-max-set-btn");
+  on(maxSetBtn, "click", function () {
+    var maxEl = qs("#cl-max-workers");
+    var val = parseInt(maxEl && maxEl.value || "0", 10) || 0;
+    if (!_groupID) return;
+    api.groups.setMaxMembers({ group_id: _groupID, max_members: val }).then(function () {
+      toast("Max workers updated");
+      loadClusterGroups();
+    }).catch(function (err) { toast("Failed: " + err.message, true); });
   });
 
   on(leaveHostBtn, "click", function () {

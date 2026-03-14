@@ -10,12 +10,39 @@ import (
 )
 
 type Queue struct {
-	mu   sync.Mutex
-	jobs map[string]*JobState
+	mu      sync.Mutex
+	jobs    map[string]*JobState
+	store   JobStore
+	groupID string
 }
 
-func NewQueue() *Queue {
-	return &Queue{jobs: make(map[string]*JobState)}
+func NewQueue(store JobStore, groupID string) *Queue {
+	q := &Queue{
+		jobs:    make(map[string]*JobState),
+		store:   store,
+		groupID: groupID,
+	}
+	if store != nil && groupID != "" {
+		if loaded, err := store.LoadJobs(groupID); err == nil {
+			for _, js := range loaded {
+				if js.Status == StatusAssigned || js.Status == StatusRunning {
+					js.Status = StatusPending
+					js.WorkerID = ""
+					_ = store.SaveJob(groupID, js)
+				}
+				if js.Status != StatusCompleted && js.Status != StatusFailed && js.Status != StatusCancelled {
+					q.jobs[js.Job.ID] = js
+				}
+			}
+		}
+	}
+	return q
+}
+
+func (q *Queue) persist(js *JobState) {
+	if q.store != nil && q.groupID != "" {
+		_ = q.store.SaveJob(q.groupID, js)
+	}
 }
 
 func (q *Queue) Submit(job Job) string {
@@ -25,11 +52,13 @@ func (q *Queue) Submit(job Job) string {
 	if job.ID == "" {
 		job.ID = generateID()
 	}
-	q.jobs[job.ID] = &JobState{
+	js := &JobState{
 		Job:       job,
 		Status:    StatusPending,
 		CreatedAt: time.Now(),
 	}
+	q.jobs[job.ID] = js
+	q.persist(js)
 	return job.ID
 }
 
@@ -47,6 +76,7 @@ func (q *Queue) Cancel(jobID string) error {
 	}
 	js.Status = StatusCancelled
 	js.DoneAt = time.Now()
+	q.persist(js)
 	return nil
 }
 
@@ -81,6 +111,7 @@ func (q *Queue) Assign(jobID, workerID string) {
 	js.Status = StatusAssigned
 	js.WorkerID = workerID
 	js.StartedAt = time.Now()
+	q.persist(js)
 }
 
 func (q *Queue) MarkRunning(jobID string) {
@@ -93,6 +124,7 @@ func (q *Queue) MarkRunning(jobID string) {
 	}
 	if js.Status == StatusAssigned {
 		js.Status = StatusRunning
+		q.persist(js)
 	}
 }
 
@@ -110,6 +142,7 @@ func (q *Queue) Complete(jobID string, result map[string]any) {
 	if !js.StartedAt.IsZero() {
 		js.ElapsedMs = js.DoneAt.Sub(js.StartedAt).Milliseconds()
 	}
+	q.persist(js)
 }
 
 func (q *Queue) Fail(jobID string, errMsg string) {
@@ -125,14 +158,15 @@ func (q *Queue) Fail(jobID string, errMsg string) {
 		js.Status = StatusPending
 		js.WorkerID = ""
 		js.Error = errMsg
-		return
+	} else {
+		js.Status = StatusFailed
+		js.Error = errMsg
+		js.DoneAt = time.Now()
+		if !js.StartedAt.IsZero() {
+			js.ElapsedMs = js.DoneAt.Sub(js.StartedAt).Milliseconds()
+		}
 	}
-	js.Status = StatusFailed
-	js.Error = errMsg
-	js.DoneAt = time.Now()
-	if !js.StartedAt.IsZero() {
-		js.ElapsedMs = js.DoneAt.Sub(js.StartedAt).Milliseconds()
-	}
+	q.persist(js)
 }
 
 func (q *Queue) UpdateProgress(jobID string, pct int, msg string) {
@@ -145,6 +179,7 @@ func (q *Queue) UpdateProgress(jobID string, pct int, msg string) {
 	}
 	js.Progress = pct
 	js.ProgressMsg = msg
+	q.persist(js)
 }
 
 func (q *Queue) State() []JobState {

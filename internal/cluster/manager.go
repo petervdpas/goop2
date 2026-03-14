@@ -20,6 +20,7 @@ type Manager struct {
 	selfID    string
 	send      SendFunc
 	subscribe SubscribeFunc
+	db JobStore
 
 	mu        sync.Mutex
 	role      role
@@ -58,6 +59,12 @@ func New(selfID string, send SendFunc, subscribe SubscribeFunc) *Manager {
 	return m
 }
 
+func (m *Manager) SetDB(db JobStore) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.db = db
+}
+
 func (m *Manager) HandleGroupEvent(evt *GroupEvent) {
 	m.handleGroupEvent(evt)
 }
@@ -72,7 +79,7 @@ func (m *Manager) CreateCluster(groupID string) error {
 
 	m.role = roleHost
 	m.groupID = groupID
-	m.queue = NewQueue()
+	m.queue = NewQueue(m.db, groupID)
 	m.scheduler = NewScheduler(m.queue, m.send)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -245,6 +252,9 @@ func (m *Manager) cleanup() {
 			_ = m.send(w.PeerID, topic, map[string]any{"reason": "cluster closed"})
 		}
 		log.Printf("CLUSTER: sent shutdown to %d workers", len(m.scheduler.Workers()))
+		if m.db != nil {
+			_ = m.db.DeleteJobs(m.groupID)
+		}
 	}
 	if m.cancel != nil {
 		m.cancel()

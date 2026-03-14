@@ -119,8 +119,15 @@
 .cl-stats-actions {
   margin-left: auto;
   display: flex;
+  align-items: center;
   gap: 6px;
   flex-shrink: 0;
+}
+
+.cl-max-input {
+  width: 60px;
+  padding: 4px 8px;
+  font-size: 12px;
 }
 
 .cl-stat {

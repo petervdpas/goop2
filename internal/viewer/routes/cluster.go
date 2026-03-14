@@ -27,8 +27,9 @@ func RegisterCluster(mux *http.ServeMux, cm *cluster.Manager, grpMgr *group.Mana
 	})
 
 	handlePost(mux, "/api/cluster/create", func(w http.ResponseWriter, r *http.Request, req struct {
-		Name    string `json:"name"`
-		GroupID string `json:"group_id"`
+		Name       string `json:"name"`
+		GroupID    string `json:"group_id"`
+		MaxMembers int    `json:"max_members"`
 	}) {
 		id := req.GroupID
 		if id == "" {
@@ -36,7 +37,7 @@ func RegisterCluster(mux *http.ServeMux, cm *cluster.Manager, grpMgr *group.Mana
 				req.Name = "Cluster"
 			}
 			id = generateGroupID()
-			if err := grpMgr.CreateGroup(id, req.Name, "cluster", 0, true); err != nil {
+			if err := grpMgr.CreateGroup(id, req.Name, "cluster", req.MaxMembers, true); err != nil {
 				http.Error(w, fmt.Sprintf("create group: %v", err), http.StatusInternalServerError)
 				return
 			}

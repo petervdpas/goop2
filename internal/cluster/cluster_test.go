@@ -9,7 +9,7 @@ import (
 // ── Queue tests ─────────────────────────────────────────────────────────────
 
 func TestQueueSubmitAndNextPending(t *testing.T) {
-	q := NewQueue()
+	q := NewQueue(nil, "")
 
 	id := q.Submit(Job{Type: "render", Priority: 1})
 	if id == "" {
@@ -26,7 +26,7 @@ func TestQueueSubmitAndNextPending(t *testing.T) {
 }
 
 func TestQueuePriority(t *testing.T) {
-	q := NewQueue()
+	q := NewQueue(nil, "")
 
 	q.Submit(Job{Type: "low", Priority: 1})
 	highID := q.Submit(Job{Type: "high", Priority: 10})
@@ -38,7 +38,7 @@ func TestQueuePriority(t *testing.T) {
 }
 
 func TestQueueAssignAndComplete(t *testing.T) {
-	q := NewQueue()
+	q := NewQueue(nil, "")
 	id := q.Submit(Job{Type: "test"})
 
 	q.Assign(id, "worker-1")
@@ -67,7 +67,7 @@ func TestQueueAssignAndComplete(t *testing.T) {
 }
 
 func TestQueueFailRetry(t *testing.T) {
-	q := NewQueue()
+	q := NewQueue(nil, "")
 	id := q.Submit(Job{Type: "flaky", MaxRetry: 2})
 
 	q.Assign(id, "w1")
@@ -96,7 +96,7 @@ func TestQueueFailRetry(t *testing.T) {
 }
 
 func TestQueueCancel(t *testing.T) {
-	q := NewQueue()
+	q := NewQueue(nil, "")
 	id := q.Submit(Job{Type: "cancelme"})
 
 	if err := q.Cancel(id); err != nil {
@@ -113,7 +113,7 @@ func TestQueueCancel(t *testing.T) {
 }
 
 func TestQueueStats(t *testing.T) {
-	q := NewQueue()
+	q := NewQueue(nil, "")
 	q.Submit(Job{Type: "a"})
 	q.Submit(Job{Type: "b"})
 	id := q.Submit(Job{Type: "c"})
@@ -130,7 +130,7 @@ func TestQueueStats(t *testing.T) {
 }
 
 func TestQueueUpdateProgress(t *testing.T) {
-	q := NewQueue()
+	q := NewQueue(nil, "")
 	id := q.Submit(Job{Type: "slow"})
 	q.Assign(id, "w1")
 	q.MarkRunning(id)
@@ -146,7 +146,7 @@ func TestQueueUpdateProgress(t *testing.T) {
 }
 
 func TestQueueWorkerJobIDs(t *testing.T) {
-	q := NewQueue()
+	q := NewQueue(nil, "")
 	id1 := q.Submit(Job{Type: "a"})
 	id2 := q.Submit(Job{Type: "b"})
 	q.Submit(Job{Type: "c"})
@@ -163,7 +163,7 @@ func TestQueueWorkerJobIDs(t *testing.T) {
 // ── Scheduler tests ─────────────────────────────────────────────────────────
 
 func TestSchedulerDispatchOnlyVerified(t *testing.T) {
-	q := NewQueue()
+	q := NewQueue(nil, "")
 	q.Submit(Job{Type: "render", Priority: 1})
 
 	sendFn := func(peerID, topic string, payload any) error {
@@ -177,7 +177,7 @@ func TestSchedulerDispatchOnlyVerified(t *testing.T) {
 }
 
 func TestSchedulerDispatchVerified(t *testing.T) {
-	q := NewQueue()
+	q := NewQueue(nil, "")
 	jobID := q.Submit(Job{Type: "render", Priority: 1})
 
 	var mu sync.Mutex
@@ -216,7 +216,7 @@ func TestSchedulerDispatchVerified(t *testing.T) {
 }
 
 func TestSchedulerNoIdleWorkers(t *testing.T) {
-	q := NewQueue()
+	q := NewQueue(nil, "")
 	q.Submit(Job{Type: "test"})
 
 	sendFn := func(peerID, topic string, payload any) error {
@@ -229,7 +229,7 @@ func TestSchedulerNoIdleWorkers(t *testing.T) {
 }
 
 func TestSchedulerRemoveWorker(t *testing.T) {
-	q := NewQueue()
+	q := NewQueue(nil, "")
 	q.Submit(Job{Type: "test"})
 
 	sendFn := func(peerID, topic string, payload any) error {
@@ -245,7 +245,7 @@ func TestSchedulerRemoveWorker(t *testing.T) {
 }
 
 func TestSchedulerWorkerBinaryTracking(t *testing.T) {
-	q := NewQueue()
+	q := NewQueue(nil, "")
 	s := NewScheduler(q, func(string, string, any) error { return nil })
 
 	s.AddWorker("peer-A")

@@ -120,6 +120,34 @@ func Open(configDir string) (*DB, error) {
 	// Migration: add volatile to subscriptions if missing (existing databases)
 	db.Exec(`ALTER TABLE _group_subscriptions ADD COLUMN volatile INTEGER DEFAULT 0`)
 
+	// Create cluster jobs table
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS _cluster_jobs (
+			id           TEXT PRIMARY KEY,
+			group_id     TEXT NOT NULL,
+			type         TEXT NOT NULL,
+			mode         TEXT DEFAULT 'oneshot',
+			payload      TEXT DEFAULT '{}',
+			priority     INTEGER DEFAULT 0,
+			timeout_s    INTEGER DEFAULT 0,
+			max_retry    INTEGER DEFAULT 0,
+			status       TEXT DEFAULT 'pending',
+			worker_id    TEXT DEFAULT '',
+			result       TEXT DEFAULT '{}',
+			error        TEXT DEFAULT '',
+			progress     INTEGER DEFAULT 0,
+			progress_msg TEXT DEFAULT '',
+			retries      INTEGER DEFAULT 0,
+			created_at   TEXT DEFAULT '',
+			started_at   TEXT DEFAULT '',
+			done_at      TEXT DEFAULT '',
+			elapsed_ms   INTEGER DEFAULT 0
+		);
+	`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("create cluster jobs table: %w", err)
+	}
+
 	// Create group members table — persists the last known member list per group
 	// so peers can browse each other's files even when the host is offline.
 	if _, err := db.Exec(`

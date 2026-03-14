@@ -47,6 +47,12 @@ var PredefinedJobTypes = []JobType{
 	},
 }
 
+type JobStore interface {
+	SaveJob(groupID string, js *JobState) error
+	LoadJobs(groupID string) ([]*JobState, error)
+	DeleteJobs(groupID string) error
+}
+
 type SendFunc func(peerID, topic string, payload any) error
 
 type SubscribeFunc func(fn func(from, topic string, payload any)) func()

@@ -321,6 +321,7 @@ func RunPeer(p PeerParams) error {
 
 	// ── Cluster compute
 	clusterMgr := clusterType.New(mqMgr, grpMgr, node.ID())
+	clusterMgr.SetDB(clusterType.NewJobStore(db))
 	defer clusterMgr.Close()
 	if hosted, err := grpMgr.ListHostedGroups(); err == nil {
 		for _, g := range hosted {
