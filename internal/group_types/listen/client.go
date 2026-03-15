@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -18,32 +19,59 @@ import (
 )
 
 // JoinGroup joins a remote listening group.
-// The listen-specific setup happens in the OnJoin lifecycle hook.
 func (m *Manager) JoinGroup(hostPeerID, groupID string) error {
-	m.mu.RLock()
+	m.mu.Lock()
 	lg := m.group
-	m.mu.RUnlock()
+
+	if lg != nil && lg.Role == "host" {
+		m.mu.Unlock()
+		return fmt.Errorf("already hosting a listen group")
+	}
 
 	// Auto-leave current listener group before joining new one.
 	if lg != nil && lg.Role == "listener" {
+		m.closeHTTPPipeLocked()
+		m.mu.Unlock()
 		_ = m.grp.LeaveGroup(lg.ID)
+	} else {
+		m.mu.Unlock()
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	return m.grp.JoinRemoteGroup(ctx, hostPeerID, groupID)
+	if err := m.grp.JoinRemoteGroup(ctx, hostPeerID, groupID); err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	m.group = &Group{
+		ID:   groupID,
+		Name: groupID,
+		Role: "listener",
+	}
+	m.mu.Unlock()
+
+	log.Printf("LISTEN: Joined group %s as listener", groupID)
+	m.notifyBrowserLocked()
+	return nil
 }
 
 // LeaveGroup leaves the current listening group.
-// The listen-specific cleanup happens in the OnLeave lifecycle hook.
 func (m *Manager) LeaveGroup() error {
-	m.mu.RLock()
+	m.mu.Lock()
 	lg := m.group
-	m.mu.RUnlock()
 
 	if lg == nil || lg.Role != "listener" {
+		m.mu.Unlock()
 		return fmt.Errorf("not in a listening group")
 	}
+
+	m.closeHTTPPipeLocked()
+	m.group = nil
+	m.mu.Unlock()
+
+	log.Printf("LISTEN: Left group %s", lg.ID)
+	m.notifyBrowserLocked()
 
 	return m.grp.LeaveGroup(lg.ID)
 }

@@ -107,15 +107,6 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 	// Store subscription with full metadata
 	m.db.AddSubscription(hostPeerID, groupID, wp.GroupName, wp.AppType, wp.MaxMembers, wp.Volatile, "member") //nolint:errcheck
 
-	if h := m.handlerForType(wp.AppType); h != nil {
-		if err := h.OnJoin(groupID, m.selfID, &wp); err != nil {
-			m.mu.Lock()
-			delete(m.activeConns, groupID)
-			m.mu.Unlock()
-			return err
-		}
-	}
-
 	m.notifyListeners(&Event{Type: TypeWelcome, Group: groupID, From: hostPeerID, Payload: map[string]any{
 		"group_name":  wp.GroupName,
 		"app_type":    wp.AppType,
@@ -157,8 +148,6 @@ func (m *Manager) LeaveGroup(groupID string) error {
 		return fmt.Errorf("not connected to group %s", groupID)
 	}
 
-	appType := cc.appType
-
 	ctx, cancel := context.WithTimeout(context.Background(), SendTimeout)
 	defer cancel()
 	_, _ = m.mq.Send(ctx, cc.hostPeerID, "group:"+groupID+":"+TypeLeave, Message{Type: TypeLeave, Group: groupID})
@@ -166,10 +155,6 @@ func (m *Manager) LeaveGroup(groupID string) error {
 	m.db.RemoveSubscription(cc.hostPeerID, cc.groupID) //nolint:errcheck
 	_ = m.db.DeleteGroupMembers(cc.groupID)
 	m.notifyListeners(&Event{Type: TypeLeave, Group: cc.groupID})
-
-	if h := m.handlerForType(appType); h != nil {
-		h.OnLeave(groupID, m.selfID)
-	}
 
 	log.Printf("GROUP: Left group %s", cc.groupID)
 	return nil

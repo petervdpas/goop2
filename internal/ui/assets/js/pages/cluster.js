@@ -141,7 +141,7 @@
         e.stopPropagation();
         var gid = btn.getAttribute("data-group-id");
         var hostPeer = btn.getAttribute("data-host-peer") || "";
-        api.groups.join({ group_id: gid, host_peer_id: hostPeer }).then(function () {
+        api.cluster.join({ group_id: gid, host_peer_id: hostPeer }).then(function () {
           toast("Joined cluster");
           loadStatus();
           loadClusterGroups();

@@ -11,7 +11,7 @@ import (
 var sendTimeout = group.ClusterSendTimeout
 
 // Handler implements group.TypeHandler for the "cluster" app_type.
-// It bridges MQ messaging and group events to the cluster manager.
+// It bridges group lifecycle events to the cluster manager.
 type Handler struct {
 	mqMgr      *mq.Manager
 	clusterMgr *coreCluster.Manager
@@ -43,17 +43,26 @@ func (h *Handler) subscribe(fn func(from, topic string, payload any)) func() {
 	})
 }
 
-func (h *Handler) OnCreate(_, _ string, _ int, _ bool) error { return nil }
-
-func (h *Handler) OnJoin(groupID, _ string, _ *group.WelcomePayload) error {
-	if h.clusterMgr.Role() == "" {
-		return h.clusterMgr.JoinCluster(groupID)
-	}
-	return nil
+func (h *Handler) Flags() group.TypeFlags {
+	return group.TypeFlags{HostCanJoin: false}
 }
 
-func (h *Handler) OnLeave(_, _ string) {
-	h.clusterMgr.LeaveCluster()
+func (h *Handler) OnCreate(_, _ string, _ int, _ bool) error { return nil }
+
+func (h *Handler) OnJoin(groupID, peerID string, isHost bool) {
+	h.clusterMgr.HandleGroupEvent(&coreCluster.GroupEvent{
+		Type:  "join",
+		Group: groupID,
+		From:  peerID,
+	})
+}
+
+func (h *Handler) OnLeave(groupID, peerID string, isHost bool) {
+	h.clusterMgr.HandleGroupEvent(&coreCluster.GroupEvent{
+		Type:  "leave",
+		Group: groupID,
+		From:  peerID,
+	})
 }
 
 func (h *Handler) OnClose(_ string) {
@@ -61,6 +70,14 @@ func (h *Handler) OnClose(_ string) {
 }
 
 func (h *Handler) OnEvent(evt *group.Event) {
+	switch {
+	case h.clusterMgr.Role() == "" && evt.Type == "welcome":
+		_ = h.clusterMgr.JoinCluster(evt.Group)
+	case h.clusterMgr.Role() == "worker" && evt.Type == "leave":
+		h.clusterMgr.LeaveCluster()
+	case h.clusterMgr.Role() == "worker" && evt.Type == "close":
+		h.clusterMgr.LeaveCluster()
+	}
 	h.clusterMgr.HandleGroupEvent(&coreCluster.GroupEvent{
 		Type:    evt.Type,
 		Group:   evt.Group,

@@ -78,8 +78,10 @@ func (m *Manager) handleHostMessage(from string, hg *hostedGroup, groupID, msgTy
 			_ = m.db.UpsertGroupMembers(groupID, peerIDs)
 		}
 
+		m.notifyListeners(&Event{Type: TypeJoin, Group: groupID, From: from})
+
 		if h := m.handlerForType(appType); h != nil {
-			_ = h.OnJoin(groupID, from, nil)
+			h.OnJoin(groupID, from, false)
 		}
 
 	case TypeLeave:
@@ -103,8 +105,10 @@ func (m *Manager) handleHostMessage(from string, hg *hostedGroup, groupID, msgTy
 			_ = m.db.UpsertGroupMembers(groupID, ids)
 		}
 
+		m.notifyListeners(&Event{Type: TypeLeave, Group: groupID, From: from})
+
 		if h := m.handlerForType(appType); h != nil {
-			h.OnLeave(groupID, from)
+			h.OnLeave(groupID, from, false)
 		}
 
 	case TypePong:

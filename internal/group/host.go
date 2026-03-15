@@ -290,6 +290,12 @@ func (m *Manager) JoinOwnGroup(groupID string) error {
 		return fmt.Errorf("group not found: %s", groupID)
 	}
 
+	if h := m.handlerForGroup(groupID); h != nil {
+		if !h.Flags().HostCanJoin {
+			return fmt.Errorf("group type does not allow host to join")
+		}
+	}
+
 	hg.mu.Lock()
 	if hg.hostJoined {
 		hg.mu.Unlock()
@@ -321,9 +327,7 @@ func (m *Manager) JoinOwnGroup(groupID string) error {
 	m.notifyListeners(&Event{Type: TypeMembers, Group: groupID, Payload: MembersPayload{Members: memberList}})
 
 	if h := m.handlerForGroup(groupID); h != nil {
-		if err := h.OnJoin(groupID, m.selfID, nil); err != nil {
-			return err
-		}
+		h.OnJoin(groupID, m.selfID, true)
 	}
 
 	log.Printf("GROUP: Host joined own group %s", groupID)
@@ -344,6 +348,10 @@ func (m *Manager) LeaveOwnGroup(groupID string) error {
 		hg.mu.Unlock()
 		return fmt.Errorf("host not in group")
 	}
+	if len(hg.members) > 0 {
+		hg.mu.Unlock()
+		return fmt.Errorf("cannot leave: %d members still in group", len(hg.members))
+	}
 	hg.hostJoined = false
 	hg.hostJoinedAt = 0
 	memberList := hg.memberList(m.selfID)
@@ -355,7 +363,7 @@ func (m *Manager) LeaveOwnGroup(groupID string) error {
 	m.notifyListeners(&Event{Type: TypeMembers, Group: groupID, Payload: MembersPayload{Members: memberList}})
 
 	if h := m.handlerForGroup(groupID); h != nil {
-		h.OnLeave(groupID, m.selfID)
+		h.OnLeave(groupID, m.selfID, true)
 	}
 
 	log.Printf("GROUP: Host left own group %s", groupID)

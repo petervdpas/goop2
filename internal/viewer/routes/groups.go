@@ -63,6 +63,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 				MemberCount int             `json:"member_count"`
 				Members     []memberWithName `json:"members"`
 				HostInGroup bool             `json:"host_in_group"`
+				HostCanJoin bool             `json:"host_can_join"`
 			}
 			result := make([]groupWithMembers, len(groups))
 			for i, g := range groups {
@@ -71,11 +72,13 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 				for _, m := range raw {
 					named = append(named, memberWithName{MemberInfo: m, Name: peerName(m.PeerID)})
 				}
+				flags := grpMgr.TypeFlagsForGroup(g.ID)
 				result[i] = groupWithMembers{
 					GroupRow:    g,
 					MemberCount: len(named),
 					Members:     named,
 					HostInGroup: grpMgr.HostInGroup(g.ID),
+					HostCanJoin: flags.HostCanJoin,
 				}
 			}
 

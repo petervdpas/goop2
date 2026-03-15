@@ -8,7 +8,6 @@ import (
 )
 
 // Handler implements group.TypeHandler for the "files" app_type.
-// It bridges group lifecycle events to the docs store and MQ bus.
 type Handler struct {
 	mqMgr *mq.Manager
 	store *Store
@@ -23,12 +22,15 @@ func New(mqMgr *mq.Manager, grpMgr *group.Manager, store *Store) {
 	grpMgr.RegisterType("files", h)
 }
 
-func (h *Handler) OnCreate(_, _ string, _ int, _ bool) error         { return nil }
-func (h *Handler) OnJoin(_, _ string, _ *group.WelcomePayload) error { return nil }
-func (h *Handler) OnLeave(_, _ string)                               {}
+func (h *Handler) Flags() group.TypeFlags {
+	return group.TypeFlags{HostCanJoin: true}
+}
+
+func (h *Handler) OnCreate(_, _ string, _ int, _ bool) error { return nil }
+func (h *Handler) OnJoin(_, _ string, _ bool)                {}
+func (h *Handler) OnLeave(_, _ string, _ bool)               {}
+func (h *Handler) OnEvent(_ *group.Event)                    {}
 
 func (h *Handler) OnClose(groupID string) {
 	log.Printf("FILES: Group %s closed", groupID)
 }
-
-func (h *Handler) OnEvent(_ *group.Event) {}

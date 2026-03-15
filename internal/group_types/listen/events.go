@@ -15,6 +15,10 @@ func (m *Manager) sendControl(msg ControlMsg) {
 	_ = m.grp.SendControl(m.group.ID, "listen", msg)
 }
 
+func (m *Manager) Flags() group.TypeFlags {
+	return group.TypeFlags{HostCanJoin: true}
+}
+
 // OnCreate is called when a listen group is created.
 func (m *Manager) OnCreate(groupID, name string, _ int, _ bool) error {
 	m.mu.Lock()
@@ -37,60 +41,14 @@ func (m *Manager) OnCreate(groupID, name string, _ int, _ bool) error {
 	return nil
 }
 
-// OnJoin is called when a peer joins a listen group.
-func (m *Manager) OnJoin(groupID, peerID string, welcome *group.WelcomePayload) error {
-	if peerID == m.selfID && welcome != nil {
-		// We joined a remote group as listener.
-		m.mu.Lock()
-		defer m.mu.Unlock()
-
-		if m.group != nil && m.group.Role == "host" {
-			return fmt.Errorf("already hosting a listen group")
-		}
-
-		// Auto-leave previous listener group.
-		if m.group != nil && m.group.Role == "listener" {
-			m.closeHTTPPipeLocked()
-		}
-
-		groupName := welcome.GroupName
-		if groupName == "" {
-			groupName = groupID
-		}
-		m.group = &Group{
-			ID:   groupID,
-			Name: groupName,
-			Role: "listener",
-		}
-
-		log.Printf("LISTEN: Joined group %s as listener", groupID)
-		m.notifyBrowser()
-	}
-	return nil
+// OnJoin is called on the host when a member joins the listen group.
+func (m *Manager) OnJoin(_ string, peerID string, _ bool) {
+	log.Printf("LISTEN: Listener %s joined", peerID)
 }
 
-// OnLeave is called when a peer leaves a listen group.
-func (m *Manager) OnLeave(groupID, peerID string) {
-	if peerID == m.selfID {
-		m.mu.Lock()
-		m.closeHTTPPipeLocked()
-		if m.group != nil && m.group.ID == groupID {
-			m.group = nil
-		}
-		m.mu.Unlock()
-
-		log.Printf("LISTEN: Left group %s", groupID)
-		m.notifyBrowserLocked()
-		return
-	}
-
-	// A remote listener left.
-	m.mu.RLock()
-	lg := m.group
-	m.mu.RUnlock()
-	if lg != nil && lg.Role == "host" {
-		log.Printf("LISTEN: Listener %s left", peerID)
-	}
+// OnLeave is called on the host when a member leaves the listen group.
+func (m *Manager) OnLeave(_ string, peerID string, _ bool) {
+	log.Printf("LISTEN: Listener %s left", peerID)
 }
 
 // OnClose is called when a listen group is closed.
@@ -159,6 +117,15 @@ func (m *Manager) OnEvent(evt *group.Event) {
 	}
 
 	switch evt.Type {
+	case "leave":
+		if lg.Role == "listener" {
+			m.mu.Lock()
+			m.closeHTTPPipeLocked()
+			m.group = nil
+			m.mu.Unlock()
+			log.Printf("LISTEN: Left group %s", evt.Group)
+			m.notifyBrowserLocked()
+		}
 	case "msg":
 		m.handleControlEvent(evt.Payload)
 	case "members":

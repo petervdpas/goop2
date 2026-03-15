@@ -139,9 +139,12 @@
         var isListen = g.app_type === 'listen';
         if (isListen) hasListen = true;
         var doWrap = showMgmt || isListen;
-        var joinBtn = g.host_in_group
-          ? '<button class="groups-action-btn groups-btn-danger grph-leaveown-btn" data-id="' + escapeHtml(g.id) + '">Leave</button>'
-          : '<button class="groups-action-btn groups-btn-primary grph-joinown-btn" data-id="' + escapeHtml(g.id) + '">Join</button>';
+        var joinBtn = '';
+        if (g.host_can_join !== false) {
+          joinBtn = g.host_in_group
+            ? '<button class="groups-action-btn groups-btn-danger grph-leaveown-btn" data-id="' + escapeHtml(g.id) + '">Leave</button>'
+            : '<button class="groups-action-btn groups-btn-primary grph-joinown-btn" data-id="' + escapeHtml(g.id) + '">Join</button>';
+        }
         var closeAttr = isListen ? ' data-listen="1"' : '';
 
         html += '<div class="' + (doWrap ? 'groups-card-wrap' : '') + '">' +
