@@ -144,15 +144,16 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 
 		type subWithCount struct {
 			storage.SubscriptionRow
-			HostName      string `json:"host_name"`
-			HostReachable bool   `json:"host_reachable"`
-			MemberCount   int    `json:"member_count"`
+			HostReachable bool `json:"host_reachable"`
+			MemberCount   int  `json:"member_count"`
 		}
 		enriched := make([]subWithCount, len(subs))
 		for i, s := range subs {
+			if live := peerName(s.HostPeerID); live != "" {
+				s.HostName = live
+			}
 			enriched[i] = subWithCount{
 				SubscriptionRow: s,
-				HostName:        peerName(s.HostPeerID),
 				HostReachable:   peerReachable(s.HostPeerID),
 				MemberCount:     len(grpMgr.StoredGroupMembers(s.GroupID)),
 			}

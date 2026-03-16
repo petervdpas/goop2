@@ -19,6 +19,7 @@ type GroupRow struct {
 // SubscriptionRow represents a row from the _group_subscriptions table.
 type SubscriptionRow struct {
 	HostPeerID   string `json:"host_peer_id"`
+	HostName     string `json:"host_name"`
 	GroupID      string `json:"group_id"`
 	GroupName    string `json:"group_name"`
 	AppType      string `json:"app_type"`
@@ -129,7 +130,7 @@ func (d *DB) SetHostJoined(groupID string, joined bool) error {
 }
 
 // AddSubscription records a subscription to a remote group.
-func (d *DB) AddSubscription(hostPeerID, groupID, groupName, appType string, maxMembers int, volatile bool, role string) error {
+func (d *DB) AddSubscription(hostPeerID, groupID, groupName, appType string, maxMembers int, volatile bool, role, hostName string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -138,13 +139,25 @@ func (d *DB) AddSubscription(hostPeerID, groupID, groupName, appType string, max
 		v = 1
 	}
 	_, err := d.db.Exec(
-		`INSERT OR REPLACE INTO _group_subscriptions (host_peer_id, group_id, group_name, app_type, max_members, volatile, role) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		hostPeerID, groupID, groupName, appType, maxMembers, v, role,
+		`INSERT OR REPLACE INTO _group_subscriptions (host_peer_id, group_id, group_name, app_type, max_members, volatile, role, host_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		hostPeerID, groupID, groupName, appType, maxMembers, v, role, hostName,
 	)
 	if err != nil {
 		return fmt.Errorf("add subscription: %w", err)
 	}
 	return nil
+}
+
+// UpdateSubscriptionHostName updates the host_name for all subscriptions to a given host peer.
+func (d *DB) UpdateSubscriptionHostName(hostPeerID, hostName string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	_, err := d.db.Exec(
+		`UPDATE _group_subscriptions SET host_name = ? WHERE host_peer_id = ?`,
+		hostName, hostPeerID,
+	)
+	return err
 }
 
 // RemoveSubscription removes a subscription record.
@@ -219,7 +232,7 @@ func (d *DB) ListSubscriptions() ([]SubscriptionRow, error) {
 	defer d.mu.RUnlock()
 
 	rows, err := d.db.Query(
-		`SELECT host_peer_id, group_id, group_name, app_type, COALESCE(max_members,0), COALESCE(volatile,0), role, subscribed_at FROM _group_subscriptions ORDER BY subscribed_at DESC`,
+		`SELECT host_peer_id, group_id, group_name, app_type, COALESCE(max_members,0), COALESCE(volatile,0), role, subscribed_at, COALESCE(host_name,'') FROM _group_subscriptions ORDER BY subscribed_at DESC`,
 	)
 	if err != nil {
 		return nil, err
@@ -230,7 +243,7 @@ func (d *DB) ListSubscriptions() ([]SubscriptionRow, error) {
 	for rows.Next() {
 		var s SubscriptionRow
 		var vol int
-		if err := rows.Scan(&s.HostPeerID, &s.GroupID, &s.GroupName, &s.AppType, &s.MaxMembers, &vol, &s.Role, &s.SubscribedAt); err != nil {
+		if err := rows.Scan(&s.HostPeerID, &s.GroupID, &s.GroupName, &s.AppType, &s.MaxMembers, &vol, &s.Role, &s.SubscribedAt, &s.HostName); err != nil {
 			return nil, err
 		}
 		s.Volatile = vol != 0

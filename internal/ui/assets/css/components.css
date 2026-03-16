@@ -569,6 +569,7 @@
   display: flex;
   align-items: flex-start;
   overflow: hidden;
+  min-width: 200px;
 }
 
 .peers-page > .splash-col {

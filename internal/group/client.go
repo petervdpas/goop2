@@ -114,7 +114,8 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 	}
 
 	// Store subscription with full metadata
-	m.db.AddSubscription(hostPeerID, groupID, wp.GroupName, wp.AppType, wp.MaxMembers, wp.Volatile, "member") //nolint:errcheck
+	hostName := m.db.GetPeerName(hostPeerID)
+	m.db.AddSubscription(hostPeerID, groupID, wp.GroupName, wp.AppType, wp.MaxMembers, wp.Volatile, "member", hostName) //nolint:errcheck
 
 	m.notifyListeners(&Event{Type: TypeWelcome, Group: groupID, From: hostPeerID, Payload: map[string]any{
 		"group_name":  wp.GroupName,
@@ -251,6 +252,12 @@ func (m *Manager) handlePeerAnnounce(payload any) {
 	offline, _ := data["offline"].(bool)
 	if !reachable || offline {
 		return
+	}
+
+	// Update stored host name from the announce payload
+	content, _ := data["content"].(string)
+	if content != "" {
+		_ = m.db.UpdateSubscriptionHostName(peerID, content)
 	}
 
 	subs, err := m.db.ListSubscriptions()

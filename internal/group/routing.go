@@ -168,7 +168,7 @@ func (m *Manager) handleMemberMessage(from string, cc *clientConn, groupID, msgT
 			if b, err := json.Marshal(rawPayload); err == nil {
 				var mp MetaPayload
 				if json.Unmarshal(b, &mp) == nil && mp.GroupName != "" {
-					_ = m.db.AddSubscription(cc.hostPeerID, groupID, mp.GroupName, mp.AppType, mp.MaxMembers, cc.volatile, "member")
+					_ = m.db.AddSubscription(cc.hostPeerID, groupID, mp.GroupName, mp.AppType, mp.MaxMembers, cc.volatile, "member", m.db.GetPeerName(cc.hostPeerID))
 				}
 			}
 		}

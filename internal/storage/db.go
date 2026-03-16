@@ -119,6 +119,8 @@ func Open(configDir string) (*DB, error) {
 	db.Exec(`ALTER TABLE _group_subscriptions ADD COLUMN max_members INTEGER DEFAULT 0`)
 	// Migration: add volatile to subscriptions if missing (existing databases)
 	db.Exec(`ALTER TABLE _group_subscriptions ADD COLUMN volatile INTEGER DEFAULT 0`)
+	// Migration: add host_name to subscriptions if missing (existing databases)
+	db.Exec(`ALTER TABLE _group_subscriptions ADD COLUMN host_name TEXT DEFAULT ''`)
 
 	// Create cluster jobs table
 	if _, err := db.Exec(`

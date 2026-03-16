@@ -263,6 +263,16 @@
   align-self: flex-start;
 }
 
+.cl-binary-path-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.cl-binary-path-row .form-input {
+  flex: 1;
+}
+
 .cl-worker-status {
   margin-top: 8px;
   font-size: 13px;

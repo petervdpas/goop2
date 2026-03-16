@@ -152,6 +152,9 @@ func Start(addr string, v Viewer) error {
 	}
 
 
+	// Register filesystem browsing
+	routes.RegisterFS(mux)
+
 	// Register cluster compute endpoints
 	if v.Cluster != nil {
 		routes.RegisterCluster(mux, v.Cluster, v.Groups, v.Node.ID())

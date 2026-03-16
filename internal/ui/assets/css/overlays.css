@@ -183,3 +183,35 @@
   letter-spacing: 0;
   opacity: 0.7;
 }
+
+.ed-dlg-wide { width: min(600px, 96vw); }
+
+.fp-path {
+  padding: 6px 0;
+  font-family: var(--mono);
+  word-break: break-all;
+}
+
+.fp-list {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.fp-entry {
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fp-entry:last-child { border-bottom: none; }
+.fp-entry:hover { background: var(--hover); }
+.fp-icon { flex: 0 0 auto; }
+.fp-file { color: var(--fg); }
+.fp-dir { color: var(--accent); font-weight: 500; }

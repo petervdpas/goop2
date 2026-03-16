@@ -180,6 +180,10 @@
       types:   function ()  { return _get('/api/cluster/types'); },
     },
 
+    fs: {
+      browse: function (dir) { return _get('/api/fs/browse' + (dir ? '?dir=' + encodeURIComponent(dir) : '')); },
+    },
+
     // ── Data ───────────────────────────────────────────────────────────────────
     data: {
       tables:        function ()  { return _get('/api/data/tables'); },

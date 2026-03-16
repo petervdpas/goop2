@@ -72,7 +72,7 @@ func (m *Manager) handleInvite(from string, payload any) {
 		}
 	}
 
-	_ = m.db.AddSubscription(inv.HostPeerID, inv.GroupID, inv.GroupName, inv.AppType, 0, inv.Volatile, "member")
+	_ = m.db.AddSubscription(inv.HostPeerID, inv.GroupID, inv.GroupName, inv.AppType, 0, inv.Volatile, "member", m.db.GetPeerName(inv.HostPeerID))
 
 	evt := &Event{
 		Type:  "invite",

@@ -412,6 +412,19 @@
 
   if (binaryModeEl) gsel.init(binaryModeEl);
 
+  var binaryBrowseBtn = qs("#cl-binary-browse");
+  on(binaryBrowseBtn, "click", function () {
+    if (!window.Goop.dialogs || !window.Goop.dialogs.filePicker) return;
+    var startDir = binaryPath.value.trim();
+    if (startDir) {
+      var lastSlash = startDir.lastIndexOf("/");
+      if (lastSlash > 0) startDir = startDir.substring(0, lastSlash);
+    }
+    window.Goop.dialogs.filePicker({ title: "Select Worker Binary", dir: startDir }).then(function (path) {
+      if (path) binaryPath.value = path;
+    });
+  });
+
   on(binaryBtn, "click", function () {
     var path = binaryPath.value.trim();
     if (!path) { toast("Binary path is required", true); return; }
