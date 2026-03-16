@@ -52,6 +52,7 @@ type Manager struct {
 	// MQ unsubscribe functions
 	unsubGroup  func()
 	unsubInvite func()
+	unsubPeer   func()
 }
 
 type memberMeta struct {
@@ -127,7 +128,12 @@ func New(h host.Host, db *storage.DB, mqMgr *mq.Manager) *Manager {
 		m.handleInvite(from, payload)
 	})
 
-	log.Printf("GROUP: MQ transport registered (group: + group.invite)")
+	// Watch for peers coming online — auto-rejoin disconnected subscriptions
+	m.unsubPeer = mqMgr.SubscribeTopic("peer:announce", func(_, _ string, payload any) {
+		m.handlePeerAnnounce(payload)
+	})
+
+	log.Printf("GROUP: MQ transport registered (group: + group.invite + peer:announce)")
 
 	// Auto-reconnect to subscribed groups in the background
 	go m.reconnectSubscriptions()
@@ -156,6 +162,9 @@ func (m *Manager) Close() error {
 	}
 	if m.unsubInvite != nil {
 		m.unsubInvite()
+	}
+	if m.unsubPeer != nil {
+		m.unsubPeer()
 	}
 
 	return nil

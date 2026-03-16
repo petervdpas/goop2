@@ -306,6 +306,7 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 						}
 						if err != nil {
 							log.Printf("DOCS: Failed to fetch list from %s: %v", peerID, err)
+							pf.Error = "unreachable"
 							pf.Files = []files.DocInfo{}
 						} else {
 							var parsed []files.DocInfo

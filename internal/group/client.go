@@ -13,6 +13,15 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
+func isRejection(err error) bool {
+	msg := err.Error()
+	return !strings.Contains(msg, "timed out") &&
+		!strings.Contains(msg, "context deadline exceeded") &&
+		!strings.Contains(msg, "failed to dial") &&
+		!strings.Contains(msg, "failed to open stream") &&
+		!strings.Contains(msg, "connection refused")
+}
+
 // JoinRemoteGroup sends a join request to a remote host and waits for a welcome.
 func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID string) error {
 	// Auto-leave any existing connection to this same group (re-join scenario).
@@ -229,6 +238,56 @@ func (m *Manager) RemoveSubscription(hostPeerID, groupID string) error {
 	return m.db.RemoveSubscription(hostPeerID, groupID)
 }
 
+func (m *Manager) handlePeerAnnounce(payload any) {
+	data, _ := payload.(map[string]any)
+	if data == nil {
+		return
+	}
+	peerID, _ := data["peerID"].(string)
+	if peerID == "" || peerID == m.selfID {
+		return
+	}
+	reachable, _ := data["reachable"].(bool)
+	offline, _ := data["offline"].(bool)
+	if !reachable || offline {
+		return
+	}
+
+	subs, err := m.db.ListSubscriptions()
+	if err != nil || len(subs) == 0 {
+		return
+	}
+
+	for _, s := range subs {
+		if s.HostPeerID != peerID {
+			continue
+		}
+		m.mu.RLock()
+		_, connected := m.activeConns[s.GroupID]
+		m.mu.RUnlock()
+		if connected {
+			continue
+		}
+
+		go func(sub storage.SubscriptionRow) {
+			ctx, cancel := context.WithTimeout(context.Background(), ReconnectTimeout)
+			err := m.RejoinSubscription(ctx, sub.HostPeerID, sub.GroupID)
+			cancel()
+			if err != nil {
+				if isRejection(err) {
+					log.Printf("GROUP: Host rejected rejoin to %s, removing subscription: %v", sub.GroupID, err)
+					_ = m.db.RemoveSubscription(sub.HostPeerID, sub.GroupID)
+					_ = m.db.DeleteGroupMembers(sub.GroupID)
+				} else {
+					log.Printf("GROUP: Auto-rejoin %s on peer online failed: %v", sub.GroupID, err)
+				}
+			} else {
+				log.Printf("GROUP: Auto-rejoined group %s (host %s came online)", sub.GroupID, shortID(sub.HostPeerID))
+			}
+		}(s)
+	}
+}
+
 func (m *Manager) reconnectSubscriptions() {
 	time.Sleep(DiscoveryWait)
 
@@ -256,11 +315,17 @@ func (m *Manager) reconnectSubscriptions() {
 			cancel()
 
 			if err != nil {
-				msg := err.Error()
-				if i := strings.Index(msg, "\n"); i > 0 {
-					msg = msg[:i]
+				if isRejection(err) {
+					log.Printf("GROUP: Host rejected reconnect to %s, removing subscription: %v", s.GroupID, err)
+					_ = m.db.RemoveSubscription(s.HostPeerID, s.GroupID)
+					_ = m.db.DeleteGroupMembers(s.GroupID)
+				} else {
+					msg := err.Error()
+					if i := strings.Index(msg, "\n"); i > 0 {
+						msg = msg[:i]
+					}
+					log.Printf("GROUP: Auto-reconnect to %s failed: %s", s.GroupID, msg)
 				}
-				log.Printf("GROUP: Auto-reconnect to %s failed: %s", s.GroupID, msg)
 			} else {
 				log.Printf("GROUP: Auto-reconnected to group %s on host %s", s.GroupID, shortID(s.HostPeerID))
 			}
