@@ -101,8 +101,15 @@
     }
   });
 
+  var fileBrowseBtn = qs("#docs-file-browse");
+  var fileLabel = qs("#docs-file-label");
+
+  on(fileBrowseBtn, "click", function() { fileInput.click(); });
+
   on(fileInput, "change", function() {
-    uploadBtn.disabled = !fileInput.files || fileInput.files.length === 0;
+    var n = fileInput.files ? fileInput.files.length : 0;
+    uploadBtn.disabled = n === 0;
+    fileLabel.textContent = n === 0 ? "no files selected" : n + " file" + (n !== 1 ? "s" : "") + " selected";
   });
 
   function doUpload(files) {
@@ -125,6 +132,7 @@
       if (idx >= total) {
         fileInput.value = "";
         uploadBtn.disabled = true;
+        fileLabel.textContent = "no files selected";
         setHidden(uploadProgress, true);
         loadBrowse();
         return;
@@ -151,31 +159,6 @@
 
   on(uploadBtn, "click", function() {
     doUpload(Array.from(fileInput.files));
-  });
-
-  // Drag and drop
-  on(uploadArea, "dragenter", function(e) {
-    e.preventDefault();
-    if (currentGroupID) uploadArea.classList.add("drag-over");
-  });
-
-  on(uploadArea, "dragover", function(e) {
-    e.preventDefault();
-    if (currentGroupID) uploadArea.classList.add("drag-over");
-  });
-
-  on(uploadArea, "dragleave", function(e) {
-    if (!uploadArea.contains(e.relatedTarget)) {
-      uploadArea.classList.remove("drag-over");
-    }
-  });
-
-  on(uploadArea, "drop", function(e) {
-    e.preventDefault();
-    uploadArea.classList.remove("drag-over");
-    if (!currentGroupID) return;
-    var files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) doUpload(files);
   });
 
   // Listen for group events to auto-refresh on doc changes (via MQ)
