@@ -13,9 +13,9 @@ import (
 	"github.com/petervdpas/goop2/internal/mq"
 	"github.com/petervdpas/goop2/internal/p2p"
 	"github.com/petervdpas/goop2/internal/rendezvous"
+	"github.com/petervdpas/goop2/internal/sdk"
 	"github.com/petervdpas/goop2/internal/state"
 	"github.com/petervdpas/goop2/internal/storage"
-	"github.com/petervdpas/goop2/internal/sdk"
 	viewerassets "github.com/petervdpas/goop2/internal/ui/assets"
 	"github.com/petervdpas/goop2/internal/ui/render"
 	"github.com/petervdpas/goop2/internal/viewer/routes"
@@ -34,7 +34,7 @@ type Viewer struct {
 	MQ      *mq.Manager
 	Groups  *group.Manager
 	Listen  *listen.Manager
-	DB       *storage.DB // SQLite database for peer data
+	DB      *storage.DB  // SQLite database for peer data
 	Docs    *files.Store // shared documents store
 
 	AvatarStore *avatar.Store
@@ -151,7 +151,6 @@ func Start(addr string, v Viewer) error {
 		)
 	}
 
-
 	// Register filesystem browsing
 	routes.RegisterFS(mux)
 
@@ -220,6 +219,8 @@ func StartMinimal(addr string, v MinimalViewer) error {
 	if baseURL == "" {
 		baseURL = "http://" + addr
 	}
+
+	routes.RegisterFS(mux)
 
 	routes.RegisterMinimal(mux, routes.Deps{
 		SelfLabel:      v.SelfLabel,
