@@ -489,14 +489,10 @@
             Peers can browse and apply these templates for free.
           </p>
 
-          <div class="field">
+          <div class="field" id="templates-dir-field">
             <label>Templates directory</label>
-            <div class="token-field">
-              <input id="templates-dir-input" name="presence_templates_dir"
-                     value="{{.Cfg.Presence.TemplatesDir}}"
-                     placeholder="templates">
-              <button type="button" class="btn token-btn" id="templates-dir-browse">Browse</button>
-            </div>
+            {{template "pathpicker" .}}
+            <input type="hidden" id="templates-dir-input" name="presence_templates_dir" value="{{.Cfg.Presence.TemplatesDir}}">
             <div class="hint">
               Path relative to the peer directory. Each subdirectory needs a <code>manifest.json</code>.
               Ignored when the Templates service URL is set in External Services.

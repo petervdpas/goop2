@@ -322,22 +322,18 @@
   });
 
   // ── Templates directory browse ──
-  var tplBrowse = document.getElementById('templates-dir-browse');
-  var tplInput  = document.getElementById('templates-dir-input');
-  if (tplBrowse && tplInput) {
-    if (bridgeURL) {
-      tplBrowse.addEventListener('click', function() {
-        fetch(bridgeURL + '/select-dir?title=' + encodeURIComponent('Choose templates directory'), { method: 'POST' })
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            if (!data.cancelled && data.path) {
-              tplInput.value = data.path;
-            }
-          })
-          .catch(function(err) { Goop.log.error('self', 'file browse failed: ' + err); });
-      });
-    } else {
-      tplBrowse.classList.add('hidden');
+  var tplDirField = document.getElementById('templates-dir-field');
+  var tplDirHidden = document.getElementById('templates-dir-input');
+  if (tplDirField && tplDirHidden && window.Goop.pathpicker) {
+    var tplDirPicker = window.Goop.pathpicker.init(
+      tplDirField.querySelector('.pathpicker'),
+      {
+        title: 'Choose templates directory',
+        onChange: function(path) { tplDirHidden.value = path; },
+      }
+    );
+    if (tplDirPicker && tplDirHidden.value) {
+      tplDirPicker.setValue(tplDirHidden.value);
     }
   }
 })();
