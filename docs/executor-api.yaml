@@ -1,14 +1,24 @@
 openapi: "3.0.3"
 info:
-  title: Goop2 Cluster Executor API
+  title: Goop2 Cluster Executor API (Legacy HTTP Pull Model)
   description: |
-    Standalone contract for external executors that process jobs in a goop2 cluster.
+    ⚠️ **LEGACY** — This documents the HTTP pull-based executor model (Phases 1-2).
+
+    For new implementations, use the **Binary Protocol** (Phase 3):
+    - Binary reads JSON from stdin
+    - Binary writes JSON to stdout
+    - goop2 worker spawns binary, pipes jobs, collects results
+    - See docs/CLUSTER_WALKTHROUGH.md for details
+
+    This HTTP API is still supported for backward compatibility.
+
+    ---
 
     An executor is any process — script, binary, container — that runs on the same
     machine as a goop2 worker node. It talks to localhost only. goop2 handles all
     P2P routing to the cluster host.
 
-    ## Lifecycle
+    ## Legacy Lifecycle (HTTP Pull Model)
 
     ```
     1. Poll    GET  /api/cluster/job        → discover pending jobs
@@ -16,6 +26,15 @@ info:
     3. Work    POST /api/cluster/progress   → report progress (repeat)
     4. Done    POST /api/cluster/result     → report success or failure
     5. Alive   POST /api/cluster/heartbeat  → periodic liveness + stats
+    ```
+
+    ## New Binary Protocol (Phase 3)
+
+    Recommended for new work. Binary receives JSON on stdin, writes to stdout:
+    ```json
+    Input:  {"job_id":"j1","type":"calculate","payload":{...},"timeout_s":30}
+    Output: {"status":"progress","pct":50,"msg":"..."}
+    Output: {"status":"done","result":{...}}
     ```
   version: "1.0.0"
   license:

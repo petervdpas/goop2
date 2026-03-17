@@ -314,6 +314,10 @@ func TestWorkerHandleJob(t *testing.T) {
 	}
 
 	w := NewWorker(sendFn, "g1")
+	// Must set binary before HandleJob (new requirement for Phase 3)
+	w.SetBinary("/bin/echo", "oneshot")
+	time.Sleep(10 * time.Millisecond) // let verify() run
+
 	w.HandleJob("host-peer", Job{ID: "j1", Type: "echo", TimeoutS: 5})
 
 	if w.RunningCount() != 1 {
@@ -323,16 +327,25 @@ func TestWorkerHandleJob(t *testing.T) {
 		t.Fatalf("expected busy, got %s", w.Status())
 	}
 
+	// Should have ack (from HandleJob) and possibly verified message (from SetBinary verify)
 	mu.Lock()
-	if len(topics) != 1 || topics[0] != "cluster:g1:job:ack" {
-		t.Fatalf("expected ack, got %v", topics)
+	ackFound := false
+	for _, topic := range topics {
+		if topic == "cluster:g1:job:ack" {
+			ackFound = true
+			break
+		}
 	}
 	mu.Unlock()
+	if !ackFound {
+		t.Fatalf("expected ack in topics, got %v", topics)
+	}
 }
 
 func TestWorkerCancel(t *testing.T) {
 	sendFn := func(peerID, topic string, payload any) error { return nil }
 	w := NewWorker(sendFn, "g1")
+	w.SetBinary("/bin/echo", "oneshot")
 	w.HandleJob("host", Job{ID: "j1", Type: "slow", TimeoutS: 60})
 
 	w.Cancel("j1")
@@ -345,6 +358,7 @@ func TestWorkerCancel(t *testing.T) {
 func TestWorkerClose(t *testing.T) {
 	sendFn := func(peerID, topic string, payload any) error { return nil }
 	w := NewWorker(sendFn, "g1")
+	w.SetBinary("/bin/echo", "oneshot")
 	w.HandleJob("host", Job{ID: "j1", Type: "test", TimeoutS: 60})
 
 	w.Close()
