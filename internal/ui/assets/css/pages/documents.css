@@ -85,17 +85,6 @@
   gap: 10px;
 }
 
-.docs-file-input {
-  display: none;
-}
-
-.docs-file-label {
-  flex: 1;
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 .docs-upload-progress {
   padding: 6px 0;

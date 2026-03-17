@@ -77,10 +77,15 @@
 
   function toast(msg, isError) {
     if (window.Goop && window.Goop.toast) {
+      var text = String(msg || "");
+      if (text.length > 100) {
+        var parts = text.split(": ");
+        text = parts.length > 2 ? parts.slice(0, 2).join(": ") : text.substring(0, 100) + "\u2026";
+      }
       window.Goop.toast({
         icon: isError ? "!" : "ok",
         title: isError ? "Error" : "Success",
-        message: msg,
+        message: text,
         duration: isError ? 6000 : 3000,
       });
     }

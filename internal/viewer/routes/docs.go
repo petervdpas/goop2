@@ -8,6 +8,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -172,6 +174,54 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 		writeJSON(w, map[string]any{
 			"status":   "uploaded",
 			"filename": header.Filename,
+			"size":     len(data),
+			"hash":     hash,
+		})
+	})
+
+	// Upload a file from a local filesystem path
+	handlePost(mux, "/api/docs/upload-local", func(w http.ResponseWriter, r *http.Request, req struct {
+		GroupID string `json:"group_id"`
+		Path    string `json:"path"`
+	}) {
+		if !requireLocal(w, r) {
+			return
+		}
+		if req.GroupID == "" || req.Path == "" {
+			http.Error(w, "Missing group_id or path", http.StatusBadRequest)
+			return
+		}
+		data, err := os.ReadFile(req.Path)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Cannot read file: %v", err), http.StatusBadRequest)
+			return
+		}
+		if len(data) > files.MaxFileSize {
+			http.Error(w, "File exceeds 50 MB limit", http.StatusRequestEntityTooLarge)
+			return
+		}
+		filename := filepath.Base(req.Path)
+		hash, err := d.DocsStore.Save(req.GroupID, filename, data)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to save: %v", err), http.StatusInternalServerError)
+			return
+		}
+		if d.GroupManager != nil {
+			payload := map[string]any{
+				"action": "doc-added",
+				"file": map[string]any{
+					"name": filename,
+					"size": len(data),
+					"hash": hash,
+				},
+			}
+			if err := d.GroupManager.SendToGroupAsHost(req.GroupID, payload); err != nil {
+				_ = d.GroupManager.SendToGroup(req.GroupID, payload)
+			}
+		}
+		writeJSON(w, map[string]any{
+			"status":   "uploaded",
+			"filename": filename,
 			"size":     len(data),
 			"hash":     hash,
 		})

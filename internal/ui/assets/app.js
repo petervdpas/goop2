@@ -17,6 +17,7 @@
     "/assets/js/listen.js",
     "/assets/js/settings-popup.js",
     "/assets/js/dialogs.js",
+    "/assets/js/filepicker.js",
     "/assets/js/toast.js",
     "/assets/js/groups.js",
     "/assets/js/forms.js",

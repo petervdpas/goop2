@@ -187,6 +187,89 @@
     });
   }
 
+  function dlgPathPicker(options) {
+    var title = (options && options.title) || "Select Folder";
+    var startDir = (options && options.dir) || "";
+
+    return new Promise(function(resolve) {
+      var backdrop = createElement('<div class="ed-dlg-backdrop"></div>');
+      var dlg = createElement(
+        '<div class="ed-dlg ed-dlg-wide" role="dialog" aria-modal="true">' +
+          '<div class="ed-dlg-head"><div class="ed-dlg-title"></div></div>' +
+          '<div class="ed-dlg-body">' +
+            '<div class="fp-path muted small"></div>' +
+            '<div class="fp-list"></div>' +
+          '</div>' +
+          '<div class="ed-dlg-foot">' +
+            '<button type="button" class="ed-dlg-btn cancel">Cancel</button>' +
+            '<button type="button" class="ed-dlg-btn ok">Select</button>' +
+          '</div>' +
+        '</div>'
+      );
+
+      var qs = window.Goop.core.qs;
+      var escapeHtml = window.Goop.core.escapeHtml;
+      qs(".ed-dlg-title", dlg).textContent = title;
+      var pathEl = qs(".fp-path", dlg);
+      var listEl = qs(".fp-list", dlg);
+      var currentDir = startDir;
+
+      function cleanup(result) {
+        document.removeEventListener("keydown", handleKey);
+        backdrop.remove();
+        resolve(result);
+      }
+
+      function handleKey(e) {
+        if (e.key === "Escape") cleanup(null);
+      }
+
+      function loadDir(dir) {
+        listEl.innerHTML = '<p class="muted small">Loading...</p>';
+        window.Goop.api.fs.browse(dir).then(function(data) {
+          currentDir = data.dir || "/";
+          pathEl.textContent = currentDir;
+          var html = "";
+
+          if (data.parent && data.parent !== data.dir) {
+            html += '<div class="fp-entry fp-dir" data-path="' + escapeHtml(data.parent) + '">' +
+              '<span class="fp-icon">&#128194;</span> ..</div>';
+          }
+
+          var entries = data.entries || [];
+          entries.forEach(function(e) {
+            if (!e.is_dir) return;
+            var fullPath = data.dir + "/" + e.name;
+            if (data.dir === "/") fullPath = "/" + e.name;
+            html += '<div class="fp-entry fp-dir" data-path="' + escapeHtml(fullPath) + '">' +
+              '<span class="fp-icon">&#128194;</span> ' + escapeHtml(e.name) + '</div>';
+          });
+
+          if (!html) html = '<p class="muted small">Empty directory</p>';
+          listEl.innerHTML = html;
+
+          listEl.querySelectorAll(".fp-dir").forEach(function(el) {
+            el.addEventListener("click", function() { loadDir(el.getAttribute("data-path")); });
+          });
+        }).catch(function() {
+          listEl.innerHTML = '<p class="muted small">Cannot read directory</p>';
+        });
+      }
+
+      backdrop.addEventListener("mousedown", function(e) {
+        if (e.target === backdrop) cleanup(null);
+      });
+      qs("button.cancel", dlg).addEventListener("click", function() { cleanup(null); });
+      qs("button.ok", dlg).addEventListener("click", function() { cleanup(currentDir); });
+
+      backdrop.appendChild(dlg);
+      document.body.appendChild(backdrop);
+      document.addEventListener("keydown", handleKey);
+
+      loadDir(startDir);
+    });
+  }
+
   window.Goop = window.Goop || {};
-  window.Goop.dialogs = { dlgAsk, dlgAlert, confirm: dlgConfirm, filePicker: dlgFilePicker };
+  window.Goop.dialogs = { dlgAsk, dlgAlert, confirm: dlgConfirm, filePicker: dlgFilePicker, pathPicker: dlgPathPicker };
 })();

@@ -163,6 +163,9 @@
         fd.append('file', file);
         return _upload('/api/docs/upload', fd);
       },
+      uploadLocal: function (groupId, path) {
+        return _post('/api/docs/upload-local', { group_id: groupId, path: path });
+      },
     },
 
     // ── Cluster ──────────────────────────────────────────────────────────────────

@@ -808,6 +808,41 @@ input:checked + .slider::before {
   background: var(--field-bg-2);
 }
 
+.path-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.path-wrap {
+  flex: 1;
+  position: relative;
+}
+
+.path-wrap .form-input {
+  width: 100%;
+  cursor: pointer;
+  padding-right: 28px;
+}
+
+.path-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.path-clear:hover {
+  color: var(--fg);
+}
+
 .json-valid {
   border-color: color-mix(in srgb, #4ade80 60%, transparent);
 }

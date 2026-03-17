@@ -47,7 +47,6 @@
 
   var workerGroupId  = qs("#cl-worker-group-id");
   var leaveWorkerBtn = qs("#cl-leave-worker-btn");
-  var binaryPath     = qs("#cl-binary-path");
   var binaryModeEl   = qs("#cl-binary-mode");
   var binaryBtn      = qs("#cl-binary-btn");
   var workerStatusEl = qs("#cl-worker-status");
@@ -168,7 +167,7 @@
         startPolling();
       } else if (_role === "worker") {
         workerGroupId.textContent = _groupID ? _groupID.substring(0, 12) + "\u2026" : "";
-        if (data.binary_path) binaryPath.value = data.binary_path;
+        if (data.binary_path && binaryPicker) binaryPicker.setValue(data.binary_path);
         workerStatusEl.textContent = "Status: connected";
       } else {
         stopPolling();
@@ -412,21 +411,13 @@
 
   if (binaryModeEl) gsel.init(binaryModeEl);
 
-  var binaryBrowseBtn = qs("#cl-binary-browse");
-  on(binaryBrowseBtn, "click", function () {
-    if (!window.Goop.dialogs || !window.Goop.dialogs.filePicker) return;
-    var startDir = binaryPath.value.trim();
-    if (startDir) {
-      var lastSlash = startDir.lastIndexOf("/");
-      if (lastSlash > 0) startDir = startDir.substring(0, lastSlash);
-    }
-    window.Goop.dialogs.filePicker({ title: "Select Worker Binary", dir: startDir }).then(function (path) {
-      if (path) binaryPath.value = path;
-    });
-  });
+  var binaryPicker = window.Goop.filepicker && window.Goop.filepicker.init(
+    qs(".filepicker", workerSection),
+    { title: "Select Worker Binary" }
+  );
 
   on(binaryBtn, "click", function () {
-    var path = binaryPath.value.trim();
+    var path = binaryPicker ? binaryPicker.value() : "";
     if (!path) { toast("Binary path is required", true); return; }
     var mode = gsel.val(binaryModeEl) || "oneshot";
     api.cluster.binary({ path: path, mode: mode }).then(function () {

@@ -18,7 +18,6 @@
   var refreshBtn = qs("#docs-refresh-btn");
   var inviteBtn = qs("#docs-invite-btn");
   var uploadArea = qs("#docs-upload-area");
-  var fileInput = qs("#docs-file-input");
   var uploadBtn = qs("#docs-upload-btn");
   var uploadProgress = qs("#docs-upload-progress");
   var progressText = qs("#docs-progress-text");
@@ -101,64 +100,33 @@
     }
   });
 
-  var fileBrowseBtn = qs("#docs-file-browse");
-  var fileLabel = qs("#docs-file-label");
-
-  on(fileBrowseBtn, "click", function() { fileInput.click(); });
-
-  on(fileInput, "change", function() {
-    var n = fileInput.files ? fileInput.files.length : 0;
-    uploadBtn.disabled = n === 0;
-    fileLabel.textContent = n === 0 ? "no files selected" : n + " file" + (n !== 1 ? "s" : "") + " selected";
-  });
-
-  function doUpload(files) {
-    if (!files || files.length === 0) return;
-    if (!currentGroupID) return;
-
-    for (var i = 0; i < files.length; i++) {
-      if (files[i].size > 50 * 1024 * 1024) {
-        toast('"' + files[i].name + '" exceeds 50 MB limit', true);
-        return;
-      }
+  var picker = window.Goop.filepicker && window.Goop.filepicker.init(
+    qs(".filepicker", uploadArea),
+    {
+      title: "Select File to Upload",
+      onChange: function(path) { uploadBtn.disabled = !path; },
     }
+  );
+
+  on(uploadBtn, "click", function() {
+    var path = picker ? picker.value() : "";
+    if (!path || !currentGroupID) return;
 
     uploadBtn.disabled = true;
     setHidden(uploadProgress, false);
+    if (progressText) progressText.textContent = "Uploading...";
 
-    var total = files.length;
-
-    function uploadNext(idx) {
-      if (idx >= total) {
-        fileInput.value = "";
-        uploadBtn.disabled = true;
-        fileLabel.textContent = "no files selected";
-        setHidden(uploadProgress, true);
-        loadBrowse();
-        return;
-      }
-
-      if (progressText) {
-        progressText.textContent = total > 1
-          ? "Uploading " + (idx + 1) + " of " + total + "..."
-          : "Uploading...";
-      }
-
-      api.docs.upload(currentGroupID, files[idx]).then(function(data) {
-        toast("Uploaded: " + data.filename);
-        uploadNext(idx + 1);
-      }).catch(function(err) {
-        toast("Upload failed: " + err.message, true);
-        uploadBtn.disabled = false;
-        setHidden(uploadProgress, true);
-      });
-    }
-
-    uploadNext(0);
-  }
-
-  on(uploadBtn, "click", function() {
-    doUpload(Array.from(fileInput.files));
+    api.docs.uploadLocal(currentGroupID, path).then(function(data) {
+      toast("Uploaded: " + data.filename);
+      if (picker) picker.clear();
+      uploadBtn.disabled = true;
+      setHidden(uploadProgress, true);
+      loadBrowse();
+    }).catch(function(err) {
+      toast("Upload failed: " + err.message, true);
+      uploadBtn.disabled = false;
+      setHidden(uploadProgress, true);
+    });
   });
 
   // Listen for group events to auto-refresh on doc changes (via MQ)

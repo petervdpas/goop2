@@ -164,10 +164,7 @@
             <div class="cl-worker-binary-form">
               <div class="cl-submit-row">
                 <label>Binary Path</label>
-                <div class="cl-binary-path-row">
-                  <input type="text" id="cl-binary-path" class="form-input" placeholder="/usr/local/bin/worker" />
-                  <button type="button" id="cl-binary-browse" class="btn btn-small">Browse</button>
-                </div>
+                {{template "filepicker" .}}
               </div>
               <div class="cl-submit-row">
                 <label>Mode</label>
