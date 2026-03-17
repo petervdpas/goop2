@@ -72,31 +72,18 @@
       Goop.toast({ title: 'Error', message: errMsg, duration: 6000 });
     });
   }
-  // ── Local Template (native app only) ──
-  var browseBtn = document.getElementById('local-tpl-browse');
-  if (browseBtn) {
-    var bridgeURL = document.body.dataset.bridgeUrl || '';
-    var pathInput = document.getElementById('local-tpl-path');
+  // ── Local Template ──
+  var tplLocal = document.getElementById('tpl-local');
+  if (tplLocal && window.Goop.pathpicker) {
     var preview   = document.getElementById('local-tpl-preview');
-    var localPath = '';
 
-    browseBtn.addEventListener('click', function() {
-      if (!bridgeURL) return;
-      fetch(bridgeURL + '/select-dir?title=Choose+template+folder', { method: 'POST' })
-        .then(function(res) {
-          if (!res.ok) return res.text().then(function(t) { throw new Error(t); });
-          return res.json();
-        })
-        .then(function(data) {
-          if (!data || !data.path) return;
-          localPath = data.path;
-          pathInput.value = localPath;
-          validateLocal(localPath);
-        })
-        .catch(function(err) {
-          if (err.message) Goop.toast({ title: 'Error', message: err.message, duration: 5000 });
-        });
-    });
+    var tplPicker = window.Goop.pathpicker.init(
+      tplLocal.querySelector('.pathpicker'),
+      {
+        title: 'Choose template folder',
+        onChange: function(path) { if (path) validateLocal(path); },
+      }
+    );
 
     function validateLocal(path) {
       preview.style.display = 'none';

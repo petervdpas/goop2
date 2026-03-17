@@ -56,11 +56,8 @@
 
   {{if .BridgeURL}}
   <h3 class="tpl-section-heading">Local Template</h3>
-  <div class="tpl-local">
-    <div class="tpl-local-row">
-      <input type="text" class="tpl-local-path" id="local-tpl-path" readonly placeholder="Select a folder with manifest.json">
-      <button type="button" id="local-tpl-browse">Browse</button>
-    </div>
+  <div class="tpl-local" id="tpl-local">
+    {{template "pathpicker" .}}
     <div id="local-tpl-preview" class="tpl-card tpl-card-local" style="display:none">
       <div class="tpl-card-icon" id="local-tpl-icon"></div>
       <div class="tpl-card-body">

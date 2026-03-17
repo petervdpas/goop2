@@ -1527,6 +1527,78 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/docs/upload-local": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "docs"
+                ],
+                "summary": "Upload a file from a local filesystem path to share with the group",
+                "parameters": [
+                    {
+                        "description": "Upload request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.docsUploadLocalRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    },
+                    "400": {
+                        "description": "Missing group_id or path / Cannot read file",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/fs/browse": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "fs"
+                ],
+                "summary": "Browse the local filesystem (directories and files)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Directory to list (defaults to home directory)",
+                        "name": "dir",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.fsBrowseResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "cannot read directory",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/api/groups": {
             "get": {
                 "produces": [
@@ -2993,6 +3065,45 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/site/upload-local": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "site"
+                ],
+                "summary": "Upload a file from a local filesystem path to the site content store",
+                "parameters": [
+                    {
+                        "description": "Upload request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.siteUploadLocalRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.siteUploadResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "dest_path and src_path required / cannot read file",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/api/templates/apply": {
             "post": {
                 "description": "Resets the site and database, then applies the named built-in template.",
@@ -3845,6 +3956,55 @@ const docTemplate = `{
                 }
             }
         },
+        "routes.docsUploadLocalRequest": {
+            "type": "object",
+            "properties": {
+                "group_id": {
+                    "type": "string",
+                    "example": "e933372f2147..."
+                },
+                "path": {
+                    "type": "string",
+                    "example": "/home/user/photo.png"
+                }
+            }
+        },
+        "routes.fsBrowseEntry": {
+            "type": "object",
+            "properties": {
+                "is_dir": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Documents"
+                },
+                "size": {
+                    "type": "integer",
+                    "example": 4096
+                }
+            }
+        },
+        "routes.fsBrowseResponse": {
+            "type": "object",
+            "properties": {
+                "dir": {
+                    "type": "string",
+                    "example": "/home/peter"
+                },
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/routes.fsBrowseEntry"
+                    }
+                },
+                "parent": {
+                    "type": "string",
+                    "example": "/home"
+                }
+            }
+        },
         "routes.groupCreateRequest": {
             "type": "object",
             "properties": {
@@ -4454,6 +4614,19 @@ const docTemplate = `{
                 "status": {
                     "type": "string",
                     "example": "imported"
+                }
+            }
+        },
+        "routes.siteUploadLocalRequest": {
+            "type": "object",
+            "properties": {
+                "dest_path": {
+                    "type": "string",
+                    "example": "images/logo.png"
+                },
+                "src_path": {
+                    "type": "string",
+                    "example": "/home/user/logo.png"
                 }
             }
         },

@@ -212,22 +212,6 @@
   border-radius: var(--radius);
   padding: 1.25rem;
 }
-.tpl-local-row { display: flex; gap: 0.5rem; align-items: center; }
-.tpl-local-path {
-  flex: 1;
-  min-width: 0;
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--field-bg);
-  color: var(--text);
-  outline: none;
-  font-size: 13px;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
-}
-.tpl-local-row button { flex-shrink: 0; }
 .tpl-card-local {
   margin-top: 1rem;
   padding-top: 1rem;

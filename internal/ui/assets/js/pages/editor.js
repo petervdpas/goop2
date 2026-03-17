@@ -478,7 +478,7 @@
 
       imgUploadBtn.disabled = true;
       try {
-        const res = await core.api("/api/site/upload-local", { src_path: srcPath, dest_path: destPath });
+        const res = await window.Goop.core.api("/api/site/upload-local", { src_path: srcPath, dest_path: destPath });
         imgPicker.clear();
         window.location.reload();
       } catch (err) {

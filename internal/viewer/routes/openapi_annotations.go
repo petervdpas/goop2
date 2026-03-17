@@ -1314,6 +1314,24 @@ func swagDocsDelete() {}
 //	@Router		/api/docs/browse [get]
 func swagDocsBrowse() {}
 
+// docsUploadLocalRequest is the body for POST /api/docs/upload-local.
+type docsUploadLocalRequest struct {
+	GroupID string `json:"group_id" example:"e933372f2147..."`
+	Path    string `json:"path"     example:"/home/user/photo.png"`
+}
+
+// swagDocsUploadLocal is a documentation stub for POST /api/docs/upload-local.
+//
+//	@Summary	Upload a file from a local filesystem path to share with the group
+//	@Tags		docs
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		docsUploadLocalRequest	true	"Upload request"
+//	@Success	200		{object}	statusOK
+//	@Failure	400		{string}	string	"Missing group_id or path / Cannot read file"
+//	@Router		/api/docs/upload-local [post]
+func swagDocsUploadLocal() {}
+
 // swagDocsDownload is a documentation stub for GET /api/docs/download.
 //
 //	@Summary	Download a file (local store or proxied from remote peer)
@@ -1669,6 +1687,24 @@ type siteUploadResponse struct {
 //	@Router		/api/site/upload [post]
 func swagSiteUpload() {}
 
+// siteUploadLocalRequest is the body for POST /api/site/upload-local.
+type siteUploadLocalRequest struct {
+	SrcPath  string `json:"src_path"  example:"/home/user/logo.png"`
+	DestPath string `json:"dest_path" example:"images/logo.png"`
+}
+
+// swagSiteUploadLocal is a documentation stub for POST /api/site/upload-local.
+//
+//	@Summary	Upload a file from a local filesystem path to the site content store
+//	@Tags		site
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		siteUploadLocalRequest	true	"Upload request"
+//	@Success	200		{object}	siteUploadResponse
+//	@Failure	400		{string}	string	"dest_path and src_path required / cannot read file"
+//	@Router		/api/site/upload-local [post]
+func swagSiteUploadLocal() {}
+
 // swagSiteExport is a documentation stub for GET /api/site/export.
 //
 //	@Summary	Download the entire site as a zip archive
@@ -1698,6 +1734,33 @@ type siteImportResponse struct {
 //	@Failure	403		{string}	string	"bad csrf"
 //	@Router		/api/site/import [post]
 func swagSiteImport() {}
+
+// ── Filesystem ───────────────────────────────────────────────────────────────
+
+// fsBrowseEntry is a single entry in the /api/fs/browse response.
+type fsBrowseEntry struct {
+	Name  string `json:"name"            example:"Documents"`
+	IsDir bool   `json:"is_dir"          example:"true"`
+	Size  int64  `json:"size,omitempty"  example:"4096"`
+}
+
+// fsBrowseResponse is the response for GET /api/fs/browse.
+type fsBrowseResponse struct {
+	Dir     string          `json:"dir"     example:"/home/peter"`
+	Parent  string          `json:"parent"  example:"/home"`
+	Entries []fsBrowseEntry `json:"entries"`
+}
+
+// swagFSBrowse is a documentation stub for GET /api/fs/browse.
+//
+//	@Summary	Browse the local filesystem (directories and files)
+//	@Tags		fs
+//	@Produce	json
+//	@Param		dir	query		string	false	"Directory to list (defaults to home directory)"
+//	@Success	200	{object}	fsBrowseResponse
+//	@Failure	400	{string}	string	"cannot read directory"
+//	@Router		/api/fs/browse [get]
+func swagFSBrowse() {}
 
 // ── Templates ────────────────────────────────────────────────────────────────
 

@@ -441,6 +441,40 @@ definitions:
         example: a1b2c3d4e5f6a1b2
         type: string
     type: object
+  routes.docsUploadLocalRequest:
+    properties:
+      group_id:
+        example: e933372f2147...
+        type: string
+      path:
+        example: /home/user/photo.png
+        type: string
+    type: object
+  routes.fsBrowseEntry:
+    properties:
+      is_dir:
+        example: true
+        type: boolean
+      name:
+        example: Documents
+        type: string
+      size:
+        example: 4096
+        type: integer
+    type: object
+  routes.fsBrowseResponse:
+    properties:
+      dir:
+        example: /home/peter
+        type: string
+      entries:
+        items:
+          $ref: '#/definitions/routes.fsBrowseEntry'
+        type: array
+      parent:
+        example: /home
+        type: string
+    type: object
   routes.groupCreateRequest:
     properties:
       app_type:
@@ -856,6 +890,15 @@ definitions:
     properties:
       status:
         example: imported
+        type: string
+    type: object
+  routes.siteUploadLocalRequest:
+    properties:
+      dest_path:
+        example: images/logo.png
+        type: string
+      src_path:
+        example: /home/user/logo.png
         type: string
     type: object
   routes.siteUploadResponse:
@@ -2056,6 +2099,52 @@ paths:
       summary: Upload a file to share with the group (multipart)
       tags:
       - docs
+  /api/docs/upload-local:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Upload request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.docsUploadLocalRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+        "400":
+          description: Missing group_id or path / Cannot read file
+          schema:
+            type: string
+      summary: Upload a file from a local filesystem path to share with the group
+      tags:
+      - docs
+  /api/fs/browse:
+    get:
+      parameters:
+      - description: Directory to list (defaults to home directory)
+        in: query
+        name: dir
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.fsBrowseResponse'
+        "400":
+          description: cannot read directory
+          schema:
+            type: string
+      summary: Browse the local filesystem (directories and files)
+      tags:
+      - fs
   /api/groups:
     get:
       produces:
@@ -3009,6 +3098,31 @@ paths:
           schema:
             type: string
       summary: Upload a file to the site content store
+      tags:
+      - site
+  /api/site/upload-local:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Upload request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.siteUploadLocalRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.siteUploadResponse'
+        "400":
+          description: dest_path and src_path required / cannot read file
+          schema:
+            type: string
+      summary: Upload a file from a local filesystem path to the site content store
       tags:
       - site
   /api/templates/apply:
