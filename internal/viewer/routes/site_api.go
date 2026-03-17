@@ -2,8 +2,10 @@
 package routes
 
 import (
+	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 )
 
@@ -87,6 +89,36 @@ func registerSiteAPIRoutes(mux *http.ServeMux, d Deps) {
 		writeJSON(w, map[string]string{
 			"status": "uploaded",
 			"path":   destPath,
+			"etag":   etag,
+		})
+	})
+
+	// Upload a file from a local filesystem path to the site content store
+	handlePost(mux, "/api/site/upload-local", func(w http.ResponseWriter, r *http.Request, req struct {
+		DestPath string `json:"dest_path"`
+		SrcPath  string `json:"src_path"`
+	}) {
+		if d.Content == nil {
+			http.Error(w, "content store not configured", http.StatusInternalServerError)
+			return
+		}
+		if req.DestPath == "" || req.SrcPath == "" {
+			http.Error(w, "dest_path and src_path required", http.StatusBadRequest)
+			return
+		}
+		data, err := os.ReadFile(req.SrcPath)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("cannot read file: %v", err), http.StatusBadRequest)
+			return
+		}
+		etag, err := d.Content.Write(r.Context(), req.DestPath, data, "")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, map[string]string{
+			"status": "uploaded",
+			"path":   req.DestPath,
 			"etag":   etag,
 		})
 	})

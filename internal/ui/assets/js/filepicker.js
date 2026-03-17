@@ -48,12 +48,22 @@
       clear: function() {
         input.value = "";
         setHidden(clearBtn, true);
+      },
+      setEnabled: function(enabled) {
+        input.disabled = !enabled;
+        browseBtn.disabled = !enabled;
+        if (!enabled) input.style.cursor = "default";
+        else input.style.cursor = "pointer";
       }
     };
   }
 
   function initFile(container, options) {
+    var extensions = (options && options.extensions) || null;
+    var filter = (options && options.filter) || null;
     return initPicker(container, options, function(opts) {
+      if (extensions) opts.extensions = extensions;
+      if (filter) opts.filter = filter;
       return window.Goop.dialogs.filePicker(opts);
     });
   }

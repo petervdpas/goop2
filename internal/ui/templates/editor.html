@@ -78,13 +78,10 @@
       </div>
     </aside>
 
-    <div class="ed-img-panel panel">
+    <div class="ed-img-panel panel" id="ed-img-panel">
       <div class="ed-img-panel-title">Upload image</div>
-      <button type="button" id="ed-img-btn" class="ed-left-newbtn" disabled
-              title="Select the images/ folder (or a subfolder) first">
-        Choose file…
-      </button>
-      <input type="file" id="ed-img-input" accept="image/*" hidden>
+      {{template "filepicker" .}}
+      <button type="button" id="ed-img-upload" class="docs-action-btn docs-btn-primary" disabled>Upload</button>
       <div class="muted small" id="ed-img-hint">
         Select the <code>images/</code> folder to enable.
       </div>

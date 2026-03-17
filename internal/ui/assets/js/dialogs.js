@@ -102,6 +102,14 @@
     var title = (options && options.title) || "Select File";
     var startDir = (options && options.dir) || "";
     var filter = (options && options.filter) || null;
+    if (!filter && options && options.extensions) {
+      var exts = options.extensions.map(function(e) { return e.toLowerCase().replace(/^\./, ""); });
+      filter = function(name) {
+        var dot = name.lastIndexOf(".");
+        if (dot < 0) return false;
+        return exts.indexOf(name.substring(dot + 1).toLowerCase()) >= 0;
+      };
+    }
 
     return new Promise(function(resolve) {
       var backdrop = createElement('<div class="ed-dlg-backdrop"></div>');

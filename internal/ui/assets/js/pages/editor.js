@@ -438,18 +438,28 @@
   }
 
   // Image upload panel
-  const imgInput = qs("#ed-img-input");
-  const imgBtn = qs("#ed-img-btn");
+  const imgPanel = qs("#ed-img-panel");
+  const imgUploadBtn = qs("#ed-img-upload");
   const imgHint = qs("#ed-img-hint");
+
+  const imgPicker = window.Goop.filepicker && imgPanel
+    ? window.Goop.filepicker.init(qs(".filepicker", imgPanel), {
+        title: "Select Image",
+        extensions: ["png", "jpg", "jpeg", "gif", "svg", "webp", "ico"],
+        onChange: function(path) {
+          if (imgUploadBtn) imgUploadBtn.disabled = !path || !isImagesDir(state.selectedDir);
+        },
+      })
+    : null;
 
   function isImagesDir(dir) {
     return dir === "images" || dir.startsWith("images/");
   }
 
   function updateImgPanel() {
-    if (!imgBtn) return;
     const enabled = isImagesDir(state.selectedDir);
-    imgBtn.disabled = !enabled;
+    if (imgPicker) imgPicker.setEnabled(enabled);
+    if (imgUploadBtn) imgUploadBtn.disabled = !enabled || !(imgPicker && imgPicker.value());
     if (imgHint) {
       imgHint.textContent = enabled
         ? "Upload to " + state.selectedDir + "/"
@@ -457,35 +467,24 @@
     }
   }
 
-  if (imgBtn) {
-    imgBtn.addEventListener("click", () => {
-      if (imgInput && !imgBtn.disabled) imgInput.click();
-    });
-  }
+  if (imgUploadBtn) {
+    imgUploadBtn.addEventListener("click", async () => {
+      if (!imgPicker) return;
+      const srcPath = imgPicker.value();
+      if (!srcPath || !isImagesDir(state.selectedDir)) return;
 
-  if (imgInput) {
-    imgInput.addEventListener("change", async () => {
-      const file = imgInput.files[0];
-      if (!file) return;
-      imgInput.value = "";
+      const filename = srcPath.split("/").pop();
+      const destPath = state.selectedDir + "/" + filename;
 
-      const dest = state.selectedDir + "/" + file.name;
-      const fd = new FormData();
-      fd.append("path", dest);
-      fd.append("file", file);
-
-      const res = await fetch("/api/site/upload", {
-        method: "POST",
-        body: fd,
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        await dlgAlert("Upload failed", text.slice(0, 600));
-        return;
+      imgUploadBtn.disabled = true;
+      try {
+        const res = await core.api("/api/site/upload-local", { src_path: srcPath, dest_path: destPath });
+        imgPicker.clear();
+        window.location.reload();
+      } catch (err) {
+        await dlgAlert("Upload failed", err.message);
+        imgUploadBtn.disabled = false;
       }
-
-      window.location.reload();
     });
   }
 
