@@ -140,6 +140,8 @@ type Viewer struct {
 	OpenSitesExternal  bool   `json:"open_sites_external"` // true = open peer sites in system browser, false = embedded tabs
 	Splash             string `json:"splash"`              // splash image filename for peers page
 	PeerOfflineGraceMin int   `json:"peer_offline_grace_min"` // minutes before an offline non-favorite is pruned (1–60)
+	ClusterBinaryPath   string `json:"cluster_binary_path,omitempty"`
+	ClusterBinaryMode   string `json:"cluster_binary_mode,omitempty"`
 }
 
 type Lua struct {

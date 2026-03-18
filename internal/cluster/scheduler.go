@@ -136,6 +136,7 @@ func (s *Scheduler) dispatch(groupID string) {
 		}
 
 		s.queue.Assign(job.ID, worker)
+		log.Printf("CLUSTER: dispatching job %s (type=%s) → worker %s", job.ID, job.Type, worker)
 
 		s.mu.Lock()
 		if w, ok := s.workers[worker]; ok {
@@ -169,7 +170,7 @@ func (s *Scheduler) pickWorkerForType(jobType string) string {
 
 	ids := make([]string, 0, len(s.workers))
 	for id, w := range s.workers {
-		if !w.Verified || w.RunningJobs >= w.Capacity {
+		if !w.Verified || w.Status == WorkerPaused || w.RunningJobs >= w.Capacity {
 			continue
 		}
 		if len(w.JobTypes) == 0 || sliceContains(w.JobTypes, jobType) {

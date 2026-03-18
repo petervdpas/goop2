@@ -322,6 +322,9 @@ func RunPeer(p PeerParams) error {
 	// ── Cluster compute
 	clusterMgr := clusterType.New(mqMgr, grpMgr, node.ID())
 	clusterMgr.SetDB(clusterType.NewJobStore(db))
+	if cfg.Viewer.ClusterBinaryPath != "" {
+		clusterMgr.SetSavedBinary(cfg.Viewer.ClusterBinaryPath, cfg.Viewer.ClusterBinaryMode)
+	}
 	defer clusterMgr.Close()
 	if hosted, err := grpMgr.ListHostedGroups(); err == nil {
 		for _, g := range hosted {

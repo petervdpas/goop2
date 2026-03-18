@@ -139,7 +139,10 @@
           </div>
 
           <div class="panel cl-jobs">
-            <h4>Job Queue</h4>
+            <div class="cl-panel-head">
+              <h4>Job Queue</h4>
+              <button id="cl-clear-btn" class="btn btn-danger btn-small">Clear Queue</button>
+            </div>
             <div id="cl-jobs-list" class="cl-table-wrap">
               <p class="muted small">No jobs submitted.</p>
             </div>
@@ -155,6 +158,7 @@
               <span id="cl-worker-group-id" class="muted small"></span>
             </div>
             <div class="cl-header-actions">
+              <button id="cl-pause-btn" class="btn btn-secondary btn-small">Pause</button>
               <button id="cl-leave-worker-btn" class="btn btn-danger btn-small">Leave</button>
             </div>
           </div>

@@ -6,6 +6,7 @@ import (
 	"github.com/petervdpas/goop2/internal/avatar"
 	"github.com/petervdpas/goop2/internal/call"
 	"github.com/petervdpas/goop2/internal/cluster"
+	"github.com/petervdpas/goop2/internal/config"
 	"github.com/petervdpas/goop2/internal/content"
 	"github.com/petervdpas/goop2/internal/group"
 	"github.com/petervdpas/goop2/internal/group_types/files"
@@ -156,7 +157,13 @@ func Start(addr string, v Viewer) error {
 
 	// Register cluster compute endpoints
 	if v.Cluster != nil {
-		routes.RegisterCluster(mux, v.Cluster, v.Groups, v.Node.ID())
+		routes.RegisterCluster(mux, v.Cluster, v.Groups, v.Node.ID(), func(path, mode string) {
+			if cfg, err := config.Load(v.CfgPath); err == nil {
+				cfg.Viewer.ClusterBinaryPath = path
+				cfg.Viewer.ClusterBinaryMode = mode
+				_ = config.Save(v.CfgPath, cfg)
+			}
+		})
 	}
 
 	// Register native call endpoints (always register mode endpoint; full API when Call != nil)

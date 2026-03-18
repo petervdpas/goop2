@@ -47,12 +47,14 @@
 
   var workerGroupId  = qs("#cl-worker-group-id");
   var leaveWorkerBtn = qs("#cl-leave-worker-btn");
+  var pauseBtn       = qs("#cl-pause-btn");
   var binaryModeEl   = qs("#cl-binary-mode");
   var binaryBtn      = qs("#cl-binary-btn");
   var workerStatusEl = qs("#cl-worker-status");
 
   var _groupID = "";
   var _role = "none";
+  var _workerPaused = false;
   var _pollTimer = null;
   var _clusterGroups = [];
 
@@ -168,9 +170,16 @@
       } else if (_role === "worker") {
         workerGroupId.textContent = _groupID ? _groupID.substring(0, 12) + "\u2026" : "";
         if (data.binary_path && binaryPicker) binaryPicker.setValue(data.binary_path);
-        workerStatusEl.textContent = "Status: connected";
+        if (data.binary_mode && binaryModeEl) gsel.setVal(binaryModeEl, data.binary_mode);
+        _workerPaused = data.worker_status === "paused";
+        updatePauseBtn();
+        workerStatusEl.textContent = data.binary_path
+          ? "Binary: " + data.binary_path + " (" + (data.binary_mode || "oneshot") + ")"
+          : "Status: connected";
       } else {
         stopPolling();
+        if (data.binary_path && binaryPicker) binaryPicker.setValue(data.binary_path);
+        if (data.binary_mode && binaryModeEl) gsel.setVal(binaryModeEl, data.binary_mode);
       }
 
       renderClusterGroups();
@@ -194,13 +203,19 @@
         return;
       }
       var html = '<table class="data-table"><thead><tr>' +
-        '<th>Peer</th><th>Status</th><th>Binary</th><th>Mode</th><th>Capacity</th><th>Running</th>' +
+        '<th>Peer</th><th>Status</th><th>Binary</th><th>Mode</th><th>Capacity</th><th>Running</th><th></th>' +
         '</tr></thead><tbody>';
       workers.forEach(function (w) {
         var peerLabel = w.peer_id ? w.peer_id.substring(0, 10) + "\u2026" : "?";
         if (window.Goop.mq && window.Goop.mq.getPeerName) {
           var name = window.Goop.mq.getPeerName(w.peer_id);
           if (name) peerLabel = name;
+        }
+        var actionHtml = "";
+        if (w.status === "idle") {
+          actionHtml = '<button class="btn btn-secondary btn-small cl-pause-worker" data-peer-id="' + escapeHtml(w.peer_id) + '">Pause</button>';
+        } else if (w.status === "paused") {
+          actionHtml = '<button class="btn btn-primary btn-small cl-resume-worker" data-peer-id="' + escapeHtml(w.peer_id) + '">Resume</button>';
         }
         html += '<tr>' +
           '<td>' + escapeHtml(peerLabel) + '</td>' +
@@ -209,10 +224,26 @@
           '<td>' + escapeHtml(w.binary_mode || '-') + '</td>' +
           '<td>' + (w.capacity || 1) + '</td>' +
           '<td>' + (w.running_jobs || 0) + '</td>' +
+          '<td>' + actionHtml + '</td>' +
           '</tr>';
       });
       html += '</tbody></table>';
       workersListEl.innerHTML = html;
+
+      workersListEl.querySelectorAll(".cl-pause-worker").forEach(function (btn) {
+        on(btn, "click", function () {
+          api.cluster.pauseWorker({ peer_id: btn.getAttribute("data-peer-id") }).then(function () {
+            loadWorkers();
+          }).catch(function (err) { toast("Pause failed: " + err.message, true); });
+        });
+      });
+      workersListEl.querySelectorAll(".cl-resume-worker").forEach(function (btn) {
+        on(btn, "click", function () {
+          api.cluster.resumeWorker({ peer_id: btn.getAttribute("data-peer-id") }).then(function () {
+            loadWorkers();
+          }).catch(function (err) { toast("Resume failed: " + err.message, true); });
+        });
+      });
     });
   }
 
@@ -229,6 +260,10 @@
         var job = j.job || {};
         var shortId = (job.id || "?").substring(0, 8);
         var workerLabel = j.worker_id ? j.worker_id.substring(0, 8) + "\u2026" : "-";
+        if (j.worker_id && window.Goop.mq && window.Goop.mq.getPeerName) {
+          var wName = window.Goop.mq.getPeerName(j.worker_id);
+          if (wName) workerLabel = wName;
+        }
         var progressHtml = "";
         if (j.progress > 0) {
           progressHtml = j.progress + '%' +
@@ -249,6 +284,18 @@
         if (j.error) {
           actionsHtml += ' <span class="cl-status-failed" title="' + escapeHtml(j.error) + '">err</span>';
         }
+        var resultRow = "";
+        if (j.status === "completed" && j.result) {
+          var elapsed = j.elapsed_ms ? ' <span class="muted small">(' + j.elapsed_ms + 'ms)</span>' : '';
+          actionsHtml += ' <button class="btn btn-small cl-toggle-result" data-job-id="' + escapeHtml(job.id) + '">Result</button>' + elapsed;
+          resultRow = '<tr class="cl-result-row hidden" data-result-for="' + escapeHtml(job.id) + '"><td colspan="7"><pre class="cl-result-pre">' +
+            escapeHtml(JSON.stringify(j.result, null, 2)) + '</pre></td></tr>';
+        }
+        if (j.status === "failed" && j.error) {
+          actionsHtml += ' <button class="btn btn-small cl-toggle-result" data-job-id="' + escapeHtml(job.id) + '">Error</button>';
+          resultRow = '<tr class="cl-result-row hidden" data-result-for="' + escapeHtml(job.id) + '"><td colspan="7"><pre class="cl-result-pre cl-result-error">' +
+            escapeHtml(j.error) + '</pre></td></tr>';
+        }
         html += '<tr>' +
           '<td title="' + escapeHtml(job.id || '') + '">' + escapeHtml(shortId) + '</td>' +
           '<td>' + escapeHtml(job.type || '?') + '</td>' +
@@ -257,7 +304,7 @@
           '<td>' + escapeHtml(workerLabel) + '</td>' +
           '<td>' + (j.retries || 0) + '/' + (job.max_retry || 0) + '</td>' +
           '<td>' + actionsHtml + '</td>' +
-          '</tr>';
+          '</tr>' + resultRow;
       });
       html += '</tbody></table>';
       jobsListEl.innerHTML = html;
@@ -278,6 +325,18 @@
           api.cluster.delete({ job_id: jobId }).then(function () {
             loadJobs();
           }).catch(function (err) { toast("Delete failed: " + err.message, true); });
+        });
+      });
+
+      jobsListEl.querySelectorAll(".cl-toggle-result").forEach(function (btn) {
+        on(btn, "click", function () {
+          var jobId = btn.getAttribute("data-job-id");
+          var row = jobsListEl.querySelector('tr[data-result-for="' + jobId + '"]');
+          if (row) {
+            var open = !row.classList.contains("hidden");
+            setHidden(row, open);
+            btn.classList.toggle("active", !open);
+          }
         });
       });
     });
@@ -310,6 +369,21 @@
     }).catch(function (err) { toast("Failed: " + err.message, true); });
   });
 
+  on(qs("#cl-clear-btn"), "click", function () {
+    if (!window.Goop.dialogs) { doClear(); return; }
+    window.Goop.dialogs.confirm("Clear all jobs from the queue?", "Clear Queue").then(function (ok) {
+      if (ok) doClear();
+    });
+  });
+
+  function doClear() {
+    api.cluster.clear().then(function () {
+      toast("Queue cleared");
+      loadJobs();
+      api.cluster.stats().then(updateStats).catch(function () {});
+    }).catch(function (err) { toast("Failed: " + err.message, true); });
+  }
+
   on(refreshBtn, "click", function () {
     loadClusterGroups();
     loadStatus();
@@ -335,6 +409,23 @@
 
   on(leaveWorkerBtn, "click", function () {
     doLeave();
+  });
+
+  function updatePauseBtn() {
+    if (pauseBtn) {
+      pauseBtn.textContent = _workerPaused ? "Resume" : "Pause";
+      pauseBtn.classList.toggle("btn-primary", _workerPaused);
+      pauseBtn.classList.toggle("btn-secondary", !_workerPaused);
+    }
+  }
+
+  on(pauseBtn, "click", function () {
+    var fn = _workerPaused ? api.cluster.resume : api.cluster.pause;
+    fn().then(function () {
+      _workerPaused = !_workerPaused;
+      updatePauseBtn();
+      toast(_workerPaused ? "Worker paused" : "Worker resumed");
+    }).catch(function (err) { toast("Failed: " + err.message, true); });
   });
 
   function doLeave() {

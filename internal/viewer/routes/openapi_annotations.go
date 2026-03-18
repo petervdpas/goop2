@@ -467,10 +467,12 @@ type docFileInfo struct {
 
 // clusterStatusResponse is the body for GET /api/cluster/status.
 type clusterStatusResponse struct {
-	Role       string           `json:"role"                    example:"host"`
-	GroupID    string           `json:"group_id"                example:"a1b2c3d4e5f6a1b2"`
-	Stats      *clusterQueueStats `json:"stats,omitempty"`
-	BinaryPath string           `json:"binary_path,omitempty"   example:"/usr/bin/renderer"`
+	Role         string             `json:"role"                    example:"host"`
+	GroupID      string             `json:"group_id"                example:"a1b2c3d4e5f6a1b2"`
+	Stats        *clusterQueueStats `json:"stats,omitempty"`
+	BinaryPath   string             `json:"binary_path,omitempty"   example:"/usr/bin/renderer"`
+	BinaryMode   string             `json:"binary_mode,omitempty"   example:"oneshot"`
+	WorkerStatus string             `json:"worker_status,omitempty" example:"idle"`
 }
 
 // clusterCreateRequest is the body for POST /api/cluster/create.
@@ -605,6 +607,17 @@ type clusterDeleteRequest struct {
 //	@Router		/api/cluster/delete [post]
 func swagClusterDelete() {}
 
+// swagClusterClear is a documentation stub for POST /api/cluster/clear.
+//
+//	@Summary	Clear the entire job queue (host only)
+//	@Description	Removes all jobs (pending, completed, failed, cancelled) from the queue and database. This is irreversible.
+//	@Tags		cluster
+//	@Produce	json
+//	@Success	200	{object}	statusOK
+//	@Failure	409	{string}	string	"not a cluster host"
+//	@Router		/api/cluster/clear [post]
+func swagClusterClear() {}
+
 // swagClusterJobs is a documentation stub for GET /api/cluster/jobs.
 //
 //	@Summary	List all jobs in the queue (host only)
@@ -670,6 +683,61 @@ type clusterBinaryResponse struct {
 //	@Failure	409		{string}	string	"not a cluster worker"
 //	@Router		/api/cluster/binary [post]
 func swagClusterBinary() {}
+
+// swagClusterPause is a documentation stub for POST /api/cluster/pause.
+//
+//	@Summary	Pause this worker (worker only)
+//	@Description	Pauses the worker so the host scheduler skips it when dispatching jobs. The worker stays in the cluster. Use POST /api/cluster/resume to resume.
+//	@Tags		cluster
+//	@Produce	json
+//	@Success	200	{object}	statusOK
+//	@Failure	409	{string}	string	"not a cluster worker"
+//	@Router		/api/cluster/pause [post]
+func swagClusterPause() {}
+
+// swagClusterResume is a documentation stub for POST /api/cluster/resume.
+//
+//	@Summary	Resume this worker (worker only)
+//	@Description	Resumes a paused worker so the host scheduler can dispatch jobs to it again.
+//	@Tags		cluster
+//	@Produce	json
+//	@Success	200	{object}	statusOK
+//	@Failure	409	{string}	string	"not a cluster worker"
+//	@Router		/api/cluster/resume [post]
+func swagClusterResume() {}
+
+// clusterWorkerPeerRequest is the body for POST /api/cluster/worker/pause and /resume.
+type clusterWorkerPeerRequest struct {
+	PeerID string `json:"peer_id" example:"12D3KooWXxx..."`
+}
+
+// swagClusterWorkerPause is a documentation stub for POST /api/cluster/worker/pause.
+//
+//	@Summary	Pause a remote worker (host only)
+//	@Description	Sends a pause command to the specified worker. The worker stops accepting new jobs but remains in the cluster. Existing running jobs are not interrupted.
+//	@Tags		cluster
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		clusterWorkerPeerRequest	true	"Worker peer ID"
+//	@Success	200		{object}	statusOK
+//	@Failure	400		{string}	string	"missing peer_id"
+//	@Failure	409		{string}	string	"not a cluster host"
+//	@Router		/api/cluster/worker/pause [post]
+func swagClusterWorkerPause() {}
+
+// swagClusterWorkerResume is a documentation stub for POST /api/cluster/worker/resume.
+//
+//	@Summary	Resume a remote worker (host only)
+//	@Description	Sends a resume command to the specified worker so the scheduler can dispatch jobs to it again.
+//	@Tags		cluster
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		clusterWorkerPeerRequest	true	"Worker peer ID"
+//	@Success	200		{object}	statusOK
+//	@Failure	400		{string}	string	"missing peer_id"
+//	@Failure	409		{string}	string	"not a cluster host"
+//	@Router		/api/cluster/worker/resume [post]
+func swagClusterWorkerResume() {}
 
 // ── MQ ───────────────────────────────────────────────────────────────────────
 

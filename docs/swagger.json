@@ -674,6 +674,32 @@
                 }
             }
         },
+        "/api/cluster/clear": {
+            "post": {
+                "description": "Removes all jobs (pending, completed, failed, cancelled) from the queue and database. This is irreversible.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "Clear the entire job queue (host only)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    },
+                    "409": {
+                        "description": "not a cluster host",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/api/cluster/create": {
             "post": {
                 "description": "Creates a new cluster group and sets this node as host. If group_id is provided, activates an existing group instead of creating a new one.",
@@ -854,6 +880,58 @@
                 }
             }
         },
+        "/api/cluster/pause": {
+            "post": {
+                "description": "Pauses the worker so the host scheduler skips it when dispatching jobs. The worker stays in the cluster. Use POST /api/cluster/resume to resume.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "Pause this worker (worker only)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    },
+                    "409": {
+                        "description": "not a cluster worker",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cluster/resume": {
+            "post": {
+                "description": "Resumes a paused worker so the host scheduler can dispatch jobs to it again.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "Resume this worker (worker only)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    },
+                    "409": {
+                        "description": "not a cluster worker",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/api/cluster/stats": {
             "get": {
                 "produces": [
@@ -956,6 +1034,98 @@
                             "items": {
                                 "$ref": "#/definitions/cluster.JobType"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cluster/worker/pause": {
+            "post": {
+                "description": "Sends a pause command to the specified worker. The worker stops accepting new jobs but remains in the cluster. Existing running jobs are not interrupted.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "Pause a remote worker (host only)",
+                "parameters": [
+                    {
+                        "description": "Worker peer ID",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.clusterWorkerPeerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    },
+                    "400": {
+                        "description": "missing peer_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "not a cluster host",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cluster/worker/resume": {
+            "post": {
+                "description": "Sends a resume command to the specified worker so the scheduler can dispatch jobs to it again.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "Resume a remote worker (host only)",
+                "parameters": [
+                    {
+                        "description": "Worker peer ID",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.clusterWorkerPeerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    },
+                    "400": {
+                        "description": "missing peer_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "not a cluster host",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 }
@@ -3712,6 +3882,10 @@
         "routes.clusterStatusResponse": {
             "type": "object",
             "properties": {
+                "binary_mode": {
+                    "type": "string",
+                    "example": "oneshot"
+                },
                 "binary_path": {
                     "type": "string",
                     "example": "/usr/bin/renderer"
@@ -3726,6 +3900,10 @@
                 },
                 "stats": {
                     "$ref": "#/definitions/routes.clusterQueueStats"
+                },
+                "worker_status": {
+                    "type": "string",
+                    "example": "idle"
                 }
             }
         },
@@ -3811,6 +3989,15 @@
                 "verified": {
                     "type": "boolean",
                     "example": true
+                }
+            }
+        },
+        "routes.clusterWorkerPeerRequest": {
+            "type": "object",
+            "properties": {
+                "peer_id": {
+                    "type": "string",
+                    "example": "12D3KooWXxx..."
                 }
             }
         },

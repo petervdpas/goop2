@@ -76,6 +76,7 @@ const (
 	WorkerVerified WorkerStatus = "verified"
 	WorkerIdle     WorkerStatus = "idle"
 	WorkerBusy     WorkerStatus = "busy"
+	WorkerPaused   WorkerStatus = "paused"
 	WorkerOffline  WorkerStatus = "offline"
 )
 

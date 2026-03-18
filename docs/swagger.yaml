@@ -240,6 +240,9 @@ definitions:
     type: object
   routes.clusterStatusResponse:
     properties:
+      binary_mode:
+        example: oneshot
+        type: string
       binary_path:
         example: /usr/bin/renderer
         type: string
@@ -251,6 +254,9 @@ definitions:
         type: string
       stats:
         $ref: '#/definitions/routes.clusterQueueStats'
+      worker_status:
+        example: idle
+        type: string
     type: object
   routes.clusterSubmitRequest:
     properties:
@@ -312,6 +318,12 @@ definitions:
       verified:
         example: true
         type: boolean
+    type: object
+  routes.clusterWorkerPeerRequest:
+    properties:
+      peer_id:
+        example: 12D3KooWXxx...
+        type: string
     type: object
   routes.dataColumnRequest:
     properties:
@@ -1552,6 +1564,24 @@ paths:
       summary: Cancel a job (host only)
       tags:
       - cluster
+  /api/cluster/clear:
+    post:
+      description: Removes all jobs (pending, completed, failed, cancelled) from the
+        queue and database. This is irreversible.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+        "409":
+          description: not a cluster host
+          schema:
+            type: string
+      summary: Clear the entire job queue (host only)
+      tags:
+      - cluster
   /api/cluster/create:
     post:
       consumes:
@@ -1673,6 +1703,42 @@ paths:
       summary: Close the current cluster
       tags:
       - cluster
+  /api/cluster/pause:
+    post:
+      description: Pauses the worker so the host scheduler skips it when dispatching
+        jobs. The worker stays in the cluster. Use POST /api/cluster/resume to resume.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+        "409":
+          description: not a cluster worker
+          schema:
+            type: string
+      summary: Pause this worker (worker only)
+      tags:
+      - cluster
+  /api/cluster/resume:
+    post:
+      description: Resumes a paused worker so the host scheduler can dispatch jobs
+        to it again.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+        "409":
+          description: not a cluster worker
+          schema:
+            type: string
+      summary: Resume this worker (worker only)
+      tags:
+      - cluster
   /api/cluster/stats:
     get:
       produces:
@@ -1743,6 +1809,69 @@ paths:
               $ref: '#/definitions/cluster.JobType'
             type: array
       summary: List predefined job types with payload templates
+      tags:
+      - cluster
+  /api/cluster/worker/pause:
+    post:
+      consumes:
+      - application/json
+      description: Sends a pause command to the specified worker. The worker stops
+        accepting new jobs but remains in the cluster. Existing running jobs are not
+        interrupted.
+      parameters:
+      - description: Worker peer ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.clusterWorkerPeerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+        "400":
+          description: missing peer_id
+          schema:
+            type: string
+        "409":
+          description: not a cluster host
+          schema:
+            type: string
+      summary: Pause a remote worker (host only)
+      tags:
+      - cluster
+  /api/cluster/worker/resume:
+    post:
+      consumes:
+      - application/json
+      description: Sends a resume command to the specified worker so the scheduler
+        can dispatch jobs to it again.
+      parameters:
+      - description: Worker peer ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.clusterWorkerPeerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+        "400":
+          description: missing peer_id
+          schema:
+            type: string
+        "409":
+          description: not a cluster host
+          schema:
+            type: string
+      summary: Resume a remote worker (host only)
       tags:
       - cluster
   /api/cluster/workers:

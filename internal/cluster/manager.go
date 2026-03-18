@@ -22,14 +22,16 @@ type Manager struct {
 	subscribe SubscribeFunc
 	db JobStore
 
-	mu        sync.Mutex
-	role      role
-	groupID   string
-	cancel    context.CancelFunc
-	queue     *Queue
-	scheduler *Scheduler
-	worker    *Worker
-	unsub     func()
+	mu             sync.Mutex
+	role           role
+	groupID        string
+	cancel         context.CancelFunc
+	queue          *Queue
+	scheduler      *Scheduler
+	worker         *Worker
+	unsub          func()
+	savedBinaryPath string
+	savedBinaryMode string
 }
 
 func New(selfID string, send SendFunc, subscribe SubscribeFunc) *Manager {
@@ -65,6 +67,13 @@ func (m *Manager) SetDB(db JobStore) {
 	m.db = db
 }
 
+func (m *Manager) SetSavedBinary(path, mode string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.savedBinaryPath = path
+	m.savedBinaryMode = mode
+}
+
 func (m *Manager) HandleGroupEvent(evt *GroupEvent) {
 	m.handleGroupEvent(evt)
 }
@@ -73,6 +82,9 @@ func (m *Manager) CreateCluster(groupID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if m.role == roleHost && m.groupID == groupID {
+		return nil
+	}
 	if m.role != roleNone {
 		return fmt.Errorf("already in a cluster (role=%d, group=%s)", m.role, m.groupID)
 	}
@@ -94,6 +106,12 @@ func (m *Manager) JoinCluster(groupID, hostPeerID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if m.role == roleWorker && m.groupID == groupID {
+		if m.worker != nil {
+			go m.worker.Reannounce()
+		}
+		return nil
+	}
 	if m.role != roleNone {
 		return fmt.Errorf("already in a cluster (role=%d, group=%s)", m.role, m.groupID)
 	}
@@ -103,6 +121,21 @@ func (m *Manager) JoinCluster(groupID, hostPeerID string) error {
 	m.worker = NewWorker(m.send, groupID, hostPeerID)
 
 	log.Printf("CLUSTER: joined cluster %s (worker, host=%s)", groupID, hostPeerID)
+
+	if m.savedBinaryPath != "" {
+		w := m.worker
+		path, mode := m.savedBinaryPath, m.savedBinaryMode
+		go func() {
+			if err := w.SetBinary(path, mode); err == nil {
+				topic := "cluster:" + groupID + ":worker:binary"
+				_ = m.send(hostPeerID, topic, map[string]any{
+					"path": path,
+					"mode": mode,
+				})
+			}
+		}()
+	}
+
 	return nil
 }
 
@@ -151,6 +184,23 @@ func (m *Manager) DeleteJob(jobID string) error {
 		return fmt.Errorf("not a cluster host")
 	}
 	return m.queue.Delete(jobID)
+}
+
+func (m *Manager) ClearJobs() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.role != roleHost {
+		return fmt.Errorf("not a cluster host")
+	}
+	if m.queue != nil {
+		m.queue.Clear()
+	}
+	if m.db != nil && m.groupID != "" {
+		_ = m.db.DeleteJobs(m.groupID)
+	}
+	log.Printf("CLUSTER: job queue cleared")
+	return nil
 }
 
 func (m *Manager) GetJobs() []JobState {
@@ -218,10 +268,80 @@ func (m *Manager) BinaryPath() string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if m.worker != nil {
+		if p := m.worker.BinaryPath(); p != "" {
+			return p
+		}
+	}
+	return m.savedBinaryPath
+}
+
+func (m *Manager) BinaryMode() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.worker != nil {
+		if p := m.worker.BinaryMode(); p != "" {
+			return p
+		}
+	}
+	return m.savedBinaryMode
+}
+
+func (m *Manager) PauseWorker() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.role != roleWorker || m.worker == nil {
+		return fmt.Errorf("not a cluster worker")
+	}
+	m.worker.Pause()
+	return nil
+}
+
+func (m *Manager) ResumeWorker() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.role != roleWorker || m.worker == nil {
+		return fmt.Errorf("not a cluster worker")
+	}
+	m.worker.Resume()
+	return nil
+}
+
+func (m *Manager) PauseRemoteWorker(peerID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.role != roleHost {
+		return fmt.Errorf("not a cluster host")
+	}
+	m.scheduler.UpdateWorkerStatus(peerID, WorkerPaused)
+	topic := "cluster:" + m.groupID + ":worker:pause"
+	return m.send(peerID, topic, map[string]any{"action": "pause"})
+}
+
+func (m *Manager) ResumeRemoteWorker(peerID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.role != roleHost {
+		return fmt.Errorf("not a cluster host")
+	}
+	m.scheduler.UpdateWorkerStatus(peerID, WorkerIdle)
+	topic := "cluster:" + m.groupID + ":worker:resume"
+	return m.send(peerID, topic, map[string]any{"action": "resume"})
+}
+
+func (m *Manager) WorkerStatus() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if m.worker == nil {
 		return ""
 	}
-	return m.worker.BinaryPath()
+	return string(m.worker.Status())
 }
 
 // ── Common ──────────────────────────────────────────────────────────────────
@@ -262,9 +382,6 @@ func (m *Manager) cleanup() {
 			_ = m.send(w.PeerID, topic, map[string]any{"reason": "cluster closed"})
 		}
 		log.Printf("CLUSTER: sent shutdown to %d workers", len(m.scheduler.Workers()))
-		if m.db != nil {
-			_ = m.db.DeleteJobs(m.groupID)
-		}
 	}
 	if m.cancel != nil {
 		m.cancel()

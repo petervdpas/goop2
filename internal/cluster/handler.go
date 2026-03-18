@@ -46,6 +46,7 @@ func (m *Manager) handleClusterMessage(from, msgType string, payload any) {
 		case "job:ack":
 			jobID, _ := data["job_id"].(string)
 			if jobID != "" {
+				log.Printf("CLUSTER: job %s acknowledged by %s (running)", jobID, from)
 				m.queue.MarkRunning(jobID)
 			}
 		case "job:result":
@@ -57,10 +58,12 @@ func (m *Manager) handleClusterMessage(from, msgType string, payload any) {
 			switch status {
 			case "completed":
 				result, _ := data["result"].(map[string]any)
+				log.Printf("CLUSTER: job %s completed by %s", jobID, from)
 				m.queue.Complete(jobID, result)
 				m.scheduler.UpdateWorkerStatus(from, WorkerIdle)
 			case "failed":
 				errMsg, _ := data["error"].(string)
+				log.Printf("CLUSTER: job %s failed on %s: %s", jobID, from, errMsg)
 				m.queue.Fail(jobID, errMsg)
 				m.scheduler.UpdateWorkerStatus(from, WorkerIdle)
 			}
@@ -86,6 +89,7 @@ func (m *Manager) handleClusterMessage(from, msgType string, payload any) {
 		case "worker:binary":
 			path, _ := data["path"].(string)
 			mode, _ := data["mode"].(string)
+			log.Printf("CLUSTER: worker %s set binary %s (mode=%s)", from, path, mode)
 			m.scheduler.SetWorkerBinary(from, path, mode)
 		case "worker:status":
 			statusStr, _ := data["status"].(string)
@@ -99,6 +103,7 @@ func (m *Manager) handleClusterMessage(from, msgType string, payload any) {
 			jobType, _ := data["type"].(string)
 			jobPayload, _ := data["payload"].(map[string]any)
 			timeoutS, _ := data["timeout_s"].(float64)
+			log.Printf("CLUSTER: received job %s (type=%s) from host", jobID, jobType)
 			m.worker.HandleJob(from, Job{
 				ID:       jobID,
 				Type:     jobType,
@@ -108,8 +113,15 @@ func (m *Manager) handleClusterMessage(from, msgType string, payload any) {
 		case "job:cancel":
 			jobID, _ := data["job_id"].(string)
 			if jobID != "" {
+				log.Printf("CLUSTER: job %s cancelled by host", jobID)
 				m.worker.Cancel(jobID)
 			}
+		case "worker:pause":
+			log.Printf("CLUSTER: paused by host")
+			m.worker.Pause()
+		case "worker:resume":
+			log.Printf("CLUSTER: resumed by host")
+			m.worker.Resume()
 		}
 	}
 }

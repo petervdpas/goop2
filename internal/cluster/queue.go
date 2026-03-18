@@ -30,9 +30,7 @@ func NewQueue(store JobStore, groupID string) *Queue {
 					js.WorkerID = ""
 					_ = store.SaveJob(groupID, js)
 				}
-				if js.Status != StatusCompleted && js.Status != StatusFailed && js.Status != StatusCancelled {
-					q.jobs[js.Job.ID] = js
-				}
+				q.jobs[js.Job.ID] = js
 			}
 		}
 	}
@@ -199,6 +197,12 @@ func (q *Queue) UpdateProgress(jobID string, pct int, msg string) {
 	js.Progress = pct
 	js.ProgressMsg = msg
 	q.persist(js)
+}
+
+func (q *Queue) Clear() {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.jobs = make(map[string]*JobState)
 }
 
 func (q *Queue) State() []JobState {

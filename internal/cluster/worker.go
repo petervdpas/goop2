@@ -115,6 +115,27 @@ func (w *Worker) sendVerified(ok bool, types []string, capacity int) {
 	})
 }
 
+func (w *Worker) Reannounce() {
+	w.mu.Lock()
+	path := w.binaryPath
+	mode := w.binaryMode
+	w.mu.Unlock()
+
+	if path == "" {
+		return
+	}
+
+	log.Printf("CLUSTER: re-announcing binary %s (mode=%s)", path, mode)
+
+	topic := "cluster:" + w.groupID + ":worker:binary"
+	_ = w.send(w.hostPeerID, topic, map[string]any{
+		"path": path,
+		"mode": mode,
+	})
+
+	go w.verify()
+}
+
 func (w *Worker) BinaryPath() string {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -227,6 +248,30 @@ func (w *Worker) Cancel(jobID string) {
 	if len(w.jobs) == 0 {
 		w.status = WorkerIdle
 	}
+}
+
+func (w *Worker) Pause() {
+	w.mu.Lock()
+	if w.status == WorkerIdle {
+		w.status = WorkerPaused
+	}
+	w.mu.Unlock()
+
+	log.Printf("CLUSTER: worker paused")
+	topic := "cluster:" + w.groupID + ":worker:status"
+	_ = w.send(w.hostPeerID, topic, map[string]any{"status": string(WorkerPaused)})
+}
+
+func (w *Worker) Resume() {
+	w.mu.Lock()
+	if w.status == WorkerPaused {
+		w.status = WorkerIdle
+	}
+	w.mu.Unlock()
+
+	log.Printf("CLUSTER: worker resumed")
+	topic := "cluster:" + w.groupID + ":worker:status"
+	_ = w.send(w.hostPeerID, topic, map[string]any{"status": string(WorkerIdle)})
 }
 
 func (w *Worker) Status() WorkerStatus {

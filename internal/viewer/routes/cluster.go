@@ -10,7 +10,7 @@ import (
 	"github.com/petervdpas/goop2/internal/group"
 )
 
-func RegisterCluster(mux *http.ServeMux, cm *cluster.Manager, grpMgr *group.Manager, selfID string) {
+func RegisterCluster(mux *http.ServeMux, cm *cluster.Manager, grpMgr *group.Manager, selfID string, saveBinary func(path, mode string)) {
 	handleGet(mux, "/api/cluster/status", func(w http.ResponseWriter, r *http.Request) {
 		role := cm.Role()
 		resp := map[string]any{
@@ -22,6 +22,13 @@ func RegisterCluster(mux *http.ServeMux, cm *cluster.Manager, grpMgr *group.Mana
 			resp["stats"] = cm.GetStats()
 		case "worker":
 			resp["binary_path"] = cm.BinaryPath()
+			resp["binary_mode"] = cm.BinaryMode()
+			resp["worker_status"] = cm.WorkerStatus()
+		default:
+			if bp := cm.BinaryPath(); bp != "" {
+				resp["binary_path"] = bp
+				resp["binary_mode"] = cm.BinaryMode()
+			}
 		}
 		writeJSON(w, resp)
 	})
@@ -144,6 +151,14 @@ func RegisterCluster(mux *http.ServeMux, cm *cluster.Manager, grpMgr *group.Mana
 		writeJSON(w, map[string]any{"status": "deleted", "job_id": req.JobID})
 	})
 
+	handlePostAction(mux, "/api/cluster/clear", func(w http.ResponseWriter, r *http.Request) {
+		if err := cm.ClearJobs(); err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		writeJSON(w, map[string]any{"status": "cleared"})
+	})
+
 	handleGet(mux, "/api/cluster/jobs", func(w http.ResponseWriter, r *http.Request) {
 		jobs := cm.GetJobs()
 		if jobs == nil {
@@ -170,6 +185,50 @@ func RegisterCluster(mux *http.ServeMux, cm *cluster.Manager, grpMgr *group.Mana
 
 	// ── Worker API ──────────────────────────────────────────────────────────
 
+	handlePostAction(mux, "/api/cluster/pause", func(w http.ResponseWriter, r *http.Request) {
+		if err := cm.PauseWorker(); err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		writeJSON(w, map[string]any{"status": "paused"})
+	})
+
+	handlePostAction(mux, "/api/cluster/resume", func(w http.ResponseWriter, r *http.Request) {
+		if err := cm.ResumeWorker(); err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		writeJSON(w, map[string]any{"status": "resumed"})
+	})
+
+	handlePost(mux, "/api/cluster/worker/pause", func(w http.ResponseWriter, r *http.Request, req struct {
+		PeerID string `json:"peer_id"`
+	}) {
+		if req.PeerID == "" {
+			http.Error(w, "missing peer_id", http.StatusBadRequest)
+			return
+		}
+		if err := cm.PauseRemoteWorker(req.PeerID); err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		writeJSON(w, map[string]any{"status": "paused", "peer_id": req.PeerID})
+	})
+
+	handlePost(mux, "/api/cluster/worker/resume", func(w http.ResponseWriter, r *http.Request, req struct {
+		PeerID string `json:"peer_id"`
+	}) {
+		if req.PeerID == "" {
+			http.Error(w, "missing peer_id", http.StatusBadRequest)
+			return
+		}
+		if err := cm.ResumeRemoteWorker(req.PeerID); err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		writeJSON(w, map[string]any{"status": "resumed", "peer_id": req.PeerID})
+	})
+
 	handlePost(mux, "/api/cluster/binary", func(w http.ResponseWriter, r *http.Request, req struct {
 		Path string `json:"path"`
 		Mode string `json:"mode"`
@@ -181,6 +240,9 @@ func RegisterCluster(mux *http.ServeMux, cm *cluster.Manager, grpMgr *group.Mana
 		if err := cm.SetBinary(req.Path, req.Mode); err != nil {
 			http.Error(w, err.Error(), http.StatusConflict)
 			return
+		}
+		if saveBinary != nil {
+			saveBinary(req.Path, req.Mode)
 		}
 		writeJSON(w, map[string]any{"status": "ok", "path": req.Path, "mode": req.Mode})
 	})
