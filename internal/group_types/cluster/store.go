@@ -1,7 +1,6 @@
 package cluster
 
 import (
-	coreCluster "github.com/petervdpas/goop2/internal/cluster"
 	"github.com/petervdpas/goop2/internal/storage"
 )
 
@@ -9,11 +8,11 @@ type dbJobStore struct {
 	db *storage.DB
 }
 
-func NewJobStore(db *storage.DB) coreCluster.JobStore {
+func NewJobStore(db *storage.DB) JobStore {
 	return &dbJobStore{db: db}
 }
 
-func (s *dbJobStore) SaveJob(groupID string, js *coreCluster.JobState) error {
+func (s *dbJobStore) SaveJob(groupID string, js *JobState) error {
 	return s.db.SaveClusterJob(groupID,
 		js.Job.ID, js.Job.Type, string(js.Job.Mode), storage.MarshalJSON(js.Job.Payload),
 		js.Job.Priority, js.Job.TimeoutS, js.Job.MaxRetry,
@@ -23,24 +22,24 @@ func (s *dbJobStore) SaveJob(groupID string, js *coreCluster.JobState) error {
 		js.ElapsedMs)
 }
 
-func (s *dbJobStore) LoadJobs(groupID string) ([]*coreCluster.JobState, error) {
+func (s *dbJobStore) LoadJobs(groupID string) ([]*JobState, error) {
 	rows, err := s.db.LoadClusterJobs(groupID)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*coreCluster.JobState, 0, len(rows))
+	out := make([]*JobState, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, &coreCluster.JobState{
-			Job: coreCluster.Job{
+		out = append(out, &JobState{
+			Job: Job{
 				ID:       r.ID,
 				Type:     r.Type,
-				Mode:     coreCluster.JobMode(r.Mode),
+				Mode:     JobMode(r.Mode),
 				Payload:  storage.UnmarshalJSON(r.Payload),
 				Priority: r.Priority,
 				TimeoutS: r.TimeoutS,
 				MaxRetry: r.MaxRetry,
 			},
-			Status:      coreCluster.JobStatus(r.Status),
+			Status:      JobStatus(r.Status),
 			WorkerID:    r.WorkerID,
 			Result:      storage.UnmarshalJSON(r.Result),
 			Error:       r.Error,

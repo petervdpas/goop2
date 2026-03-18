@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/petervdpas/goop2/internal/cluster"
+	"github.com/petervdpas/goop2/internal/group_types/cluster"
 	"github.com/petervdpas/goop2/internal/group"
 )
 

@@ -5,7 +5,7 @@ import (
 
 	"github.com/petervdpas/goop2/internal/avatar"
 	"github.com/petervdpas/goop2/internal/call"
-	"github.com/petervdpas/goop2/internal/cluster"
+	"github.com/petervdpas/goop2/internal/group_types/cluster"
 	"github.com/petervdpas/goop2/internal/config"
 	"github.com/petervdpas/goop2/internal/content"
 	"github.com/petervdpas/goop2/internal/group"

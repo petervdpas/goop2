@@ -391,7 +391,7 @@ func TestManagerCreateAndJoinCluster(t *testing.T) {
 		return func() {}
 	}
 
-	m := New("self", sendFn, subFn)
+	m := NewManager("self", sendFn, subFn)
 	defer m.Close()
 
 	if err := m.CreateCluster("g1"); err != nil {
@@ -424,7 +424,7 @@ func TestManagerSubmitJob(t *testing.T) {
 		return func() {}
 	}
 
-	m := New("self", sendFn, subFn)
+	m := NewManager("self", sendFn, subFn)
 	defer m.Close()
 
 	_, err := m.SubmitJob(Job{Type: "test"})
@@ -459,7 +459,7 @@ func TestManagerSetBinary(t *testing.T) {
 		return func() {}
 	}
 
-	m := New("self", sendFn, subFn)
+	m := NewManager("self", sendFn, subFn)
 	defer m.Close()
 
 	if err := m.SetBinary("/bin/x", "oneshot"); err == nil {
@@ -490,7 +490,7 @@ func TestManagerGroupEvents(t *testing.T) {
 		return func() {}
 	}
 
-	m := New("host-peer", sendFn, subFn)
+	m := NewManager("host-peer", sendFn, subFn)
 	defer m.Close()
 
 	m.CreateCluster("g1")
@@ -543,7 +543,7 @@ func TestHandlerJobAckAndResult(t *testing.T) {
 		return func() {}
 	}
 
-	m := New("host", sendFn, subFn)
+	m := NewManager("host", sendFn, subFn)
 	defer m.Close()
 
 	m.CreateCluster("g1")
@@ -576,7 +576,7 @@ func TestHandlerProgressStored(t *testing.T) {
 		return func() {}
 	}
 
-	m := New("host", sendFn, subFn)
+	m := NewManager("host", sendFn, subFn)
 	defer m.Close()
 
 	m.CreateCluster("g1")
@@ -608,7 +608,7 @@ func TestHandlerWorkerVerified(t *testing.T) {
 		return func() {}
 	}
 
-	m := New("host", sendFn, subFn)
+	m := NewManager("host", sendFn, subFn)
 	defer m.Close()
 
 	m.CreateCluster("g1")

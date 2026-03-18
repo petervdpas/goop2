@@ -279,11 +279,6 @@
   border-top: none !important;
 }
 
-.cl-toggle-result.active {
-  background: var(--accent, #60a5fa);
-  color: #fff;
-}
-
 .cl-result-pre {
   margin: 0 0 6px;
   padding: 8px 10px;
@@ -301,4 +296,19 @@
 
 .cl-result-error {
   color: #f87171;
+}
+
+.cl-job-id-link {
+  cursor: pointer;
+  user-select: none;
+}
+
+.cl-job-id-link:hover {
+  color: var(--accent, #60a5fa);
+}
+
+.cl-expand-tri {
+  font-size: 10px;
+  margin-right: 2px;
+  display: inline-block;
 }

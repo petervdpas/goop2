@@ -34,7 +34,7 @@ type Manager struct {
 	savedBinaryMode string
 }
 
-func New(selfID string, send SendFunc, subscribe SubscribeFunc) *Manager {
+func NewManager(selfID string, send SendFunc, subscribe SubscribeFunc) *Manager {
 	m := &Manager{
 		selfID:    selfID,
 		send:      send,

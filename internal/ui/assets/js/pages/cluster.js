@@ -57,6 +57,7 @@
   var _workerPaused = false;
   var _pollTimer = null;
   var _clusterGroups = [];
+  var _expandedJobs = {};
 
   function showSection(role) {
     setHidden(idleSection,   role !== "none");
@@ -247,6 +248,17 @@
     });
   }
 
+  function toggleJobExpand(jobId) {
+    _expandedJobs[jobId] = !_expandedJobs[jobId];
+    var row = jobsListEl.querySelector('tr[data-result-for="' + jobId + '"]');
+    var idCell = jobsListEl.querySelector('td[data-job-id="' + jobId + '"]');
+    if (row) setHidden(row, !_expandedJobs[jobId]);
+    if (idCell) {
+      var tri = idCell.querySelector('.cl-expand-tri');
+      if (tri) tri.textContent = _expandedJobs[jobId] ? '\u25BC' : '\u25B6';
+    }
+  }
+
   function loadJobs() {
     api.cluster.jobs().then(function (jobs) {
       if (!jobs || jobs.length === 0) {
@@ -254,11 +266,12 @@
         return;
       }
       var html = '<table class="data-table"><thead><tr>' +
-        '<th>ID</th><th>Type</th><th>Status</th><th>Progress</th><th>Worker</th><th>Retries</th><th>Actions</th>' +
+        '<th>ID</th><th>Type</th><th>Status</th><th>Progress</th><th>Worker</th><th>Retries</th><th>Elapsed</th><th>Actions</th>' +
         '</tr></thead><tbody>';
       jobs.forEach(function (j) {
         var job = j.job || {};
-        var shortId = (job.id || "?").substring(0, 8);
+        var id = job.id || "?";
+        var shortId = id.substring(0, 8);
         var workerLabel = j.worker_id ? j.worker_id.substring(0, 8) + "\u2026" : "-";
         if (j.worker_id && window.Goop.mq && window.Goop.mq.getPeerName) {
           var wName = window.Goop.mq.getPeerName(j.worker_id);
@@ -276,33 +289,34 @@
         var canDelete = j.status === "cancelled" || j.status === "completed" || j.status === "failed";
         var actionsHtml = '';
         if (canCancel) {
-          actionsHtml += '<button class="btn btn-danger btn-small cl-cancel-btn" data-job-id="' + escapeHtml(job.id) + '">Cancel</button>';
+          actionsHtml += '<button class="btn btn-danger btn-small cl-cancel-btn" data-job-id="' + escapeHtml(id) + '">Cancel</button>';
         }
         if (canDelete) {
-          actionsHtml += '<button class="btn btn-small cl-delete-btn" data-job-id="' + escapeHtml(job.id) + '">Delete</button>';
+          actionsHtml += '<button class="btn btn-small cl-delete-btn" data-job-id="' + escapeHtml(id) + '">Delete</button>';
         }
-        if (j.error) {
-          actionsHtml += ' <span class="cl-status-failed" title="' + escapeHtml(j.error) + '">err</span>';
-        }
+        var hasDetail = (j.status === "completed" && j.result) || (j.status === "failed" && j.error);
+        var expanded = hasDetail && _expandedJobs[id];
+        var tri = hasDetail ? ('<span class="cl-expand-tri">' + (expanded ? '\u25BC' : '\u25B6') + '</span> ') : '';
+        var idClass = hasDetail ? ' cl-job-id-link' : '';
+        var elapsedHtml = j.elapsed_ms ? j.elapsed_ms + 'ms' : '-';
+
         var resultRow = "";
         if (j.status === "completed" && j.result) {
-          var elapsed = j.elapsed_ms ? ' <span class="muted small">(' + j.elapsed_ms + 'ms)</span>' : '';
-          actionsHtml += ' <button class="btn btn-small cl-toggle-result" data-job-id="' + escapeHtml(job.id) + '">Result</button>' + elapsed;
-          resultRow = '<tr class="cl-result-row hidden" data-result-for="' + escapeHtml(job.id) + '"><td colspan="7"><pre class="cl-result-pre">' +
+          resultRow = '<tr class="cl-result-row' + (expanded ? '' : ' hidden') + '" data-result-for="' + escapeHtml(id) + '"><td colspan="8"><pre class="cl-result-pre">' +
             escapeHtml(JSON.stringify(j.result, null, 2)) + '</pre></td></tr>';
         }
         if (j.status === "failed" && j.error) {
-          actionsHtml += ' <button class="btn btn-small cl-toggle-result" data-job-id="' + escapeHtml(job.id) + '">Error</button>';
-          resultRow = '<tr class="cl-result-row hidden" data-result-for="' + escapeHtml(job.id) + '"><td colspan="7"><pre class="cl-result-pre cl-result-error">' +
+          resultRow = '<tr class="cl-result-row' + (expanded ? '' : ' hidden') + '" data-result-for="' + escapeHtml(id) + '"><td colspan="8"><pre class="cl-result-pre cl-result-error">' +
             escapeHtml(j.error) + '</pre></td></tr>';
         }
         html += '<tr>' +
-          '<td title="' + escapeHtml(job.id || '') + '">' + escapeHtml(shortId) + '</td>' +
+          '<td data-job-id="' + escapeHtml(id) + '" title="' + escapeHtml(id) + '" class="cl-job-id' + idClass + '">' + tri + escapeHtml(shortId) + '</td>' +
           '<td>' + escapeHtml(job.type || '?') + '</td>' +
           '<td><span class="cl-status-' + j.status + '">' + escapeHtml(j.status) + '</span></td>' +
           '<td>' + progressHtml + '</td>' +
           '<td>' + escapeHtml(workerLabel) + '</td>' +
           '<td>' + (j.retries || 0) + '/' + (job.max_retry || 0) + '</td>' +
+          '<td>' + elapsedHtml + '</td>' +
           '<td>' + actionsHtml + '</td>' +
           '</tr>' + resultRow;
       });
@@ -328,15 +342,9 @@
         });
       });
 
-      jobsListEl.querySelectorAll(".cl-toggle-result").forEach(function (btn) {
-        on(btn, "click", function () {
-          var jobId = btn.getAttribute("data-job-id");
-          var row = jobsListEl.querySelector('tr[data-result-for="' + jobId + '"]');
-          if (row) {
-            var open = !row.classList.contains("hidden");
-            setHidden(row, open);
-            btn.classList.toggle("active", !open);
-          }
+      jobsListEl.querySelectorAll(".cl-job-id-link").forEach(function (td) {
+        on(td, "click", function () {
+          toggleJobExpand(td.getAttribute("data-job-id"));
         });
       });
     });
@@ -349,7 +357,7 @@
       api.cluster.stats().then(updateStats).catch(function () {});
       loadWorkers();
       loadJobs();
-    }, 3000);
+    }, 15000);
   }
 
   function stopPolling() {

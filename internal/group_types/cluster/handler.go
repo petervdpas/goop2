@@ -3,26 +3,21 @@ package cluster
 import (
 	"context"
 
-	coreCluster "github.com/petervdpas/goop2/internal/cluster"
 	"github.com/petervdpas/goop2/internal/group"
 	"github.com/petervdpas/goop2/internal/mq"
 )
 
 var sendTimeout = group.ClusterSendTimeout
 
-// Handler implements group.TypeHandler for the "cluster" app_type.
-// It bridges group lifecycle events to the cluster manager.
 type Handler struct {
 	mqMgr      *mq.Manager
-	clusterMgr *coreCluster.Manager
+	clusterMgr *Manager
 }
 
-// New creates a cluster handler, wires the MQ adapter, and registers
-// the type handler with the group manager.
-func New(mqMgr *mq.Manager, grpMgr *group.Manager, selfID string) *coreCluster.Manager {
+func New(mqMgr *mq.Manager, grpMgr *group.Manager, selfID string) *Manager {
 	h := &Handler{mqMgr: mqMgr}
 
-	clusterMgr := coreCluster.New(selfID, h.send, h.subscribe)
+	clusterMgr := NewManager(selfID, h.send, h.subscribe)
 	h.clusterMgr = clusterMgr
 
 	grpMgr.RegisterType("cluster", h)
@@ -50,7 +45,7 @@ func (h *Handler) Flags() group.TypeFlags {
 func (h *Handler) OnCreate(_, _ string, _ int, _ bool) error { return nil }
 
 func (h *Handler) OnJoin(groupID, peerID string, isHost bool) {
-	h.clusterMgr.HandleGroupEvent(&coreCluster.GroupEvent{
+	h.clusterMgr.HandleGroupEvent(&GroupEvent{
 		Type:  "join",
 		Group: groupID,
 		From:  peerID,
@@ -58,7 +53,7 @@ func (h *Handler) OnJoin(groupID, peerID string, isHost bool) {
 }
 
 func (h *Handler) OnLeave(groupID, peerID string, isHost bool) {
-	h.clusterMgr.HandleGroupEvent(&coreCluster.GroupEvent{
+	h.clusterMgr.HandleGroupEvent(&GroupEvent{
 		Type:  "leave",
 		Group: groupID,
 		From:  peerID,
@@ -80,7 +75,7 @@ func (h *Handler) OnEvent(evt *group.Event) {
 	case h.clusterMgr.Role() == "worker" && evt.Type == "close":
 		h.clusterMgr.LeaveCluster()
 	}
-	h.clusterMgr.HandleGroupEvent(&coreCluster.GroupEvent{
+	h.clusterMgr.HandleGroupEvent(&GroupEvent{
 		Type:    evt.Type,
 		Group:   evt.Group,
 		From:    evt.From,
