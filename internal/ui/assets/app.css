@@ -37,6 +37,7 @@
 #logbox .log-probe    { color: #555;    } /* probe — dimmed                               */
 #logbox .log-error    { color: #fc8181; } /* UNREACHABLE / error                          */
 #logbox .log-encrypt  { color: #f0e68c; } /* encryption / decrypt / E2E                    */
+#logbox .log-cluster  { color: #fb923c; } /* CLUSTER: compute operations                   */
 
 /* Per-tab line filtering — hide spans that don't belong to the active tab */
 #logbox[data-tab="relay"]   > span:not(.log-relay)                             { display: none; }
@@ -46,6 +47,7 @@
 #logbox[data-tab="data"]    > span:not(.log-data)                              { display: none; }
 #logbox[data-tab="group"]   > span:not(.log-group)                             { display: none; }
 #logbox[data-tab="encrypt"] > span:not(.log-encrypt)                           { display: none; }
+#logbox[data-tab="cluster"] > span:not(.log-cluster)                           { display: none; }
 
 /* Log tab links need cursor since they have no href */
 .log-tab { cursor: pointer; }
@@ -59,5 +61,6 @@
 .log-tab--data.active   { color: #76e4f7; border-bottom-color: #76e4f7; }
 .log-tab--group.active   { color: #c792ea; border-bottom-color: #c792ea; }
 .log-tab--encrypt.active { color: #f0e68c; border-bottom-color: #f0e68c; }
+.log-tab--cluster.active { color: #fb923c; border-bottom-color: #fb923c; }
 
 .logs-header { display: flex; justify-content: space-between; align-items: center; }

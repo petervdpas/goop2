@@ -111,6 +111,7 @@
         /\[call-native\]|\[call-ui\]|\[webrtc\]/.test(s)) return 'log-call';
     if (/\bencryption\b|\bE2E encryption\b|\bdecrypt\b|\b\[enc=/.test(s)) return 'log-encrypt';
     if (/\brelay\b/.test(s)) return 'log-relay';
+    if (/\bCLUSTER\b/.test(s)) return 'log-cluster';
     if (/\bGROUP\b|\bLISTEN\b/.test(s)) return 'log-group';
     if (/\bprobe\b/.test(s)) return 'log-probe';
     if (/\[update\]|\[online\]/.test(s)) return 'log-peer';
