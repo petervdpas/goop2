@@ -56,6 +56,10 @@ func (s *dbJobStore) LoadJobs(groupID string) ([]*coreCluster.JobState, error) {
 	return out, nil
 }
 
+func (s *dbJobStore) DeleteJob(groupID, jobID string) error {
+	return s.db.DeleteClusterJob(groupID, jobID)
+}
+
 func (s *dbJobStore) DeleteJobs(groupID string) error {
 	return s.db.DeleteClusterJobs(groupID)
 }

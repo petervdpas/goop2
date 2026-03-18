@@ -50,6 +50,7 @@ var PredefinedJobTypes = []JobType{
 type JobStore interface {
 	SaveJob(groupID string, js *JobState) error
 	LoadJobs(groupID string) ([]*JobState, error)
+	DeleteJob(groupID, jobID string) error
 	DeleteJobs(groupID string) error
 }
 

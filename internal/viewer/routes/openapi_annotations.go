@@ -586,6 +586,25 @@ func swagClusterSubmit() {}
 //	@Router		/api/cluster/cancel [post]
 func swagClusterCancel() {}
 
+// clusterDeleteRequest is the body for POST /api/cluster/delete.
+type clusterDeleteRequest struct {
+	JobID string `json:"job_id" example:"j-abc123"`
+}
+
+// swagClusterDelete is a documentation stub for POST /api/cluster/delete.
+//
+//	@Summary	Delete a terminal job from the queue (host only)
+//	@Description	Removes a cancelled, completed, or failed job from the queue and database. Active jobs (pending, assigned, running) cannot be deleted — cancel them first.
+//	@Tags		cluster
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		clusterDeleteRequest	true	"Delete request"
+//	@Success	200		{object}	statusOK
+//	@Failure	400		{string}	string	"missing job_id"
+//	@Failure	409		{string}	string	"job is pending — cancel it first"
+//	@Router		/api/cluster/delete [post]
+func swagClusterDelete() {}
+
 // swagClusterJobs is a documentation stub for GET /api/cluster/jobs.
 //
 //	@Summary	List all jobs in the queue (host only)

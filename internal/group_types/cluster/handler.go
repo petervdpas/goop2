@@ -72,7 +72,7 @@ func (h *Handler) OnClose(_ string) {
 func (h *Handler) OnEvent(evt *group.Event) {
 	switch {
 	case h.clusterMgr.Role() == "" && evt.Type == "welcome":
-		_ = h.clusterMgr.JoinCluster(evt.Group)
+		_ = h.clusterMgr.JoinCluster(evt.Group, evt.From)
 	case h.clusterMgr.Role() == "worker" && evt.Type == "leave":
 		h.clusterMgr.LeaveCluster()
 	case h.clusterMgr.Role() == "worker" && evt.Type == "close":

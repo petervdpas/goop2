@@ -63,7 +63,7 @@ func RegisterCluster(mux *http.ServeMux, cm *cluster.Manager, grpMgr *group.Mana
 			http.Error(w, fmt.Sprintf("join group: %v", err), http.StatusBadGateway)
 			return
 		}
-		if err := cm.JoinCluster(req.GroupID); err != nil {
+		if err := cm.JoinCluster(req.GroupID, req.HostPeerID); err != nil {
 			http.Error(w, fmt.Sprintf("join cluster: %v", err), http.StatusInternalServerError)
 			return
 		}
@@ -128,6 +128,20 @@ func RegisterCluster(mux *http.ServeMux, cm *cluster.Manager, grpMgr *group.Mana
 			return
 		}
 		writeJSON(w, map[string]any{"status": "cancelled", "job_id": req.JobID})
+	})
+
+	handlePost(mux, "/api/cluster/delete", func(w http.ResponseWriter, r *http.Request, req struct {
+		JobID string `json:"job_id"`
+	}) {
+		if req.JobID == "" {
+			http.Error(w, "missing job_id", http.StatusBadRequest)
+			return
+		}
+		if err := cm.DeleteJob(req.JobID); err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		writeJSON(w, map[string]any{"status": "deleted", "job_id": req.JobID})
 	})
 
 	handleGet(mux, "/api/cluster/jobs", func(w http.ResponseWriter, r *http.Request) {

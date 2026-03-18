@@ -149,6 +149,12 @@ definitions:
         example: created
         type: string
     type: object
+  routes.clusterDeleteRequest:
+    properties:
+      job_id:
+        example: j-abc123
+        type: string
+    type: object
   routes.clusterJob:
     properties:
       id:
@@ -1571,6 +1577,38 @@ paths:
           schema:
             type: string
       summary: Create or activate a cluster (become host)
+      tags:
+      - cluster
+  /api/cluster/delete:
+    post:
+      consumes:
+      - application/json
+      description: Removes a cancelled, completed, or failed job from the queue and
+        database. Active jobs (pending, assigned, running) cannot be deleted — cancel
+        them first.
+      parameters:
+      - description: Delete request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.clusterDeleteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+        "400":
+          description: missing job_id
+          schema:
+            type: string
+        "409":
+          description: job is pending — cancel it first
+          schema:
+            type: string
+      summary: Delete a terminal job from the queue (host only)
       tags:
       - cluster
   /api/cluster/jobs:

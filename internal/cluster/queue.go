@@ -80,6 +80,25 @@ func (q *Queue) Cancel(jobID string) error {
 	return nil
 }
 
+func (q *Queue) Delete(jobID string) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	js, ok := q.jobs[jobID]
+	if !ok {
+		return fmt.Errorf("job %s not found", jobID)
+	}
+	switch js.Status {
+	case StatusPending, StatusAssigned, StatusRunning:
+		return fmt.Errorf("job %s is %s — cancel it first", jobID, js.Status)
+	}
+	delete(q.jobs, jobID)
+	if q.store != nil && q.groupID != "" {
+		_ = q.store.DeleteJob(q.groupID, jobID)
+	}
+	return nil
+}
+
 func (q *Queue) NextPending() *Job {
 	q.mu.Lock()
 	defer q.mu.Unlock()

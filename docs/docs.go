@@ -718,6 +718,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/cluster/delete": {
+            "post": {
+                "description": "Removes a cancelled, completed, or failed job from the queue and database. Active jobs (pending, assigned, running) cannot be deleted — cancel them first.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cluster"
+                ],
+                "summary": "Delete a terminal job from the queue (host only)",
+                "parameters": [
+                    {
+                        "description": "Delete request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.clusterDeleteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    },
+                    "400": {
+                        "description": "missing job_id",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "job is pending — cancel it first",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/api/cluster/jobs": {
             "get": {
                 "produces": [
@@ -3539,6 +3585,15 @@ const docTemplate = `{
                 "status": {
                     "type": "string",
                     "example": "created"
+                }
+            }
+        },
+        "routes.clusterDeleteRequest": {
+            "type": "object",
+            "properties": {
+                "job_id": {
+                    "type": "string",
+                    "example": "j-abc123"
                 }
             }
         },

@@ -270,7 +270,7 @@ func TestSchedulerWorkerBinaryTracking(t *testing.T) {
 
 func TestWorkerSetBinary(t *testing.T) {
 	sendFn := func(peerID, topic string, payload any) error { return nil }
-	w := NewWorker(sendFn, "g1")
+	w := NewWorker(sendFn, "g1", "host-peer")
 
 	if err := w.SetBinary("/usr/bin/compute", "oneshot"); err != nil {
 		t.Fatalf("SetBinary: %v", err)
@@ -292,7 +292,7 @@ func TestWorkerSetBinary(t *testing.T) {
 
 func TestWorkerSetBinaryDefaultsToOneshot(t *testing.T) {
 	sendFn := func(peerID, topic string, payload any) error { return nil }
-	w := NewWorker(sendFn, "g1")
+	w := NewWorker(sendFn, "g1", "host-peer")
 
 	if err := w.SetBinary("/usr/bin/compute", ""); err != nil {
 		t.Fatalf("SetBinary: %v", err)
@@ -313,7 +313,7 @@ func TestWorkerHandleJob(t *testing.T) {
 		return nil
 	}
 
-	w := NewWorker(sendFn, "g1")
+	w := NewWorker(sendFn, "g1", "host-peer")
 	// Must set binary before HandleJob (new requirement for Phase 3)
 	w.SetBinary("/bin/echo", "oneshot")
 	time.Sleep(10 * time.Millisecond) // let verify() run
@@ -344,7 +344,7 @@ func TestWorkerHandleJob(t *testing.T) {
 
 func TestWorkerCancel(t *testing.T) {
 	sendFn := func(peerID, topic string, payload any) error { return nil }
-	w := NewWorker(sendFn, "g1")
+	w := NewWorker(sendFn, "g1", "host-peer")
 	w.SetBinary("/bin/echo", "oneshot")
 	w.HandleJob("host", Job{ID: "j1", Type: "slow", TimeoutS: 60})
 
@@ -357,7 +357,7 @@ func TestWorkerCancel(t *testing.T) {
 
 func TestWorkerClose(t *testing.T) {
 	sendFn := func(peerID, topic string, payload any) error { return nil }
-	w := NewWorker(sendFn, "g1")
+	w := NewWorker(sendFn, "g1", "host-peer")
 	w.SetBinary("/bin/echo", "oneshot")
 	w.HandleJob("host", Job{ID: "j1", Type: "test", TimeoutS: 60})
 
@@ -369,7 +369,7 @@ func TestWorkerClose(t *testing.T) {
 
 func TestWorkerVerified(t *testing.T) {
 	sendFn := func(peerID, topic string, payload any) error { return nil }
-	w := NewWorker(sendFn, "g1")
+	w := NewWorker(sendFn, "g1", "host-peer")
 
 	if w.Verified() {
 		t.Fatal("expected unverified initially")
@@ -401,7 +401,7 @@ func TestManagerCreateAndJoinCluster(t *testing.T) {
 		t.Fatalf("expected host role, got %s", m.Role())
 	}
 
-	if err := m.JoinCluster("g2"); err == nil {
+	if err := m.JoinCluster("g2", "host-peer"); err == nil {
 		t.Fatal("expected error joining while already in cluster")
 	}
 
@@ -410,7 +410,7 @@ func TestManagerCreateAndJoinCluster(t *testing.T) {
 		t.Fatalf("expected empty role after leave, got %s", m.Role())
 	}
 
-	if err := m.JoinCluster("g2"); err != nil {
+	if err := m.JoinCluster("g2", "host-peer"); err != nil {
 		t.Fatalf("join failed: %v", err)
 	}
 	if m.Role() != "worker" {
@@ -466,7 +466,7 @@ func TestManagerSetBinary(t *testing.T) {
 		t.Fatal("expected error setting binary as non-worker")
 	}
 
-	m.JoinCluster("g1")
+	m.JoinCluster("g1", "host-peer")
 
 	if err := m.SetBinary("/usr/bin/compute", "oneshot"); err != nil {
 		t.Fatalf("SetBinary failed: %v", err)

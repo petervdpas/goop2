@@ -90,7 +90,7 @@ func (m *Manager) CreateCluster(groupID string) error {
 	return nil
 }
 
-func (m *Manager) JoinCluster(groupID string) error {
+func (m *Manager) JoinCluster(groupID, hostPeerID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -100,9 +100,9 @@ func (m *Manager) JoinCluster(groupID string) error {
 
 	m.role = roleWorker
 	m.groupID = groupID
-	m.worker = NewWorker(m.send, groupID)
+	m.worker = NewWorker(m.send, groupID, hostPeerID)
 
-	log.Printf("CLUSTER: joined cluster %s (worker)", groupID)
+	log.Printf("CLUSTER: joined cluster %s (worker, host=%s)", groupID, hostPeerID)
 	return nil
 }
 
@@ -141,6 +141,16 @@ func (m *Manager) CancelJob(jobID string) error {
 	}
 
 	return m.queue.Cancel(jobID)
+}
+
+func (m *Manager) DeleteJob(jobID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.role != roleHost {
+		return fmt.Errorf("not a cluster host")
+	}
+	return m.queue.Delete(jobID)
 }
 
 func (m *Manager) GetJobs() []JobState {
@@ -196,7 +206,7 @@ func (m *Manager) SetBinary(path, mode string) error {
 
 	// Notify host that we set our binary
 	topic := "cluster:" + groupID + ":worker:binary"
-	_ = send("", topic, map[string]any{
+	_ = send(w.hostPeerID, topic, map[string]any{
 		"path": path,
 		"mode": mode,
 	})

@@ -176,6 +176,7 @@
       leave:   function ()  { return _post('/api/cluster/leave'); },
       submit:  function (p) { return _post('/api/cluster/submit', p); },
       cancel:  function (p) { return _post('/api/cluster/cancel', p); },
+      delete:  function (p) { return _post('/api/cluster/delete', p); },
       jobs:    function ()  { return _get('/api/cluster/jobs'); },
       workers: function ()  { return _get('/api/cluster/workers'); },
       stats:   function ()  { return _get('/api/cluster/stats'); },

@@ -16,8 +16,9 @@ type activeJob struct {
 }
 
 type Worker struct {
-	send    SendFunc
-	groupID string
+	send       SendFunc
+	groupID    string
+	hostPeerID string
 
 	mu         sync.Mutex
 	status     WorkerStatus
@@ -28,12 +29,13 @@ type Worker struct {
 	runner     *BinaryRunner // Reusable runner for daemon mode
 }
 
-func NewWorker(send SendFunc, groupID string) *Worker {
+func NewWorker(send SendFunc, groupID, hostPeerID string) *Worker {
 	return &Worker{
-		send:    send,
-		groupID: groupID,
-		status:  WorkerJoined,
-		jobs:    make(map[string]*activeJob),
+		send:       send,
+		groupID:    groupID,
+		hostPeerID: hostPeerID,
+		status:     WorkerJoined,
+		jobs:       make(map[string]*activeJob),
 	}
 }
 
@@ -106,7 +108,7 @@ func (w *Worker) verify() {
 
 func (w *Worker) sendVerified(ok bool, types []string, capacity int) {
 	topic := "cluster:" + w.groupID + ":worker:verified"
-	_ = w.send("", topic, map[string]any{
+	_ = w.send(w.hostPeerID, topic, map[string]any{
 		"ok":       ok,
 		"types":    types,
 		"capacity": capacity,

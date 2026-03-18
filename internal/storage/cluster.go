@@ -53,6 +53,11 @@ func (d *DB) LoadClusterJobs(groupID string) ([]ClusterJobRow, error) {
 	return out, nil
 }
 
+func (d *DB) DeleteClusterJob(groupID, jobID string) error {
+	_, err := d.db.Exec(`DELETE FROM _cluster_jobs WHERE group_id = ? AND id = ?`, groupID, jobID)
+	return err
+}
+
 func (d *DB) DeleteClusterJobs(groupID string) error {
 	_, err := d.db.Exec(`DELETE FROM _cluster_jobs WHERE group_id = ?`, groupID)
 	return err

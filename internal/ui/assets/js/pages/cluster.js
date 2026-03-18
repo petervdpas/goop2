@@ -238,9 +238,14 @@
           progressHtml = "-";
         }
         var canCancel = j.status === "pending" || j.status === "assigned" || j.status === "running";
-        var actionsHtml = canCancel
-          ? '<button class="btn btn-danger btn-small cl-cancel-btn" data-job-id="' + escapeHtml(job.id) + '">Cancel</button>'
-          : '';
+        var canDelete = j.status === "cancelled" || j.status === "completed" || j.status === "failed";
+        var actionsHtml = '';
+        if (canCancel) {
+          actionsHtml += '<button class="btn btn-danger btn-small cl-cancel-btn" data-job-id="' + escapeHtml(job.id) + '">Cancel</button>';
+        }
+        if (canDelete) {
+          actionsHtml += '<button class="btn btn-small cl-delete-btn" data-job-id="' + escapeHtml(job.id) + '">Delete</button>';
+        }
         if (j.error) {
           actionsHtml += ' <span class="cl-status-failed" title="' + escapeHtml(j.error) + '">err</span>';
         }
@@ -264,6 +269,15 @@
             toast("Job cancelled");
             loadJobs();
           }).catch(function (err) { toast("Cancel failed: " + err.message, true); });
+        });
+      });
+
+      jobsListEl.querySelectorAll(".cl-delete-btn").forEach(function (btn) {
+        on(btn, "click", function () {
+          var jobId = btn.getAttribute("data-job-id");
+          api.cluster.delete({ job_id: jobId }).then(function () {
+            loadJobs();
+          }).catch(function (err) { toast("Delete failed: " + err.message, true); });
         });
       });
     });
