@@ -198,7 +198,7 @@
 }
 
 .cl-submit-opts .form-input {
-  max-width: 120px;
+  width: 100%;
 }
 
 .cl-textarea {

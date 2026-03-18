@@ -27,7 +27,7 @@ type Manager struct {
 	groupID        string
 	cancel         context.CancelFunc
 	queue          *Queue
-	scheduler      *Scheduler
+	dispatcher      *Dispatcher
 	worker         *Worker
 	unsub          func()
 	savedBinaryPath string
@@ -92,11 +92,11 @@ func (m *Manager) CreateCluster(groupID string) error {
 	m.role = roleHost
 	m.groupID = groupID
 	m.queue = NewQueue(m.db, groupID)
-	m.scheduler = NewScheduler(m.queue, m.send)
+	m.dispatcher = NewDispatcher(m.queue, m.send)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
-	go m.scheduler.Run(ctx, groupID)
+	go m.dispatcher.Run(ctx, groupID)
 
 	log.Printf("CLUSTER: created cluster %s (host)", groupID)
 	return nil
@@ -217,10 +217,10 @@ func (m *Manager) GetWorkers() []WorkerInfo {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.role != roleHost || m.scheduler == nil {
+	if m.role != roleHost || m.dispatcher == nil {
 		return nil
 	}
-	return m.scheduler.Workers()
+	return m.dispatcher.Workers()
 }
 
 func (m *Manager) GetStats() QueueStats {
@@ -231,8 +231,8 @@ func (m *Manager) GetStats() QueueStats {
 		return QueueStats{}
 	}
 	stats := m.queue.Stats()
-	if m.scheduler != nil {
-		stats.Workers = len(m.scheduler.Workers())
+	if m.dispatcher != nil {
+		stats.Workers = len(m.dispatcher.Workers())
 	}
 	return stats
 }
@@ -317,7 +317,7 @@ func (m *Manager) PauseRemoteWorker(peerID string) error {
 	if m.role != roleHost {
 		return fmt.Errorf("not a cluster host")
 	}
-	m.scheduler.UpdateWorkerStatus(peerID, WorkerPaused)
+	m.dispatcher.UpdateWorkerStatus(peerID, WorkerPaused)
 	topic := "cluster:" + m.groupID + ":worker:pause"
 	return m.send(peerID, topic, map[string]any{"action": "pause"})
 }
@@ -329,7 +329,7 @@ func (m *Manager) ResumeRemoteWorker(peerID string) error {
 	if m.role != roleHost {
 		return fmt.Errorf("not a cluster host")
 	}
-	m.scheduler.UpdateWorkerStatus(peerID, WorkerIdle)
+	m.dispatcher.UpdateWorkerStatus(peerID, WorkerIdle)
 	topic := "cluster:" + m.groupID + ":worker:resume"
 	return m.send(peerID, topic, map[string]any{"action": "resume"})
 }
@@ -376,12 +376,12 @@ func (m *Manager) Close() {
 }
 
 func (m *Manager) cleanup() {
-	if m.role == roleHost && m.scheduler != nil && m.groupID != "" {
+	if m.role == roleHost && m.dispatcher != nil && m.groupID != "" {
 		topic := "cluster:" + m.groupID + ":shutdown"
-		for _, w := range m.scheduler.Workers() {
+		for _, w := range m.dispatcher.Workers() {
 			_ = m.send(w.PeerID, topic, map[string]any{"reason": "cluster closed"})
 		}
-		log.Printf("CLUSTER: sent shutdown to %d workers", len(m.scheduler.Workers()))
+		log.Printf("CLUSTER: sent shutdown to %d workers", len(m.dispatcher.Workers()))
 	}
 	if m.cancel != nil {
 		m.cancel()
@@ -392,7 +392,7 @@ func (m *Manager) cleanup() {
 		m.worker = nil
 	}
 	m.queue = nil
-	m.scheduler = nil
+	m.dispatcher = nil
 	m.role = roleNone
 	m.groupID = ""
 }

@@ -160,9 +160,9 @@ func TestQueueWorkerJobIDs(t *testing.T) {
 	}
 }
 
-// ── Scheduler tests ─────────────────────────────────────────────────────────
+// ── Dispatcher tests ─────────────────────────────────────────────────────────
 
-func TestSchedulerDispatchOnlyVerified(t *testing.T) {
+func TestDispatcherDispatchOnlyVerified(t *testing.T) {
 	q := NewQueue(nil, "")
 	q.Submit(Job{Type: "render", Priority: 1})
 
@@ -171,12 +171,12 @@ func TestSchedulerDispatchOnlyVerified(t *testing.T) {
 		return nil
 	}
 
-	s := NewScheduler(q, sendFn)
+	s := NewDispatcher(q, sendFn)
 	s.AddWorker("peer-A")
 	s.dispatch("test-group")
 }
 
-func TestSchedulerDispatchVerified(t *testing.T) {
+func TestDispatcherDispatchVerified(t *testing.T) {
 	q := NewQueue(nil, "")
 	jobID := q.Submit(Job{Type: "render", Priority: 1})
 
@@ -190,7 +190,7 @@ func TestSchedulerDispatchVerified(t *testing.T) {
 		return nil
 	}
 
-	s := NewScheduler(q, sendFn)
+	s := NewDispatcher(q, sendFn)
 	s.AddWorker("peer-A")
 	s.SetWorkerVerified("peer-A", true, []string{"render"}, 1)
 	s.dispatch("test-group")
@@ -215,7 +215,7 @@ func TestSchedulerDispatchVerified(t *testing.T) {
 	}
 }
 
-func TestSchedulerNoIdleWorkers(t *testing.T) {
+func TestDispatcherNoIdleWorkers(t *testing.T) {
 	q := NewQueue(nil, "")
 	q.Submit(Job{Type: "test"})
 
@@ -224,11 +224,11 @@ func TestSchedulerNoIdleWorkers(t *testing.T) {
 		return nil
 	}
 
-	s := NewScheduler(q, sendFn)
+	s := NewDispatcher(q, sendFn)
 	s.dispatch("g1")
 }
 
-func TestSchedulerRemoveWorker(t *testing.T) {
+func TestDispatcherRemoveWorker(t *testing.T) {
 	q := NewQueue(nil, "")
 	q.Submit(Job{Type: "test"})
 
@@ -237,16 +237,16 @@ func TestSchedulerRemoveWorker(t *testing.T) {
 		return nil
 	}
 
-	s := NewScheduler(q, sendFn)
+	s := NewDispatcher(q, sendFn)
 	s.AddWorker("peer-A")
 	s.SetWorkerVerified("peer-A", true, nil, 1)
 	s.RemoveWorker("peer-A")
 	s.dispatch("g1")
 }
 
-func TestSchedulerWorkerBinaryTracking(t *testing.T) {
+func TestDispatcherWorkerBinaryTracking(t *testing.T) {
 	q := NewQueue(nil, "")
-	s := NewScheduler(q, func(string, string, any) error { return nil })
+	s := NewDispatcher(q, func(string, string, any) error { return nil })
 
 	s.AddWorker("peer-A")
 	s.SetWorkerBinary("peer-A", "/usr/bin/renderer", "oneshot")
@@ -502,9 +502,9 @@ func TestManagerGroupEvents(t *testing.T) {
 		From:  "worker-1",
 	})
 
-	// Verify worker, then give scheduler time to dispatch
+	// Verify worker, then give dispatcher time to dispatch
 	m.mu.Lock()
-	m.scheduler.SetWorkerVerified("worker-1", true, nil, 1)
+	m.dispatcher.SetWorkerVerified("worker-1", true, nil, 1)
 	m.mu.Unlock()
 
 	time.Sleep(200 * time.Millisecond)

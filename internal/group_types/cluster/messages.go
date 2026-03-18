@@ -14,12 +14,12 @@ func (m *Manager) handleGroupEvent(evt *GroupEvent) {
 	case "join":
 		if m.role == roleHost && evt.From != m.selfID {
 			log.Printf("CLUSTER: worker joined: %s", evt.From)
-			m.scheduler.AddWorker(evt.From)
+			m.dispatcher.AddWorker(evt.From)
 		}
 	case "leave":
 		if m.role == roleHost && evt.From != m.selfID {
 			log.Printf("CLUSTER: worker left: %s", evt.From)
-			m.scheduler.RemoveWorker(evt.From)
+			m.dispatcher.RemoveWorker(evt.From)
 			for _, jobID := range m.queue.WorkerJobIDs(evt.From) {
 				m.queue.Fail(jobID, "worker left")
 			}
@@ -60,12 +60,12 @@ func (m *Manager) handleClusterMessage(from, msgType string, payload any) {
 				result, _ := data["result"].(map[string]any)
 				log.Printf("CLUSTER: job %s completed by %s", jobID, from)
 				m.queue.Complete(jobID, result)
-				m.scheduler.UpdateWorkerStatus(from, WorkerIdle)
+				m.dispatcher.UpdateWorkerStatus(from, WorkerIdle)
 			case "failed":
 				errMsg, _ := data["error"].(string)
 				log.Printf("CLUSTER: job %s failed on %s: %s", jobID, from, errMsg)
 				m.queue.Fail(jobID, errMsg)
-				m.scheduler.UpdateWorkerStatus(from, WorkerIdle)
+				m.dispatcher.UpdateWorkerStatus(from, WorkerIdle)
 			}
 		case "job:progress":
 			jobID, _ := data["job_id"].(string)
@@ -85,15 +85,15 @@ func (m *Manager) handleClusterMessage(from, msgType string, payload any) {
 					}
 				}
 			}
-			m.scheduler.SetWorkerVerified(from, ok, types, int(capacity))
+			m.dispatcher.SetWorkerVerified(from, ok, types, int(capacity))
 		case "worker:binary":
 			path, _ := data["path"].(string)
 			mode, _ := data["mode"].(string)
 			log.Printf("CLUSTER: worker %s set binary %s (mode=%s)", from, path, mode)
-			m.scheduler.SetWorkerBinary(from, path, mode)
+			m.dispatcher.SetWorkerBinary(from, path, mode)
 		case "worker:status":
 			statusStr, _ := data["status"].(string)
-			m.scheduler.UpdateWorkerStatus(from, WorkerStatus(statusStr))
+			m.dispatcher.UpdateWorkerStatus(from, WorkerStatus(statusStr))
 		}
 
 	case r == roleWorker:

@@ -7,9 +7,9 @@ import (
 	"time"
 )
 
-const schedulerTick = 100 * time.Millisecond
+const dispatchTick = 100 * time.Millisecond
 
-type Scheduler struct {
+type Dispatcher struct {
 	queue *Queue
 	send  SendFunc
 
@@ -18,15 +18,15 @@ type Scheduler struct {
 	robin   int
 }
 
-func NewScheduler(queue *Queue, send SendFunc) *Scheduler {
-	return &Scheduler{
+func NewDispatcher(queue *Queue, send SendFunc) *Dispatcher {
+	return &Dispatcher{
 		queue:   queue,
 		send:    send,
 		workers: make(map[string]*WorkerInfo),
 	}
 }
 
-func (s *Scheduler) AddWorker(peerID string) {
+func (s *Dispatcher) AddWorker(peerID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -42,13 +42,13 @@ func (s *Scheduler) AddWorker(peerID string) {
 	}
 }
 
-func (s *Scheduler) RemoveWorker(peerID string) {
+func (s *Dispatcher) RemoveWorker(peerID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.workers, peerID)
 }
 
-func (s *Scheduler) SetWorkerVerified(peerID string, ok bool, types []string, capacity int) {
+func (s *Dispatcher) SetWorkerVerified(peerID string, ok bool, types []string, capacity int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -70,7 +70,7 @@ func (s *Scheduler) SetWorkerVerified(peerID string, ok bool, types []string, ca
 	log.Printf("CLUSTER: worker %s verified=%v types=%v capacity=%d", peerID, ok, types, w.Capacity)
 }
 
-func (s *Scheduler) SetWorkerBinary(peerID, path, mode string) {
+func (s *Dispatcher) SetWorkerBinary(peerID, path, mode string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -83,7 +83,7 @@ func (s *Scheduler) SetWorkerBinary(peerID, path, mode string) {
 	w.LastSeen = time.Now()
 }
 
-func (s *Scheduler) UpdateWorkerStatus(peerID string, status WorkerStatus) {
+func (s *Dispatcher) UpdateWorkerStatus(peerID string, status WorkerStatus) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -98,7 +98,7 @@ func (s *Scheduler) UpdateWorkerStatus(peerID string, status WorkerStatus) {
 	}
 }
 
-func (s *Scheduler) Workers() []WorkerInfo {
+func (s *Dispatcher) Workers() []WorkerInfo {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -109,8 +109,8 @@ func (s *Scheduler) Workers() []WorkerInfo {
 	return out
 }
 
-func (s *Scheduler) Run(ctx context.Context, groupID string) {
-	ticker := time.NewTicker(schedulerTick)
+func (s *Dispatcher) Run(ctx context.Context, groupID string) {
+	ticker := time.NewTicker(dispatchTick)
 	defer ticker.Stop()
 
 	for {
@@ -123,7 +123,7 @@ func (s *Scheduler) Run(ctx context.Context, groupID string) {
 	}
 }
 
-func (s *Scheduler) dispatch(groupID string) {
+func (s *Dispatcher) dispatch(groupID string) {
 	for {
 		job := s.queue.NextPending()
 		if job == nil {
@@ -164,7 +164,7 @@ func (s *Scheduler) dispatch(groupID string) {
 	}
 }
 
-func (s *Scheduler) pickWorkerForType(jobType string) string {
+func (s *Dispatcher) pickWorkerForType(jobType string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

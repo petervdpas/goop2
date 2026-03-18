@@ -687,7 +687,7 @@ func swagClusterBinary() {}
 // swagClusterPause is a documentation stub for POST /api/cluster/pause.
 //
 //	@Summary	Pause this worker (worker only)
-//	@Description	Pauses the worker so the host scheduler skips it when dispatching jobs. The worker stays in the cluster. Use POST /api/cluster/resume to resume.
+//	@Description	Pauses the worker so the host dispatcher skips it when dispatching jobs. The worker stays in the cluster. Use POST /api/cluster/resume to resume.
 //	@Tags		cluster
 //	@Produce	json
 //	@Success	200	{object}	statusOK
@@ -698,7 +698,7 @@ func swagClusterPause() {}
 // swagClusterResume is a documentation stub for POST /api/cluster/resume.
 //
 //	@Summary	Resume this worker (worker only)
-//	@Description	Resumes a paused worker so the host scheduler can dispatch jobs to it again.
+//	@Description	Resumes a paused worker so the host dispatcher can dispatch jobs to it again.
 //	@Tags		cluster
 //	@Produce	json
 //	@Success	200	{object}	statusOK
@@ -728,7 +728,7 @@ func swagClusterWorkerPause() {}
 // swagClusterWorkerResume is a documentation stub for POST /api/cluster/worker/resume.
 //
 //	@Summary	Resume a remote worker (host only)
-//	@Description	Sends a resume command to the specified worker so the scheduler can dispatch jobs to it again.
+//	@Description	Sends a resume command to the specified worker so the dispatcher can dispatch jobs to it again.
 //	@Tags		cluster
 //	@Accept		json
 //	@Produce	json
