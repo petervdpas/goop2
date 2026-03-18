@@ -886,7 +886,7 @@ const docTemplate = `{
         },
         "/api/cluster/pause": {
             "post": {
-                "description": "Pauses the worker so the host scheduler skips it when dispatching jobs. The worker stays in the cluster. Use POST /api/cluster/resume to resume.",
+                "description": "Pauses the worker so the host dispatcher skips it when dispatching jobs. The worker stays in the cluster. Use POST /api/cluster/resume to resume.",
                 "produces": [
                     "application/json"
                 ],
@@ -912,7 +912,7 @@ const docTemplate = `{
         },
         "/api/cluster/resume": {
             "post": {
-                "description": "Resumes a paused worker so the host scheduler can dispatch jobs to it again.",
+                "description": "Resumes a paused worker so the host dispatcher can dispatch jobs to it again.",
                 "produces": [
                     "application/json"
                 ],
@@ -1091,7 +1091,7 @@ const docTemplate = `{
         },
         "/api/cluster/worker/resume": {
             "post": {
-                "description": "Sends a resume command to the specified worker so the scheduler can dispatch jobs to it again.",
+                "description": "Sends a resume command to the specified worker so the dispatcher can dispatch jobs to it again.",
                 "consumes": [
                     "application/json"
                 ],

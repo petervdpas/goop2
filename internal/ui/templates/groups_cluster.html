@@ -80,8 +80,10 @@
           </div>
 
           <div class="panel cl-submit">
-            <h4>Submit Job</h4>
-            <div class="panel-info">i<div class="panel-info-text">The scheduler assigns jobs to workers whose declared types match. Workers with no declared types accept any job. The payload is a free-form JSON object passed as stdin to the worker binary &mdash; use it for inputs, parameters, or configuration.</div></div>
+            <div class="panel-head">
+              <h4>Submit Job</h4>
+              <div class="panel-info-inline">i<div class="panel-info-text">The dispatcher assigns jobs to workers whose declared types match. Workers with no declared types accept any job. The payload is a free-form JSON object passed as stdin to the worker binary &mdash; use it for inputs, parameters, or configuration.</div></div>
+            </div>
             <div class="cl-submit-form">
               <div class="cl-submit-row">
                 <label>Mode</label>
@@ -129,7 +131,7 @@
           </div>
 
           <div class="panel cl-workers">
-            <div class="cl-panel-head">
+            <div class="panel-head">
               <h4>Workers</h4>
               <button id="cl-invite-btn" class="btn btn-secondary btn-small">Invite Worker</button>
             </div>
@@ -139,7 +141,7 @@
           </div>
 
           <div class="panel cl-jobs">
-            <div class="cl-panel-head">
+            <div class="panel-head">
               <h4>Job Queue</h4>
               <button id="cl-clear-btn" class="btn btn-danger btn-small">Clear Queue</button>
             </div>

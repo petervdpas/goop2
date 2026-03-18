@@ -1705,7 +1705,7 @@ paths:
       - cluster
   /api/cluster/pause:
     post:
-      description: Pauses the worker so the host scheduler skips it when dispatching
+      description: Pauses the worker so the host dispatcher skips it when dispatching
         jobs. The worker stays in the cluster. Use POST /api/cluster/resume to resume.
       produces:
       - application/json
@@ -1723,7 +1723,7 @@ paths:
       - cluster
   /api/cluster/resume:
     post:
-      description: Resumes a paused worker so the host scheduler can dispatch jobs
+      description: Resumes a paused worker so the host dispatcher can dispatch jobs
         to it again.
       produces:
       - application/json
@@ -1847,7 +1847,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Sends a resume command to the specified worker so the scheduler
+      description: Sends a resume command to the specified worker so the dispatcher
         can dispatch jobs to it again.
       parameters:
       - description: Worker peer ID

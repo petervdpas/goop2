@@ -217,13 +217,6 @@
 /* -----------------------------
    Panel head (title + actions)
 ------------------------------ */
-.cl-panel-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.cl-panel-head h4 { margin: 0; }
 
 .cl-table-wrap {
   overflow-x: auto;

@@ -11,6 +11,16 @@
   box-shadow: var(--shadow-sm);
 }
 
+/* Panel head — flex row: title left, actions right */
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.panel-head h4 { margin: 0; }
+
 /* Panel info — hover tooltip in upper-right corner */
 .panel-info {
   position: absolute;
@@ -91,7 +101,7 @@
   display: none;
   position: absolute;
   top: 22px;
-  left: 0;
+  right: 0;
   width: 300px;
   padding: 8px 10px;
   border-radius: var(--radius-sm);
