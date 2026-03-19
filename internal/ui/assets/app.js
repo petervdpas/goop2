@@ -44,6 +44,7 @@
     "/assets/js/pages/cluster.js",
     "/assets/js/pages/documents.js",
     "/assets/js/pages/templates.js",
+    "/assets/js/pages/apidocs.js",
     "/assets/js/pages/self.js",
   ];
 

@@ -80,6 +80,7 @@ func Register(mux *http.ServeMux, d Deps) {
 		{"/groups/joined", "Groups - Joined", "groups", "page.groups_joined"},
 		{"/groups/events", "Groups - Events", "groups", "page.groups_events"},
 		{"/view", "View", "view", "page.view"},
+		{"/apidocs", "API Docs", "create", "page.apidocs"},
 	})
 	mux.HandleFunc("/groups", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, d.BaseURL+"/groups/hosted", http.StatusFound)

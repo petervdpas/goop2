@@ -104,32 +104,6 @@ func normalizeRel(p string) string {
 	return strings.TrimPrefix(p, "/")
 }
 
-// normalizeDirRel is for DIRECTORY fields (mkdir/new). Empty => "" (site root).
-// If caller accidentally passes a FILE path (e.g. "index.html"), it returns its parent dir ("").
-func normalizeDirRel(p string) string {
-	p = strings.TrimSpace(p)
-	p = strings.TrimPrefix(p, "/")
-	p = strings.ReplaceAll(p, `\`, "/")
-	p = path.Clean(p)
-
-	if p == "." || p == "" {
-		return ""
-	}
-
-	p = strings.TrimPrefix(p, "/")
-
-	// If it looks like a file path, coerce to parent directory.
-	if strings.Contains(path.Base(p), ".") {
-		d := path.Dir(p)
-		if d == "." || d == "/" {
-			return ""
-		}
-		return strings.TrimPrefix(d, "/")
-	}
-
-	return p
-}
-
 var imageExts = map[string]bool{
 	".png": true, ".jpg": true, ".jpeg": true, ".gif": true,
 	".webp": true, ".svg": true, ".ico": true, ".bmp": true,
@@ -180,11 +154,6 @@ func validatePOSTRequest(w http.ResponseWriter, r *http.Request, csrf string) er
 		return http.ErrNotSupported
 	}
 	return nil
-}
-
-// getTrimmedFormValue returns a trimmed form value for the given key.
-func getTrimmedFormValue(form http.Header, key string) string {
-	return strings.TrimSpace(form.Get(key))
 }
 
 // getTrimmedPostFormValue returns a trimmed POST form value for the given key.

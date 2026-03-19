@@ -1,0 +1,11 @@
+{{define "page.apidocs"}}
+{{template "create.tabs" .}}
+
+<div class="create-tabs" style="margin-top:0;">
+  <a class="create-tab active" data-tab="api">API Reference</a>
+  <a class="create-tab" data-tab="executor">Executor Protocol</a>
+</div>
+
+<div id="swagger-panel" style="height:calc(100vh - 160px);overflow:auto;background:#fff;border-radius:8px;"></div>
+<div id="redoc-panel" style="display:none;height:calc(100vh - 160px);overflow:auto;background:#fff;border-radius:8px;"></div>
+{{end}}

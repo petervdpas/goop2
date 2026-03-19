@@ -298,8 +298,8 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		// Spend credits (deduct + grant ownership) before downloading.
 		// If the template is free or already owned, this is a no-op.
 		var spendResult *rendezvous.SpendResult
-		for _, c := range d.RVClients {
-			sr, err := c.SpendCredits(ctx, req.Template, peerID)
+		if len(d.RVClients) > 0 {
+			sr, err := d.RVClients[0].SpendCredits(ctx, req.Template, peerID)
 			if err != nil {
 				log.Printf("credits: spend failed for %q peer=%s: %v", req.Template, peerID, err)
 				http.Error(w, err.Error(), http.StatusPaymentRequired)
@@ -311,7 +311,6 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 				log.Printf("credits: no credit service — skipping spend for %q", req.Template)
 			}
 			spendResult = sr
-			break // only need to call once
 		}
 
 		// Download bundle from first rendezvous that has it
