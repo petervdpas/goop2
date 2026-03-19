@@ -1,6 +1,6 @@
 # Connecting to Peers
 
-Goop2 supports two discovery mechanisms that can be used independently or together.
+Goop2 supports three connection methods that can be used independently or together.
 
 ## LAN discovery (mDNS)
 
@@ -51,6 +51,7 @@ Any Goop2 peer can act as a rendezvous server. Enable it in your config:
   "presence": {
     "rendezvous_host": true,
     "rendezvous_port": 8787,
+    "rendezvous_bind": "0.0.0.0",
     "admin_password": "your-secret-password"
   }
 }
@@ -68,6 +69,7 @@ If you want to run a dedicated rendezvous server without a P2P node (for example
     "rendezvous_only": true,
     "rendezvous_host": true,
     "rendezvous_port": 8787,
+    "rendezvous_bind": "0.0.0.0",
     "admin_password": "your-secret-password"
   }
 }
@@ -89,6 +91,7 @@ For a production rendezvous server accessible over the internet, put it behind a
     "rendezvous_only": true,
     "rendezvous_host": true,
     "rendezvous_port": 8787,
+    "rendezvous_bind": "0.0.0.0",
     "admin_password": "your-secret-password",
     "external_url": "https://goop2.com"
   }
@@ -101,6 +104,32 @@ goop2.com {
     reverse_proxy localhost:8787
 }
 ```
+
+## Bridge mode (thin client)
+
+For environments where running a full libp2p node is not practical, Goop2 supports a **bridge mode**. A thin-client peer connects through a bridge service over WebSocket instead of establishing direct P2P connections.
+
+```json
+{
+  "p2p": {
+    "bridge_mode": true
+  },
+  "presence": {
+    "bridge_url": "http://localhost:8804"
+  },
+  "profile": {
+    "email": "me@example.com"
+  }
+}
+```
+
+The bridge service must be running alongside the rendezvous server (see the [goop2-services](https://github.com/petervdpas/goop2-services) repository). The thin client authenticates with a bridge token and appears as a virtual peer to other peers on the network.
+
+Bridge mode is useful for:
+
+- Web-only clients that cannot run libp2p.
+- Restricted network environments that block P2P traffic.
+- Lightweight devices where a full P2P stack is too heavy.
 
 ## NAT traversal
 
@@ -125,15 +154,36 @@ If hole punching fails, traffic flows through a **circuit relay** -- a lightweig
 
 Peers automatically discover the relay via the rendezvous server's `/relay` endpoint and use it when needed. The relay only forwards encrypted traffic; it cannot read the content.
 
-## Email registration
-
-A rendezvous server can require email verification before peers are allowed to be discovered. This is managed by the **registration service** -- a standalone microservice that handles email verification and the registration database.
-
-To enable registration, point your goop2 config at the registration service:
+Relay timing can be tuned for your network conditions:
 
 ```json
 {
   "presence": {
+    "relay_cleanup_delay_sec": 3,
+    "relay_poll_deadline_sec": 10,
+    "relay_connect_timeout_sec": 5,
+    "relay_refresh_interval_sec": 90,
+    "relay_recovery_grace_sec": 5
+  }
+}
+```
+
+## Encryption
+
+When an encryption service is configured, peers exchange NaCl public keys through the rendezvous server. This enables end-to-end encryption for P2P messages and broadcast key distribution for group communications.
+
+Encryption keys are generated automatically on first use and stored in the peer's config (`nacl_public_key` / `nacl_private_key`).
+
+## Email registration
+
+A rendezvous server can require email verification before peers are allowed to be discovered. This is managed by the **registration service** -- a standalone microservice that handles email verification and the registration database.
+
+To enable registration, set `use_services` to `true` and point your goop2 config at the registration service:
+
+```json
+{
+  "presence": {
+    "use_services": true,
     "registration_url": "http://localhost:8801",
     "registration_admin_token": "your-shared-token",
     "peer_db_path": "data/peers.db"
@@ -147,7 +197,7 @@ Visitors can register at the `/register` page on the rendezvous server.
 
 ## Visiting peers
 
-Once peers are connected (via LAN or rendezvous), they appear in your viewer. Click on a peer to visit their site. The URL pattern is:
+Once peers are connected (via LAN, rendezvous, or bridge), they appear in your viewer. Click on a peer to visit their site. The URL pattern is:
 
 ```
 http://127.0.0.1:8080/p/<peer-id>/
@@ -162,3 +212,4 @@ The viewer fetches the remote peer's site files over a direct P2P stream and ren
 | LAN only | Same network | None (default) |
 | LAN + WAN | Multiple networks | Set `rendezvous_wan` |
 | WAN only | Internet-wide | Set `rendezvous_only` + `rendezvous_host` |
+| Bridge | Via bridge service | Set `bridge_mode` + `bridge_url` |

@@ -297,3 +297,34 @@
     margin-left: 0;
   }
 }
+
+/* ─── Swagger UI overrides ─── */
+#swagger-ui .swagger-ui {
+  font-family: inherit;
+}
+#swagger-ui .swagger-ui .info {
+  display: none;
+}
+#swagger-ui .swagger-ui .scheme-container {
+  background: transparent;
+  border-bottom: 1px solid var(--border);
+  box-shadow: none;
+  padding: 10px 0;
+}
+#swagger-ui .swagger-ui .opblock-tag {
+  border-bottom-color: var(--border);
+}
+#swagger-ui .swagger-ui input[type=text] {
+  background: var(--bg-card);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+/* ─── Redoc overrides ─── */
+#redoc-container .redoc-wrap {
+  font-family: inherit;
+  background: transparent;
+}
+#redoc-container .menu-content {
+  background: transparent;
+}

@@ -17,6 +17,9 @@ import (
 	"github.com/petervdpas/goop2/internal/proto"
 	"github.com/petervdpas/goop2/internal/util"
 
+	// Import the generated docs so swag's init() registers the spec.
+	_ "github.com/petervdpas/goop2/docs"
+
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/tdewolff/minify/v2"
@@ -25,6 +28,9 @@ import (
 
 //go:embed all:assets
 var embedded embed.FS
+
+//go:embed executor_api.yaml
+var executorAPISpec []byte
 
 const (
 	maxSSEClients      = 1024 // global SSE connection limit
@@ -571,6 +577,8 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/assets/goop2-splash.jpg", s.handleSplash)
 	mux.HandleFunc("/docs", s.handleDocsRedirect)
 	mux.HandleFunc("/docs/", s.handleDocs)
+	mux.HandleFunc("/api/openapi.json", s.handleOpenAPISpec)
+	mux.HandleFunc("/api/executor-api.yaml", s.handleExecutorAPISpec)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("content-type", "text/plain; charset=utf-8")
 		_, _ = w.Write([]byte("ok"))

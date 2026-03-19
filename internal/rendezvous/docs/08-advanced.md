@@ -8,7 +8,8 @@ A rendezvous server is typically placed behind a reverse proxy like Caddy or Ngi
 {
   "presence": {
     "external_url": "https://goop2.com",
-    "rendezvous_port": 8787
+    "rendezvous_port": 8787,
+    "rendezvous_bind": "0.0.0.0"
   }
 }
 ```
@@ -41,12 +42,108 @@ The relay runs alongside the rendezvous server and helps peers behind NAT reach 
 {
   "presence": {
     "relay_port": 4001,
-    "relay_key_file": "data/relay.key"
+    "relay_key_file": "data/relay.key",
+    "relay_cleanup_delay_sec": 3,
+    "relay_poll_deadline_sec": 10,
+    "relay_connect_timeout_sec": 5,
+    "relay_refresh_interval_sec": 90,
+    "relay_recovery_grace_sec": 5
   }
 }
 ```
 
 Peers discover the relay automatically via the rendezvous server's `/relay` endpoint. When a direct connection fails, libp2p falls back to the relay and then attempts hole-punching (DCUtR) to upgrade to a direct connection.
+
+## Video calls
+
+Goop2 supports peer-to-peer video and audio calls using Pion WebRTC. The call stack runs natively in Go -- no browser WebRTC dependency is needed.
+
+Video is encoded as WebM (VP8 + Opus) and streamed to the viewer. On Linux (Wails/WebKitGTK), video is served over HTTP chunked streaming to avoid MSE timing issues. On other platforms, a WebSocket with MediaSource Extensions is used as fallback.
+
+### How it works
+
+1. Caller initiates a call via the MQ bus (`call:{channelID}` topic).
+2. Callee accepts, and SDP offer/answer exchange happens over MQ.
+3. ICE candidates are exchanged for NAT traversal.
+4. Once connected, RTP media flows directly between peers via Pion.
+5. Go encodes the media to WebM and streams it to the local viewer.
+
+### Camera and microphone preferences
+
+Set preferred devices in your config:
+
+```json
+{
+  "viewer": {
+    "preferred_cam": "Logitech C920",
+    "preferred_mic": "Blue Yeti"
+  }
+}
+```
+
+To disable video calls entirely:
+
+```json
+{
+  "viewer": {
+    "video_disabled": true
+  }
+}
+```
+
+## Cluster compute
+
+The cluster system distributes computation across multiple peers. One peer creates a cluster (host/dispatcher) and other peers join as workers.
+
+### Architecture
+
+The host maintains a job queue and dispatches work to connected workers. Workers execute jobs using a configurable executor binary that communicates over stdin/stdout with newline-delimited JSON.
+
+```
+Host (dispatcher)
+  ├── Worker A (executor binary)
+  ├── Worker B (executor binary)
+  └── Worker C (executor binary)
+```
+
+### Worker setup
+
+```json
+{
+  "viewer": {
+    "cluster_binary_path": "/usr/local/bin/my-executor",
+    "cluster_binary_mode": "daemon"
+  }
+}
+```
+
+- **oneshot**: Binary is started per job and exits after producing a result.
+- **daemon**: Binary starts once and handles multiple jobs via stdin/stdout.
+
+See the [Executor Protocol](executor) page for the full binary contract, lifecycle, and code examples in multiple languages.
+
+## Bridge mode
+
+Bridge mode is an alternative to running a full libp2p P2P node. A thin-client peer connects through a bridge service over WebSocket and appears as a virtual peer on the network.
+
+```json
+{
+  "p2p": { "bridge_mode": true },
+  "presence": { "bridge_url": "http://localhost:8804" },
+  "profile": { "email": "me@example.com" }
+}
+```
+
+The bridge service runs alongside the rendezvous server. It handles authentication, peer registration, and message relay. Bridge peers can do everything a full P2P peer can -- browse sites, join groups, send messages -- but all traffic is relayed through the bridge instead of flowing directly.
+
+## Encryption
+
+When an encryption service is configured, Goop2 enables peer-to-peer encryption:
+
+- **Key exchange**: Peers upload their NaCl public keys to the encryption service. Other peers can fetch them to encrypt direct messages.
+- **Broadcast keys**: The encryption service distributes sealed broadcast keys for group communications. Keys are rotated periodically.
+
+NaCl keypairs are generated automatically on first use and stored in the peer's config (`nacl_public_key` / `nacl_private_key`).
 
 ## Running multiple peers
 
@@ -67,6 +164,7 @@ All peer state lives in a single directory:
 |------|----------|
 | `goop.json` | Configuration |
 | `data/identity.key` | Persistent peer identity (your Peer ID) |
+| `data/relay.key` | Relay identity (rendezvous only) |
 | `data/peers.db` | Registration and peer database (rendezvous only) |
 | `site/` | Your site files and database |
 
@@ -107,11 +205,11 @@ Visitors can then reach your site at `https://mysite.example.com/p/<peer-id>/` u
 **Why this is powerful:**
 
 - **Zero deployment** -- no hosting provider, no containers, no CI/CD. Just run your peer.
-- **Zero cost** -- your laptop is the server. As long as it's on, your site is live. Goop2 runs just fine on a Raspberry Pi too -- perfect for an always-on community site with minimal power draw.
-- **Fully interactive** -- forms, real-time games, comments, leaderboards all work. Data operations are proxied through the viewer to your local database.
+- **Zero cost** -- your laptop is the server. As long as it's on, your site is live. Goop2 runs just fine on a Raspberry Pi too.
+- **Fully interactive** -- forms, real-time games, comments, leaderboards, video calls all work. Data operations are proxied through the viewer to your local database.
 - **Ephemeral by nature** -- close your laptop and the site vanishes. No data left behind on someone else's server.
 
-This makes Goop2 ideal for **temporary or community-driven sites**: a teacher running a quiz during class, a club sharing a pinboard for an event, a game night with friends, or a small team collaborating on a kanban board. No infrastructure needed -- just a peer and a link.
+This makes Goop2 ideal for **temporary or community-driven sites**: a teacher running a quiz during class, a club sharing a pinboard for an event, a game night with friends, or a small team collaborating on a kanban board.
 
 **Things to keep in mind:**
 

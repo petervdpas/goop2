@@ -1,6 +1,6 @@
 # Groups & Collaboration
 
-Groups are real-time, multi-peer communication channels. They enable features like multiplayer games, live quizzes, collaborative editing, and group chat.
+Groups are real-time, multi-peer communication channels. They enable features like multiplayer games, live quizzes, collaborative editing, group chat, file sharing, and distributed compute.
 
 ## How groups work
 
@@ -12,20 +12,23 @@ Member A  <--stream-->  Host  <--stream-->  Member B
                     (fan-out relay)
 ```
 
-This model works naturally because the host already serves the site, stores data, and knows its visitors.
+This model works naturally because the host already serves the site, stores data, and knows its visitors. All group events flow through the unified MQ bus.
 
 ## Group types
 
-| Type | Lifecycle | Visibility | Use case |
-|------|-----------|------------|----------|
-| **Ephemeral** | Auto-dissolves when activity ends | Activity-scoped | Games, quizzes |
-| **Persistent** | Exists until explicitly closed | Ongoing | Study groups, teams |
-| **Open** | Any peer can join | Listed in UI | Community chat |
-| **Invite-only** | Requires invitation | Private | Private projects |
+| Type | App type | Lifecycle | Use case |
+|------|----------|-----------|----------|
+| **Ephemeral** | varies | Auto-dissolves when activity ends | Games, quizzes |
+| **Persistent** | varies | Exists until explicitly closed | Study groups, teams |
+| **Open** | varies | Any peer can join | Community chat |
+| **Invite-only** | varies | Requires invitation | Private projects |
+| **Files** | `files` | Persistent | Shared file storage |
+| **Cluster** | `cluster` | Volatile | Distributed compute |
+| **Listen** | `listen` | Varies | Audio listening sessions |
 
 ## Creating a group
 
-Groups are created by the host peer, typically through a template's UI. The group is stored in the host's SQLite database and made available to visitors.
+Groups are created by the host peer through the viewer's **Groups** page or programmatically through the API. The group is stored in the host's SQLite database and made available to visitors.
 
 ## Joining a group
 
@@ -44,10 +47,69 @@ Members join by opening a stream to the host on the `/goop/group/1.0.0` protocol
 | `welcome` | Host to Member | Confirmation with current state |
 | `members` | Host to Members | Updated member list |
 | `msg` | Both directions | Application message (chat, game move) |
-| `state` | Host to Member | Full state sync (for reconnection) |
+| `meta` | Host to Members | Group metadata update |
+| `ping` / `pong` | Both directions | Keep-alive |
 | `leave` | Member to Host | Member leaving |
 | `close` | Host to Members | Group is being closed |
-| `error` | Host to Member | Error response |
+
+All group events are published on the MQ bus under the topic `group:{groupID}:{type}`. Group invites use `group.invite`.
+
+## File sharing
+
+File groups let peers share documents within a group. Any member can upload files and browse or download files shared by other members.
+
+### Creating a file group
+
+Create a group with app type `files` from the **Groups** page. File groups are persistent by default.
+
+### Uploading files
+
+Upload files through the viewer's file sharing UI or via the API:
+
+- `POST /api/docs/upload` -- Multipart upload (max 50 MB per file)
+- `POST /api/docs/upload-local` -- Upload from a local filesystem path
+
+### Browsing and downloading
+
+- `GET /api/docs/browse` -- Aggregates file lists from all group members (parallel query, 8s timeout per peer)
+- `GET /api/docs/download` -- Download a file from any member (local or proxied from remote peer)
+- `GET /api/docs/my` -- List your own shared files in a group
+
+Files are stored on each member's disk. When you browse, the viewer queries all online members and merges their file lists. Downloads are streamed directly from the owning peer.
+
+## Cluster compute
+
+Cluster groups enable distributed computation across peers. One peer acts as the **host** (dispatcher) and others join as **workers**. The host dispatches jobs to workers, which execute them using a configured executor binary.
+
+### Roles
+
+| Role | Responsibility |
+|------|---------------|
+| **Host** | Creates the cluster, dispatches jobs, collects results |
+| **Worker** | Joins a cluster, executes jobs using an executor binary |
+
+### Setting up a worker
+
+Configure the executor binary in your `goop.json`:
+
+```json
+{
+  "viewer": {
+    "cluster_binary_path": "/path/to/my-executor",
+    "cluster_binary_mode": "daemon"
+  }
+}
+```
+
+Binary modes:
+- **oneshot** -- Started per job, exits after producing a result.
+- **daemon** -- Started once, handles multiple jobs via stdin/stdout JSON.
+
+See the [Executor Protocol](executor) page for the full binary contract and code examples.
+
+### Submitting jobs
+
+The host submits jobs via the API or UI. Jobs have a type, payload, optional priority, timeout, and retry policy. The dispatcher assigns jobs to available workers and streams output back to the host.
 
 ## JavaScript API
 
@@ -79,19 +141,19 @@ Goop.group.leave();
 4. Move history is stored in the host's database.
 5. When the game ends, the group dissolves but the history persists.
 
-### Live quiz
+### File sharing workspace
 
-1. Teacher creates an open group for a quiz session.
-2. Students join the group.
-3. Timer synchronization and leaderboard updates flow through the group.
-4. Answers are stored in the teacher's database for grading.
+1. Host creates a file group for a project.
+2. Team members join and upload documents.
+3. Everyone can browse and download files from any member.
+4. Files live on each member's machine -- no central storage.
 
-### Study group
+### Distributed processing
 
-1. Host creates a persistent group.
-2. Members join for real-time discussion.
-3. Shared notes and resources are stored in the host's database.
-4. The group persists across sessions until the host closes it.
+1. Host creates a cluster and submits computation jobs.
+2. Workers join and execute jobs using their local executor binary.
+3. Results stream back to the host in real time.
+4. Workers can join and leave dynamically; the dispatcher handles reassignment.
 
 ## Interaction with other protocols
 
@@ -101,3 +163,4 @@ Goop.group.leave();
 | Store persistent data | `/goop/data/1.0.0` |
 | Real-time messaging | `/goop/group/1.0.0` |
 | Discover groups | Query `_groups` via `/goop/data/1.0.0` |
+| Event delivery | MQ bus (`group:{groupID}:{type}`) |

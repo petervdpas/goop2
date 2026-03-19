@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/swaggo/swag"
 )
 
 func (s *Server) handleStyle(w http.ResponseWriter, r *http.Request) {
@@ -51,6 +53,31 @@ func (s *Server) handleSplash(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	_, _ = w.Write(s.splash)
+}
+
+func (s *Server) handleOpenAPISpec(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	doc, err := swag.ReadDoc()
+	if err != nil {
+		http.Error(w, "spec unavailable", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-cache")
+	_, _ = w.Write([]byte(doc))
+}
+
+func (s *Server) handleExecutorAPISpec(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-yaml")
+	w.Header().Set("Cache-Control", "no-cache")
+	_, _ = w.Write(executorAPISpec)
 }
 
 func (s *Server) handleDocsRedirect(w http.ResponseWriter, r *http.Request) {

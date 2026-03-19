@@ -2,9 +2,9 @@
 
 ## Desktop app (recommended)
 
-The easiest way to use Goop2 is the desktop application.
+The easiest way to use Goop2 is the desktop application, available as a native build or as a Flatpak.
 
-### 1. Build
+### Option A: Build from source
 
 You need [Go 1.24+](https://go.dev/) and the [Wails CLI](https://wails.io/):
 
@@ -14,7 +14,16 @@ cd goop2
 wails build
 ```
 
-### 2. Launch
+### Option B: Flatpak
+
+Install the Flatpak package from the latest release:
+
+```bash
+flatpak install goop2.flatpak
+flatpak run com.github.petervdpas.goop2
+```
+
+### Launch
 
 ```bash
 ./build/bin/goop2
@@ -22,11 +31,11 @@ wails build
 
 The app opens a window where you can create peers, start and stop them, and manage your sites.
 
-### 3. Create a peer
+### Create a peer
 
 Click **Create Peer**, give it a name, and hit create. Goop2 sets up the directory, generates a cryptographic identity, and creates a default site -- all automatically.
 
-### 4. Start and visit
+### Start and visit
 
 Click **Start** on your peer. The viewer opens in your browser, showing your site and any other peers on your local network.
 
@@ -57,6 +66,8 @@ This starts a lightweight HTTP server that peers can publish their presence to. 
 
 ## What's next?
 
-- **Connect to other peers** -- See [Connecting to Peers](connecting) for mDNS and rendezvous setup.
+- **Connect to other peers** -- See [Connecting to Peers](connecting) for mDNS, rendezvous, and bridge setup.
 - **Customize your config** -- See [Configuration](configuration) for the full reference.
 - **Use a template** -- See [Templates](templates) to install a pre-built blog, quiz, or game.
+- **Start a video call** -- See [Advanced Topics](advanced) for native video call setup.
+- **Share files** -- See [Groups & Collaboration](groups) for file sharing and cluster compute.

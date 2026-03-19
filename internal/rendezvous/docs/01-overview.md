@@ -8,6 +8,7 @@ Goop2 is a peer-to-peer platform for the **ephemeral web**. Instead of uploading
 - **Peer-first architecture** -- Every participant is both client and server. You serve your own content and browse other peers directly.
 - **No central control** -- Discovery happens via local-network mDNS or lightweight rendezvous servers. Nobody owns the network.
 - **Direct connections** -- Peers exchange data over libp2p streams. When direct connections aren't possible, a circuit relay helps peers connect through NAT.
+- **Real-time collaboration** -- Groups, video calls, file sharing, and cluster compute all work peer-to-peer with no central server in the data path.
 
 ## How it works
 
@@ -29,8 +30,15 @@ Visitors see your site rendered in their own viewer. Data operations (forms, com
 | **Database** | A local SQLite database (`data.db`) for dynamic content. |
 | **Presence** | Soft state: peers announce periodically; absence is inferred after a timeout. |
 | **Template** | A pre-built application (blog, quiz, game) that bundles HTML, CSS, JS, a database schema, and optional Lua logic. |
+| **Group** | A real-time communication channel between peers -- used for chat, games, file sharing, and cluster compute. |
 | **Rendezvous** | A lightweight server that helps peers on different networks find each other. It handles discovery only -- not data. |
 | **Relay** | A circuit relay (libp2p relay v2) that helps peers behind NAT connect when direct hole-punching fails. Runs alongside the rendezvous server. |
+| **MQ** | A unified message queue that carries all real-time events (group messages, call signaling, peer announcements) over a single event stream. |
+| **Video calls** | Peer-to-peer video and audio calls using Pion WebRTC, with WebM streaming for platforms without browser WebRTC support. |
+| **Cluster** | Distributed compute across peers -- a host dispatches jobs to workers running executor binaries. |
+| **File sharing** | Upload and share files within a group. Members can browse and download files from any peer in the group. |
+| **Bridge** | A thin-client mode where peers connect through a WebSocket bridge instead of running a full libp2p node. |
+| **Encryption** | NaCl key exchange between peers and broadcast key distribution managed by an optional encryption service. |
 
 ## What Goop2 is not
 

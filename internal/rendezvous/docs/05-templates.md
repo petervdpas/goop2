@@ -18,18 +18,18 @@ templates/
       my-function.lua
 ```
 
-When you apply a template, Goop2 copies the template files into your `site/` directory and initializes the database schema. You can do this from the viewer's **Templates** page.
+When you apply a template, Goop2 copies the template files into your `site/` directory and initializes the database schema. You can do this from the viewer's **Create > Templates** page.
 
 ## Built-in templates
 
-These ship with the Goop2 binary and are always available:
+These are embedded in the Goop2 binary and are always available:
 
 ### Blog
 
-A personal blog where visitors can read posts and leave comments. Only the site owner can create posts.
+A personal blog where you and invited co-authors can write posts. Visitors see a read-only feed.
 
 - **Category**: Content
-- **Insert policy**: `owner` for posts, `email` for comments
+- **Insert policy**: `group` for posts, `owner` for blog config
 
 ### Enquete
 
@@ -40,7 +40,7 @@ A simple survey application. Visitors answer questions and responses are collect
 
 ### Tic-Tac-Toe
 
-A multiplayer tic-tac-toe game with server-side Lua enforcing the rules. Visitors can challenge the host to a match.
+A multiplayer tic-tac-toe game with server-side Lua enforcing the rules. Visitors can challenge the host or play against the computer.
 
 - **Category**: Games
 - **Insert policy**: `open` for game creation
@@ -53,26 +53,41 @@ A real-time group chat room. Uses the groups protocol for live messaging between
 
 ## Store templates
 
-Additional templates are available through the **template store** on a rendezvous server. Store templates are served by the **templates microservice** -- a separate service from the [goop2-services](https://github.com/petervdpas/goop2-services) repository. The rendezvous server proxies requests to it when `templates_url` is configured.
+Additional templates are available through the **template store** on a rendezvous server. Store templates are served by the **templates microservice** -- a separate service from the [goop2-services](https://github.com/petervdpas/goop2-services) repository. The rendezvous server proxies requests to it when `templates_url` is configured with `use_services` enabled.
 
-These can be browsed and installed from the viewer's Templates page or from the rendezvous server's `/store` page.
+These can be browsed and installed from the viewer's Create > Templates page or from the rendezvous server's `/store` page.
 
 Current store templates include:
 
 | Template | Category | Description |
 |----------|----------|-------------|
-| **Chess** | Games | Classic chess with server-side move validation |
-| **Quiz** | Education | Timed quizzes with scoring and leaderboard |
-| **Corkboard** | Community | Pin notes and ads -- a digital bulletin board |
-| **Kanban** | Productivity | Task board with drag-and-drop columns |
-| **Photobook** | Content | Photo gallery with albums |
-| **Arcade** | Games | Retro arcade games |
+| **Quiz** | Community | A multiple-choice quiz with server-side scoring |
+| **Space Invaders** | Games | Classic arcade shooter -- defend Earth from alien invaders |
+| **Chess** | Games | Classic chess -- challenge visitors or play against the computer |
+| **Corkboard** | Community | Community advertisement board -- pin notes, pushpins, color-coded cards |
+| **Day Trader** | Finance | Real-time price charts for any trading instrument with configurable symbols and API |
+| **Kanban** | Productivity | A shared team kanban board -- owner manages columns, co-authors collaborate on cards |
+| **Photobook** | Content | A personal photo gallery with albums and lightbox |
 
 When a credits service is also configured, store templates can be priced. Peers need sufficient credits to download priced templates.
 
+### Local template store
+
+If you don't want to run the templates microservice, you can serve templates directly from a local directory by setting `templates_dir` in your rendezvous config:
+
+```json
+{
+  "presence": {
+    "templates_dir": "templates"
+  }
+}
+```
+
+Each subdirectory needs a `manifest.json`. This fallback is used when `templates_url` is empty or `use_services` is false. Local templates are always free.
+
 ### Store API
 
-The rendezvous server proxies these endpoints to the templates service:
+The rendezvous server proxies these endpoints to the templates service (or serves them from the local directory):
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
@@ -89,6 +104,7 @@ Templates define who can write data to each table:
 |--------|---------------|
 | `owner` | Only the site owner. |
 | `email` | Any peer with a verified email. |
+| `group` | Members of an authorized group (e.g. blog co-authors). |
 | `open` | Any peer. |
 
 The policy is defined per table in the template manifest:
@@ -96,7 +112,7 @@ The policy is defined per table in the template manifest:
 ```json
 {
   "tables": {
-    "posts": { "insert_policy": "owner" },
+    "posts": { "insert_policy": "group" },
     "comments": { "insert_policy": "email" },
     "games": { "insert_policy": "open" }
   }
@@ -114,7 +130,7 @@ The same template code handles both cases transparently.
 
 ## Creating a custom template
 
-To add a store template, create a directory in the templates service's `templates_dir` (e.g. `templates/my-app/`):
+To create a template for the store, create a directory in the templates service's `templates_dir`:
 
 1. Add a `manifest.json` with metadata and schema.
 2. Write your `index.html`, `style.css`, and `app.js`.
@@ -122,4 +138,4 @@ To add a store template, create a directory in the templates service's `template
 4. Optionally add `schema.sql` for database tables.
 5. Optionally add Lua functions in `lua/functions/` for server-side logic.
 
-The template will appear in the store and can be installed by any peer connected to that rendezvous server. You can also add additional template directories to the templates service using its `extra_dirs` config.
+The template will appear in the store and can be installed by any peer connected to that rendezvous server. The templates service supports `extra_dirs` in its config for loading templates from multiple directories.

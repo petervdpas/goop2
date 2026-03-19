@@ -18,6 +18,10 @@ Your content vanishes from the network. Other peers will mark you as offline aft
 
 Yes. Give each peer a different directory and a different `viewer.http_addr` port. If both peers use libp2p, set different `p2p.listen_port` values (or leave both at `0` for auto-selection).
 
+### What are the external services?
+
+Goop2 can optionally connect to six standalone microservices (registration, credits, email, templates, bridge, encryption) that add functionality to the rendezvous server. They are separate binaries, not part of the core. Set `use_services` to `true` and provide service URLs to enable them. See [Configuration](configuration) for details.
+
 ## Networking
 
 ### Peers on the same LAN can't find each other
@@ -38,6 +42,7 @@ Yes. Give each peer a different directory and a different `viewer.http_addr` por
 - **Check the URL in your config.** The `rendezvous_wan` value must be a full URL including the protocol (`http://` or `https://`).
 - **Check the firewall.** The rendezvous port (default 8787) must be reachable, or use a reverse proxy on ports 80/443.
 - **Check TLS.** If using HTTPS, make sure your certificate is valid.
+- **Check the bind address.** If hosting a rendezvous server, set `rendezvous_bind` to `0.0.0.0` to accept connections from other machines.
 
 ### Peers can't connect directly (NAT issues)
 
@@ -46,6 +51,7 @@ If peers discover each other via rendezvous but can't exchange data:
 - **Enable the circuit relay.** Set `relay_port` on your rendezvous server (e.g. `4001`). Peers will automatically use it for NAT traversal.
 - **Forward a port.** If you can, forward a TCP port on your router and set `p2p.listen_port` to match.
 - **Check your router.** Some routers block hole punching. The circuit relay is the fallback for these cases.
+- **Try bridge mode.** If P2P is not possible at all, enable `bridge_mode` to connect through a bridge service over WebSocket.
 
 ### What ports do I need to open?
 
@@ -68,6 +74,52 @@ proxy_read_timeout 86400;
 ```
 
 **Caddy** handles SSE correctly by default.
+
+## Video calls
+
+### Video calls aren't working
+
+- Check that `video_disabled` is `false` in your config.
+- On Linux (Wails), check that a camera device is available. Goop2 skips audio capture if no audio device is found.
+- Check the browser console for WebRTC or media errors.
+- Both peers must be directly connected (via LAN, rendezvous, or relay). Call signaling happens over the MQ bus.
+
+### Video freezes or reconnects repeatedly
+
+- This is typically caused by subscriber channel backpressure. Make sure your network can handle the video bitrate.
+- On page navigation, calls are restored automatically. The viewer requests a fresh keyframe (PLI) to avoid stale-frame freezes.
+
+### Can I set preferred camera/mic?
+
+Yes. Set `preferred_cam` and `preferred_mic` in the viewer config to the device labels you want. These are also configurable from the settings page.
+
+## Cluster compute
+
+### How do I set up a cluster?
+
+1. Configure an executor binary on worker peers (`cluster_binary_path` + `cluster_binary_mode`).
+2. One peer creates a cluster from the Groups page.
+3. Other peers join the cluster.
+4. The host submits jobs; workers execute them.
+
+### What executor binary modes are there?
+
+- **oneshot**: Binary is started per job and exits after producing a result.
+- **daemon**: Binary starts once and handles multiple jobs via stdin/stdout JSON.
+
+See the [Executor Protocol](executor) page for the full specification and code examples.
+
+## File sharing
+
+### How do I share files with other peers?
+
+1. Create a file group from the **Groups** page.
+2. Upload files via the file sharing UI (max 50 MB per file).
+3. Other group members can browse and download your files.
+
+### Where are shared files stored?
+
+Files are stored locally on each peer's disk. There is no central file server. When browsing, the viewer queries all online group members and merges their file lists. Downloads stream directly from the file owner.
 
 ## Site content
 
