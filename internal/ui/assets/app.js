@@ -1,5 +1,35 @@
 (() => {
-  // Viewer UI utilities — no SDK dependency.
+  function loadSequentially(list, i = 0) {
+    if (i >= list.length) return;
+
+    const s = document.createElement("script");
+    s.src = list[i];
+    s.defer = true;
+    s.onload = () => loadSequentially(list, i + 1);
+    s.onerror = () => {
+      console.error("Failed to load", s.src);
+      loadSequentially(list, i + 1);
+    };
+    document.head.appendChild(s);
+  }
+
+  // Rendezvous-only mode: settings + logs pages, no P2P/MQ/calls.
+  if (document.body.hasAttribute("data-rendezvous-only")) {
+    loadSequentially([
+      "/assets/js/core.js",
+      "/assets/js/api.js",
+      "/assets/js/select.js",
+      "/assets/js/theme.js",
+      "/assets/js/toast.js",
+      "/assets/js/settings-popup.js",
+      "/assets/js/forms.js",
+      "/assets/js/pages/self.js",
+      "/assets/js/pages/logs.js",
+    ]);
+    return;
+  }
+
+  // Full viewer stack.
   const sharedFiles = [
     "/assets/js/core.js",
     "/assets/js/api.js",
@@ -23,7 +53,6 @@
     "/assets/js/forms.js",
   ];
 
-  // Viewer-only call layer — single unified file handles both browser and native modes.
   const callFiles = [
     "/assets/js/call.js",
     "/assets/js/call-ui.js",
@@ -48,22 +77,5 @@
     "/assets/js/pages/self.js",
   ];
 
-  const files = [...sharedFiles, ...callFiles, ...pageFiles];
-
-  function loadSequentially(list, i = 0) {
-    if (i >= list.length) return;
-
-    const s = document.createElement("script");
-    s.src = list[i];
-    s.defer = true;
-    s.onload = () => loadSequentially(list, i + 1);
-    s.onerror = () => {
-      console.error("Failed to load", s.src);
-      // Continue loading the rest so the app isn't dead if one file is missing.
-      loadSequentially(list, i + 1);
-    };
-    document.head.appendChild(s);
-  }
-
-  loadSequentially(files);
+  loadSequentially([...sharedFiles, ...callFiles, ...pageFiles]);
 })();

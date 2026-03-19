@@ -22,7 +22,7 @@
     <link rel="stylesheet" href="/assets/app.css" />
     <script src="/assets/app.js"></script>
   </head>
-  <body data-os="{{.WhichOS}}"{{if .SelfID}} data-self-id="{{.SelfID}}"{{end}} data-open-sites-external="{{.OpenSitesExternal}}"{{if .BridgeURL}} data-bridge-url="{{.BridgeURL}}"{{end}}>
+  <body data-os="{{.WhichOS}}"{{if .SelfID}} data-self-id="{{.SelfID}}"{{end}} data-open-sites-external="{{.OpenSitesExternal}}"{{if .BridgeURL}} data-bridge-url="{{.BridgeURL}}"{{end}}{{if .RendezvousOnly}} data-rendezvous-only{{end}}>
     <div class="app">
       <header class="topbar">
         <div class="brand">
