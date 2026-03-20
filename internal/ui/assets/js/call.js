@@ -1068,7 +1068,7 @@
       .catch(function () { return {}; })
       .then(function (j) {
         _mode     = j.mode     || 'browser';
-        _platform = j.platform || 'unknown';
+        _platform = j.platform || document.body.getAttribute('data-os') || 'unknown';
         if (!sessionStorage.getItem('call:mode-logged')) {
           sessionStorage.setItem('call:mode-logged', '1');
           log('info', 'mode=' + _mode + ' platform=' + _platform);

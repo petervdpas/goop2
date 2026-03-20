@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/petervdpas/goop2/internal/avatar"
@@ -131,6 +132,19 @@ func RegisterMinimal(mux *http.ServeMux, d Deps) {
 		{"/logs", "Logs", "logs", "page.logs"},
 	})
 	registerAvatarRoutes(mux, d)
+
+	// MQ SSE stub — signals rendezvous mode, then holds the connection open.
+	handleGet(mux, "/api/mq/events", func(w http.ResponseWriter, r *http.Request) {
+		sseHeaders(w)
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming not supported", http.StatusInternalServerError)
+			return
+		}
+		fmt.Fprintf(w, "event: message\ndata: {\"type\":\"mode\",\"mode\":\"rendezvous\"}\n\n")
+		flusher.Flush()
+		<-r.Context().Done()
+	})
 
 	// Topology graph — uses TopologyFunc when wired from rendezvous.
 	handleGet(mux, "/api/topology", topologyHandler(d))

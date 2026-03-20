@@ -5,16 +5,20 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"path"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/petervdpas/goop2/internal/config"
 	"github.com/petervdpas/goop2/internal/ui/render"
 	"github.com/petervdpas/goop2/internal/ui/viewmodels"
 )
+
+var appRunID = fmt.Sprintf("%d", time.Now().UnixNano())
 
 func baseVM(title, active, contentTmpl string, d Deps) viewmodels.BaseVM {
 	debug := false
@@ -56,6 +60,7 @@ func baseVM(title, active, contentTmpl string, d Deps) viewmodels.BaseVM {
 		BridgeURL:             d.BridgeURL,
 		WhichOS:               runtime.GOOS,
 		OpenSitesExternal:     openSitesExternal,
+		AppRunID:              appRunID,
 	}
 }
 

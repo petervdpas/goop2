@@ -25,4 +25,7 @@ type BaseVM struct {
 
 	// When true, peer sites open in system browser instead of embedded tabs
 	OpenSitesExternal bool
+
+	// Server startup ID — used by JS to clear stale sessionStorage on restart
+	AppRunID string
 }

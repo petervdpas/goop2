@@ -1,4 +1,10 @@
 (() => {
+  var rid = document.documentElement.getAttribute("data-rid") || "";
+  if (rid && sessionStorage.getItem("goop:rid") !== rid) {
+    sessionStorage.clear();
+    sessionStorage.setItem("goop:rid", rid);
+  }
+
   function onReady(fn) {
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", fn, { once: true });

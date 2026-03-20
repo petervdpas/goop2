@@ -19,8 +19,14 @@
   function log(level, msg) {
     if (window.Goop && window.Goop.log && window.Goop.log[level]) {
       window.Goop.log[level]("mq", msg);
+    }
+  }
+
+  function logWhenReady(level, msg) {
+    if (window.Goop && window.Goop.log && window.Goop.log[level]) {
+      window.Goop.log[level]("mq", msg);
     } else {
-      (console[level] || console.log)("[mq]", msg);
+      setTimeout(function() { logWhenReady(level, msg); }, 200);
     }
   }
 
@@ -157,6 +163,18 @@
   }
 
   function handleSSEEvent(evt) {
+    if (evt.type === "mode") {
+      if (evt.mode === "rendezvous") {
+        if (!sessionStorage.getItem("mq:mode-logged")) {
+          sessionStorage.setItem("mq:mode-logged", "1");
+          logWhenReady("info", "MQ: rendezvous mode, event stream idle");
+        }
+        if (_es) { _es.close(); _es = null; }
+        clearTimeout(_esReconnectTimer);
+      }
+      return;
+    }
+
     if (evt.type === "delivered") {
       markDelivered(evt.msg_id);
       return;
