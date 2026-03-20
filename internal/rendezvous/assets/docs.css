@@ -1,7 +1,7 @@
 /* Goop² Docs — documentation-specific styles */
 
 .docs-container {
-  max-width: none;
+  max-width: 1200px;
 }
 
 .docs-layout {
@@ -44,14 +44,14 @@
 }
 
 .sidebar-link:hover {
-  color: var(--text);
-  background: var(--bg-inset);
+  color: var(--text-primary);
+  background: var(--bg-card);
 }
 
 .sidebar-link.active {
   color: var(--accent);
   border-left-color: var(--accent);
-  background: var(--bg-inset);
+  background: var(--bg-card);
   font-weight: 600;
 }
 
@@ -61,7 +61,7 @@
 }
 
 .docs-article {
-  padding: 36px 48px;
+  padding: 36px 40px;
   border-radius: 14px;
   line-height: 1.75;
 }
@@ -95,7 +95,7 @@
 
 .docs-article p {
   margin: 0 0 16px;
-  color: var(--text);
+  color: var(--text-secondary);
 }
 
 .docs-article a {
@@ -117,7 +117,7 @@
 .docs-article ol {
   margin: 0 0 16px;
   padding-left: 24px;
-  color: var(--text);
+  color: var(--text-secondary);
 }
 
 .docs-article li {
@@ -180,7 +180,7 @@
 .docs-article td {
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
-  color: var(--text);
+  color: var(--text-secondary);
 }
 
 .docs-article tr:last-child td {
@@ -198,7 +198,7 @@
   border-left: 4px solid var(--accent);
   background: var(--bg-card);
   border-radius: 0 10px 10px 0;
-  color: var(--text);
+  color: var(--text-secondary);
 }
 
 .docs-article blockquote p:last-child {
@@ -327,12 +327,4 @@
 }
 #redoc-container .menu-content {
   background: transparent;
-}
-
-.docs-article:has(#redoc-container) {
-  padding: 24px 20px;
-}
-
-.docs-article:has(#swagger-ui) {
-  padding: 24px 20px;
 }
