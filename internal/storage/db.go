@@ -80,6 +80,18 @@ func Open(configDir string) (*DB, error) {
 	// Migration: add insert_policy column if missing (existing databases)
 	db.Exec(`ALTER TABLE _tables ADD COLUMN insert_policy TEXT DEFAULT 'owner'`)
 
+	// ORM schema registry: stores JSON schema for ORM-managed tables
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS _orm_schemas (
+			table_name  TEXT PRIMARY KEY,
+			schema_json TEXT NOT NULL,
+			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+	`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("create orm schemas registry: %w", err)
+	}
+
 	// Create groups table
 	if _, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS _groups (
