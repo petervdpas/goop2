@@ -78,12 +78,26 @@ func RunPeer(p PeerParams) error {
 	progress(step, total, "Discovering relay")
 
 	var relayInfo *rendezvous.RelayInfo
-	for _, c := range rvClients {
-		ri, err := c.FetchRelayInfo(ctx)
-		if err == nil && ri != nil {
-			relayInfo = ri
-			log.Printf("relay: discovered relay peer %s (%d addrs)", ri.PeerID, len(ri.Addrs))
-			break
+	if len(rvClients) > 0 {
+		type relayResult struct {
+			info *rendezvous.RelayInfo
+		}
+		ch := make(chan relayResult, len(rvClients))
+		for _, c := range rvClients {
+			go func(c *rendezvous.Client) {
+				ri, err := c.FetchRelayInfo(ctx)
+				if err == nil && ri != nil {
+					ch <- relayResult{info: ri}
+				} else {
+					ch <- relayResult{}
+				}
+			}(c)
+		}
+		for range rvClients {
+			if r := <-ch; r.info != nil && relayInfo == nil {
+				relayInfo = r.info
+				log.Printf("relay: discovered relay peer %s (%d addrs)", r.info.PeerID, len(r.info.Addrs))
+			}
 		}
 	}
 
@@ -96,6 +110,10 @@ func RunPeer(p PeerParams) error {
 		return err
 	}
 	defer node.Close()
+
+	// Start watching connection events immediately so mDNS connections
+	// (which can happen inside p2p.New) mark peers reachable right away.
+	node.SubscribeConnectionEvents(ctx, nil)
 
 	// Register all stream handlers immediately after the host is created,
 	// before any peer can connect and run Identify.
@@ -173,6 +191,47 @@ func RunPeer(p PeerParams) error {
 		if len(cachedPeers) > 0 {
 			log.Printf("peer cache: loaded %d known peers", len(cachedPeers))
 		}
+	}
+
+	// Start rendezvous WS connections as early as possible so peer discovery
+	// begins while we wire up services. All dependencies (peers, node, db) are ready.
+	rvOnMsg := func(pm proto.PresenceMsg) {
+		if pm.PeerID == node.ID() {
+			return
+		}
+		switch pm.Type {
+		case proto.TypeOnline, proto.TypeUpdate:
+			_, known := peers.Get(pm.PeerID)
+			peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.PublicKey, pm.EncryptionSupported, pm.Verified)
+			go db.UpsertCachedPeer(storage.CachedPeer{
+				PeerID:         pm.PeerID,
+				Content:        pm.Content,
+				Email:          pm.Email,
+				AvatarHash:     pm.AvatarHash,
+				VideoDisabled:  pm.VideoDisabled,
+				ActiveTemplate: pm.ActiveTemplate,
+				PublicKey:      pm.PublicKey,
+				Verified:       pm.Verified,
+				Addrs:          pm.Addrs,
+			})
+			node.AddPeerAddrs(pm.PeerID, pm.Addrs)
+			if !known {
+				go node.ProbePeer(ctx, pm.PeerID)
+			}
+		case proto.TypePunch:
+			if pm.Target != node.ID() {
+				break
+			}
+			log.Printf("punch hint: peer %s at %d addrs", pm.PeerID[:min(8, len(pm.PeerID))], len(pm.Addrs))
+			node.AddPeerAddrs(pm.PeerID, pm.Addrs)
+			go node.ProbePeer(ctx, pm.PeerID)
+		case proto.TypeOffline:
+			peers.MarkOffline(pm.PeerID)
+		}
+	}
+	for _, c := range rvClients {
+		cc := c
+		go cc.ConnectWebSocket(ctx, node.ID(), rvOnMsg)
 	}
 
 	step++
@@ -350,47 +409,6 @@ func RunPeer(p PeerParams) error {
 		log.Printf("📄 File sharing enabled: /goop/docs/1.0.0")
 	}
 
-	rvOnMsg := func(pm proto.PresenceMsg) {
-		if pm.PeerID == node.ID() {
-			return
-		}
-		switch pm.Type {
-		case proto.TypeOnline, proto.TypeUpdate:
-			_, known := peers.Get(pm.PeerID)
-			peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.PublicKey, pm.EncryptionSupported, pm.Verified)
-			go db.UpsertCachedPeer(storage.CachedPeer{
-				PeerID:         pm.PeerID,
-				Content:        pm.Content,
-				Email:          pm.Email,
-				AvatarHash:     pm.AvatarHash,
-				VideoDisabled:  pm.VideoDisabled,
-				ActiveTemplate: pm.ActiveTemplate,
-				PublicKey:      pm.PublicKey,
-				Verified:       pm.Verified,
-				Addrs:          pm.Addrs,
-			})
-			node.AddPeerAddrs(pm.PeerID, pm.Addrs)
-			if !known {
-				go node.ProbePeer(ctx, pm.PeerID)
-			}
-		case proto.TypePunch:
-			if pm.Target != node.ID() {
-				break
-			}
-			log.Printf("punch hint: peer %s at %d addrs", pm.PeerID[:min(8, len(pm.PeerID))], len(pm.Addrs))
-			node.AddPeerAddrs(pm.PeerID, pm.Addrs)
-			go node.ProbePeer(ctx, pm.PeerID)
-		case proto.TypeOffline:
-			peers.MarkOffline(pm.PeerID)
-		}
-	}
-
-	// Connect to each rendezvous server via WebSocket (preferred) with SSE fallback.
-	for _, c := range rvClients {
-		cc := c
-		go cc.ConnectWebSocket(ctx, node.ID(), rvOnMsg)
-	}
-
 	publish := func(pctx context.Context, typ string) {
 		node.Publish(pctx, typ)
 		addrs := node.WanAddrs()
@@ -527,29 +545,18 @@ func RunPeer(p PeerParams) error {
 		})
 	}
 
-	// Wait for relay circuit address before first publish so remote peers
-	// receive our circuit address immediately (avoids backoff race).
-	// Notify the browser about relay state so the user knows why WAN
-	// connections may not be available yet.
+	// Publish immediately — don't block on relay circuit address.
+	// SubscribeAddressChanges (below) re-publishes with TypeUpdate as soon as
+	// the circuit address appears, so WAN peers get our relay address without
+	// stalling LAN discovery for up to 8 s.
+	publish(ctx, proto.TypeOnline)
+
 	if relayInfo != nil {
 		mqMgr.PublishLocal("relay:status", "", map[string]any{
 			"status": "waiting",
-			"msg":    "Connecting to relay — WAN peers require a relay circuit",
+			"msg":    "Connecting to relay — WAN peers will be reachable once circuit is obtained",
 		})
-		if node.WaitForRelay(ctx, RelayWaitTimeout) {
-			mqMgr.PublishLocal("relay:status", "", map[string]any{
-				"status": "connected",
-				"msg":    "Relay connected — WAN peers are reachable",
-			})
-		} else {
-			mqMgr.PublishLocal("relay:status", "", map[string]any{
-				"status": "timeout",
-				"msg":    "Relay unavailable — WAN connections will not work until relay recovers",
-			})
-		}
 	}
-
-	publish(ctx, proto.TypeOnline)
 
 	// Register NaCl public key with encryption service(s) after first publish.
 	if cfg.P2P.NaClPublicKey != "" {
@@ -585,7 +592,6 @@ func RunPeer(p PeerParams) error {
 			})
 		}
 	})
-	node.SubscribeConnectionEvents(ctx, nil)
 	if relayInfo != nil {
 		// Periodically refresh the relay connection to prevent stale state.
 		// This ensures the relay reservation stays active even when the TCP

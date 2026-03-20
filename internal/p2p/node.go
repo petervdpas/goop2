@@ -1045,7 +1045,8 @@ func (n *Node) SubscribeConnectionEvents(ctx context.Context, onConnect func(pee
 				rawID := e.Peer.String()
 				sp, known := n.peers.Get(rawID)
 				if known && !sp.Reachable {
-					go n.ProbePeer(ctx, rawID)
+					n.peers.SetReachable(rawID, true)
+					log.Printf("probe %s: REACHABLE (connection event)", rawID[:16])
 				}
 				if onConnect != nil {
 					go onConnect(rawID)
