@@ -877,17 +877,17 @@ func (n *Node) AddPeerAddrs(peerID string, addrs []string) {
 	if len(direct) > 0 {
 		n.Host.Peerstore().AddAddrs(pid, direct, addrTTL)
 	}
-	if len(circuit) > 0 {
-		n.Host.Peerstore().AddAddrs(pid, circuit, addrTTL)
-	}
+	// Circuit addresses are NOT stored in the peerstore on heartbeat.
+	// Host.Connect uses ALL peerstore addresses (not just the ones you pass),
+	// so storing circuit addresses here would cause every dial to attempt a
+	// relay circuit — defeating the direct-first strategy. Circuit addresses
+	// are only added to the peerstore in connectViaRelay when direct fails.
 
 	// Fresh addresses just arrived (presence heartbeat or mDNS).
 	// Clear any accumulated dial backoff so the new addresses win immediately,
 	// then kick off a background connect if we are not already connected.
 	// Direct-first: try direct addresses only. If direct fails, fall back to
 	// circuit addresses (published by the peer or injected as last resort).
-	// This avoids unnecessary CIRCUIT requests on the relay when peers are
-	// reachable directly.
 	if sw, ok := n.Host.Network().(*swarm.Swarm); ok {
 		sw.Backoff().Clear(pid)
 	}

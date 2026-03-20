@@ -393,7 +393,9 @@ func (n *Node) injectRelayAddrs(pid peer.ID, logIt bool) {
 // has already failed. Uses the peer's published circuit addresses if available,
 // otherwise injects relay addresses as a last resort.
 func (n *Node) connectViaRelay(pid peer.ID, circuit []ma.Multiaddr) {
-	if len(circuit) == 0 {
+	if len(circuit) > 0 {
+		n.Host.Peerstore().AddAddrs(pid, circuit, PeerstoreAddrTTL)
+	} else {
 		n.injectRelayAddrs(pid, true)
 	}
 	addrs := n.Host.Peerstore().Addrs(pid)

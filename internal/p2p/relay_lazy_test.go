@@ -123,7 +123,7 @@ func TestAddPeerAddrs_AlreadyConnected_NoDial(t *testing.T) {
 	}
 }
 
-func TestAddPeerAddrs_WithPublishedCircuit_UsesIt(t *testing.T) {
+func TestAddPeerAddrs_WithPublishedCircuit_NotStoredOnHeartbeat(t *testing.T) {
 	n, targetID := newTestNode(t)
 
 	directAddr := "/ip4/192.168.1.100/tcp/4001"
@@ -131,12 +131,32 @@ func TestAddPeerAddrs_WithPublishedCircuit_UsesIt(t *testing.T) {
 
 	n.AddPeerAddrs(targetID.String(), []string{directAddr, circuitAddr})
 
-	// Both direct and circuit should be in peerstore.
+	// Direct address should be in peerstore.
 	if len(directAddrsInPeerstore(n, targetID)) == 0 {
 		t.Fatal("expected direct addresses in peerstore")
 	}
-	if len(circuitAddrsInPeerstore(n, targetID)) == 0 {
-		t.Fatal("expected published circuit addresses in peerstore")
+
+	// Circuit addresses must NOT be in peerstore after heartbeat.
+	// Host.Connect dials ALL peerstore addresses — storing circuit here
+	// would cause every direct dial to also attempt a relay circuit.
+	time.Sleep(50 * time.Millisecond)
+	if got := circuitAddrsInPeerstore(n, targetID); len(got) > 0 {
+		t.Fatalf("circuit addresses should not be stored on heartbeat (defeats direct-first), got %d", len(got))
+	}
+}
+
+func TestAddPeerAddrs_CircuitOnly_UsesRelayFallback(t *testing.T) {
+	n, targetID := newTestNode(t)
+
+	circuitAddr := "/ip4/10.0.0.1/tcp/4001/p2p/" + n.relayPeer.ID.String() + "/p2p-circuit"
+
+	// Peer published only circuit addresses (no direct) — relay-only peer.
+	n.AddPeerAddrs(targetID.String(), []string{circuitAddr})
+
+	// No direct addresses — should trigger connectViaRelay which stores them.
+	time.Sleep(100 * time.Millisecond)
+	if got := circuitAddrsInPeerstore(n, targetID); len(got) == 0 {
+		t.Fatal("relay-only peer should get circuit addresses stored via connectViaRelay")
 	}
 }
 
