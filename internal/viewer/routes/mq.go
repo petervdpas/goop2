@@ -30,7 +30,7 @@ func RegisterMQ(mux *http.ServeMux, mqMgr *mq.Manager, db *storage.DB, selfID st
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), MQSendTimeout)
 		defer cancel()
 
 		msgID, err := mqMgr.Send(ctx, req.PeerID, req.Topic, req.Payload)
@@ -71,7 +71,7 @@ func RegisterMQ(mux *http.ServeMux, mqMgr *mq.Manager, db *storage.DB, selfID st
 		}
 
 		// Send an application-level delivery confirmation back to the sender.
-		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), MQAckRelayTimeout)
 		defer cancel()
 
 		if _, err := mqMgr.Send(ctx, req.FromPeerID, "mq.ack", map[string]string{"msg_id": req.MsgID}); err != nil {

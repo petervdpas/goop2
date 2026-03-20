@@ -169,7 +169,7 @@ func (s *Server) handleDiagPeer(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	// Open a diagnostic stream to the peer via the relay connection.
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), DiagStreamTimeout)
 	defer cancel()
 
 	stream, err := s.relayHost.NewStream(ctx, pid, protocol.ID("/goop/diag/1.0.0"))
@@ -243,7 +243,7 @@ func (s *Server) handlePulse(w http.ResponseWriter, r *http.Request) {
 	s.relayAddLog(fmt.Sprintf("pulse: refreshing relay for %s (requested by %s)", pid.String()[:16]+"...", extractIP(r.RemoteAddr)))
 
 	// Open a relay-refresh stream to the target peer.
-	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), PulseTimeout)
 	defer cancel()
 
 	stream, err := s.relayHost.NewStream(ctx, pid, protocol.ID("/goop/relay-refresh/1.0.0"))

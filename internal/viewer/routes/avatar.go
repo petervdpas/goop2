@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/petervdpas/goop2/internal/avatar"
 )
@@ -155,7 +154,7 @@ func serveRemoteAvatar(w http.ResponseWriter, r *http.Request, d Deps, peerID st
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), AvatarFetchTimeout)
 	defer cancel()
 
 	data, err := d.Node.FetchAvatar(ctx, peerID)

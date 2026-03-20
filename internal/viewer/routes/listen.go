@@ -170,7 +170,7 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager, peerName func(string
 				return
 			case <-ticker.C:
 				// If no data received for 3 seconds, host is likely gone
-				if time.Since(lastDataTime) > 3*time.Second {
+				if time.Since(lastDataTime) > ListenHostTimeout {
 					return
 				}
 			default:

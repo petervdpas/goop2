@@ -77,7 +77,7 @@ func (w *Worker) verify() {
 		Type: "__check__",
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), WorkerCheckTimeout)
 	defer cancel()
 
 	result, err := RunOneshot(ctx, binaryPath, checkJob, nil)

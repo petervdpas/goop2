@@ -155,7 +155,7 @@ func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (m
 		n.diag("SITE: dial failed for %s, falling back to relay circuit", pid.ShortString())
 
 		// Fresh context — the original likely expired during the dial.
-		retryCtx, retryCancel := context.WithTimeout(context.Background(), 45*time.Second)
+		retryCtx, retryCancel := context.WithTimeout(context.Background(), SiteRelayRetryTotal)
 		defer retryCancel()
 
 		// Pulse the target peer via rendezvous — tells it to refresh
@@ -184,7 +184,7 @@ func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (m
 			n.Host.Peerstore().ClearAddrs(pid)
 			n.addRelayAddrForPeer(pid)
 
-			attemptCtx, attemptCancel := context.WithTimeout(retryCtx, 15*time.Second)
+			attemptCtx, attemptCancel := context.WithTimeout(retryCtx, SiteRelayAttemptTimeout)
 			addrStrs, st, dialErr = n.dialAndOpenStream(attemptCtx, pid)
 			attemptCancel()
 			if dialErr == nil {
@@ -195,7 +195,7 @@ func (n *Node) FetchSiteFile(ctx context.Context, peerID string, path string) (m
 				select {
 				case <-retryCtx.Done():
 					break
-				case <-time.After(time.Duration(attempt*3) * time.Second):
+				case <-time.After(time.Duration(attempt) * SiteDialRetryBackoff):
 				}
 			}
 		}

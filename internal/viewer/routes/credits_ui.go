@@ -4,7 +4,6 @@ package routes
 import (
 	"context"
 	"net/http"
-	"time"
 )
 
 func registerCreditsUIRoutes(mux *http.ServeMux, d Deps) {
@@ -25,7 +24,7 @@ func registerCreditsUIRoutes(mux *http.ServeMux, d Deps) {
 			selfID = d.Node.ID()
 		}
 
-		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), CreditsBalanceTimeout)
 		defer cancel()
 
 		for _, c := range d.RVClients {

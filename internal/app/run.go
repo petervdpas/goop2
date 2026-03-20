@@ -61,7 +61,7 @@ func runPeer(ctx context.Context, o shared.ModeOpts, cfg config.Config, progress
 	}
 	progress = func(s, t int, label string) {
 		emit(s, t, label)
-		time.Sleep(time.Second)
+		time.Sleep(ProgressEmitDelay)
 	}
 
 	// Calculate total steps based on config.

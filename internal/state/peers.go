@@ -203,7 +203,7 @@ func (t *PeerTable) SetReachable(id string, reachable bool) {
 
 	// Failure path — only mark unreachable after 2 distinct failure events.
 	// Events within 4 s of each other count as one (concurrent probe dedup).
-	if time.Since(sp.lastFailAt) > 4*time.Second {
+	if time.Since(sp.lastFailAt) > PeerFailureDedupWindow {
 		sp.failStreak++
 		sp.lastFailAt = time.Now()
 	}

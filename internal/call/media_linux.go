@@ -4,7 +4,6 @@ package call
 
 import (
 	"log"
-	"time"
 
 	"github.com/pion/interceptor"
 	"github.com/pion/mediadevices"
@@ -72,7 +71,7 @@ func initMediaPC(channelID string, logFn func(level, msg string)) (*webrtc.PeerC
 	// for relay paths that can have short outages during re-keying or failover.
 	// 30 s gives ICE time to recover without the user noticing a freeze.
 	se := webrtc.SettingEngine{}
-	se.SetICETimeouts(30*time.Second, 120*time.Second, 2*time.Second)
+	se.SetICETimeouts(ICEDisconnectedTimeout, ICEFailedTimeout, ICECheckInterval)
 
 	api := webrtc.NewAPI(
 		webrtc.WithMediaEngine(mediaEngine),

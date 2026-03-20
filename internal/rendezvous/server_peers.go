@@ -53,7 +53,7 @@ func (s *Server) emitPunchHints(arriving proto.PresenceMsg, addrsChanged bool) {
 		}
 
 		key := pairKey(arriving.PeerID, peerID)
-		if last, ok := s.punchCooldowns[key]; ok && now.Sub(last) < 60*time.Second {
+		if last, ok := s.punchCooldowns[key]; ok && now.Sub(last) < PunchCooldown {
 			continue
 		}
 		s.punchCooldowns[key] = now

@@ -20,7 +20,7 @@ func newRateLimiter(perPeerPerMin, globalPerMin int) *rateLimiter {
 		perPeer:   make(map[string][]time.Time),
 		peerMax:   perPeerPerMin,
 		globalMax: globalPerMin,
-		window:    time.Minute,
+		window:    RateLimitWindow,
 	}
 }
 

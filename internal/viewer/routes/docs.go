@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"encoding/json"
 
@@ -331,7 +330,7 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 					wg.Add(1)
 					go func(peerID string) {
 						defer wg.Done()
-						ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+						ctx, cancel := context.WithTimeout(context.Background(), DocListFetchTimeout)
 						defer cancel()
 
 						rawFiles, err := d.Node.FetchDocList(ctx, peerID, groupID)
@@ -427,7 +426,7 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), DocFileFetchTimeout)
 		defer cancel()
 
 		mimeType, data, err := d.Node.FetchDocFile(ctx, peerID, groupID, filename)

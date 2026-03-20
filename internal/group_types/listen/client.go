@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -37,7 +36,7 @@ func (m *Manager) JoinGroup(hostPeerID, groupID string) error {
 		m.mu.Unlock()
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), ListenJoinTimeout)
 	defer cancel()
 	if err := m.grp.JoinRemoteGroup(ctx, hostPeerID, groupID); err != nil {
 		return err
@@ -185,7 +184,7 @@ func (m *Manager) connectAudioStream() (io.ReadCloser, error) {
 		return nil, fmt.Errorf("invalid host peer ID: %w", err)
 	}
 
-	sCtx, sCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	sCtx, sCancel := context.WithTimeout(context.Background(), ListenStreamTimeout)
 	defer sCancel()
 	s, err := m.host.NewStream(sCtx, pid, protocol.ID(proto.ListenProtoID))
 	if err != nil {

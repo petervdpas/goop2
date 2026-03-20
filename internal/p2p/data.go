@@ -8,7 +8,6 @@ import (
 	"io"
 	"log"
 	"strings"
-	"time"
 
 	"github.com/petervdpas/goop2/internal/proto"
 	"github.com/petervdpas/goop2/internal/storage"
@@ -457,7 +456,7 @@ func (n *Node) dataOpLuaCall(callerID string, req DataRequest) DataResponse {
 		return DataResponse{Error: "function name required"}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), DataLuaCallTimeout)
 	defer cancel()
 
 	result, err := n.luaDispatcher.CallFunction(ctx, callerID, req.Function, req.Params)

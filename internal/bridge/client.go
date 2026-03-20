@@ -105,7 +105,7 @@ func (c *Client) Connect(ctx context.Context, onPresence func(data json.RawMessa
 			return
 		case <-time.After(backoff):
 		}
-		if backoff < 5*time.Second {
+		if backoff < WSReconnectMaxBackoff {
 			backoff *= 2
 		}
 	}

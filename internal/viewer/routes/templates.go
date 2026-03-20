@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	"log"
 
@@ -47,7 +46,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		var ownedTemplates map[string]bool
 		if len(d.RVClients) > 0 {
 			seen := map[string]bool{}
-			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(r.Context(), TemplateListTimeout)
 			defer cancel()
 
 			for _, c := range d.RVClients {
@@ -287,7 +286,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), TemplateBundleTimeout)
 		defer cancel()
 
 		var peerID string

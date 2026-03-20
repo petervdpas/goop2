@@ -19,7 +19,11 @@ const (
 	ProbeCooldown    = 500 * time.Millisecond // min interval between failed probes to same peer
 	AddrTTLMin       = 2 * time.Minute  // floor for peerstore address TTL
 	PeerstoreAddrTTL = 10 * time.Minute // TTL for injected relay addresses
-	DirectAddrTTL    = 20 * time.Second // presence-based direct address TTL
+	DirectAddrTTL        = 20 * time.Second // presence-based direct address TTL
+	SiteDialRetryBackoff = 3 * time.Second   // per-attempt backoff multiplier for site fetch retries
+	SiteRelayRetryTotal  = 45 * time.Second  // total budget for relay-based site fetch retries
+	SiteRelayAttemptTimeout = 15 * time.Second // per-attempt timeout for relay site fetch
+	DataLuaCallTimeout   = 30 * time.Second  // Lua function call via data protocol
 )
 
 // RelayRetryDelays defines the backoff between relay recovery attempts.

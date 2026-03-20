@@ -1013,7 +1013,7 @@ func (s *Server) requireAdmin(w http.ResponseWriter, r *http.Request) bool {
 
 // allowPublish checks the per-IP sliding window rate limit (60 req/min).
 func (s *Server) allowPublish(ip string) bool {
-	window := time.Minute
+	window := PublishRateLimitWindow
 	now := time.Now()
 	cutoff := now.Add(-window)
 
@@ -1049,7 +1049,7 @@ func (s *Server) allowPublish(ip string) bool {
 
 // cleanupRateLimiter removes stale entries from the rate limiter map.
 func (s *Server) cleanupRateLimiter() {
-	cutoff := time.Now().Add(-time.Minute)
+	cutoff := time.Now().Add(-PublishRateLimitWindow)
 
 	s.rateMu.Lock()
 	defer s.rateMu.Unlock()

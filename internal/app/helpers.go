@@ -12,7 +12,7 @@ import (
 func WaitTCP(addr string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		c, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
+		c, err := net.DialTimeout("tcp", addr, TCPDialAttemptTimeout)
 		if err == nil {
 			_ = c.Close()
 			return nil

@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/petervdpas/goop2/internal/group"
 	"github.com/petervdpas/goop2/internal/mq"
@@ -175,7 +174,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), GroupJoinTimeout)
 		defer cancel()
 
 		if err := grpMgr.JoinRemoteGroup(ctx, req.HostPeerID, req.GroupID); err != nil {
@@ -196,7 +195,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), GroupJoinTimeout)
 		defer cancel()
 
 		if err := grpMgr.InvitePeer(ctx, req.PeerID, req.GroupID); err != nil {
@@ -217,7 +216,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), GroupJoinTimeout)
 		defer cancel()
 
 		if err := grpMgr.RejoinSubscription(ctx, req.HostPeerID, req.GroupID); err != nil {

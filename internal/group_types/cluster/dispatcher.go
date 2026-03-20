@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-const dispatchTick = 100 * time.Millisecond
 
 type Dispatcher struct {
 	queue *Queue
@@ -110,7 +109,7 @@ func (s *Dispatcher) Workers() []WorkerInfo {
 }
 
 func (s *Dispatcher) Run(ctx context.Context, groupID string) {
-	ticker := time.NewTicker(dispatchTick)
+	ticker := time.NewTicker(DispatchTick)
 	defer ticker.Stop()
 
 	for {
