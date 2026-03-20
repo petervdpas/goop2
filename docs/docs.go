@@ -1201,7 +1201,7 @@ const docTemplate = `{
                 "tags": [
                     "data"
                 ],
-                "summary": "Insert a row into a table",
+                "summary": "Insert a row into a table (ORM tables validate column types)",
                 "parameters": [
                     {
                         "description": "Insert request",
@@ -1218,6 +1218,12 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/routes.dataInsertResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Type validation error (ORM tables)",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 }
@@ -1268,15 +1274,14 @@ const docTemplate = `{
                 "tags": [
                     "data"
                 ],
-                "summary": "List SQLite tables with schema and policies",
+                "summary": "List tables with schema, policies, and mode (orm/classic)",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/routes.dataTableListEntry"
                             }
                         }
                     }
@@ -1318,6 +1323,7 @@ const docTemplate = `{
         },
         "/api/data/tables/create": {
             "post": {
+                "description": "Accepts two column formats. Classic: columns with name/type/not_null/default. ORM: columns with name/type/key/required/default (lowercase types: text, integer, real, blob). Format is auto-detected from column fields.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1327,7 +1333,7 @@ const docTemplate = `{
                 "tags": [
                     "data"
                 ],
-                "summary": "Create a new SQLite table",
+                "summary": "Create a new table (classic or ORM schema format, auto-detected)",
                 "parameters": [
                     {
                         "description": "Create request",
@@ -1343,7 +1349,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/routes.statusOK"
+                            "$ref": "#/definitions/routes.dataTableCreateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 }
@@ -1393,7 +1405,7 @@ const docTemplate = `{
                 "tags": [
                     "data"
                 ],
-                "summary": "Describe a table's schema and policy",
+                "summary": "Describe a table — ORM tables return typed JSON schema, classic returns PRAGMA columns",
                 "parameters": [
                     {
                         "description": "Table name",
@@ -1409,8 +1421,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/routes.dataDescribeResponse"
                         }
                     }
                 }
@@ -1444,6 +1455,39 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/routes.statusOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/tables/export-schema": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "data"
+                ],
+                "summary": "Export table schema as portable JSON (ORM returns stored schema, classic reads PRAGMA)",
+                "parameters": [
+                    {
+                        "description": "Table name",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.dataTableRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.ormSchema"
                         }
                     }
                 }
@@ -4028,6 +4072,21 @@ const docTemplate = `{
                 }
             }
         },
+        "routes.dataDescribeResponse": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "description": "Classic: PRAGMA table_info array"
+                },
+                "mode": {
+                    "type": "string",
+                    "example": "orm"
+                },
+                "schema": {
+                    "description": "ORM: ormSchema object"
+                }
+            }
+        },
         "routes.dataInsertRequest": {
             "type": "object",
             "properties": {
@@ -4103,6 +4162,46 @@ const docTemplate = `{
                 "columns": {
                     "type": "array",
                     "items": {}
+                },
+                "name": {
+                    "type": "string",
+                    "example": "my_table"
+                }
+            }
+        },
+        "routes.dataTableCreateResponse": {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "description": "\"orm\" or \"classic\"",
+                    "type": "string",
+                    "example": "orm"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "created"
+                },
+                "table": {
+                    "type": "string",
+                    "example": "my_table"
+                }
+            }
+        },
+        "routes.dataTableListEntry": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "example": "2026-03-21 00:00:00"
+                },
+                "insert_policy": {
+                    "type": "string",
+                    "example": "owner"
+                },
+                "mode": {
+                    "description": "\"orm\" or \"classic\"",
+                    "type": "string",
+                    "example": "classic"
                 },
                 "name": {
                     "type": "string",
@@ -4695,6 +4794,46 @@ const docTemplate = `{
                 "credits_active": {
                     "type": "boolean",
                     "example": true
+                }
+            }
+        },
+        "routes.ormSchema": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/routes.ormSchemaColumn"
+                    }
+                },
+                "name": {
+                    "type": "string",
+                    "example": "tasks"
+                }
+            }
+        },
+        "routes.ormSchemaColumn": {
+            "type": "object",
+            "properties": {
+                "default": {
+                    "description": "default value"
+                },
+                "key": {
+                    "description": "part of primary key",
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "id"
+                },
+                "required": {
+                    "description": "NOT NULL (non-key columns)",
+                    "type": "boolean"
+                },
+                "type": {
+                    "description": "text, integer, real, blob",
+                    "type": "string",
+                    "example": "integer"
                 }
             }
         },

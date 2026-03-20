@@ -249,9 +249,51 @@ type dataTableRequest struct {
 }
 
 // dataTableCreateRequest is the body for POST /api/data/tables/create.
+// Supports two column formats (auto-detected):
+//   - Classic: [{"name":"col","type":"TEXT","not_null":false,"default":""}]
+//   - ORM (typed): [{"name":"col","type":"text","key":true,"required":false,"default":"value"}]
 type dataTableCreateRequest struct {
 	Name    string `json:"name"              example:"my_table"`
 	Columns []any  `json:"columns,omitempty"`
+}
+
+// dataTableCreateResponse is the body for POST /api/data/tables/create.
+type dataTableCreateResponse struct {
+	Status string `json:"status" example:"created"`
+	Table  string `json:"table"  example:"my_table"`
+	Mode   string `json:"mode"   example:"orm"` // "orm" or "classic"
+}
+
+// dataTableListEntry describes one table in the GET /api/data/tables response.
+type dataTableListEntry struct {
+	Name         string `json:"name"          example:"my_table"`
+	InsertPolicy string `json:"insert_policy" example:"owner"`
+	CreatedAt    string `json:"created_at"    example:"2026-03-21 00:00:00"`
+	Mode         string `json:"mode"          example:"classic"` // "orm" or "classic"
+}
+
+// dataDescribeResponse is the body for POST /api/data/tables/describe.
+// ORM tables return {mode:"orm", schema:{name, columns}}.
+// Classic tables return {mode:"classic", columns:[{cid, name, type, ...}]}.
+type dataDescribeResponse struct {
+	Mode    string `json:"mode"              example:"orm"`
+	Schema  any    `json:"schema,omitempty"`  // ORM: ormSchema object
+	Columns any    `json:"columns,omitempty"` // Classic: PRAGMA table_info array
+}
+
+// ormSchema is a portable typed table schema (JSON import/export).
+type ormSchema struct {
+	Name    string          `json:"name"    example:"tasks"`
+	Columns []ormSchemaColumn `json:"columns"`
+}
+
+// ormSchemaColumn describes one typed column in an ORM schema.
+type ormSchemaColumn struct {
+	Name     string `json:"name"              example:"id"`
+	Type     string `json:"type"              example:"integer"` // text, integer, real, blob
+	Key      bool   `json:"key,omitempty"`                       // part of primary key
+	Required bool   `json:"required,omitempty"`                  // NOT NULL (non-key columns)
+	Default  any    `json:"default,omitempty"`                   // default value
 }
 
 // dataInsertRequest is the body for POST /api/data/insert.
@@ -1435,32 +1477,35 @@ func swagDocsDownload() {}
 
 // swagDataTables is a documentation stub for GET /api/data/tables.
 //
-//	@Summary	List SQLite tables with schema and policies
+//	@Summary	List tables with schema, policies, and mode (orm/classic)
 //	@Tags		data
 //	@Produce	json
-//	@Success	200	{array}	map[string]any
+//	@Success	200	{array}	dataTableListEntry
 //	@Router		/api/data/tables [get]
 func swagDataTables() {}
 
 // swagDataTablesCreate is a documentation stub for POST /api/data/tables/create.
 //
-//	@Summary	Create a new SQLite table
+//	@Summary	Create a new table (classic or ORM schema format, auto-detected)
+//	@Description	Accepts two column formats. Classic: columns with name/type/not_null/default. ORM: columns with name/type/key/required/default (lowercase types: text, integer, real, blob). Format is auto-detected from column fields.
 //	@Tags		data
 //	@Accept		json
 //	@Produce	json
 //	@Param		body	body		dataTableCreateRequest	true	"Create request"
-//	@Success	200		{object}	statusOK
+//	@Success	200		{object}	dataTableCreateResponse
+//	@Failure	400		{string}	string	"Validation error"
 //	@Router		/api/data/tables/create [post]
 func swagDataTablesCreate() {}
 
 // swagDataInsert is a documentation stub for POST /api/data/insert.
 //
-//	@Summary	Insert a row into a table
+//	@Summary	Insert a row into a table (ORM tables validate column types)
 //	@Tags		data
 //	@Accept		json
 //	@Produce	json
 //	@Param		body	body		dataInsertRequest	true	"Insert request"
 //	@Success	200		{object}	dataInsertResponse
+//	@Failure	400		{string}	string	"Type validation error (ORM tables)"
 //	@Router		/api/data/insert [post]
 func swagDataInsert() {}
 
@@ -1499,12 +1544,12 @@ func swagDataDelete() {}
 
 // swagDataTablesDescribe is a documentation stub for POST /api/data/tables/describe.
 //
-//	@Summary	Describe a table's schema and policy
+//	@Summary	Describe a table — ORM tables return typed JSON schema, classic returns PRAGMA columns
 //	@Tags		data
 //	@Accept		json
 //	@Produce	json
 //	@Param		body	body		dataTableRequest	true	"Table name"
-//	@Success	200		{object}	map[string]any
+//	@Success	200		{object}	dataDescribeResponse
 //	@Router		/api/data/tables/describe [post]
 func swagDataTablesDescribe() {}
 
@@ -1562,6 +1607,17 @@ func swagDataTablesSetPolicy() {}
 //	@Success	200		{object}	statusOK
 //	@Router		/api/data/tables/rename [post]
 func swagDataTablesRename() {}
+
+// swagDataTablesExportSchema is a documentation stub for POST /api/data/tables/export-schema.
+//
+//	@Summary	Export table schema as portable JSON (ORM returns stored schema, classic reads PRAGMA)
+//	@Tags		data
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		dataTableRequest	true	"Table name"
+//	@Success	200		{object}	ormSchema
+//	@Router		/api/data/tables/export-schema [post]
+func swagDataTablesExportSchema() {}
 
 // ── Avatar ───────────────────────────────────────────────────────────────────
 

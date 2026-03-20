@@ -341,6 +341,16 @@ definitions:
         example: my_table
         type: string
     type: object
+  routes.dataDescribeResponse:
+    properties:
+      columns:
+        description: 'Classic: PRAGMA table_info array'
+      mode:
+        example: orm
+        type: string
+      schema:
+        description: 'ORM: ormSchema object'
+    type: object
   routes.dataInsertRequest:
     properties:
       row:
@@ -394,6 +404,35 @@ definitions:
       columns:
         items: {}
         type: array
+      name:
+        example: my_table
+        type: string
+    type: object
+  routes.dataTableCreateResponse:
+    properties:
+      mode:
+        description: '"orm" or "classic"'
+        example: orm
+        type: string
+      status:
+        example: created
+        type: string
+      table:
+        example: my_table
+        type: string
+    type: object
+  routes.dataTableListEntry:
+    properties:
+      created_at:
+        example: "2026-03-21 00:00:00"
+        type: string
+      insert_policy:
+        example: owner
+        type: string
+      mode:
+        description: '"orm" or "classic"'
+        example: classic
+        type: string
       name:
         example: my_table
         type: string
@@ -802,6 +841,34 @@ definitions:
       credits_active:
         example: true
         type: boolean
+    type: object
+  routes.ormSchema:
+    properties:
+      columns:
+        items:
+          $ref: '#/definitions/routes.ormSchemaColumn'
+        type: array
+      name:
+        example: tasks
+        type: string
+    type: object
+  routes.ormSchemaColumn:
+    properties:
+      default:
+        description: default value
+      key:
+        description: part of primary key
+        type: boolean
+      name:
+        example: id
+        type: string
+      required:
+        description: NOT NULL (non-key columns)
+        type: boolean
+      type:
+        description: text, integer, real, blob
+        example: integer
+        type: string
     type: object
   routes.peerContentResponse:
     properties:
@@ -1927,7 +1994,11 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/routes.dataInsertResponse'
-      summary: Insert a row into a table
+        "400":
+          description: Type validation error (ORM tables)
+          schema:
+            type: string
+      summary: Insert a row into a table (ORM tables validate column types)
       tags:
       - data
   /api/data/query:
@@ -1963,10 +2034,9 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/routes.dataTableListEntry'
             type: array
-      summary: List SQLite tables with schema and policies
+      summary: List tables with schema, policies, and mode (orm/classic)
       tags:
       - data
   /api/data/tables/add-column:
@@ -1994,6 +2064,9 @@ paths:
     post:
       consumes:
       - application/json
+      description: 'Accepts two column formats. Classic: columns with name/type/not_null/default.
+        ORM: columns with name/type/key/required/default (lowercase types: text, integer,
+        real, blob). Format is auto-detected from column fields.'
       parameters:
       - description: Create request
         in: body
@@ -2007,8 +2080,12 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/routes.statusOK'
-      summary: Create a new SQLite table
+            $ref: '#/definitions/routes.dataTableCreateResponse'
+        "400":
+          description: Validation error
+          schema:
+            type: string
+      summary: Create a new table (classic or ORM schema format, auto-detected)
       tags:
       - data
   /api/data/tables/delete:
@@ -2049,9 +2126,9 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
-      summary: Describe a table's schema and policy
+            $ref: '#/definitions/routes.dataDescribeResponse'
+      summary: Describe a table — ORM tables return typed JSON schema, classic returns
+        PRAGMA columns
       tags:
       - data
   /api/data/tables/drop-column:
@@ -2073,6 +2150,28 @@ paths:
           schema:
             $ref: '#/definitions/routes.statusOK'
       summary: Drop a column from a table
+      tags:
+      - data
+  /api/data/tables/export-schema:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Table name
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.dataTableRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.ormSchema'
+      summary: Export table schema as portable JSON (ORM returns stored schema, classic
+        reads PRAGMA)
       tags:
       - data
   /api/data/tables/rename:
