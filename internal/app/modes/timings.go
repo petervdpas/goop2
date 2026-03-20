@@ -9,4 +9,5 @@ const (
 	PruneCheckInterval        = 1 * time.Second  // peer table prune tick
 	ConfigRereadInterval      = 300              // re-read config every N prune ticks (5 min at 1s)
 	MQCallSignalTimeout       = 2 * time.Second  // MQ send for call signaling messages
+	AvatarWarmTimeout         = 3 * time.Second  // background avatar cache warming
 )

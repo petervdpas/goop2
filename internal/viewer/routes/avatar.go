@@ -139,12 +139,21 @@ func serveRemoteAvatar(w http.ResponseWriter, r *http.Request, d Deps, peerID st
 		return
 	}
 
+	serveAvatarData := func(data []byte) {
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		w.Header().Set("ETag", `"`+sp.AvatarHash+`"`)
+		if match := r.Header.Get("If-None-Match"); match == `"`+sp.AvatarHash+`"` {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Write(data)
+	}
+
 	// Check disk cache
 	cached, err := d.AvatarCache.Get(peerID, sp.AvatarHash)
 	if err == nil && cached != nil {
-		w.Header().Set("Content-Type", "image/png")
-		w.Header().Set("Cache-Control", "public, max-age=300")
-		w.Write(cached)
+		serveAvatarData(cached)
 		return
 	}
 
@@ -166,9 +175,7 @@ func serveRemoteAvatar(w http.ResponseWriter, r *http.Request, d Deps, peerID st
 	// Cache to disk
 	_ = d.AvatarCache.Put(peerID, sp.AvatarHash, data)
 
-	w.Header().Set("Content-Type", "image/png")
-	w.Header().Set("Cache-Control", "public, max-age=300")
-	w.Write(data)
+	serveAvatarData(data)
 }
 
 func servePeerFallback(w http.ResponseWriter, d Deps, peerID string) {

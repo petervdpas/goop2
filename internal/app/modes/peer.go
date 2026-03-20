@@ -193,6 +193,24 @@ func RunPeer(p PeerParams) error {
 		}
 	}
 
+	// Proactively fetch avatars when a peer announces a hash we don't have cached.
+	warmAvatar := func(peerID, hash string) {
+		if hash == "" || avatarCache == nil {
+			return
+		}
+		if cached, _ := avatarCache.Get(peerID, hash); cached != nil {
+			return
+		}
+		go func() {
+			ctx2, cancel := context.WithTimeout(ctx, AvatarWarmTimeout)
+			defer cancel()
+			data, err := node.FetchAvatar(ctx2, peerID)
+			if err == nil && data != nil {
+				_ = avatarCache.Put(peerID, hash, data)
+			}
+		}()
+	}
+
 	// Start rendezvous WS connections as early as possible so peer discovery
 	// begins while we wire up services. All dependencies (peers, node, db) are ready.
 	rvOnMsg := func(pm proto.PresenceMsg) {
@@ -218,6 +236,7 @@ func RunPeer(p PeerParams) error {
 			if !known {
 				go node.ProbePeer(ctx, pm.PeerID)
 			}
+			warmAvatar(pm.PeerID, pm.AvatarHash)
 		case proto.TypePunch:
 			if pm.Target != node.ID() {
 				break
@@ -440,6 +459,17 @@ func RunPeer(p PeerParams) error {
 		}
 	}
 
+	// Publish immediately — announce ourselves as early as possible so peers
+	// can discover us while we finish wiring up services and the viewer.
+	publish(ctx, proto.TypeOnline)
+
+	if relayInfo != nil {
+		mqMgr.PublishLocal("relay:status", "", map[string]any{
+			"status": "waiting",
+			"msg":    "Connecting to relay — WAN peers will be reachable once circuit is obtained",
+		})
+	}
+
 	step++
 	progress(step, total, "Starting viewer")
 
@@ -499,6 +529,7 @@ func RunPeer(p PeerParams) error {
 				Addrs:          m.Addrs,
 			})
 			go node.ProbePeer(ctx, m.PeerID)
+			warmAvatar(m.PeerID, m.AvatarHash)
 		case proto.TypeUpdate:
 			prev, known := seenContent[m.PeerID]
 			if !known || prev != m.Content {
@@ -542,19 +573,6 @@ func RunPeer(p PeerParams) error {
 				}
 			}
 			return lastErr
-		})
-	}
-
-	// Publish immediately — don't block on relay circuit address.
-	// SubscribeAddressChanges (below) re-publishes with TypeUpdate as soon as
-	// the circuit address appears, so WAN peers get our relay address without
-	// stalling LAN discovery for up to 8 s.
-	publish(ctx, proto.TypeOnline)
-
-	if relayInfo != nil {
-		mqMgr.PublishLocal("relay:status", "", map[string]any{
-			"status": "waiting",
-			"msg":    "Connecting to relay — WAN peers will be reachable once circuit is obtained",
 		})
 	}
 
