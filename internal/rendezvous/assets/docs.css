@@ -329,6 +329,28 @@
   background: transparent;
 }
 
+:root[data-theme="dark"] #redoc-container table { background: var(--bg-card) !important; border-color: var(--border) !important; }
+:root[data-theme="dark"] #redoc-container table td,
+:root[data-theme="dark"] #redoc-container table th { color: var(--text) !important; border-color: var(--border) !important; background: transparent !important; }
+:root[data-theme="dark"] #redoc-container table tr { background: transparent !important; }
+:root[data-theme="dark"] #redoc-container table tr:nth-child(2n) { background: var(--bg-inset) !important; }
+:root[data-theme="dark"] #redoc-container h1,
+:root[data-theme="dark"] #redoc-container h2,
+:root[data-theme="dark"] #redoc-container h3,
+:root[data-theme="dark"] #redoc-container h4,
+:root[data-theme="dark"] #redoc-container h5 { color: var(--text-primary) !important; }
+:root[data-theme="dark"] #redoc-container p,
+:root[data-theme="dark"] #redoc-container li,
+:root[data-theme="dark"] #redoc-container span,
+:root[data-theme="dark"] #redoc-container label { color: var(--text) !important; }
+:root[data-theme="dark"] #redoc-container code { color: var(--accent) !important; background: rgba(0,0,0,0.15) !important; }
+:root[data-theme="dark"] #redoc-container pre { background: rgba(0,0,0,0.2) !important; }
+:root[data-theme="dark"] #redoc-container pre code { color: var(--text-primary) !important; }
+:root[data-theme="dark"] #redoc-container a { color: var(--accent) !important; }
+:root[data-theme="dark"] #redoc-container hr { border-color: var(--border) !important; }
+:root[data-theme="dark"] #redoc-container td[kind],
+:root[data-theme="dark"] #redoc-container .property-name { color: var(--accent2) !important; }
+
 .docs-article:has(#redoc-container) {
   padding: 24px 20px;
 }

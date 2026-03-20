@@ -960,3 +960,26 @@ input:checked + .slider::before {
   border-radius: 3px;
   transition: width 0.3s;
 }
+
+/* --- Redoc dark mode overrides (viewer apidocs) --- */
+:root:not([data-theme="light"]) #redoc-panel .redoc-wrap { background: transparent !important; }
+:root:not([data-theme="light"]) #redoc-panel .menu-content { background: transparent !important; }
+:root:not([data-theme="light"]) #redoc-panel table { background: var(--panel) !important; border-color: var(--line) !important; }
+:root:not([data-theme="light"]) #redoc-panel table td,
+:root:not([data-theme="light"]) #redoc-panel table th { color: var(--text) !important; border-color: var(--line) !important; background: transparent !important; }
+:root:not([data-theme="light"]) #redoc-panel table tr { background: transparent !important; }
+:root:not([data-theme="light"]) #redoc-panel table tr:nth-child(2n) { background: var(--chip) !important; }
+:root:not([data-theme="light"]) #redoc-panel h1,
+:root:not([data-theme="light"]) #redoc-panel h2,
+:root:not([data-theme="light"]) #redoc-panel h3,
+:root:not([data-theme="light"]) #redoc-panel h4,
+:root:not([data-theme="light"]) #redoc-panel h5 { color: var(--text) !important; }
+:root:not([data-theme="light"]) #redoc-panel p,
+:root:not([data-theme="light"]) #redoc-panel li,
+:root:not([data-theme="light"]) #redoc-panel span,
+:root:not([data-theme="light"]) #redoc-panel label { color: var(--text) !important; }
+:root:not([data-theme="light"]) #redoc-panel code { color: var(--accent) !important; background: rgba(0,0,0,0.15) !important; }
+:root:not([data-theme="light"]) #redoc-panel pre { background: rgba(0,0,0,0.2) !important; }
+:root:not([data-theme="light"]) #redoc-panel pre code { color: var(--text) !important; }
+:root:not([data-theme="light"]) #redoc-panel a { color: var(--accent) !important; }
+:root:not([data-theme="light"]) #redoc-panel hr { border-color: var(--line) !important; }

@@ -11,14 +11,24 @@ The executor protocol defines the contract between Goop2's cluster dispatcher an
   var s = document.createElement('script');
   s.src = 'https://cdn.redoc.ly/redoc/v2.1.5/bundles/redoc.standalone.js';
   s.onload = function() {
+    var isDark = document.documentElement.dataset.theme === 'dark';
     Redoc.init('/api/executor-api.yaml', {
       scrollYOffset: 0,
       hideDownloadButton: false,
       theme: {
-        colors: { primary: { main: '#818cf8' } },
-        typography: { fontFamily: 'inherit' },
-        sidebar: { backgroundColor: 'transparent' },
-        rightPanel: { backgroundColor: 'rgba(0,0,0,0.2)' }
+        colors: {
+          primary: { main: isDark ? '#818cf8' : '#0969da' },
+          text: { primary: isDark ? '#e6edf3' : '#1f2328' },
+          http: { post: isDark ? '#3fb950' : '#1a7f37' }
+        },
+        typography: {
+          fontFamily: 'inherit',
+          headings: { fontFamily: 'inherit' },
+          code: { fontFamily: "'Courier New', Consolas, monospace" }
+        },
+        sidebar: { backgroundColor: 'transparent', textColor: isDark ? '#b0b8c1' : '#424a53' },
+        rightPanel: { backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : '#1a1a2e', textColor: '#e6edf3' },
+        schema: { typeNameColor: isDark ? '#818cf8' : '#0969da' }
       }
     }, el);
   };

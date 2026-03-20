@@ -6,6 +6,10 @@
   var swaggerReady = false;
   var redocReady = false;
 
+  function isDark() {
+    return document.documentElement.dataset.theme !== 'light';
+  }
+
   function initSwaggerUI() {
     if (swaggerReady) return;
     swaggerReady = true;
@@ -13,6 +17,35 @@
     cssLink.rel = 'stylesheet';
     cssLink.href = 'https://unpkg.com/swagger-ui-dist@5.18.2/swagger-ui.css';
     document.head.appendChild(cssLink);
+
+    var dark = isDark();
+    if (dark) {
+      var style = document.createElement('style');
+      style.textContent = [
+        '#swagger-panel .swagger-ui { color: var(--text); }',
+        '#swagger-panel .swagger-ui .info .title, #swagger-panel .swagger-ui .opblock-tag { color: var(--text); }',
+        '#swagger-panel .swagger-ui .info p, #swagger-panel .swagger-ui .info li { color: var(--muted); }',
+        '#swagger-panel .swagger-ui .scheme-container { background: var(--panel); border-color: var(--line); }',
+        '#swagger-panel .swagger-ui .opblock-tag { border-color: var(--line); }',
+        '#swagger-panel .swagger-ui .opblock { border-color: var(--line); background: var(--panel); }',
+        '#swagger-panel .swagger-ui .opblock .opblock-summary { border-color: var(--line); }',
+        '#swagger-panel .swagger-ui .opblock .opblock-summary-description { color: var(--muted); }',
+        '#swagger-panel .swagger-ui .opblock .opblock-section-header { background: var(--chip); }',
+        '#swagger-panel .swagger-ui .opblock .opblock-section-header h4 { color: var(--text); }',
+        '#swagger-panel .swagger-ui table thead tr td, #swagger-panel .swagger-ui table thead tr th { color: var(--muted); border-color: var(--line); }',
+        '#swagger-panel .swagger-ui .parameter__name, #swagger-panel .swagger-ui .parameter__type { color: var(--text); }',
+        '#swagger-panel .swagger-ui .response-col_status { color: var(--text); }',
+        '#swagger-panel .swagger-ui .response-col_description { color: var(--muted); }',
+        '#swagger-panel .swagger-ui .model-title { color: var(--text); }',
+        '#swagger-panel .swagger-ui .model { color: var(--text); }',
+        '#swagger-panel .swagger-ui input[type=text] { background: var(--field-bg); border-color: var(--line); color: var(--text); }',
+        '#swagger-panel .swagger-ui select { background: var(--field-bg); border-color: var(--line); color: var(--text); }',
+        '#swagger-panel .swagger-ui .btn { border-color: var(--line); color: var(--text); }',
+        '#swagger-panel .swagger-ui .filter input[type=text] { background: var(--field-bg); border-color: var(--line); color: var(--text); }',
+        '#swagger-panel .swagger-ui .loading-container .loading::after { color: var(--muted); }',
+      ].join('\n');
+      document.head.appendChild(style);
+    }
 
     var script = document.createElement('script');
     script.src = 'https://unpkg.com/swagger-ui-dist@5.18.2/swagger-ui-bundle.js';
@@ -30,7 +63,7 @@
       });
     };
     script.onerror = function() {
-      swaggerPanel.innerHTML = '<p style="padding:16px;color:#c00">Swagger UI could not be loaded (no internet access?). The raw spec is at <a href="/api/openapi.json">/api/openapi.json</a></p>';
+      swaggerPanel.innerHTML = '<p style="padding:16px;color:var(--muted)">Swagger UI could not be loaded (no internet access?). The raw spec is at <a href="/api/openapi.json">/api/openapi.json</a></p>';
     };
     document.body.appendChild(script);
   }
@@ -38,6 +71,7 @@
   function initRedoc() {
     if (redocReady) return;
     redocReady = true;
+    var dark = isDark();
     var script = document.createElement('script');
     script.src = 'https://cdn.redoc.ly/redoc/v2.1.5/bundles/redoc.standalone.js';
     script.onload = function() {
@@ -46,15 +80,24 @@
         hideDownloadButton: false,
         expandResponses: '200',
         theme: {
-          colors: { primary: { main: '#7c8aff' } },
-          typography: { fontSize: '14px', fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif' },
-          rightPanel: { backgroundColor: '#1a1a2e' },
-          sidebar: { backgroundColor: '#fafafa' }
+          colors: {
+            primary: { main: dark ? '#7aa2ff' : '#5a3dff' },
+            text: { primary: dark ? '#e6e9ef' : '#101325' },
+            http: { post: dark ? '#49e97c' : '#1a7f37' }
+          },
+          typography: { fontSize: '14px', fontFamily: 'inherit' },
+          rightPanel: { backgroundColor: dark ? '#0f1115' : '#1a1a2e', textColor: '#e6edf3' },
+          sidebar: {
+            backgroundColor: 'transparent',
+            textColor: dark ? '#9aa3b2' : '#4a4f6b',
+            activeTextColor: dark ? '#7aa2ff' : '#5a3dff'
+          },
+          schema: { typeNameColor: dark ? '#7aa2ff' : '#5a3dff' }
         }
       }, redocPanel);
     };
     script.onerror = function() {
-      redocPanel.innerHTML = '<p style="padding:16px;color:#c00">Redoc could not be loaded (no internet access?). The raw spec is at <a href="/api/executor-api.yaml">/api/executor-api.yaml</a></p>';
+      redocPanel.innerHTML = '<p style="padding:16px;color:var(--muted)">Redoc could not be loaded (no internet access?). The raw spec is at <a href="/api/executor-api.yaml">/api/executor-api.yaml</a></p>';
     };
     document.body.appendChild(script);
   }
