@@ -881,29 +881,32 @@ func (n *Node) AddPeerAddrs(peerID string, addrs []string) {
 		n.Host.Peerstore().AddAddrs(pid, circuit, addrTTL)
 	}
 
-	// If the peer published no circuit address but we have a relay configured,
-	// proactively inject a constructed circuit relay address. This ensures we
-	// can reach peers that failed to obtain their own relay reservation.
-	if len(circuit) == 0 && n.relayPeer != nil && pid != n.relayPeer.ID {
-		n.injectRelayAddrs(pid, false)
-	}
-
 	// Fresh addresses just arrived (presence heartbeat or mDNS).
 	// Clear any accumulated dial backoff so the new addresses win immediately,
 	// then kick off a background connect if we are not already connected.
-	// This handles both LAN (direct addresses) and WAN (circuit relay addresses).
+	// Direct-first: try direct addresses only. If direct fails, fall back to
+	// circuit addresses (published by the peer or injected as last resort).
+	// This avoids unnecessary CIRCUIT requests on the relay when peers are
+	// reachable directly.
 	if sw, ok := n.Host.Network().(*swarm.Swarm); ok {
 		sw.Backoff().Clear(pid)
 	}
 	if n.Host.Network().Connectedness(pid) != network.Connected {
-		allAddrs := make([]ma.Multiaddr, 0, len(direct)+len(circuit))
-		allAddrs = append(allAddrs, direct...)
-		allAddrs = append(allAddrs, circuit...)
-		if len(allAddrs) > 0 {
+		if len(direct) > 0 {
 			go func() {
 				ctx, cancel := context.WithTimeout(context.Background(), util.DefaultConnectTimeout)
 				defer cancel()
-				_ = n.Host.Connect(ctx, peer.AddrInfo{ID: pid, Addrs: allAddrs})
+				if err := n.Host.Connect(ctx, peer.AddrInfo{ID: pid, Addrs: direct}); err != nil && n.relayPeer != nil {
+					n.connectViaRelay(pid, circuit)
+				}
+			}()
+		} else if len(circuit) > 0 {
+			go func() {
+				n.connectViaRelay(pid, circuit)
+			}()
+		} else if n.relayPeer != nil && pid != n.relayPeer.ID {
+			go func() {
+				n.connectViaRelay(pid, nil)
 			}()
 		}
 	}

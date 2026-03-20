@@ -18,6 +18,7 @@ import (
 	relayv2client "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/client"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/petervdpas/goop2/internal/rendezvous"
+	"github.com/petervdpas/goop2/internal/util"
 )
 
 // isCircuitAddr returns true if the multiaddr contains a /p2p-circuit component.
@@ -386,6 +387,28 @@ func (n *Node) injectRelayAddrs(pid peer.ID, logIt bool) {
 		}
 		n.Host.Peerstore().AddAddr(pid, circuitAddr, PeerstoreAddrTTL)
 	}
+}
+
+// connectViaRelay is the lazy relay fallback: called only when a direct dial
+// has already failed. Uses the peer's published circuit addresses if available,
+// otherwise injects relay addresses as a last resort.
+func (n *Node) connectViaRelay(pid peer.ID, circuit []ma.Multiaddr) {
+	if len(circuit) == 0 {
+		n.injectRelayAddrs(pid, true)
+	}
+	addrs := n.Host.Peerstore().Addrs(pid)
+	var relayAddrs []ma.Multiaddr
+	for _, a := range addrs {
+		if isCircuitAddr(a) {
+			relayAddrs = append(relayAddrs, a)
+		}
+	}
+	if len(relayAddrs) == 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), util.DefaultConnectTimeout)
+	defer cancel()
+	_ = n.Host.Connect(ctx, peer.AddrInfo{ID: pid, Addrs: relayAddrs})
 }
 
 // durOrDefault converts seconds to a duration, falling back to def when sec <= 0.
