@@ -952,6 +952,16 @@ func (n *Node) RunPresenceLoop(ctx context.Context, onEvent func(msg proto.Prese
 // reachability.  We clear the swarm dial backoff first so that a
 // network switch doesn't cause stale "don't retry" entries to block
 // fresh dial attempts.
+func (n *Node) markReachable(rawID, source string) {
+	n.probeMu.Lock()
+	delete(n.probeLastFail, rawID)
+	n.probeMu.Unlock()
+	if sp, ok := n.peers.Get(rawID); ok && !sp.Reachable {
+		log.Printf("probe %s: REACHABLE (%s)", rawID[:16], source)
+	}
+	n.peers.SetReachable(rawID, true)
+}
+
 func (n *Node) ProbePeer(ctx context.Context, rawID string) {
 	pid, err := peer.Decode(rawID)
 	if err != nil {
@@ -991,15 +1001,7 @@ func (n *Node) ProbePeer(ctx context.Context, rawID string) {
 		return
 	}
 	s.Close()
-	// Success — clear any cooldown so future probes run immediately.
-	n.probeMu.Lock()
-	delete(n.probeLastFail, rawID)
-	n.probeMu.Unlock()
-	// Only log when transitioning from unreachable → reachable.
-	if sp, ok := n.peers.Get(rawID); ok && !sp.Reachable {
-		log.Printf("probe %s: REACHABLE", rawID[:16])
-	}
-	n.peers.SetReachable(rawID, true)
+	n.markReachable(rawID, "probe")
 
 	// If we have both direct and relay connections to this peer, close
 	// the relay ones. The ConnectedF handler does this for new connections,
@@ -1043,10 +1045,8 @@ func (n *Node) SubscribeConnectionEvents(ctx context.Context, onConnect func(pee
 					continue
 				}
 				rawID := e.Peer.String()
-				sp, known := n.peers.Get(rawID)
-				if known && !sp.Reachable {
-					n.peers.SetReachable(rawID, true)
-					log.Printf("probe %s: REACHABLE (connection event)", rawID[:16])
+				if sp, known := n.peers.Get(rawID); known && !sp.Reachable {
+					n.markReachable(rawID, "connection")
 				}
 				if onConnect != nil {
 					go onConnect(rawID)
