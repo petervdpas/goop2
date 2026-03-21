@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +24,12 @@ type Client struct {
 	BaseURL string
 	HTTP    *http.Client
 
+	rvHost string // hostname extracted from BaseURL (for DNS cache matching)
+
+	dnsMu      sync.RWMutex
+	dnsIP      string    // cached resolved IP for rvHost
+	dnsExpires time.Time // when the cache entry expires
+
 	// WebSocket state (set by ConnectWebSocket)
 	wsMu   sync.Mutex
 	wsConn *websocket.Conn
@@ -32,12 +39,110 @@ type Client struct {
 func NewClient(baseURL string) *Client {
 	baseURL = strings.TrimSpace(baseURL)
 	baseURL = util.NormalizeURL(baseURL)
-	return &Client{
+
+	var rvHost string
+	if u, err := url.Parse(baseURL); err == nil {
+		rvHost = u.Hostname()
+	}
+
+	c := &Client{
 		BaseURL: baseURL,
-		HTTP: &http.Client{
-			Timeout: HTTPClientTimeout,
+		rvHost:  rvHost,
+	}
+
+	c.HTTP = &http.Client{
+		Timeout: HTTPClientTimeout,
+		Transport: &http.Transport{
+			DialContext: c.dialContext,
 		},
 	}
+	return c
+}
+
+// WarmDNS resolves the rendezvous hostname and caches the result.
+// Call before making HTTP/WS requests to avoid DNS eating into request timeouts.
+func (c *Client) WarmDNS(ctx context.Context) {
+	if _, err := c.resolveHost(ctx); err != nil {
+		log.Printf("rendezvous: %s unreachable (DNS failed: %v)", c.BaseURL, err)
+	}
+}
+
+// DNSReady returns true if the hostname has been resolved successfully.
+func (c *Client) DNSReady() bool {
+	if c.rvHost == "" || net.ParseIP(c.rvHost) != nil {
+		return true
+	}
+	c.dnsMu.RLock()
+	defer c.dnsMu.RUnlock()
+	return c.dnsIP != ""
+}
+
+func (c *Client) resolveHost(ctx context.Context) (string, error) {
+	if c.rvHost == "" || net.ParseIP(c.rvHost) != nil {
+		return c.rvHost, nil
+	}
+
+	c.dnsMu.RLock()
+	if c.dnsIP != "" && time.Now().Before(c.dnsExpires) {
+		ip := c.dnsIP
+		c.dnsMu.RUnlock()
+		return ip, nil
+	}
+	c.dnsMu.RUnlock()
+
+	resolveCtx, cancel := context.WithTimeout(ctx, DNSResolveTimeout)
+	defer cancel()
+
+	ips, err := net.DefaultResolver.LookupHost(resolveCtx, c.rvHost)
+	if err != nil {
+		return "", fmt.Errorf("resolve %s: %w", c.rvHost, err)
+	}
+
+	chosen := ips[0]
+	for _, ip := range ips {
+		if net.ParseIP(ip) != nil && net.ParseIP(ip).To4() != nil {
+			chosen = ip
+			break
+		}
+	}
+
+	c.dnsMu.Lock()
+	c.dnsIP = chosen
+	c.dnsExpires = time.Now().Add(DNSCacheTTL)
+	c.dnsMu.Unlock()
+
+	log.Printf("rendezvous: resolved %s → %s", c.rvHost, chosen)
+	return chosen, nil
+}
+
+func (c *Client) clearDNSCache() {
+	c.dnsMu.Lock()
+	c.dnsIP = ""
+	c.dnsExpires = time.Time{}
+	c.dnsMu.Unlock()
+}
+
+func (c *Client) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return (&net.Dialer{}).DialContext(ctx, network, addr)
+	}
+
+	if host != c.rvHost {
+		return (&net.Dialer{}).DialContext(ctx, network, addr)
+	}
+
+	ip, err := c.resolveHost(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := (&net.Dialer{}).DialContext(ctx, network, net.JoinHostPort(ip, port))
+	if err != nil {
+		c.clearDNSCache()
+		return nil, err
+	}
+	return conn, nil
 }
 
 // getJSON performs a GET request, drains the response body, and decodes JSON
@@ -484,6 +589,7 @@ func (c *Client) ConnectWebSocket(ctx context.Context, peerID string, onMsg func
 
 		if err != nil {
 			if isWSTooEarly(err) {
+				log.Printf("rendezvous ws: server says publish first (425), retrying in %v", WSBackoff)
 				select {
 				case <-ctx.Done():
 					return
@@ -535,7 +641,7 @@ func (c *Client) probeWS(ctx context.Context) bool {
 	probeCtx, cancel := context.WithTimeout(ctx, WSProbeTimeout)
 	defer cancel()
 
-	conn, _, err := (&websocket.Dialer{HandshakeTimeout: WSProbeTimeout}).DialContext(probeCtx, wsURL, nil)
+	conn, _, err := (&websocket.Dialer{HandshakeTimeout: WSProbeTimeout, NetDialContext: c.dialContext}).DialContext(probeCtx, wsURL, nil)
 	if err != nil {
 		return false
 	}
@@ -593,6 +699,7 @@ func (c *Client) connectWSOnce(ctx context.Context, peerID string, onMsg func(pr
 
 	dialer := websocket.Dialer{
 		HandshakeTimeout: WSHandshakeTimeout,
+		NetDialContext:   c.dialContext,
 	}
 
 	conn, resp, err := dialer.DialContext(ctx, wsURL, nil)
@@ -604,6 +711,8 @@ func (c *Client) connectWSOnce(ctx context.Context, peerID string, onMsg func(pr
 		}
 		return fmt.Errorf("ws dial %s (status %d): %w", wsURL, status, err)
 	}
+
+	log.Printf("rendezvous ws: connected to %s", c.BaseURL)
 
 	sendCh := make(chan []byte, 64)
 
@@ -636,6 +745,10 @@ func (c *Client) connectWSOnce(ctx context.Context, peerID string, onMsg func(pr
 
 	// Read pump
 	conn.SetReadDeadline(time.Now().Add(WSReadDeadline))
+	conn.SetPingHandler(func(appData string) error {
+		conn.SetReadDeadline(time.Now().Add(WSReadDeadline))
+		return conn.WriteControl(websocket.PongMessage, []byte(appData), time.Now().Add(WSWriteDeadline))
+	})
 	conn.SetPongHandler(func(string) error {
 		conn.SetReadDeadline(time.Now().Add(WSReadDeadline))
 		return nil

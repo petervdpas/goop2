@@ -17,6 +17,7 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	relayv2client "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/client"
 	ma "github.com/multiformats/go-multiaddr"
+	manet "github.com/multiformats/go-multiaddr/net"
 	"github.com/petervdpas/goop2/internal/rendezvous"
 	"github.com/petervdpas/goop2/internal/util"
 )
@@ -423,18 +424,28 @@ func durOrDefault(sec int, def time.Duration) time.Duration {
 
 // relayInfoToAddrInfo converts a RelayInfo (from the rendezvous server) into
 // a libp2p peer.AddrInfo suitable for autorelay.
+// Localhost addresses are filtered out (useless for remote peers) and private
+// (LAN) addresses are placed before public ones so libp2p prefers a direct
+// LAN path over hairpin NAT when the peer is on the same network as the relay.
 func relayInfoToAddrInfo(ri *rendezvous.RelayInfo) (*peer.AddrInfo, error) {
 	pid, err := peer.Decode(ri.PeerID)
 	if err != nil {
 		return nil, fmt.Errorf("decode relay peer ID: %w", err)
 	}
-	var addrs []ma.Multiaddr
+	var lanAddrs, wanAddrs []ma.Multiaddr
 	for _, s := range ri.Addrs {
 		a, err := ma.NewMultiaddr(s)
 		if err != nil {
 			continue
 		}
-		addrs = append(addrs, a)
+		if manet.IsIPLoopback(a) {
+			continue
+		}
+		if manet.IsPrivateAddr(a) {
+			lanAddrs = append(lanAddrs, a)
+		} else {
+			wanAddrs = append(wanAddrs, a)
+		}
 	}
-	return &peer.AddrInfo{ID: pid, Addrs: addrs}, nil
+	return &peer.AddrInfo{ID: pid, Addrs: append(lanAddrs, wanAddrs...)}, nil
 }

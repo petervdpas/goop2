@@ -6,8 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -17,6 +20,7 @@ import (
 // Client connects a thin-client peer to the bridge service.
 type Client struct {
 	bridgeURL  string
+	bridgeHost string
 	email      string
 	token      string
 	peerID     string
@@ -25,12 +29,24 @@ type Client struct {
 	encSupport bool
 	peers      *state.PeerTable
 	httpClient *http.Client
+
+	dnsMu      sync.RWMutex
+	dnsIP      string
+	dnsExpires time.Time
 }
 
 // New creates a bridge client.
 func New(bridgeURL, email, token, peerID, label, publicKey string, encSupport bool, peers *state.PeerTable) *Client {
-	return &Client{
-		bridgeURL:  strings.TrimRight(bridgeURL, "/"),
+	bridgeURL = strings.TrimRight(bridgeURL, "/")
+
+	var bridgeHost string
+	if u, err := url.Parse(bridgeURL); err == nil {
+		bridgeHost = u.Hostname()
+	}
+
+	c := &Client{
+		bridgeURL:  bridgeURL,
+		bridgeHost: bridgeHost,
 		email:      email,
 		token:      token,
 		peerID:     peerID,
@@ -38,8 +54,77 @@ func New(bridgeURL, email, token, peerID, label, publicKey string, encSupport bo
 		publicKey:  publicKey,
 		encSupport: encSupport,
 		peers:      peers,
-		httpClient: &http.Client{Timeout: HTTPClientTimeout},
 	}
+
+	c.httpClient = &http.Client{
+		Timeout:   HTTPClientTimeout,
+		Transport: &http.Transport{DialContext: c.dialContext},
+	}
+	return c
+}
+
+func (c *Client) resolveHost(ctx context.Context) (string, error) {
+	if c.bridgeHost == "" || net.ParseIP(c.bridgeHost) != nil {
+		return c.bridgeHost, nil
+	}
+
+	c.dnsMu.RLock()
+	if c.dnsIP != "" && time.Now().Before(c.dnsExpires) {
+		ip := c.dnsIP
+		c.dnsMu.RUnlock()
+		return ip, nil
+	}
+	c.dnsMu.RUnlock()
+
+	resolveCtx, cancel := context.WithTimeout(ctx, DNSResolveTimeout)
+	defer cancel()
+
+	ips, err := net.DefaultResolver.LookupHost(resolveCtx, c.bridgeHost)
+	if err != nil {
+		return "", fmt.Errorf("resolve %s: %w", c.bridgeHost, err)
+	}
+
+	chosen := ips[0]
+	for _, ip := range ips {
+		if net.ParseIP(ip) != nil && net.ParseIP(ip).To4() != nil {
+			chosen = ip
+			break
+		}
+	}
+
+	c.dnsMu.Lock()
+	c.dnsIP = chosen
+	c.dnsExpires = time.Now().Add(DNSCacheTTL)
+	c.dnsMu.Unlock()
+
+	log.Printf("bridge: resolved %s → %s", c.bridgeHost, chosen)
+	return chosen, nil
+}
+
+func (c *Client) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return (&net.Dialer{}).DialContext(ctx, network, addr)
+	}
+
+	if host != c.bridgeHost {
+		return (&net.Dialer{}).DialContext(ctx, network, addr)
+	}
+
+	ip, err := c.resolveHost(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := (&net.Dialer{}).DialContext(ctx, network, net.JoinHostPort(ip, port))
+	if err != nil {
+		c.dnsMu.Lock()
+		c.dnsIP = ""
+		c.dnsExpires = time.Time{}
+		c.dnsMu.Unlock()
+		return nil, err
+	}
+	return conn, nil
 }
 
 // Register registers this peer as a VPeer on the bridge service.
@@ -117,7 +202,7 @@ func (c *Client) connectOnce(ctx context.Context, onPresence func(data json.RawM
 	wsURL = strings.Replace(wsURL, "http://", "ws://", 1)
 	wsURL += "/api/bridge/ws/" + c.peerID
 
-	dialer := websocket.Dialer{HandshakeTimeout: HTTPClientTimeout}
+	dialer := websocket.Dialer{HandshakeTimeout: WSHandshakeTimeout, NetDialContext: c.dialContext}
 	header := http.Header{}
 	header.Set("X-Goop-Email", c.email)
 	header.Set("X-Bridge-Token", c.token)

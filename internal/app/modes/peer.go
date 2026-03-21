@@ -78,6 +78,15 @@ func RunPeer(p PeerParams) error {
 	step++
 	progress(step, total, "Discovering relay")
 
+	var reachableClients []*rendezvous.Client
+	for _, c := range rvClients {
+		c.WarmDNS(ctx)
+		if c.DNSReady() {
+			reachableClients = append(reachableClients, c)
+		}
+	}
+	rvClients = reachableClients
+
 	var relayInfo *rendezvous.RelayInfo
 	if len(rvClients) > 0 {
 		type relayResult struct {
@@ -87,10 +96,14 @@ func RunPeer(p PeerParams) error {
 		for _, c := range rvClients {
 			go func(c *rendezvous.Client) {
 				ri, err := c.FetchRelayInfo(ctx)
-				if err == nil && ri != nil {
-					ch <- relayResult{info: ri}
-				} else {
+				if err != nil {
+					log.Printf("relay: fetch from %s failed: %v", c.BaseURL, err)
 					ch <- relayResult{}
+				} else if ri == nil {
+					log.Printf("relay: %s has no relay configured", c.BaseURL)
+					ch <- relayResult{}
+				} else {
+					ch <- relayResult{info: ri}
 				}
 			}(c)
 		}
@@ -214,6 +227,7 @@ func RunPeer(p PeerParams) error {
 
 	// Start rendezvous WS connections as early as possible so peer discovery
 	// begins while we wire up services. All dependencies (peers, node, db) are ready.
+	announced := make(map[string]bool)
 	rvOnMsg := func(pm proto.PresenceMsg) {
 		if pm.PeerID == node.ID() {
 			return
@@ -221,6 +235,14 @@ func RunPeer(p PeerParams) error {
 		switch pm.Type {
 		case proto.TypeOnline, proto.TypeUpdate:
 			_, known := peers.Get(pm.PeerID)
+			if !announced[pm.PeerID] {
+				announced[pm.PeerID] = true
+				name := pm.Content
+				if name == "" {
+					name = pm.PeerID[:min(16, len(pm.PeerID))]
+				}
+				log.Printf("[online] %s (%s) — %d addrs", pm.PeerID[:min(16, len(pm.PeerID))], name, len(pm.Addrs))
+			}
 			peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.PublicKey, pm.EncryptionSupported, pm.Verified)
 			go db.UpsertCachedPeer(storage.CachedPeer{
 				PeerID:         pm.PeerID,
@@ -246,6 +268,7 @@ func RunPeer(p PeerParams) error {
 			node.AddPeerAddrs(pm.PeerID, pm.Addrs)
 			go node.ProbePeer(ctx, pm.PeerID)
 		case proto.TypeOffline:
+			log.Printf("[offline] %s", pm.PeerID[:min(16, len(pm.PeerID))])
 			peers.MarkOffline(pm.PeerID)
 		}
 	}
@@ -460,7 +483,9 @@ func RunPeer(p PeerParams) error {
 				}
 				ctx2, cancel := context.WithTimeout(pctx, util.ShortTimeout)
 				defer cancel()
-				_ = cc.Publish(ctx2, pm)
+				if err := cc.Publish(ctx2, pm); err != nil {
+					log.Printf("rendezvous: publish to %s failed: %v", cc.BaseURL, err)
+				}
 			}()
 		}
 	}

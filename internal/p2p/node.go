@@ -255,26 +255,10 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 		return nil, err
 	}
 
-	// When a direct (non-relay) connection is established to a peer, close any
-	// relay connections to that same peer.  This upgrades relay→direct for mDNS
-	// peers and DCUtR-hole-punched peers so LAN traffic never stays on the relay.
-	h.Network().Notify(&network.NotifyBundle{
-		ConnectedF: func(net network.Network, conn network.Conn) {
-			if isCircuitAddr(conn.RemoteMultiaddr()) {
-				return // relay connection itself — ignore
-			}
-			pid := conn.RemotePeer()
-			go func() {
-				for _, c := range net.ConnsToPeer(pid) {
-					if c != conn && isCircuitAddr(c.RemoteMultiaddr()) {
-						log.Printf("relay: closing relay conn to %s (direct conn established via %s)",
-							pid.ShortString(), conn.RemoteMultiaddr())
-						_ = c.Close()
-					}
-				}
-			}()
-		},
-	})
+	// Let relay and direct connections coexist. libp2p prefers direct
+	// connections for new streams automatically; keeping the relay as
+	// fallback prevents connectivity loss when the direct path is
+	// unstable (VPN, hole-punch, mobile).
 
 	ps, err := pubsub.NewGossipSub(ctx, h)
 	if err != nil {

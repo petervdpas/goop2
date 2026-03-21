@@ -48,8 +48,9 @@
     if (/\brelay\b/.test(s)) return 'log-relay';
     if (/\bCLUSTER\b/.test(s)) return 'log-cluster';
     if (/\bGROUP\b|\bLISTEN\b/.test(s)) return 'log-group';
+    if (/\bprobe\b.*UNREACHABLE/.test(s)) return 'log-probe';
     if (/\bprobe\b/.test(s)) return 'log-probe';
-    if (/\[update\]|\[online\]/.test(s)) return 'log-peer';
+    if (/\[update\]|\[online\]|\[offline\]|\brendezvous.*publish\b/.test(s)) return 'log-peer';
     if (/\[data\]/.test(s)) return 'log-data';
     if (/UNREACHABLE|error|ERROR/.test(s)) return 'log-error';
     if (/\bREACHABLE\b/.test(s)) return 'log-ok';

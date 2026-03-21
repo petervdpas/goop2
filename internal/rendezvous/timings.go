@@ -4,8 +4,10 @@ import "time"
 
 // Client-side rendezvous timings — connecting to rendezvous server(s).
 const (
-	HTTPClientTimeout    = 2 * time.Second  // REST calls to rendezvous
-	WSHandshakeTimeout   = 2 * time.Second  // WebSocket upgrade handshake
+	DNSResolveTimeout    = 10 * time.Second // DNS resolution (allows failover between nameservers)
+	DNSCacheTTL          = 5 * time.Minute  // how long a cached DNS result stays valid
+	HTTPClientTimeout    = 5 * time.Second  // REST calls to rendezvous (excl. DNS)
+	WSHandshakeTimeout   = 5 * time.Second  // WebSocket upgrade handshake (excl. DNS)
 	WSWriteDeadline      = 2 * time.Second  // writing a WS frame
 	WSReadDeadline       = 15 * time.Second // must be > 2× WSPingInterval
 	WSPingInterval       = 5 * time.Second  // WS keepalive ping

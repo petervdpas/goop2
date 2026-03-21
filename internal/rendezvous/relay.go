@@ -15,8 +15,10 @@ import (
 	libp2p "github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
+	ymux "github.com/libp2p/go-libp2p/p2p/muxer/yamux"
 	pbv2 "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/pb"
 	relayv2 "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
+	yamux "github.com/libp2p/go-yamux/v4"
 )
 
 // RelayInfo describes a circuit relay v2 host that peers can use for NAT traversal.
@@ -118,10 +120,14 @@ func StartRelay(port int, keyFile string, externalURL string, logFn func(string)
 		return nil, nil, fmt.Errorf("relay key: %w", err)
 	}
 
+	ymuxCfg := yamux.DefaultConfig()
+	ymuxCfg.KeepAliveInterval = RelayYamuxKeepAlive
+
 	h, err := libp2p.New(
 		libp2p.Identity(priv),
 		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port)),
-		libp2p.DisableRelay(), // relay host itself doesn't need to be a relay client
+		libp2p.DisableRelay(),
+		libp2p.Muxer(ymux.ID, (*ymux.Transport)(ymuxCfg)),
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("relay host: %w", err)

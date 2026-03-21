@@ -9,6 +9,7 @@ require (
 	github.com/ipfs/go-log/v2 v2.5.1
 	github.com/libp2p/go-libp2p v0.34.0
 	github.com/libp2p/go-libp2p-pubsub v0.11.0
+	github.com/libp2p/go-yamux/v4 v4.0.1
 	github.com/multiformats/go-multiaddr v0.12.4
 	github.com/pion/interceptor v0.1.42
 	github.com/pion/mediadevices v0.9.4
@@ -80,7 +81,6 @@ require (
 	github.com/libp2p/go-nat v0.2.0 // indirect
 	github.com/libp2p/go-netroute v0.2.1 // indirect
 	github.com/libp2p/go-reuseport v0.4.0 // indirect
-	github.com/libp2p/go-yamux/v4 v4.0.1 // indirect
 	github.com/libp2p/zeroconf/v2 v2.2.0 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/marten-seemann/tcp v0.0.0-20210406111302-dfbc87cc63fd // indirect

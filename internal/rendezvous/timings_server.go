@@ -25,4 +25,5 @@ const (
 	RelayMaxPerPeer       = 64                // per-peer reservation constraint window (go-libp2p uses 30min sliding window)
 	RelayMaxPerIP         = 128               // per-IP reservation constraint window
 	RelayMaxPerASN        = 128               // per-ASN reservation constraint window
+	RelayYamuxKeepAlive   = 5 * time.Second   // yamux keepalive ping interval (must beat port-forward timeouts)
 )
