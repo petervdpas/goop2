@@ -24,7 +24,6 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	libp2p "github.com/libp2p/go-libp2p"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
-	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -32,7 +31,10 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
+	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
+	ymux "github.com/libp2p/go-libp2p/p2p/muxer/yamux"
 	"github.com/libp2p/go-libp2p/p2p/net/swarm"
+	yamux "github.com/libp2p/go-yamux/v4"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
 )
@@ -205,9 +207,13 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 		log.Printf("Loaded identity key: %s", keyFile)
 	}
 
+	ymuxCfg := yamux.DefaultConfig()
+	ymuxCfg.KeepAliveInterval = YamuxKeepAlive
+
 	opts := []libp2p.Option{
 		libp2p.Identity(priv),
 		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", listenPort)),
+		libp2p.Muxer(ymux.ID, (*ymux.Transport)(ymuxCfg)),
 	}
 
 	// When a relay is available, enable circuit relay transport, hole-punching,

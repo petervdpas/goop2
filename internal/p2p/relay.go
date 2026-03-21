@@ -289,6 +289,7 @@ func (n *Node) StartRelayRefresh(ctx context.Context, interval time.Duration) {
 			case <-ctx.Done():
 				return
 			case <-t.C:
+				n.Host.Peerstore().AddAddrs(n.relayPeer.ID, n.relayPeer.Addrs, PeerstoreAddrTTL)
 				if n.hasCircuitAddr() {
 					nudgeCount = 0
 					continue
