@@ -98,6 +98,34 @@ func (d *DB) DeleteSchemaORM(tableName string) {
 	d.db.Exec(`DELETE FROM _orm_schemas WHERE table_name = ?`, tableName)
 }
 
+// LuaSchemaColumn mirrors the column definition from Lua scripts.
+type LuaSchemaColumn struct {
+	Name     string
+	Type     string
+	Key      bool
+	Required bool
+	Default  any
+}
+
+// CreateTableORMFromLua creates an ORM-managed table from Lua-provided columns.
+func (d *DB) CreateTableORMFromLua(name string, columns []LuaSchemaColumn) error {
+	schemaCols := make([]schema.Column, len(columns))
+	for i, c := range columns {
+		schemaCols[i] = schema.Column{
+			Name:     c.Name,
+			Type:     c.Type,
+			Key:      c.Key,
+			Required: c.Required,
+			Default:  c.Default,
+		}
+	}
+	tbl := &schema.Table{Name: name, Columns: schemaCols}
+	if err := tbl.Validate(); err != nil {
+		return err
+	}
+	return d.CreateTableORM(tbl)
+}
+
 // RenameSchemaORM updates the stored schema when a table is renamed.
 func (d *DB) RenameSchemaORM(oldName, newName string) {
 	tbl, err := d.GetSchema(oldName)
@@ -167,6 +195,115 @@ func (d *DB) ExportSchema(ctx context.Context, tableName string) (*schema.Table,
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return schema.ExportTable(ctx, d.db, tableName)
+}
+
+// OrmInsert validates and inserts a row into an ORM-managed table.
+// Adds system columns (_owner, _owner_email) automatically.
+func (d *DB) OrmInsert(tableName, ownerID, ownerEmail string, data map[string]any) (int64, error) {
+	if err := d.ValidateInsert(tableName, data); err != nil {
+		return 0, err
+	}
+	return d.Insert(tableName, ownerID, ownerEmail, data)
+}
+
+// OrmGet retrieves a row by _id from an ORM-managed table.
+func (d *DB) OrmGet(tableName string, id int64) (map[string]any, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	tbl, err := d.GetSchema(tableName)
+	if err != nil || tbl == nil {
+		return nil, fmt.Errorf("orm: table %q has no schema", tableName)
+	}
+
+	allCols := append([]string{"_id", "_owner", "_owner_email", "_created_at", "_updated_at"}, tbl.ColumnNames()...)
+	q := fmt.Sprintf("SELECT %s FROM %s WHERE _id = ?", joinCols(allCols), tableName)
+	rows, err := d.db.Query(q, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return nil, fmt.Errorf("orm: not found")
+	}
+	cols, _ := rows.Columns()
+	vals := make([]any, len(cols))
+	ptrs := make([]any, len(cols))
+	for i := range vals {
+		ptrs[i] = &vals[i]
+	}
+	if err := rows.Scan(ptrs...); err != nil {
+		return nil, err
+	}
+	result := make(map[string]any, len(cols))
+	for i, col := range cols {
+		result[col] = vals[i]
+	}
+	return result, nil
+}
+
+// OrmList retrieves all rows from an ORM-managed table.
+func (d *DB) OrmList(tableName string, limit int) ([]map[string]any, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	tbl, err := d.GetSchema(tableName)
+	if err != nil || tbl == nil {
+		return nil, fmt.Errorf("orm: table %q has no schema", tableName)
+	}
+
+	allCols := append([]string{"_id", "_owner", "_owner_email", "_created_at", "_updated_at"}, tbl.ColumnNames()...)
+	q := fmt.Sprintf("SELECT %s FROM %s", joinCols(allCols), tableName)
+	if limit > 0 {
+		q += fmt.Sprintf(" LIMIT %d", limit)
+	}
+	rows, err := d.db.Query(q)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	cols, _ := rows.Columns()
+	var results []map[string]any
+	for rows.Next() {
+		vals := make([]any, len(cols))
+		ptrs := make([]any, len(cols))
+		for i := range vals {
+			ptrs[i] = &vals[i]
+		}
+		if err := rows.Scan(ptrs...); err != nil {
+			return nil, err
+		}
+		row := make(map[string]any, len(cols))
+		for i, col := range cols {
+			row[col] = vals[i]
+		}
+		results = append(results, row)
+	}
+	return results, rows.Err()
+}
+
+// OrmUpdate validates and updates a row by _id in an ORM-managed table.
+func (d *DB) OrmUpdate(tableName string, id int64, data map[string]any) error {
+	if err := d.ValidateInsert(tableName, data); err != nil {
+		return err
+	}
+	return d.UpdateRow(tableName, id, data)
+}
+
+// OrmDelete deletes a row by _id from an ORM-managed table.
+func (d *DB) OrmDelete(tableName string, id int64) error {
+	return d.DeleteRow(tableName, id)
+}
+
+func joinCols(cols []string) string {
+	result := ""
+	for i, c := range cols {
+		if i > 0 {
+			result += ", "
+		}
+		result += c
+	}
+	return result
 }
 
 func validateType(name, colType string, val any) error {

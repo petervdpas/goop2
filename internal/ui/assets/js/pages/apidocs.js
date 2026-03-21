@@ -102,17 +102,23 @@
     document.body.appendChild(script);
   }
 
+  var panels = {
+    sdk: document.getElementById('sdk-panel'),
+    lua: document.getElementById('lua-panel'),
+    api: swaggerPanel,
+    executor: redocPanel
+  };
+  var inits = { api: initSwaggerUI, executor: initRedoc };
+
   document.querySelectorAll('[data-tab]').forEach(function(btn) {
     btn.addEventListener('click', function() {
       document.querySelectorAll('[data-tab]').forEach(function(b) { b.classList.remove('active'); });
       btn.classList.add('active');
       var tab = btn.dataset.tab;
-      swaggerPanel.style.display = tab === 'api' ? '' : 'none';
-      redocPanel.style.display = tab === 'executor' ? '' : 'none';
-      if (tab === 'api') initSwaggerUI();
-      if (tab === 'executor') initRedoc();
+      Object.keys(panels).forEach(function(k) {
+        if (panels[k]) panels[k].style.display = k === tab ? '' : 'none';
+      });
+      if (inits[tab]) inits[tab]();
     });
   });
-
-  initSwaggerUI();
 })();

@@ -136,7 +136,7 @@ func injectGoopTable(L *lua.LState, inv *invocationCtx, kv *kvStore, engine *Eng
 func newSandboxedDataVM(inv *invocationCtx, kv *kvStore, engine *Engine, db *storage.DB) *lua.LState {
 	L := newSandboxedVM(inv, kv, engine)
 
-	// Inject goop.db table (only for data functions)
+	// Inject goop.db and goop.schema tables (only for data functions)
 	if db != nil {
 		goop := L.GetGlobal("goop")
 		goopTbl, ok := goop.(*lua.LTable)
@@ -146,6 +146,18 @@ func newSandboxedDataVM(inv *invocationCtx, kv *kvStore, engine *Engine, db *sto
 			dbTbl.RawSetString("scalar", L.NewFunction(dbScalarFn(inv, db)))
 			dbTbl.RawSetString("exec", L.NewFunction(dbExecFn(inv, db)))
 			goopTbl.RawSetString("db", dbTbl)
+
+			schemaTbl := L.NewTable()
+			schemaTbl.RawSetString("create", L.NewFunction(schemaCreateFn(inv, db)))
+			schemaTbl.RawSetString("describe", L.NewFunction(schemaDescribeFn(db)))
+			schemaTbl.RawSetString("validate", L.NewFunction(schemaValidateFn(db)))
+			schemaTbl.RawSetString("is_orm", L.NewFunction(schemaIsORMFn(db)))
+			schemaTbl.RawSetString("insert", L.NewFunction(schemaInsertFn(inv, db)))
+			schemaTbl.RawSetString("get", L.NewFunction(schemaGetFn(db)))
+			schemaTbl.RawSetString("list", L.NewFunction(schemaListFn(db)))
+			schemaTbl.RawSetString("update", L.NewFunction(schemaUpdateFn(db)))
+			schemaTbl.RawSetString("delete", L.NewFunction(schemaDeleteFn(db)))
+			goopTbl.RawSetString("schema", schemaTbl)
 		}
 	}
 

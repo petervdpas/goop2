@@ -961,6 +961,23 @@ input:checked + .slider::before {
   transition: width 0.3s;
 }
 
+/* --- SDK / Lua docs panels --- */
+.docs-panel { color: var(--text); font-size: 15px; }
+.docs-panel h1 { font-size: 26px; font-weight: 800; margin: 0 0 16px; color: var(--accent); }
+.docs-panel h2 { font-size: 20px; font-weight: 700; margin: 32px 0 12px; color: var(--text); border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.docs-panel h3 { font-size: 16px; font-weight: 700; margin: 24px 0 8px; color: var(--text); }
+.docs-panel p { margin: 0 0 14px; color: var(--muted); }
+.docs-panel code { font-family: 'Courier New', Consolas, monospace; font-size: 13px; background: var(--field-bg); padding: 2px 6px; border-radius: 4px; color: var(--accent); }
+.docs-panel pre { margin: 0 0 18px; padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--radius-xs); overflow-x: auto; line-height: 1.6; }
+.docs-panel pre code { background: none; padding: 0; border-radius: 0; color: var(--text); font-size: 13px; }
+.docs-panel table { width: 100%; margin: 0 0 18px; border-collapse: collapse; font-size: 14px; }
+.docs-panel th { text-align: left; padding: 8px 12px; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); border-bottom: 2px solid var(--line); }
+.docs-panel td { padding: 8px 12px; border-bottom: 1px solid var(--line); color: var(--text); }
+.docs-panel ul { margin: 0 0 14px; padding-left: 22px; color: var(--text); }
+.docs-panel li { margin-bottom: 4px; }
+.docs-panel strong { color: var(--text); font-weight: 600; }
+.docs-panel a { color: var(--accent); }
+
 /* --- Redoc dark mode overrides (viewer apidocs) --- */
 :root:not([data-theme="light"]) #redoc-panel .redoc-wrap { background: transparent !important; }
 :root:not([data-theme="light"]) #redoc-panel .menu-content { background: transparent !important; }

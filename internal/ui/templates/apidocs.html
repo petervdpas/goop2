@@ -2,10 +2,14 @@
 {{template "create.tabs" .}}
 
 <div class="create-tabs" style="margin-top:0;">
-  <a class="create-tab active" data-tab="api">API Reference</a>
+  <a class="create-tab active" data-tab="sdk">SDK</a>
+  <a class="create-tab" data-tab="lua">Lua</a>
+  <a class="create-tab" data-tab="api">API Reference</a>
   <a class="create-tab" data-tab="executor">Executor Protocol</a>
 </div>
 
-<div id="swagger-panel" style="height:calc(100vh - 160px);overflow:auto;background:var(--bg-raised);border-radius:8px;"></div>
+<div id="sdk-panel" class="docs-panel" style="height:calc(100vh - 160px);overflow:auto;background:var(--panel);border-radius:8px;padding:36px 48px;line-height:1.75;">{{.SDKDoc}}</div>
+<div id="lua-panel" class="docs-panel" style="display:none;height:calc(100vh - 160px);overflow:auto;background:var(--panel);border-radius:8px;padding:36px 48px;line-height:1.75;">{{.LuaDoc}}</div>
+<div id="swagger-panel" style="display:none;height:calc(100vh - 160px);overflow:auto;background:var(--bg-raised);border-radius:8px;"></div>
 <div id="redoc-panel" style="display:none;height:calc(100vh - 160px);overflow:auto;background:var(--bg-raised);border-radius:8px;"></div>
 {{end}}

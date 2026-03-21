@@ -463,6 +463,249 @@ func dbExecFn(inv *invocationCtx, db *storage.DB) lua.LGFunction {
 	}
 }
 
+// schemaCreateFn implements goop.schema.create(name, columns) — creates an ORM-managed table.
+// columns is a Lua array of {name, type, key?, required?, default?} tables.
+func schemaCreateFn(inv *invocationCtx, db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		name := L.CheckString(1)
+		colsTbl := L.CheckTable(2)
+
+		var columns []storage.LuaSchemaColumn
+		colsTbl.ForEach(func(_, val lua.LValue) {
+			row, ok := val.(*lua.LTable)
+			if !ok {
+				return
+			}
+			col := storage.LuaSchemaColumn{
+				Name: luaString(row, "name"),
+				Type: luaString(row, "type"),
+			}
+			if v := row.RawGetString("key"); v == lua.LTrue {
+				col.Key = true
+			}
+			if v := row.RawGetString("required"); v == lua.LTrue {
+				col.Required = true
+			}
+			if v := row.RawGetString("default"); v != lua.LNil {
+				col.Default = luaToGo(v)
+			}
+			columns = append(columns, col)
+		})
+
+		if err := db.CreateTableORMFromLua(name, columns); err != nil {
+			L.Push(lua.LNil)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+
+		L.Push(lua.LTrue)
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
+// schemaDescribeFn implements goop.schema.describe(table) — returns typed schema.
+func schemaDescribeFn(db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		tableName := L.CheckString(1)
+
+		tbl, err := db.GetSchema(tableName)
+		if err != nil {
+			L.Push(lua.LNil)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+		if tbl == nil {
+			L.Push(lua.LNil)
+			L.Push(lua.LString("not an ORM table"))
+			return 2
+		}
+
+		result := L.NewTable()
+		result.RawSetString("name", lua.LString(tbl.Name))
+		colsTbl := L.NewTable()
+		for i, c := range tbl.Columns {
+			colTbl := L.NewTable()
+			colTbl.RawSetString("name", lua.LString(c.Name))
+			colTbl.RawSetString("type", lua.LString(c.Type))
+			colTbl.RawSetString("key", lua.LBool(c.Key))
+			colTbl.RawSetString("required", lua.LBool(c.Required))
+			if c.Default != nil {
+				colTbl.RawSetString("default", goToLua(L, c.Default))
+			}
+			colsTbl.RawSetInt(i+1, colTbl)
+		}
+		result.RawSetString("columns", colsTbl)
+
+		L.Push(result)
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
+// schemaValidateFn implements goop.schema.validate(table, data) — validates types.
+func schemaValidateFn(db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		tableName := L.CheckString(1)
+		dataTbl := L.CheckTable(2)
+
+		data := make(map[string]any)
+		dataTbl.ForEach(func(key, val lua.LValue) {
+			if ks, ok := key.(lua.LString); ok {
+				data[string(ks)] = luaToGo(val)
+			}
+		})
+
+		if err := db.ValidateInsert(tableName, data); err != nil {
+			L.Push(lua.LFalse)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+
+		L.Push(lua.LTrue)
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
+// schemaIsORMFn implements goop.schema.is_orm(table) — checks if table is ORM-managed.
+func schemaIsORMFn(db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		tableName := L.CheckString(1)
+		L.Push(lua.LBool(db.IsORM(tableName)))
+		return 1
+	}
+}
+
+
+// schemaInsertFn implements goop.schema.insert(table, data) — typed insert.
+func schemaInsertFn(inv *invocationCtx, db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		tableName := L.CheckString(1)
+		dataTbl := L.CheckTable(2)
+
+		data := luaTableToMap(dataTbl)
+
+		id, err := db.OrmInsert(tableName, inv.peerID, "", data)
+		if err != nil {
+			L.Push(lua.LNil)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+
+		L.Push(lua.LNumber(id))
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
+// schemaGetFn implements goop.schema.get(table, id) — get by _id.
+func schemaGetFn(db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		tableName := L.CheckString(1)
+		id := L.CheckInt64(2)
+
+		row, err := db.OrmGet(tableName, id)
+		if err != nil {
+			L.Push(lua.LNil)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+
+		tbl := L.NewTable()
+		for k, v := range row {
+			tbl.RawSetString(k, goToLua(L, v))
+		}
+		L.Push(tbl)
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
+// schemaListFn implements goop.schema.list(table, limit?) — list all rows.
+func schemaListFn(db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		tableName := L.CheckString(1)
+		limit := L.OptInt(2, 0)
+
+		rows, err := db.OrmList(tableName, limit)
+		if err != nil {
+			L.Push(lua.LNil)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+
+		tbl := L.NewTable()
+		for i, row := range rows {
+			rowTbl := L.NewTable()
+			for k, v := range row {
+				rowTbl.RawSetString(k, goToLua(L, v))
+			}
+			tbl.RawSetInt(i+1, rowTbl)
+		}
+		L.Push(tbl)
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
+// schemaUpdateFn implements goop.schema.update(table, id, data) — typed update by _id.
+func schemaUpdateFn(db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		tableName := L.CheckString(1)
+		id := L.CheckInt64(2)
+		dataTbl := L.CheckTable(3)
+
+		data := luaTableToMap(dataTbl)
+
+		if err := db.OrmUpdate(tableName, id, data); err != nil {
+			L.Push(lua.LFalse)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+
+		L.Push(lua.LTrue)
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
+// schemaDeleteFn implements goop.schema.delete(table, id) — delete by _id.
+func schemaDeleteFn(db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		tableName := L.CheckString(1)
+		id := L.CheckInt64(2)
+
+		if err := db.OrmDelete(tableName, id); err != nil {
+			L.Push(lua.LFalse)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+
+		L.Push(lua.LTrue)
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
+func luaTableToMap(tbl *lua.LTable) map[string]any {
+	data := make(map[string]any)
+	tbl.ForEach(func(key, val lua.LValue) {
+		if ks, ok := key.(lua.LString); ok {
+			data[string(ks)] = luaToGo(val)
+		}
+	})
+	return data
+}
+
+func luaString(tbl *lua.LTable, key string) string {
+	v := tbl.RawGetString(key)
+	if s, ok := v.(lua.LString); ok {
+		return string(s)
+	}
+	return ""
+}
+
 // collectLuaArgs gathers variadic arguments from the Lua stack starting at position start.
 func collectLuaArgs(L *lua.LState, start int) []any {
 	var args []any
