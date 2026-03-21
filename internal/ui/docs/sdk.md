@@ -20,7 +20,7 @@ All modules attach to the global `Goop` object. Load only what you need.
 | `goop-data.js` | `Goop.data` | Database CRUD, schema, Lua function calls |
 | `goop-identity.js` | `Goop.identity` | Peer ID, display name, email |
 | `goop-peers.js` | `Goop.peers` | Peer discovery and status polling |
-| `goop-group.js` | `Goop.group` | Group membership, messaging |
+| `goop-group.js` | `Goop.group` | Group membership, messaging, SSE events |
 | `goop-chat.js` | `Goop.chat` | Direct and broadcast chat over MQ |
 | `goop-realtime.js` | `Goop.realtime` | Virtual MQ-based channels |
 | `goop-call.js` | `Goop.call` | WebRTC audio/video calling |
@@ -41,6 +41,9 @@ const db = Goop.data;
 // List tables (includes mode: orm/classic)
 const tables = await db.tables();
 
+// Describe a table's columns
+const info = await db.describe("tasks");
+
 // Create table — classic format
 await db.createTable("posts", [
   {name: "title", type: "TEXT", not_null: true},
@@ -54,26 +57,39 @@ await db.createTable("tasks", [
   {name: "score", type: "real"}
 ]);
 
-// CRUD
+// Insert → {status, id}
 const {id} = await db.insert("tasks", {title: "Hello", score: 9.5});
-const rows = await db.query("tasks", {limit: 10});
+
+// Query with options
+const rows = await db.query("tasks", {limit: 10, where: "score > ?", args: [5]});
+
+// Update by _id
 await db.update("tasks", id, {score: 10});
+
+// Delete by _id
 await db.remove("tasks", id);
 
-// Describe (ORM tables return typed schema)
-const info = await db.describe("tasks");
-// {mode: "orm", schema: {name: "tasks", columns: [...]}}
+// Drop a table
+await db.dropTable("tasks");
 
-// Call a Lua function
-const result = await db.call("score-quiz", {answers: [...]});
+// Add a column
+await db.addColumn("tasks", {name: "priority", type: "INTEGER", not_null: false});
+
+// Call a Lua data function
+const result = await db.call("score-quiz", {answers: [1, 2, 3]});
+
+// List available Lua functions
+const fns = await db.functions();
 ```
 
 ## Goop.identity
 
 ```javascript
-const myId    = await Goop.identity.id();
-const myName  = await Goop.identity.label();
-const myEmail = await Goop.identity.email();
+const info  = await Goop.identity.get();    // {id, label, email}
+const myId  = await Goop.identity.id();     // peer ID string
+const name  = await Goop.identity.label();  // display name
+const email = await Goop.identity.email();  // email string
+Goop.identity.refresh();                    // clear cache, force re-fetch
 ```
 
 ## Goop.peers
@@ -81,24 +97,58 @@ const myEmail = await Goop.identity.email();
 ```javascript
 // One-time fetch
 const peers = await Goop.peers.list();
+// Each peer: {ID, Content, Email, AvatarHash, VideoDisabled,
+//   ActiveTemplate, Verified, Reachable, Offline, LastSeen}
 
-// Live updates (polls every 5s)
-Goop.peers.subscribe(function(peers) {
-  // peers = [{id, label, reachable, ...}]
-});
+// Live updates (polls every 5s by default)
+Goop.peers.subscribe({
+  onSnapshot(peers) { /* full list on first load */ },
+  onUpdate(peerId, peer) { /* peer came online or changed */ },
+  onRemove(peerId) { /* peer pruned from list */ },
+  onError() { /* optional error handler */ }
+}, 5000);
+
+// Stop polling
+Goop.peers.unsubscribe();
 ```
 
 ## Goop.group
 
 ```javascript
-// List active subscriptions
-const subs = await Goop.group.subscriptions();
+// Create a hosted group
+await Goop.group.create("My Room", "realtime", 10);
+
+// List hosted groups
+const groups = await Goop.group.list();
+// Each: {id, name, app_type, max_members, volatile, host_joined,
+//   host_in_group, created_at, member_count, members}
 
 // Join a remote group
 await Goop.group.join(hostPeerId, groupId);
 
-// Send a message to a group
-await Goop.group.send(groupId, {action: "move", x: 5});
+// Send a message to the group
+await Goop.group.send({action: "move", x: 5}, groupId);
+
+// Leave a group
+await Goop.group.leave();
+
+// Host joins/leaves own group
+await Goop.group.joinOwn(groupId);
+await Goop.group.leaveOwn(groupId);
+
+// Close a hosted group
+await Goop.group.close(groupId);
+
+// List subscriptions and active connections
+const {subscriptions, active_groups} = await Goop.group.subscriptions();
+
+// SSE event stream
+const es = Goop.group.subscribe(function(evt) {
+  // evt.type: "welcome", "members", "msg", "state", "leave", "close", "invite"
+  // evt.group, evt.from, evt.payload
+});
+
+Goop.group.unsubscribe();
 ```
 
 ## Goop.chat
@@ -109,29 +159,240 @@ await Goop.chat.send(peerId, "Hello!");
 
 // Broadcast to all peers
 await Goop.chat.broadcast("Server restarting");
+
+// Subscribe to incoming messages via MQ
+Goop.chat.subscribe(function(msg) {
+  // msg: {from, content, type, timestamp}
+  // type: "broadcast" or "direct"
+});
+
+Goop.chat.unsubscribe();
 ```
 
-## Goop.ui
+## Goop.realtime
+
+Virtual MQ-based channels for real-time peer communication.
 
 ```javascript
-Goop.ui.toast("Saved!", "success");
-Goop.ui.toast("Something went wrong", "error");
+// Connect to a peer — creates a channel
+const ch = await Goop.realtime.connect(peerId);
 
-const ok = await Goop.ui.confirm("Delete this item?");
-const name = await Goop.ui.prompt("Enter your name:");
+// Channel methods
+ch.send({action: "ping"});
+ch.onMessage(function(msg, env) { /* env: {channel, from} */ });
+ch.offMessage(handler);
+ch.close();
+// Properties: ch.id, ch.remotePeer
+
+// Accept an incoming channel
+const ch = await Goop.realtime.accept(channelId, hostPeerId);
+
+// List active channels
+const channels = await Goop.realtime.channels();
+
+// Listen for incoming channel invitations
+Goop.realtime.onIncoming(function(info) {
+  // info: {channelId, hostPeerId}
+});
+
+// Global message handler (all channels)
+Goop.realtime.onMessage(handler);
+Goop.realtime.offMessage(handler);
+
+// Check if MQ subscription is active
+Goop.realtime.isConnected();
+```
+
+## Goop.call
+
+WebRTC audio/video calling.
+
+```javascript
+// Start a call
+const session = await Goop.call.start(peerId, {video: true, audio: true});
+
+// Session methods
+session.onRemoteStream(function(stream) { video.srcObject = stream; });
+session.onHangup(function() { /* call ended */ });
+session.onStateChange(function(state) { /* ICE state change */ });
+session.hangup();
+session.toggleAudio();  // returns enabled state
+session.toggleVideo();  // returns enabled state
+// Properties: session.channelId, session.remotePeer, session.isInitiator,
+//   session.localStream, session.remoteStream
+
+// Listen for incoming calls
+Goop.call.onIncoming(function(info) {
+  // info: {channelId, peerId, constraints}
+  const session = await info.accept({video: true, audio: true});
+  // or: info.reject();
+});
+
+// Get active calls
+const session = Goop.call.getCall(channelId);
+const all = Goop.call.activeCalls();
 ```
 
 ## Goop.site
 
+File storage for the peer's site content directory.
+
 ```javascript
 // List files
 const files = await Goop.site.files();
+// Each: {Path, IsDir, Depth}
 
-// Read a file
+// Read a file as text
 const content = await Goop.site.read("data.json");
 
-// Upload a file
-await Goop.site.upload("data.json", jsonString);
+// Fetch as raw Response (for images, binary)
+const response = await Goop.site.fetch("image.png");
+
+// Upload a file (owner only)
+await Goop.site.upload("data.json", fileOrBlob);
+
+// Delete a file (owner only)
+await Goop.site.remove("data.json");
+```
+
+## Goop.ui
+
+Portable UI helpers. Auto-injects minimal CSS.
+
+```javascript
+// Toast notifications
+Goop.ui.toast("Saved!");
+Goop.ui.toast({title: "Error", message: "Something failed", duration: 6000});
+// duration: ms, 0 = permanent
+
+// Confirm dialog → true or null
+const ok = await Goop.ui.confirm("Delete this item?", "Confirm");
+
+// Prompt dialog → string or null
+const name = await Goop.ui.prompt("Enter your name:", "Default", "Title");
+
+// Get current theme
+const theme = Goop.ui.theme();  // "dark" or "light"
+```
+
+## Goop.form
+
+JSON-driven form renderer. Requires `goop-data.js` and `goop-identity.js`.
+
+```javascript
+await Goop.form.render(document.getElementById("form"), {
+  table: "responses",
+  fields: [
+    {name: "name",    label: "Your Name", type: "text",     required: true},
+    {name: "rating",  label: "Rating",    type: "number"},
+    {name: "comment", label: "Comment",   type: "textarea"},
+    {name: "color",   label: "Color",     type: "select",   options: ["Red", "Blue", "Green"]},
+    {name: "agree",   label: "I agree",   type: "checkbox"},
+    {name: "size",    label: "Size",      type: "radio",    options: ["S", "M", "L"]}
+  ],
+  submitLabel: "Send",
+  singleResponse: true,  // one per peer (lookup by _owner)
+  onDone: function() { /* callback after save */ }
+});
+```
+
+## Goop.forms
+
+Auto-generated CRUD UI from table schemas. Requires `goop-data.js` and `goop-ui.js`.
+
+```javascript
+// Full CRUD interface (list + insert + edit + delete)
+await Goop.forms.render(document.getElementById("crud"), "tasks");
+
+// Insert form only
+await Goop.forms.insertForm(document.getElementById("form"), "tasks", function() {
+  // called after row inserted
+});
+```
+
+## Goop.drag
+
+Reusable drag-and-drop with sortable lists. Auto-injects CSS.
+
+```javascript
+const instance = Goop.drag.sortable(container, {
+  items: "> .card",          // selector for draggable children
+  handle: ".drag-handle",   // optional handle selector
+  group: "kanban",          // items move between containers sharing a group
+  direction: "vertical",    // or "horizontal"
+  placeholder: true,
+  onStart(evt) { /* {item, container, index} */ },
+  onMove(evt)  { /* {item, from, to, oldIndex, newIndex} */ },
+  onEnd(evt)   { /* {item, from, to, oldIndex, newIndex} */ },
+  onCancel(evt) { /* drag aborted (Escape) */ }
+});
+
+instance.destroy();
+```
+
+## Goop Engine
+
+2D game engine for Canvas-based templates. Not namespaced under `Goop` — exposes global classes.
+
+```javascript
+// Core loop
+const loop = new GameLoop(60);  // tick rate
+loop.start(update, render);
+loop.stop();
+
+// Rendering
+const renderer = new Renderer(canvas);
+renderer.clear("#000");
+renderer.drawRect(x, y, w, h, color);
+renderer.drawCircle(x, y, radius, color);
+renderer.drawSprite(image, sx, sy, sw, sh, dx, dy, dw, dh);
+renderer.drawText(text, x, y, font, color, align);
+renderer.drawTextCentered(text, y, font, color);
+
+// Sprites
+const sheet = new SpriteSheet("sprites.png", 16, 16);
+sheet.draw(renderer, col, row, x, y, scale);
+
+// Input
+const input = new Input();
+input.bind(canvas);
+input.isDown("ArrowLeft");
+input.justPressed("Space");
+input.update();  // call each frame
+
+// Collision (static)
+Collision.rectRect(a, b);
+Collision.pointRect(px, py, rect);
+Collision.circleCircle(a, b);
+
+// Tile map
+const map = new TileMap(data2d, 16, 16, sheet);
+map.draw(renderer, offsetX, offsetY);
+map.getTileAt(worldX, worldY);
+map.isSolid(worldX, worldY);
+map.collideRect(rect);
+
+// Audio
+const audio = new GameAudio();
+audio.load("jump", "sfx/jump.wav");
+audio.play("jump");
+audio.toggleMute();
+
+// Scenes
+const scenes = new SceneManager();
+scenes.add("menu", { enter(data){}, update(dt){}, render(r){}, exit(){} });
+scenes.switch("menu");
+
+// Entity base class
+const e = new Entity(x, y, w, h);
+e.vx = 100; e.update(dt);
+e.collidesWith(other);
+
+// Utils
+Utils.clamp(val, min, max);
+Utils.lerp(a, b, t);
+Utils.random(min, max);
+Utils.distance(x1, y1, x2, y2);
 ```
 
 ## Context awareness
