@@ -272,6 +272,12 @@ func (e *Engine) watchLoop() {
 	}
 }
 
+// DispatchCommand adapts Dispatch for callers that provide a reply function
+// instead of a DirectSender interface.
+func (e *Engine) DispatchCommand(ctx context.Context, fromPeerID, content string, reply func(context.Context, string, string) error) {
+	e.Dispatch(ctx, fromPeerID, content, SenderFunc(reply))
+}
+
 // Dispatch handles a command message. It parses the command, checks rate limits,
 // looks up the script, executes it, and sends the reply.
 func (e *Engine) Dispatch(ctx context.Context, fromPeerID, content string, sender DirectSender) {

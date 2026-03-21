@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/petervdpas/goop2/internal/mq"
-	"github.com/petervdpas/goop2/internal/storage"
 )
 
 // RegisterMQ adds the message-queue HTTP endpoints.
@@ -17,7 +15,7 @@ import (
 //	POST /api/mq/send   — send a message to a peer
 //	POST /api/mq/ack    — notify sender that we processed their message
 //	GET  /api/mq/events — SSE stream of incoming messages and delivery receipts
-func RegisterMQ(mux *http.ServeMux, mqMgr *mq.Manager, db *storage.DB, selfID string) {
+func RegisterMQ(mux *http.ServeMux, mqMgr *mq.Manager, onChatSent func(peerID, content string)) {
 	// POST /api/mq/send
 	handlePost(mux, "/api/mq/send", func(w http.ResponseWriter, r *http.Request, req struct {
 		PeerID  string `json:"peer_id"`
@@ -40,10 +38,11 @@ func RegisterMQ(mux *http.ServeMux, mqMgr *mq.Manager, db *storage.DB, selfID st
 			return
 		}
 
-		// Persist outgoing direct chat messages.
-		if req.Topic == "chat" && db != nil {
-			if content := extractChatContent(req.Payload); content != "" {
-				_ = db.StoreChatMessage(req.PeerID, selfID, content, time.Now().UnixMilli())
+		if req.Topic == "chat" && onChatSent != nil {
+			if m, ok := req.Payload.(map[string]any); ok {
+				if c, _ := m["content"].(string); c != "" {
+					onChatSent(req.PeerID, c)
+				}
 			}
 		}
 

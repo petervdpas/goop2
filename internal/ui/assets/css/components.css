@@ -289,6 +289,14 @@
   margin-top: 18px;
 }
 .chat-header h2 { flex: 1; }
+.chat-clear-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  opacity: 0.5;
+  border: none;
+  background: transparent;
+}
+.chat-clear-btn:hover { opacity: 1; background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .chat-call-actions {
   display: flex;
   gap: 6px;

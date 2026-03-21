@@ -108,6 +108,18 @@
   }
   initMQChat();
 
+  // ── Clear chat history ──
+  var clearBtn = document.getElementById('chat-clear');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', function() {
+      if (!confirm('Clear chat history with this peer?')) return;
+      Goop.api.chat.clear(peerID).then(function() {
+        _messages = [];
+        renderMessages(_messages);
+      });
+    });
+  }
+
   // ── Call buttons ──
   var callActionsEl = document.querySelector('.chat-call-actions');
   if (callActionsEl) {

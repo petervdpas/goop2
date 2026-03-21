@@ -12,6 +12,7 @@ import (
 	"github.com/petervdpas/goop2/internal/app/shared"
 	"github.com/petervdpas/goop2/internal/avatar"
 	"github.com/petervdpas/goop2/internal/call"
+	"github.com/petervdpas/goop2/internal/chat"
 	"github.com/petervdpas/goop2/internal/config"
 	"github.com/petervdpas/goop2/internal/content"
 	goopCrypto "github.com/petervdpas/goop2/internal/crypto"
@@ -304,6 +305,10 @@ func RunPeer(p PeerParams) error {
 		go db.UpsertPeerProtocols(peerID, protocols)
 	})
 
+	// ── Chat manager
+	chatMgr := chat.New(node.ID(), chat.NewDBStore(db), mqMgr)
+	chatMgr.Start()
+
 	// ── Lua scripting engine
 	var luaEngine *luapkg.Engine
 	var luaOnce sync.Once
@@ -324,6 +329,7 @@ func RunPeer(p PeerParams) error {
 			}
 			luaEngine.SetDB(db)
 			node.SetLuaDispatcher(luaEngine)
+			chatMgr.SetLuaDispatcher(luaEngine)
 		})
 	}
 
@@ -501,6 +507,7 @@ func RunPeer(p PeerParams) error {
 			PeerDir:     o.PeerDir,
 			RVClients:   rvClients,
 			BridgeURL:   o.BridgeURL,
+			Chat:        chatMgr,
 			EnsureLua:   ensureLua,
 			Call:        callMgr,
 			Cluster:     clusterMgr,

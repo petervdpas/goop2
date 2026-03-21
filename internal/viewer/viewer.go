@@ -5,6 +5,7 @@ import (
 
 	"github.com/petervdpas/goop2/internal/avatar"
 	"github.com/petervdpas/goop2/internal/call"
+	"github.com/petervdpas/goop2/internal/chat"
 	"github.com/petervdpas/goop2/internal/group_types/cluster"
 	"github.com/petervdpas/goop2/internal/config"
 	"github.com/petervdpas/goop2/internal/content"
@@ -47,6 +48,9 @@ type Viewer struct {
 	PeerDir string // root directory for this peer's data
 
 	RVClients []*rendezvous.Client
+
+	// Chat manager — owns message persistence, Lua dispatch, history endpoints.
+	Chat *chat.Manager
 
 	// Wails bridge URL for native dialogs (empty when not running in Wails)
 	BridgeURL string
@@ -107,8 +111,12 @@ func Start(addr string, v Viewer) error {
 
 	// Register MQ endpoints
 	if v.MQ != nil {
-		routes.RegisterMQ(mux, v.MQ, v.DB, v.Node.ID())
-		routes.RegisterChat(mux, v.DB, v.MQ, v.Node.ID())
+		var onChatSent func(string, string)
+		if v.Chat != nil {
+			onChatSent = v.Chat.PersistOutbound
+		}
+		routes.RegisterMQ(mux, v.MQ, onChatSent)
+		routes.RegisterChat(mux, v.Chat)
 	}
 
 	// Register data/storage endpoints if DB is available
