@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -209,6 +210,7 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 
 	ymuxCfg := yamux.DefaultConfig()
 	ymuxCfg.KeepAliveInterval = YamuxKeepAlive
+	ymuxCfg.LogOutput = io.Discard
 
 	opts := []libp2p.Option{
 		libp2p.Identity(priv),

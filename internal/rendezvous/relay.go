@@ -3,6 +3,7 @@ package rendezvous
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -122,6 +123,7 @@ func StartRelay(port int, keyFile string, externalURL string, logFn func(string)
 
 	ymuxCfg := yamux.DefaultConfig()
 	ymuxCfg.KeepAliveInterval = RelayYamuxKeepAlive
+	ymuxCfg.LogOutput = io.Discard
 
 	h, err := libp2p.New(
 		libp2p.Identity(priv),
