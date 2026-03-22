@@ -115,7 +115,7 @@ func statusString(s pbv2.Status) string {
 // externalURL, if set, is used to derive the public IP so WAN peers get a
 // reachable address (e.g. /ip4/<public>/tcp/<port>/p2p/<id>).
 // logFn is called for circuit events (nil = log.Printf).
-func StartRelay(port int, keyFile string, externalURL string, logFn func(string)) (host.Host, *RelayInfo, error) {
+func StartRelay(port int, wsPort int, keyFile string, externalURL string, logFn func(string)) (host.Host, *RelayInfo, error) {
 	priv, err := loadOrCreateRelayKey(keyFile)
 	if err != nil {
 		return nil, nil, fmt.Errorf("relay key: %w", err)
@@ -125,9 +125,14 @@ func StartRelay(port int, keyFile string, externalURL string, logFn func(string)
 	ymuxCfg.KeepAliveInterval = RelayYamuxKeepAlive
 	ymuxCfg.LogOutput = io.Discard
 
+	listenAddrs := []string{fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port)}
+	if wsPort > 0 {
+		listenAddrs = append(listenAddrs, fmt.Sprintf("/ip4/127.0.0.1/tcp/%d/ws", wsPort))
+	}
+
 	h, err := libp2p.New(
 		libp2p.Identity(priv),
-		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port)),
+		libp2p.ListenAddrStrings(listenAddrs...),
 		libp2p.DisableRelay(),
 		libp2p.Muxer(ymux.ID, (*ymux.Transport)(ymuxCfg)),
 	)
@@ -173,16 +178,18 @@ func StartRelay(port int, keyFile string, externalURL string, logFn func(string)
 		info.Addrs = append(info.Addrs, a.String())
 	}
 
-	// If we have an external URL, append a public multiaddr so WAN peers
-	// can reach this relay. LAN addresses come first so LAN peers connect
-	// directly without hairpin NAT (which routers may drop after idle timeout).
 	if externalURL != "" {
 		if pubAddr := buildPublicAddr(externalURL, port, h.ID().String()); pubAddr != "" {
 			info.Addrs = append(info.Addrs, pubAddr)
 		}
+		if wsPort > 0 {
+			if wssAddr := buildWSSAddr(externalURL, h.ID().String()); wssAddr != "" {
+				info.Addrs = append(info.Addrs, wssAddr)
+			}
+		}
 	}
 
-	log.Printf("relay: listening on port %d, peer ID %s (%d addrs)", port, info.PeerID, len(info.Addrs))
+	log.Printf("relay: listening on port %d (ws %d), peer ID %s (%d addrs)", port, wsPort, info.PeerID, len(info.Addrs))
 	return h, info, nil
 }
 
@@ -222,6 +229,18 @@ func buildPublicAddr(externalURL string, port int, peerID string) string {
 		return fmt.Sprintf("/ip4/%s/tcp/%d/p2p/%s", ip.String(), port, peerID)
 	}
 	return fmt.Sprintf("/ip6/%s/tcp/%d/p2p/%s", ip.String(), port, peerID)
+}
+
+func buildWSSAddr(externalURL string, peerID string) string {
+	u, err := url.Parse(externalURL)
+	if err != nil {
+		return ""
+	}
+	hostname := u.Hostname()
+	if hostname == "" {
+		return ""
+	}
+	return fmt.Sprintf("/dns4/%s/tcp/443/wss/p2p/%s", hostname, peerID)
 }
 
 // loadOrCreateRelayKey loads an Ed25519 key from disk, or creates one.

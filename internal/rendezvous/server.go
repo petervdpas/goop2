@@ -101,6 +101,7 @@ type Server struct {
 	relayHost    host.Host  // nil when relay is disabled
 	relayInfo    *RelayInfo // nil when relay is disabled
 	relayPort    int
+	relayWSPort  int
 	relayKeyFile string
 	relayTiming  RelayTimingConfig
 
@@ -243,7 +244,7 @@ type docsVM struct {
 	Next    *DocPage
 }
 
-func New(addr string, peerDBPath string, adminPassword string, externalURL string, relayPort int, relayKeyFile string, relayTiming RelayTimingConfig) *Server {
+func New(addr string, peerDBPath string, adminPassword string, externalURL string, relayPort int, relayWSPort int, relayKeyFile string, relayTiming RelayTimingConfig) *Server {
 	funcs := template.FuncMap{
 		"statusClass": func(t string) string {
 			switch t {
@@ -345,6 +346,7 @@ func New(addr string, peerDBPath string, adminPassword string, externalURL strin
 		splash:         splashData,
 		docsSite:       newDocSite(),
 		relayPort:      relayPort,
+		relayWSPort:    relayWSPort,
 		relayKeyFile:   relayKeyFile,
 		relayTiming:    relayTiming,
 		rateWindow:     map[string]*rateBucket{},
@@ -467,7 +469,7 @@ func (s *Server) SetEncryptionProvider(ep *RemoteEncryptionProvider) {
 func (s *Server) Start(ctx context.Context) error {
 	// Start circuit relay v2 host if configured
 	if s.relayPort > 0 {
-		rh, ri, err := StartRelay(s.relayPort, s.relayKeyFile, s.externalURL, s.relayAddLog)
+		rh, ri, err := StartRelay(s.relayPort, s.relayWSPort, s.relayKeyFile, s.externalURL, s.relayAddLog)
 		if err != nil {
 			return fmt.Errorf("start relay: %w", err)
 		}

@@ -56,12 +56,15 @@
     checkRvCapabilities(rvWanInput.value);
   }
 
-  // ── Service sub-tabs ──
-  document.querySelectorAll('.svc-tab').forEach(function(tab) {
+  // ── Sub-tabs (Services, Relay, etc.) ──
+  document.querySelectorAll('.sub-tab').forEach(function(tab) {
     tab.addEventListener('click', function() {
-      var target = tab.getAttribute('data-svc');
-      document.querySelectorAll('.svc-tab').forEach(function(t) { t.classList.toggle('active', t.getAttribute('data-svc') === target); });
-      document.querySelectorAll('.svc-tab-panel').forEach(function(p) { p.classList.toggle('active', p.getAttribute('data-svc') === target); });
+      var group = tab.parentElement;
+      var section = group.parentElement;
+      var attr = Object.keys(tab.dataset)[0];
+      var target = tab.dataset[attr];
+      group.querySelectorAll('.sub-tab').forEach(function(t) { t.classList.toggle('active', t.dataset[attr] === target); });
+      section.querySelectorAll('.sub-tab-panel').forEach(function(p) { p.classList.toggle('active', p.dataset[attr] === target); });
     });
   });
 

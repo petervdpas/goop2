@@ -97,7 +97,7 @@ func runPeer(ctx context.Context, o shared.ModeOpts, cfg config.Config, progress
 		if cfg.Presence.RelayKeyFile != "" {
 			relayKeyFile = util.ResolvePath(o.PeerDir, cfg.Presence.RelayKeyFile)
 		}
-		rv = rendezvous.New(addr, peerDBPath, cfg.Presence.AdminPassword, cfg.Presence.ExternalURL, cfg.Presence.RelayPort, relayKeyFile, rendezvous.RelayTimingConfig{
+		rv = rendezvous.New(addr, peerDBPath, cfg.Presence.AdminPassword, cfg.Presence.ExternalURL, cfg.Presence.RelayPort, cfg.Presence.RelayWSPort, relayKeyFile, rendezvous.RelayTimingConfig{
 			CleanupDelaySec:    cfg.Presence.RelayCleanupDelaySec,
 			PollDeadlineSec:    cfg.Presence.RelayPollDeadlineSec,
 			ConnectTimeoutSec:  cfg.Presence.RelayConnectTimeoutSec,

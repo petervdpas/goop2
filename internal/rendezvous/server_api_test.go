@@ -11,7 +11,7 @@ import (
 
 func startTestServer(t *testing.T) (baseURL string, cancel context.CancelFunc) {
 	t.Helper()
-	srv := New("127.0.0.1:18789", "", "", "", 0, "", RelayTimingConfig{})
+	srv := New("127.0.0.1:18789", "", "", "", 0, 0, "", RelayTimingConfig{})
 	ctx, c := context.WithCancel(context.Background())
 	if err := srv.Start(ctx); err != nil {
 		t.Fatal(err)

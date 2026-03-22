@@ -80,7 +80,8 @@ type Presence struct {
 
 	// Circuit relay v2 port. When > 0, a relay libp2p host is started on this
 	// TCP port alongside the rendezvous HTTP server. Requires RendezvousHost=true.
-	RelayPort int `json:"relay_port"`
+	RelayPort   int `json:"relay_port"`
+	RelayWSPort int `json:"relay_ws_port"`
 
 	// Path to the relay identity key file. Default "data/relay.key".
 	RelayKeyFile string `json:"relay_key_file"`
@@ -275,6 +276,9 @@ func (c *Config) Validate() error {
 		}
 		if c.Presence.RelayPort > 65535 {
 			return errors.New("presence.relay_port must be 1..65535")
+		}
+		if c.Presence.RelayWSPort > 65535 {
+			return errors.New("presence.relay_ws_port must be 0..65535")
 		}
 		if c.Presence.RelayCleanupDelaySec < 0 {
 			return errors.New("presence.relay_cleanup_delay_sec must be >= 0")

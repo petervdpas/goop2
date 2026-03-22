@@ -88,8 +88,8 @@
   border-top: 1px solid var(--line);
 }
 
-/* Service sub-tabs */
-.svc-tabs{
+/* Sub-tabs (used by Services, Relay, etc.) */
+.sub-tabs{
   display:flex;
   gap: 4px;
   margin-bottom: 16px;
@@ -97,7 +97,7 @@
   padding-bottom: 0;
 }
 
-.svc-tab{
+.sub-tab{
   padding: 7px 14px;
   border: 1px solid transparent;
   border-bottom: none;
@@ -112,20 +112,21 @@
   margin-bottom: -1px;
 }
 
-.svc-tab:hover{
+.sub-tab:hover{
   color: var(--text);
   background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
-.svc-tab.active{
+.sub-tab.active{
   color: var(--text);
   background: var(--field-bg);
   border-color: var(--line);
   border-bottom-color: var(--field-bg);
 }
 
-.svc-tab-panel{ display:none; }
-.svc-tab-panel.active{ display:block; }
+.sub-tab-panel{ display:none; }
+.sub-tab-panel.active{ display:block; }
+
 
 /* Token field with action buttons */
 .token-field{

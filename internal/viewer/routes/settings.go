@@ -168,6 +168,11 @@ func registerSettingsRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		} else {
 			cfg.Presence.RelayPort = 0
 		}
+		if rw := getTrimmedPostFormValue(r.PostForm, "presence_relay_ws_port"); rw != "" {
+			cfg.Presence.RelayWSPort, _ = strconv.Atoi(rw)
+		} else {
+			cfg.Presence.RelayWSPort = 0
+		}
 		if rkf := getTrimmedPostFormValue(r.PostForm, "presence_relay_key_file"); rkf != "" {
 			cfg.Presence.RelayKeyFile = rkf
 		}

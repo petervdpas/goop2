@@ -384,83 +384,101 @@
           <p class="muted small" style="margin-bottom:14px">
             Circuit relay v2 enables NAT traversal via hole-punching.
             Peers behind NAT connect through this relay, then upgrade to a direct connection.
-            Forward the relay TCP port on your router.
           </p>
 
-          <div class="grid2">
-            <div class="field">
-              <label>Relay port</label>
-              <input name="presence_relay_port"
-                     type="number"
-                     value="{{if .Cfg.Presence.RelayPort}}{{.Cfg.Presence.RelayPort}}{{end}}"
-                     placeholder="0 = disabled">
-              <div class="hint">
-                TCP port for the relay. 0 = disabled. E.g. <code>4001</code>.
+          <div class="sub-tabs">
+            <div class="sub-tab active" data-relay="ports">Ports</div>
+            <div class="sub-tab" data-relay="timings">Timings</div>
+          </div>
+
+          <div class="sub-tab-panel active" data-relay="ports">
+            <div class="grid2">
+              <div class="field">
+                <label>Relay TCP</label>
+                <input name="presence_relay_port"
+                       type="number"
+                       value="{{if .Cfg.Presence.RelayPort}}{{.Cfg.Presence.RelayPort}}{{end}}"
+                       placeholder="0 = disabled">
+                <div class="hint">
+                  TCP port for LAN relay. Forward on your router. 0 = disabled.
+                </div>
+              </div>
+              <div class="field">
+                <label>Relay WS</label>
+                <input name="presence_relay_ws_port"
+                       type="number"
+                       value="{{if .Cfg.Presence.RelayWSPort}}{{.Cfg.Presence.RelayWSPort}}{{end}}"
+                       placeholder="0 = disabled">
+                <div class="hint">
+                  WebSocket port for WAN relay. Proxy via Caddy. 0 = disabled.
+                </div>
               </div>
             </div>
+            <div class="grid2">
+              <div class="field">
+                <label>Relay key file</label>
+                <input name="presence_relay_key_file"
+                       value="{{.Cfg.Presence.RelayKeyFile}}"
+                       placeholder="{{(defaults).Presence.RelayKeyFile}}">
+                <div class="hint">
+                  Persistent identity key for the relay host.
+                </div>
+              </div>
+              <div class="field"></div>
+            </div>
+          </div>
 
-            <div class="field">
-              <label>Relay key file</label>
-              <input name="presence_relay_key_file"
-                     value="{{.Cfg.Presence.RelayKeyFile}}"
-                     placeholder="{{(defaults).Presence.RelayKeyFile}}">
-              <div class="hint">
-                Persistent identity key for the relay host.
+          <div class="sub-tab-panel" data-relay="timings">
+            <p class="muted small" style="margin-bottom:10px">
+              Pushed to clients via <code>/relay</code>. 0 = use hardcoded default.
+            </p>
+            <div class="grid2">
+              <div class="field">
+                <label>Cleanup delay (sec)</label>
+                <input name="presence_relay_cleanup_delay_sec"
+                       type="number" min="0"
+                       value="{{.Cfg.Presence.RelayCleanupDelaySec}}"
+                       placeholder="{{(defaults).Presence.RelayCleanupDelaySec}}">
+                <div class="hint">Wait before reconnecting after closing old relay connection. Default <code>{{(defaults).Presence.RelayCleanupDelaySec}}</code>.</div>
+              </div>
+              <div class="field">
+                <label>Poll deadline (sec)</label>
+                <input name="presence_relay_poll_deadline_sec"
+                       type="number" min="0"
+                       value="{{.Cfg.Presence.RelayPollDeadlineSec}}"
+                       placeholder="{{(defaults).Presence.RelayPollDeadlineSec}}">
+                <div class="hint">Max time to wait for reservation after reconnect. Default <code>{{(defaults).Presence.RelayPollDeadlineSec}}</code>.</div>
               </div>
             </div>
-          </div>
-
-          <p class="muted small" style="margin:14px 0 10px">
-            Timing values pushed to clients via <code>/relay</code>.
-            0 = use hardcoded default.
-          </p>
-
-          <div class="grid2">
-            <div class="field">
-              <label>Cleanup delay (sec)</label>
-              <input name="presence_relay_cleanup_delay_sec"
-                     type="number" min="0"
-                     value="{{.Cfg.Presence.RelayCleanupDelaySec}}"
-                     placeholder="{{(defaults).Presence.RelayCleanupDelaySec}}">
-              <div class="hint">Wait before reconnecting after closing old relay connection. Default <code>{{(defaults).Presence.RelayCleanupDelaySec}}</code>.</div>
+            <div class="grid2">
+              <div class="field">
+                <label>Connect timeout (sec)</label>
+                <input name="presence_relay_connect_timeout_sec"
+                       type="number" min="0"
+                       value="{{.Cfg.Presence.RelayConnectTimeoutSec}}"
+                       placeholder="{{(defaults).Presence.RelayConnectTimeoutSec}}">
+                <div class="hint">Dial timeout when connecting to relay peer. Default <code>{{(defaults).Presence.RelayConnectTimeoutSec}}</code>.</div>
+              </div>
+              <div class="field">
+                <label>Refresh interval (sec)</label>
+                <input name="presence_relay_refresh_interval_sec"
+                       type="number" min="0"
+                       value="{{.Cfg.Presence.RelayRefreshIntervalSec}}"
+                       placeholder="{{(defaults).Presence.RelayRefreshIntervalSec}}">
+                <div class="hint">Periodic check interval for missing circuit address. Default <code>{{(defaults).Presence.RelayRefreshIntervalSec}}</code>. Pushed to clients.</div>
+              </div>
             </div>
-            <div class="field">
-              <label>Poll deadline (sec)</label>
-              <input name="presence_relay_poll_deadline_sec"
-                     type="number" min="0"
-                     value="{{.Cfg.Presence.RelayPollDeadlineSec}}"
-                     placeholder="{{(defaults).Presence.RelayPollDeadlineSec}}">
-              <div class="hint">Max time to wait for reservation after reconnect. Default <code>{{(defaults).Presence.RelayPollDeadlineSec}}</code>.</div>
+            <div class="grid2">
+              <div class="field">
+                <label>Recovery grace (sec)</label>
+                <input name="presence_relay_recovery_grace_sec"
+                       type="number" min="0"
+                       value="{{.Cfg.Presence.RelayRecoveryGraceSec}}"
+                       placeholder="{{(defaults).Presence.RelayRecoveryGraceSec}}">
+                <div class="hint">Grace period for AutoRelay self-recovery before manual recovery kicks in. Default <code>{{(defaults).Presence.RelayRecoveryGraceSec}}</code>.</div>
+              </div>
+              <div class="field"></div>
             </div>
-          </div>
-          <div class="grid2">
-            <div class="field">
-              <label>Connect timeout (sec)</label>
-              <input name="presence_relay_connect_timeout_sec"
-                     type="number" min="0"
-                     value="{{.Cfg.Presence.RelayConnectTimeoutSec}}"
-                     placeholder="{{(defaults).Presence.RelayConnectTimeoutSec}}">
-              <div class="hint">Dial timeout when connecting to relay peer. Default <code>{{(defaults).Presence.RelayConnectTimeoutSec}}</code>.</div>
-            </div>
-            <div class="field">
-              <label>Refresh interval (sec)</label>
-              <input name="presence_relay_refresh_interval_sec"
-                     type="number" min="0"
-                     value="{{.Cfg.Presence.RelayRefreshIntervalSec}}"
-                     placeholder="{{(defaults).Presence.RelayRefreshIntervalSec}}">
-              <div class="hint">Periodic check interval for missing circuit address. Default <code>{{(defaults).Presence.RelayRefreshIntervalSec}}</code>. Pushed to clients.</div>
-            </div>
-          </div>
-          <div class="grid2">
-            <div class="field">
-              <label>Recovery grace (sec)</label>
-              <input name="presence_relay_recovery_grace_sec"
-                     type="number" min="0"
-                     value="{{.Cfg.Presence.RelayRecoveryGraceSec}}"
-                     placeholder="{{(defaults).Presence.RelayRecoveryGraceSec}}">
-              <div class="hint">Grace period for AutoRelay self-recovery before manual recovery kicks in. Default <code>{{(defaults).Presence.RelayRecoveryGraceSec}}</code>.</div>
-            </div>
-            <div class="field"></div>
           </div>
         </div>
 
@@ -522,17 +540,17 @@
           </p>
 
           <div id="svc-body" style="{{if not .Cfg.Presence.UseServices}}opacity:0.4;pointer-events:none{{end}}">
-          <div class="svc-tabs">
-            <div class="svc-tab active" data-svc="registration">Registration</div>
-            <div class="svc-tab" data-svc="credits">Credits</div>
-            <div class="svc-tab" data-svc="email">Email</div>
-            <div class="svc-tab" data-svc="templates">Templates</div>
-            <div class="svc-tab" data-svc="bridge">Bridge</div>
-            <div class="svc-tab" data-svc="encryption">Encryption</div>
+          <div class="sub-tabs">
+            <div class="sub-tab active" data-svc="registration">Registration</div>
+            <div class="sub-tab" data-svc="credits">Credits</div>
+            <div class="sub-tab" data-svc="email">Email</div>
+            <div class="sub-tab" data-svc="templates">Templates</div>
+            <div class="sub-tab" data-svc="bridge">Bridge</div>
+            <div class="sub-tab" data-svc="encryption">Encryption</div>
           </div>
 
           <!-- Registration tab -->
-          <div class="svc-tab-panel active" data-svc="registration">
+          <div class="sub-tab-panel active" data-svc="registration">
             <div class="field">
               <label>Service URL <span id="svc-reg-status" class="svc-status"></span></label>
               <div class="token-field">
@@ -564,7 +582,7 @@
           </div>
 
           <!-- Credits tab -->
-          <div class="svc-tab-panel" data-svc="credits">
+          <div class="sub-tab-panel" data-svc="credits">
             <div class="field">
               <label>Service URL <span id="svc-credits-status" class="svc-status"></span></label>
               <div class="token-field">
@@ -595,7 +613,7 @@
           </div>
 
           <!-- Email tab -->
-          <div class="svc-tab-panel" data-svc="email">
+          <div class="sub-tab-panel" data-svc="email">
             <div class="field">
               <label>Service URL <span id="svc-email-status" class="svc-status"></span></label>
               <div class="token-field">
@@ -612,7 +630,7 @@
           </div>
 
           <!-- Templates tab -->
-          <div class="svc-tab-panel" data-svc="templates">
+          <div class="sub-tab-panel" data-svc="templates">
             <div class="field">
               <label>Service URL <span id="svc-templates-status" class="svc-status"></span></label>
               <div class="token-field">
@@ -643,7 +661,7 @@
           </div>
 
           <!-- Bridge tab -->
-          <div class="svc-tab-panel" data-svc="bridge">
+          <div class="sub-tab-panel" data-svc="bridge">
             <div class="field">
               <label>Service URL <span id="svc-bridge-status" class="svc-status"></span></label>
               <div class="token-field">
@@ -673,7 +691,7 @@
             </div>
           </div>
           <!-- Encryption tab -->
-          <div class="svc-tab-panel" data-svc="encryption">
+          <div class="sub-tab-panel" data-svc="encryption">
             <div class="field">
               <label>Service URL <span id="svc-encryption-status" class="svc-status"></span></label>
               <div class="token-field">
