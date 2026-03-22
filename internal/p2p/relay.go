@@ -289,7 +289,7 @@ func (n *Node) StartRelayRefresh(ctx context.Context, interval time.Duration) {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				n.Host.Peerstore().AddAddrs(n.relayPeer.ID, n.relayPeer.Addrs, PeerstoreAddrTTL)
+				n.refreshRelayPeerstoreAddrs()
 				if n.hasCircuitAddr() {
 					nudgeCount = 0
 					continue
@@ -308,6 +308,20 @@ func (n *Node) StartRelayRefresh(ctx context.Context, interval time.Duration) {
 	}()
 }
 
+func (n *Node) refreshRelayPeerstoreAddrs() {
+	conns := n.Host.Network().ConnsToPeer(n.relayPeer.ID)
+	if len(conns) > 0 {
+		var working []ma.Multiaddr
+		for _, c := range conns {
+			working = append(working, c.RemoteMultiaddr())
+		}
+		n.Host.Peerstore().ClearAddrs(n.relayPeer.ID)
+		n.Host.Peerstore().AddAddrs(n.relayPeer.ID, working, PeerstoreAddrTTL)
+	} else {
+		n.Host.Peerstore().AddAddrs(n.relayPeer.ID, n.relayPeer.Addrs, PeerstoreAddrTTL)
+	}
+}
+
 // nudgeRelay is a non-destructive helper that clears dial backoff and
 // refreshes peerstore addresses for the relay peer. This gives AutoRelay
 // the best chance to re-obtain a reservation without tearing down the
@@ -321,7 +335,7 @@ func (n *Node) nudgeRelay() {
 	if sw, ok := n.Host.Network().(*swarm.Swarm); ok {
 		sw.Backoff().Clear(n.relayPeer.ID)
 	}
-	n.Host.Peerstore().AddAddrs(n.relayPeer.ID, n.relayPeer.Addrs, PeerstoreAddrTTL)
+	n.refreshRelayPeerstoreAddrs()
 
 	conns := n.Host.Network().ConnsToPeer(n.relayPeer.ID)
 	if len(conns) == 0 {

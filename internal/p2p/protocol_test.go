@@ -248,3 +248,71 @@ func TestSitePathTraversal(t *testing.T) {
 		})
 	}
 }
+
+func TestRelayInfoToAddrInfo_DropsLocalhost(t *testing.T) {
+	ri := &rendezvous.RelayInfo{
+		PeerID: "12D3KooWApD9NTZytvvSrELPrW6Wa5HGRVKKmsHskMcUrFDF11Mz",
+		Addrs: []string{
+			"/ip4/127.0.0.1/tcp/4001",
+			"/ip4/192.168.178.42/tcp/4001",
+			"/ip4/84.86.207.172/tcp/4001",
+		},
+	}
+
+	ai, err := relayInfoToAddrInfo(ri)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range ai.Addrs {
+		if a.String() == "/ip4/127.0.0.1/tcp/4001" {
+			t.Fatal("localhost address should have been filtered out")
+		}
+	}
+	if len(ai.Addrs) != 2 {
+		t.Fatalf("expected 2 addresses (localhost dropped), got %d", len(ai.Addrs))
+	}
+}
+
+func TestRelayInfoToAddrInfo_LANBeforeWAN(t *testing.T) {
+	ri := &rendezvous.RelayInfo{
+		PeerID: "12D3KooWApD9NTZytvvSrELPrW6Wa5HGRVKKmsHskMcUrFDF11Mz",
+		Addrs: []string{
+			"/ip4/84.86.207.172/tcp/4001",
+			"/ip4/192.168.178.42/tcp/4001",
+		},
+	}
+
+	ai, err := relayInfoToAddrInfo(ri)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ai.Addrs) != 2 {
+		t.Fatalf("expected 2 addresses, got %d", len(ai.Addrs))
+	}
+	first := ai.Addrs[0].String()
+	if first != "/ip4/192.168.178.42/tcp/4001" {
+		t.Fatalf("expected LAN address first, got %s", first)
+	}
+}
+
+func TestRelayInfoToAddrInfo_WSSPassedThrough(t *testing.T) {
+	ri := &rendezvous.RelayInfo{
+		PeerID: "12D3KooWApD9NTZytvvSrELPrW6Wa5HGRVKKmsHskMcUrFDF11Mz",
+		Addrs: []string{
+			"/ip4/192.168.178.42/tcp/4001",
+			"/dns4/goop2.com/tcp/443/wss",
+		},
+	}
+
+	ai, err := relayInfoToAddrInfo(ri)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ai.Addrs) != 2 {
+		t.Fatalf("expected 2 addresses, got %d", len(ai.Addrs))
+	}
+	last := ai.Addrs[1].String()
+	if last != "/dns4/goop2.com/tcp/443/wss" {
+		t.Fatalf("expected WSS address last, got %s", last)
+	}
+}

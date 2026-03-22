@@ -35,6 +35,7 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/host/autorelay"
 	ymux "github.com/libp2p/go-libp2p/p2p/muxer/yamux"
 	"github.com/libp2p/go-libp2p/p2p/net/swarm"
+	ws "github.com/libp2p/go-libp2p/p2p/transport/websocket"
 	yamux "github.com/libp2p/go-yamux/v4"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
@@ -216,6 +217,8 @@ func New(ctx context.Context, listenPort int, keyFile string, peers *state.PeerT
 		libp2p.Identity(priv),
 		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", listenPort)),
 		libp2p.Muxer(ymux.ID, (*ymux.Transport)(ymuxCfg)),
+		libp2p.DefaultTransports,
+		libp2p.Transport(ws.New),
 	}
 
 	// When a relay is available, enable circuit relay transport, hole-punching,

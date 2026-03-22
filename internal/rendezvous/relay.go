@@ -179,12 +179,13 @@ func StartRelay(port int, wsPort int, keyFile string, externalURL string, logFn 
 	}
 
 	if externalURL != "" {
-		if pubAddr := buildPublicAddr(externalURL, port, h.ID().String()); pubAddr != "" {
-			info.Addrs = append(info.Addrs, pubAddr)
-		}
 		if wsPort > 0 {
 			if wssAddr := buildWSSAddr(externalURL, h.ID().String()); wssAddr != "" {
 				info.Addrs = append(info.Addrs, wssAddr)
+			}
+		} else {
+			if pubAddr := buildPublicAddr(externalURL, port, h.ID().String()); pubAddr != "" {
+				info.Addrs = append(info.Addrs, pubAddr)
 			}
 		}
 	}
