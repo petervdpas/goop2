@@ -17,6 +17,21 @@ Add the `lua` section to your `goop.json`:
 }
 ```
 
+```mermaid
+graph TD
+    subgraph "Chat commands (site/lua/)"
+        CM[!command args] -->|Dispatch| E[Lua Engine]
+        E -->|handle args| VM1[Sandboxed VM]
+        VM1 -->|string reply| R[Direct message reply]
+    end
+
+    subgraph "Data functions (site/lua/functions/)"
+        JS[Goop.data.call] -->|CallFunction| E
+        E -->|call request| VM2[Sandboxed VM + goop.db]
+        VM2 -->|structured data| JSON[JSON response]
+    end
+```
+
 ## Script types
 
 ### Chat commands
@@ -83,7 +98,7 @@ local body, err = goop.http.get("https://api.example.com/data")
 local body, err = goop.http.post("https://api.example.com/submit", {key = "val"})
 ```
 
-Only `http://` and `https://` URLs are allowed. Requests to private/loopback addresses are blocked.
+Only `http://` and `https://` URLs are allowed. Requests to private/loopback addresses are blocked (SSRF protection with DNS pinning). Limited to 3 requests per invocation, 1 MB max response size.
 
 ### goop.json
 
@@ -118,7 +133,7 @@ goop.log.error("connection failed")
 
 ### goop.db
 
-Database access (data functions only):
+Raw SQL database access (data functions only):
 
 ```lua
 local rows = goop.db.query("SELECT * FROM posts WHERE _owner = ?", goop.peer.id)
@@ -126,11 +141,74 @@ local count = goop.db.scalar("SELECT COUNT(*) FROM responses")
 goop.db.exec("UPDATE games SET turn = ? WHERE _id = ?", "O", game_id)
 ```
 
+### goop.schema
+
+Typed ORM database access (data functions only). Works with tables created via `goop.schema.create` or through the ORM schema system:
+
+```lua
+goop.schema.create("scores", {
+    {name = "player", type = "text", required = true},
+    {name = "points", type = "integer", default = 0},
+})
+
+goop.schema.insert("scores", {player = "Alice", points = 100})
+
+local row = goop.schema.get("scores", 1)
+local all = goop.schema.list("scores", 10)
+
+goop.schema.update("scores", 1, {points = 200})
+goop.schema.delete("scores", 1)
+
+local ok, err = goop.schema.validate("scores", {player = "Bob"})
+local info = goop.schema.describe("scores")
+local is_orm = goop.schema.is_orm("scores")
+```
+
+### goop.listen
+
+Audio listening session control:
+
+```lua
+local group, err = goop.listen.create("My Session")
+local state = goop.listen.state()
+local track, err = goop.listen.load("/path/to/track.mp3")
+goop.listen.play()
+goop.listen.pause()
+goop.listen.seek(30.5)
+goop.listen.close()
+```
+
 ### goop.commands()
 
 Returns a list of all loaded chat commands.
 
+## Script annotations
+
+Scripts can include metadata annotations in leading `---` comments:
+
+```lua
+--- A weather lookup command
+--- @rate_limit 10
+function handle(args)
+    -- ...
+end
+```
+
+- **Description**: The first `---` line (not starting with `@`) becomes the script's description, shown in command listings.
+- **`@rate_limit N`**: Override the per-peer rate limit for this script. `0` = unlimited, any positive number = custom per-peer-per-minute limit. Without this annotation, the global `rate_limit_per_peer` config applies.
+
 ## Security
+
+```mermaid
+graph LR
+    S[Script] --> RL{Rate limiter}
+    RL -->|allowed| VM[Fresh sandboxed VM]
+    RL -->|blocked| D[Rate limit error]
+    VM --> T{Timeout watchdog}
+    VM --> M{Memory monitor}
+    T -->|exceeded| K[Kill VM]
+    M -->|exceeded| K
+```
 
 Every Lua invocation runs in a fresh, sandboxed VM:
 
