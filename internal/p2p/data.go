@@ -488,7 +488,7 @@ func (n *Node) RemoteDataOp(ctx context.Context, peerID string, req DataRequest)
 	// Best effort connect (mDNS usually already connected)
 	_ = n.Host.Connect(ctx, peer.AddrInfo{ID: pid})
 
-	s, err := n.Host.NewStream(ctx, pid, protocol.ID(proto.DataProtoID))
+	s, err := n.Host.NewStream(network.WithAllowLimitedConn(ctx, "relay"), pid, protocol.ID(proto.DataProtoID))
 	if err != nil {
 		return DataResponse{}, fmt.Errorf("open stream: %w", err)
 	}

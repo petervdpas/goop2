@@ -128,7 +128,7 @@ func (n *Node) dialAndOpenStream(ctx context.Context, pid peer.ID) (addrStrs []s
 		return addrStrs, nil, fmt.Errorf("connect: %w", err)
 	}
 
-	st, err = n.Host.NewStream(ctx, pid, protocol.ID(proto.SiteProtoID))
+	st, err = n.Host.NewStream(network.WithAllowLimitedConn(ctx, "relay"), pid, protocol.ID(proto.SiteProtoID))
 	if err != nil {
 		// Log which connections exist — helps diagnose when NewStream
 		// picks a broken connection over a working one.

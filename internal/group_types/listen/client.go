@@ -186,7 +186,7 @@ func (m *Manager) connectAudioStream() (io.ReadCloser, error) {
 
 	sCtx, sCancel := context.WithTimeout(context.Background(), ListenStreamTimeout)
 	defer sCancel()
-	s, err := m.host.NewStream(sCtx, pid, protocol.ID(proto.ListenProtoID))
+	s, err := m.host.NewStream(network.WithAllowLimitedConn(sCtx, "relay"), pid, protocol.ID(proto.ListenProtoID))
 	if err != nil {
 		return nil, fmt.Errorf("open stream: %w", err)
 	}

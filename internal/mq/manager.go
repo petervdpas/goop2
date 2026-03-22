@@ -143,6 +143,7 @@ func (m *Manager) sendOnce(ctx context.Context, peerID, topic string, payload an
 	// Open a new stream (libp2p reuses the underlying muxed connection).
 	dialCtx, cancel := context.WithTimeout(ctx, ackTimeout)
 	defer cancel()
+	dialCtx = network.WithAllowLimitedConn(dialCtx, "mq")
 
 	stream, err := m.host.NewStream(dialCtx, pid, protocol.ID(proto.MQProtoID))
 	if err != nil {

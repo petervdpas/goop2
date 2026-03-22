@@ -31,7 +31,9 @@ func registerAPILogRoutes(mux *http.ServeMux, d Deps) {
 				http.Error(w, "bad json", http.StatusBadRequest)
 				return
 			}
-			p2p.SetVerbose(req.On)
+			if w, ok := d.Logs.(io.Writer); ok {
+				p2p.SetVerbose(req.On, w)
+			}
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}

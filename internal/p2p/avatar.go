@@ -61,7 +61,7 @@ func (n *Node) FetchAvatar(ctx context.Context, peerID string) ([]byte, error) {
 
 	_ = n.Host.Connect(ctx, peer.AddrInfo{ID: pid})
 
-	s, err := n.Host.NewStream(ctx, pid, protocol.ID(proto.AvatarProtoID))
+	s, err := n.Host.NewStream(network.WithAllowLimitedConn(ctx, "relay"), pid, protocol.ID(proto.AvatarProtoID))
 	if err != nil {
 		return nil, err
 	}

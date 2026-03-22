@@ -23,6 +23,8 @@ import (
 	"github.com/petervdpas/goop2/internal/util"
 
 	logging "github.com/ipfs/go-log/v2"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	libp2p "github.com/libp2p/go-libp2p"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -56,10 +58,15 @@ func setLibp2pLogLevel(level string) {
 	}
 }
 
-func SetVerbose(on bool) {
-	if on {
+func SetVerbose(on bool, w io.Writer) {
+	if on && w != nil {
+		log.Printf("verbose: enabling libp2p debug logging")
+		enc := zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig())
+		core := zapcore.NewCore(enc, zapcore.AddSync(w), zapcore.DebugLevel)
+		logging.SetPrimaryCore(core)
 		setLibp2pLogLevel("debug")
 	} else {
+		log.Printf("verbose: disabling libp2p debug logging")
 		setLibp2pLogLevel("error")
 	}
 }
@@ -986,7 +993,7 @@ func (n *Node) ProbePeer(ctx context.Context, rawID string) {
 	}
 	probeCtx, cancel := context.WithTimeout(ctx, ProbeTimeout)
 	defer cancel()
-	s, err := n.Host.NewStream(probeCtx, pid, protocol.ID(proto.ContentProtoID))
+	s, err := n.Host.NewStream(network.WithAllowLimitedConn(probeCtx, "relay"), pid, protocol.ID(proto.ContentProtoID))
 	if err != nil {
 		// Close any existing (degraded) connection so the next probe attempt
 		// dials fresh using all known addresses — including LAN addresses that
@@ -1087,7 +1094,7 @@ func (n *Node) FetchContent(ctx context.Context, peerID string) (string, error) 
 	// Best effort connect (mDNS usually already connected)
 	_ = n.Host.Connect(ctx, peer.AddrInfo{ID: pid})
 
-	s, err := n.Host.NewStream(ctx, pid, protocol.ID(proto.ContentProtoID))
+	s, err := n.Host.NewStream(network.WithAllowLimitedConn(ctx, "relay"), pid, protocol.ID(proto.ContentProtoID))
 	if err != nil {
 		return "", err
 	}

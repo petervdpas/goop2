@@ -22,6 +22,7 @@ require (
 	github.com/yuin/goldmark v1.7.16
 	github.com/yuin/goldmark-highlighting/v2 v2.0.0-20230729083705-37449abec8cc
 	github.com/yuin/gopher-lua v1.1.1
+	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.48.0
 	modernc.org/sqlite v1.44.3
 )
@@ -134,7 +135,6 @@ require (
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/mock v0.5.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
 	golang.org/x/image v0.23.0 // indirect
 	golang.org/x/mod v0.32.0 // indirect

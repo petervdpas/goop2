@@ -188,7 +188,7 @@ func (n *Node) FetchDocList(ctx context.Context, peerID, groupID string) (json.R
 
 	_ = n.Host.Connect(ctx, peer.AddrInfo{ID: pid})
 
-	st, err := n.Host.NewStream(ctx, pid, protocol.ID(proto.DocsProtoID))
+	st, err := n.Host.NewStream(network.WithAllowLimitedConn(ctx, "relay"), pid, protocol.ID(proto.DocsProtoID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open docs stream: %w", err)
 	}
@@ -246,7 +246,7 @@ func (n *Node) FetchDocFile(ctx context.Context, peerID, groupID, filename strin
 
 	_ = n.Host.Connect(ctx, peer.AddrInfo{ID: pid})
 
-	st, err := n.Host.NewStream(ctx, pid, protocol.ID(proto.DocsProtoID))
+	st, err := n.Host.NewStream(network.WithAllowLimitedConn(ctx, "relay"), pid, protocol.ID(proto.DocsProtoID))
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to open docs stream: %w", err)
 	}
