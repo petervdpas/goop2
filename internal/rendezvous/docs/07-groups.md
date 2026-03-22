@@ -6,10 +6,12 @@ Groups are real-time, multi-peer communication channels. They enable features li
 
 Groups use a **host-relayed model**. The peer that creates a group acts as the hub. Every member opens a long-lived bidirectional stream to the host, and the host relays messages between members.
 
-```
-Member A  <--stream-->  Host  <--stream-->  Member B
-                         |
-                    (fan-out relay)
+```mermaid
+graph LR
+    A[Member A] <-->|stream| H[Host]
+    H <-->|stream| B[Member B]
+    H <-->|stream| C[Member C]
+    H ---|fan-out relay| H
 ```
 
 This model works naturally because the host already serves the site, stores data, and knows its visitors. All group events flow through the unified MQ bus.
@@ -32,9 +34,9 @@ Groups are created by the host peer through the viewer's **Groups** page or prog
 
 ## Joining a group
 
-Members join by opening a stream to the host on the `/goop/group/1.0.0` protocol. The join flow is:
+Members join by sending a join message to the host over the MQ bus. The join flow is:
 
-1. Member sends `{"type":"join","group":"<group-id>"}`.
+1. Member sends a `join` message via MQ to the host (`group:{groupID}:join`).
 2. Host validates and adds the member.
 3. Host sends a `welcome` message with the current member list and state.
 4. Host broadcasts an updated `members` list to all other members.
@@ -161,6 +163,6 @@ Goop.group.leave();
 |------|----------|
 | Serve the UI | `/goop/site/1.0.0` |
 | Store persistent data | `/goop/data/1.0.0` |
-| Real-time messaging | `/goop/group/1.0.0` |
+| Real-time messaging | MQ bus (`/goop/mq/1.0.0`) |
 | Discover groups | Query `_groups` via `/goop/data/1.0.0` |
-| Event delivery | MQ bus (`group:{groupID}:{type}`) |
+| Event delivery | MQ topics (`group:{groupID}:{type}`) |

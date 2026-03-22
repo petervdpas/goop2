@@ -56,11 +56,30 @@ Peers discover the relay automatically via the rendezvous server's `/relay` endp
 
 ## Video calls
 
-Goop2 supports peer-to-peer video and audio calls using Pion WebRTC. The call stack runs natively in Go -- no browser WebRTC dependency is needed.
+Goop2 supports peer-to-peer video and audio calls using Pion WebRTC. The call stack runs natively in Go -- no browser WebRTC dependency is needed. Native calls are currently available on **Linux only** and are enabled automatically (no configuration needed).
 
-Video is encoded as WebM (VP8 + Opus) and streamed to the viewer. On Linux (Wails/WebKitGTK), video is served over HTTP chunked streaming to avoid MSE timing issues. On other platforms, a WebSocket with MediaSource Extensions is used as fallback.
+Video is encoded as WebM (VP8 + Opus) and streamed to the viewer via HTTP chunked streaming. GStreamer's `souphttpsrc` handles playback natively in WebKitGTK.
 
 ### How it works
+
+```mermaid
+sequenceDiagram
+    participant C as Caller
+    participant MQ as MQ Bus
+    participant R as Callee
+
+    C->>MQ: call-request
+    MQ->>R: call-request
+    R->>MQ: call-ack
+    MQ->>C: call-ack
+    C->>MQ: call-offer (SDP)
+    MQ->>R: call-offer (SDP)
+    R->>MQ: call-answer (SDP)
+    MQ->>C: call-answer (SDP)
+    C<<->>R: ICE candidates (via MQ)
+    C<<->>R: Direct RTP media (Pion)
+    Note over C,R: Go encodes to WebM, streams to viewer
+```
 
 1. Caller initiates a call via the MQ bus (`call:{channelID}` topic).
 2. Callee accepts, and SDP offer/answer exchange happens over MQ.
@@ -99,11 +118,14 @@ The cluster system distributes computation across multiple peers. One peer creat
 
 The host maintains a job queue and dispatches work to connected workers. Workers execute jobs using a configurable executor binary that communicates over stdin/stdout with newline-delimited JSON.
 
-```
-Host (dispatcher)
-  ├── Worker A (executor binary)
-  ├── Worker B (executor binary)
-  └── Worker C (executor binary)
+```mermaid
+graph TD
+    H[Host / Dispatcher] -->|job| A[Worker A]
+    H -->|job| B[Worker B]
+    H -->|job| C[Worker C]
+    A -->|result| H
+    B -->|result| H
+    C -->|result| H
 ```
 
 ### Worker setup

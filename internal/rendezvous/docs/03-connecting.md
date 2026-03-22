@@ -26,7 +26,7 @@ All peers sharing the same `mdns_tag` will discover each other on the local netw
 
 ## WAN discovery (rendezvous server)
 
-To connect peers across different networks, use a rendezvous server. The rendezvous server is a lightweight HTTP service that peers publish their presence to and subscribe for updates via Server-Sent Events.
+To connect peers across different networks, use a rendezvous server. The rendezvous server is a lightweight HTTP service that peers publish their presence to. Peers maintain a persistent WebSocket connection to the server for real-time updates, with SSE as an automatic fallback.
 
 ### Option A: Connect to an existing server
 
@@ -133,15 +133,43 @@ Bridge mode is useful for:
 
 ## NAT traversal
 
-When peers are on different networks behind NAT routers, direct connections aren't always possible. Goop2 handles this automatically using two mechanisms:
+When peers are on different networks behind NAT routers, direct connections aren't always possible. Goop2 handles this automatically through a combination of punch hints, hole punching, and circuit relay.
+
+```mermaid
+sequenceDiagram
+    participant A as Peer A
+    participant RV as Rendezvous
+    participant B as Peer B
+
+    A->>RV: Connect (WebSocket)
+    B->>RV: Connect (WebSocket)
+    RV->>A: Punch hint (B's addresses)
+    RV->>B: Punch hint (A's addresses)
+    A->>B: Probe (direct connection attempt)
+    alt Direct connection succeeds
+        A<-->B: Direct P2P traffic
+    else Hole punch via relay
+        A->>RV: Connect via circuit relay
+        B->>RV: Connect via circuit relay
+        A<-->B: DCUtR hole punch
+        A<-->B: Direct P2P traffic
+    else Relay fallback
+        A<-->RV: Relay traffic
+        RV<-->B: Relay traffic
+    end
+```
+
+### Punch hints
+
+When a peer connects to the rendezvous server, the server sends **punch hints** to both the new peer and existing peers. A punch hint contains the other peer's known addresses, allowing both sides to attempt a direct connection immediately. This works for both LAN and WAN peers -- there is no special casing, one methodology suits all.
 
 ### Hole punching (DCUtR)
 
-Goop2 uses libp2p's Direct Connection Upgrade through Relay (DCUtR) protocol. When two peers can't connect directly, they coordinate through a relay to punch a hole through their NATs. If hole punching succeeds, subsequent traffic flows directly between peers.
+If a direct probe fails, Goop2 uses libp2p's Direct Connection Upgrade through Relay (DCUtR) protocol. Peers coordinate through the circuit relay to punch a hole through their NATs. If hole punching succeeds, subsequent traffic flows directly between peers.
 
 ### Circuit relay
 
-If hole punching fails, traffic flows through a **circuit relay** -- a lightweight proxy that forwards data between peers. A rendezvous server can run a circuit relay alongside its discovery service:
+The circuit relay is a lightweight proxy that forwards encrypted traffic between peers when direct connections aren't possible. A rendezvous server can run a circuit relay alongside its discovery service:
 
 ```json
 {

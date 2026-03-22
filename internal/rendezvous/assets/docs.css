@@ -205,6 +205,14 @@
   margin-bottom: 0;
 }
 
+/* ─── Mermaid diagrams ─── */
+.docs-article pre.mermaid {
+  background: transparent;
+  border: none;
+  text-align: center;
+  padding: 20px 0;
+}
+
 /* ─── Horizontal rule ─── */
 .docs-article hr {
   border: none;

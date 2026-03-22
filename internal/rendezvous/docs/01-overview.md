@@ -19,6 +19,27 @@ Each peer is a folder on disk containing a configuration file, a site directory,
 3. Serves your `site/` directory to any peer that requests it.
 4. Opens a local viewer in your browser so you can manage your site and visit others.
 
+```mermaid
+graph TB
+    subgraph "Your machine"
+        P[Peer] --> V[Viewer :8080]
+        P --> DB[(data.db)]
+        P --> S[site/]
+    end
+
+    subgraph "Discovery"
+        P -->|mDNS| LAN[LAN peers]
+        P -->|WebSocket| RV[Rendezvous server]
+    end
+
+    subgraph "Connectivity"
+        RV -->|punch hints| PH[Hole punching]
+        RV -->|relay info| RL[Circuit relay]
+        PH -->|direct| WAN[WAN peers]
+        RL -->|fallback| WAN
+    end
+```
+
 Visitors see your site rendered in their own viewer. Data operations (forms, comments, game moves) flow over peer-to-peer streams and are stored in the site owner's local database.
 
 ## Key concepts

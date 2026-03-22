@@ -7,6 +7,7 @@
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
   <link rel="stylesheet" href="/assets/style.css" />
   <link rel="stylesheet" href="/assets/docs.css" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 </head>
 <body>
   <div class="container docs-container">
@@ -59,8 +60,25 @@
           h.setAttribute('data-theme', s);
           localStorage.setItem('theme', s);
           i.textContent = s === 'dark' ? '☀️' : '🌙';
+          if (window.mermaid) mermaid.initialize({startOnLoad:false, theme: s === 'dark' ? 'dark' : 'default'});
+          window._initMermaid();
         };
       })();
+
+      window._initMermaid = function() {
+        if (!window.mermaid) return;
+        var theme = (document.documentElement.getAttribute('data-theme') || 'dark') === 'dark' ? 'dark' : 'default';
+        mermaid.initialize({startOnLoad:false, theme:theme});
+        document.querySelectorAll('pre > code.language-mermaid').forEach(function(code){
+          var pre = code.parentElement;
+          var div = document.createElement('pre');
+          div.className = 'mermaid';
+          div.textContent = code.textContent;
+          pre.replaceWith(div);
+        });
+        mermaid.run({querySelector:'.mermaid'});
+      };
+      window._initMermaid();
 
       // SPA navigation: fetch public pages without credentials so the
       // browser never re-sends cached Basic-Auth headers (avoids

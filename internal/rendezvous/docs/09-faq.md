@@ -63,25 +63,28 @@ If peers discover each other via rendezvous but can't exchange data:
 | 8787 (or your `rendezvous_port`) | TCP | Rendezvous server |
 | 8080 (or your `http_addr` port) | TCP | Local viewer (usually localhost only) |
 
-### SSE events aren't updating in the rendezvous dashboard
+### Real-time updates aren't working in the rendezvous dashboard
 
-If you're behind a reverse proxy, make sure response buffering is disabled:
+Goop2 uses WebSocket as the primary transport for rendezvous signaling, with SSE as a fallback. If you're behind a reverse proxy, make sure WebSocket upgrade and response buffering are configured:
 
 **Nginx:**
 ```nginx
+proxy_http_version 1.1;
+proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Connection "upgrade";
 proxy_buffering off;
 proxy_read_timeout 86400;
 ```
 
-**Caddy** handles SSE correctly by default.
+**Caddy** handles both WebSocket and SSE correctly by default.
 
 ## Video calls
 
 ### Video calls aren't working
 
+- Native video calls are currently **Linux only**. They are enabled automatically when running the desktop app on Linux.
 - Check that `video_disabled` is `false` in your config.
-- On Linux (Wails), check that a camera device is available. Goop2 skips audio capture if no audio device is found.
-- Check the browser console for WebRTC or media errors.
+- Check that a camera device is available. Goop2 skips audio capture if no audio device is found.
 - Both peers must be directly connected (via LAN, rendezvous, or relay). Call signaling happens over the MQ bus.
 
 ### Video freezes or reconnects repeatedly

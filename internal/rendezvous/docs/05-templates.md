@@ -22,7 +22,7 @@ When you apply a template, Goop2 copies the template files into your `site/` dir
 
 ## Built-in templates
 
-These are embedded in the Goop2 binary and are always available:
+These templates ship with every Goop2 peer and are always available:
 
 ### Blog
 
@@ -51,11 +51,19 @@ A real-time group chat room. Uses the groups protocol for live messaging between
 
 - **Category**: Community
 
-## Store templates
+## Template store
 
-Additional templates are available through the **template store** on a rendezvous server. Store templates are served by the **templates microservice** -- a separate service from the [goop2-services](https://github.com/petervdpas/goop2-services) repository. The rendezvous server proxies requests to it when `templates_url` is configured with `use_services` enabled.
+Additional templates are available through the **template store** on a rendezvous server. Store templates are served by the **templates microservice** -- a separate service from the [goop2-services](https://github.com/petervdpas/goop2-services) repository. Templates are loaded from disk by the templates service, not embedded in any binary. The rendezvous server proxies requests to it when `templates_url` is configured with `use_services` enabled.
 
-These can be browsed and installed from the viewer's Create > Templates page or from the rendezvous server's `/store` page.
+Templates can be browsed and installed from the viewer's **Create > Templates** page or from the rendezvous server's `/store` page.
+
+```mermaid
+graph LR
+    V[Viewer] -->|browse / install| GW[Goop2 gateway]
+    GW -->|proxy| TS[Templates service :8803]
+    TS -->|read| D[templates/ on disk]
+    TS -->|price check| CS[Credits service :8800]
+```
 
 Current store templates include:
 

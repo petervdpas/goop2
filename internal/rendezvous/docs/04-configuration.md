@@ -34,6 +34,7 @@ All configuration lives in a single `goop.json` file in your peer directory. The
     "external_url": "",
     "peer_db_path": "",
     "relay_port": 0,
+    "relay_ws_port": 0,
     "relay_key_file": "data/relay.key",
     "relay_cleanup_delay_sec": 3,
     "relay_poll_deadline_sec": 10,
@@ -130,6 +131,7 @@ All configuration lives in a single `goop.json` file in your peer directory. The
 | `peer_db_path` | `""` | SQLite path for persisting peer state across restarts. Required for registration and multi-instance setups. |
 | `external_url` | `""` | Public URL for the server (e.g. `https://goop2.com`). Required behind a reverse proxy so peers see the correct address. |
 | `relay_port` | `0` | Circuit relay v2 port. When > 0, a relay host runs alongside the rendezvous server for NAT traversal. |
+| `relay_ws_port` | `0` | WebSocket relay port. When > 0, a WebSocket relay endpoint runs alongside the circuit relay. |
 | `relay_key_file` | `data/relay.key` | Path to the relay identity key file. |
 | `relay_cleanup_delay_sec` | `3` | Seconds before cleaning up stale relay connections. |
 | `relay_poll_deadline_sec` | `10` | Seconds before a relay poll request times out. |
