@@ -311,12 +311,9 @@ func (n *Node) StartRelayRefresh(ctx context.Context, interval time.Duration) {
 func (n *Node) refreshRelayPeerstoreAddrs() {
 	conns := n.Host.Network().ConnsToPeer(n.relayPeer.ID)
 	if len(conns) > 0 {
-		var working []ma.Multiaddr
 		for _, c := range conns {
-			working = append(working, c.RemoteMultiaddr())
+			n.Host.Peerstore().AddAddrs(n.relayPeer.ID, []ma.Multiaddr{c.RemoteMultiaddr()}, PeerstoreAddrTTL)
 		}
-		n.Host.Peerstore().ClearAddrs(n.relayPeer.ID)
-		n.Host.Peerstore().AddAddrs(n.relayPeer.ID, working, PeerstoreAddrTTL)
 	} else {
 		n.Host.Peerstore().AddAddrs(n.relayPeer.ID, n.relayPeer.Addrs, PeerstoreAddrTTL)
 	}

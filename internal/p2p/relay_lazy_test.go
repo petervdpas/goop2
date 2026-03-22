@@ -402,18 +402,12 @@ func addrStrings(addrs []ma.Multiaddr) []string {
 	return s
 }
 
-func TestRefreshRelayPeerstoreAddrs_Connected_KeepsWorkingOnly(t *testing.T) {
+func TestRefreshRelayPeerstoreAddrs_Connected_RefreshesWorkingAddr(t *testing.T) {
 	n, _ := newTestNode(t)
 
 	realAddr := n.relayPeer.Addrs[0]
 	fakeAddr, _ := ma.NewMultiaddr("/dns4/goop2.com/tcp/443/wss")
 	n.relayPeer.Addrs = []ma.Multiaddr{realAddr, fakeAddr}
-
-	n.Host.Peerstore().AddAddrs(n.relayPeer.ID, n.relayPeer.Addrs, PeerstoreAddrTTL)
-	before := n.Host.Peerstore().Addrs(n.relayPeer.ID)
-	if len(before) != 2 {
-		t.Fatalf("expected 2 addresses before connect, got %d", len(before))
-	}
 
 	if err := n.Host.Connect(t.Context(), peer.AddrInfo{ID: n.relayPeer.ID, Addrs: []ma.Multiaddr{realAddr}}); err != nil {
 		t.Fatal(err)
@@ -422,13 +416,14 @@ func TestRefreshRelayPeerstoreAddrs_Connected_KeepsWorkingOnly(t *testing.T) {
 	n.refreshRelayPeerstoreAddrs()
 
 	after := n.Host.Peerstore().Addrs(n.relayPeer.ID)
+	hasWorking := false
 	for _, a := range after {
-		if a.Equal(fakeAddr) {
-			t.Fatal("fake address should have been dropped — relay connected via loopback TCP")
+		if a.Equal(realAddr) {
+			hasWorking = true
 		}
 	}
-	if len(after) == 0 {
-		t.Fatal("expected at least the working address in peerstore")
+	if !hasWorking {
+		t.Fatal("expected working address in peerstore after refresh")
 	}
 }
 
