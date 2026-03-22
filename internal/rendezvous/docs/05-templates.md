@@ -59,10 +59,10 @@ Templates can be browsed and installed from the viewer's **Create > Templates** 
 
 ```mermaid
 graph LR
-    V[Viewer] -->|browse / install| GW[Goop2 gateway]
-    GW -->|proxy| TS[Templates service :8803]
-    TS -->|read| D[templates/ on disk]
-    TS -->|price check| CS[Credits service :8800]
+    V["Viewer"] -->|"browse and install"| GW["Goop2 gateway"]
+    GW -->|proxy| TS["Templates service :8803"]
+    TS -->|read| D["templates on disk"]
+    TS -->|"price check"| CS["Credits service :8800"]
 ```
 
 Current store templates include:

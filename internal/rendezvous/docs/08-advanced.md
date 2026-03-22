@@ -76,8 +76,9 @@ sequenceDiagram
     MQ->>R: call-offer (SDP)
     R->>MQ: call-answer (SDP)
     MQ->>C: call-answer (SDP)
-    C<<->>R: ICE candidates (via MQ)
-    C<<->>R: Direct RTP media (Pion)
+    C->>R: ICE candidates (via MQ)
+    R->>C: ICE candidates (via MQ)
+    C->>R: Direct RTP media (Pion)
     Note over C,R: Go encodes to WebM, streams to viewer
 ```
 
@@ -120,9 +121,9 @@ The host maintains a job queue and dispatches work to connected workers. Workers
 
 ```mermaid
 graph TD
-    H[Host / Dispatcher] -->|job| A[Worker A]
-    H -->|job| B[Worker B]
-    H -->|job| C[Worker C]
+    H["Host - Dispatcher"] -->|job| A["Worker A"]
+    H -->|job| B["Worker B"]
+    H -->|job| C["Worker C"]
     A -->|result| H
     B -->|result| H
     C -->|result| H

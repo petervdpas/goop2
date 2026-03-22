@@ -8,10 +8,9 @@ Groups use a **host-relayed model**. The peer that creates a group acts as the h
 
 ```mermaid
 graph LR
-    A[Member A] <-->|stream| H[Host]
-    H <-->|stream| B[Member B]
-    H <-->|stream| C[Member C]
-    H ---|fan-out relay| H
+    A["Member A"] <-->|stream| H["Host"]
+    H <-->|stream| B["Member B"]
+    H <-->|stream| C["Member C"]
 ```
 
 This model works naturally because the host already serves the site, stores data, and knows its visitors. All group events flow through the unified MQ bus.

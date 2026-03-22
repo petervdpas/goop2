@@ -147,15 +147,16 @@ sequenceDiagram
     RV->>B: Punch hint (A's addresses)
     A->>B: Probe (direct connection attempt)
     alt Direct connection succeeds
-        A<-->B: Direct P2P traffic
+        A->>B: Direct P2P traffic
+        B->>A: Direct P2P traffic
     else Hole punch via relay
         A->>RV: Connect via circuit relay
         B->>RV: Connect via circuit relay
-        A<-->B: DCUtR hole punch
-        A<-->B: Direct P2P traffic
+        A->>B: DCUtR hole punch
+        B->>A: Direct P2P traffic
     else Relay fallback
-        A<-->RV: Relay traffic
-        RV<-->B: Relay traffic
+        A->>RV: Relay traffic
+        RV->>B: Relay traffic
     end
 ```
 

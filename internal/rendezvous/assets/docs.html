@@ -80,9 +80,28 @@
       };
       window._initMermaid();
 
-      // SPA navigation: fetch public pages without credentials so the
-      // browser never re-sends cached Basic-Auth headers (avoids
-      // password-manager popups on every click).
+      function _swapContent(html, href) {
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(html, 'text/html');
+        var newArticle = doc.querySelector('.docs-article');
+        var newFooter = doc.querySelector('.docs-nav-footer');
+        var newSidebar = doc.querySelector('.docs-sidebar');
+        var newTitle = doc.querySelector('title');
+        if (!newArticle) { location.href = href; return; }
+        var oldArticle = document.querySelector('.docs-article');
+        var oldFooter = document.querySelector('.docs-nav-footer');
+        var oldSidebar = document.querySelector('.docs-sidebar');
+        if (oldArticle) oldArticle.innerHTML = newArticle.innerHTML;
+        if (oldFooter && newFooter) oldFooter.innerHTML = newFooter.innerHTML;
+        if (oldSidebar && newSidebar) oldSidebar.innerHTML = newSidebar.innerHTML;
+        if (newTitle) document.title = newTitle.textContent;
+        if (oldArticle) oldArticle.scrollTop = 0;
+        var content = document.querySelector('.docs-content');
+        if (content) content.scrollTop = 0;
+        window.scrollTo(0, 0);
+        window._initMermaid();
+      }
+
       (function(){
         document.addEventListener('click', function(e){
           var a = e.target.closest('a');
@@ -97,16 +116,19 @@
             }).then(function(t){
               if (!t) return;
               history.pushState(null, '', h);
-              document.open(); document.write(t); document.close();
+              if (h.indexOf('/docs') === 0) { _swapContent(t, h); }
+              else { location.href = h; }
             }).catch(function(){ location.href = h; });
           }
         });
         window.addEventListener('popstate', function(){
           var p = location.pathname;
-          if (p === '/' || p.indexOf('/docs') === 0) {
+          if (p.indexOf('/docs') === 0) {
             fetch(p, {credentials:'omit'}).then(function(r){ return r.text(); }).then(function(t){
-              document.open(); document.write(t); document.close();
+              _swapContent(t, p);
             });
+          } else if (p === '/') {
+            location.href = p;
           }
         });
       })();

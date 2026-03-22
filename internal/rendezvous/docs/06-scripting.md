@@ -19,16 +19,16 @@ Add the `lua` section to your `goop.json`:
 
 ```mermaid
 graph TD
-    subgraph "Chat commands (site/lua/)"
-        CM[!command args] -->|Dispatch| E[Lua Engine]
-        E -->|handle args| VM1[Sandboxed VM]
-        VM1 -->|string reply| R[Direct message reply]
+    subgraph "Chat commands"
+        CM["!command args"] -->|Dispatch| E["Lua Engine"]
+        E -->|"handle(args)"| VM1["Sandboxed VM"]
+        VM1 -->|"string reply"| R["Direct message reply"]
     end
 
-    subgraph "Data functions (site/lua/functions/)"
-        JS[Goop.data.call] -->|CallFunction| E
-        E -->|call request| VM2[Sandboxed VM + goop.db]
-        VM2 -->|structured data| JSON[JSON response]
+    subgraph "Data functions"
+        JS["Goop.data.call"] -->|CallFunction| E
+        E -->|"call(request)"| VM2["Sandboxed VM + goop.db"]
+        VM2 -->|"structured data"| JSON["JSON response"]
     end
 ```
 

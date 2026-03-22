@@ -15,11 +15,11 @@ Load only the modules you need. The SDK auto-detects whether the template is run
 
 ```mermaid
 graph LR
-    T[Template JS] --> SDK[Goop SDK]
-    SDK -->|local /| LA[/api/data]
-    SDK -->|remote /p/peer/| RA[/api/p/peer/data]
-    LA --> DB[(Local SQLite)]
-    RA -->|P2P stream| RDB[(Remote SQLite)]
+    T["Template JS"] --> SDK["Goop SDK"]
+    SDK -->|"local context"| LA["Local API"]
+    SDK -->|"remote context"| RA["Remote API"]
+    LA --> DB[("Local SQLite")]
+    RA -->|"P2P stream"| RDB[("Remote SQLite")]
 ```
 
 ## Modules

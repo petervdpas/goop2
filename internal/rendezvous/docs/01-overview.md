@@ -22,20 +22,20 @@ Each peer is a folder on disk containing a configuration file, a site directory,
 ```mermaid
 graph TB
     subgraph "Your machine"
-        P[Peer] --> V[Viewer :8080]
-        P --> DB[(data.db)]
-        P --> S[site/]
+        P["Peer"] --> V["Viewer :8080"]
+        P --> DB[("data.db")]
+        P --> S["site dir"]
     end
 
     subgraph "Discovery"
-        P -->|mDNS| LAN[LAN peers]
-        P -->|WebSocket| RV[Rendezvous server]
+        P -->|mDNS| LAN["LAN peers"]
+        P -->|WebSocket| RV["Rendezvous server"]
     end
 
     subgraph "Connectivity"
-        RV -->|punch hints| PH[Hole punching]
-        RV -->|relay info| RL[Circuit relay]
-        PH -->|direct| WAN[WAN peers]
+        RV -->|punch hints| PH["Hole punching"]
+        RV -->|relay info| RL["Circuit relay"]
+        PH -->|direct| WAN["WAN peers"]
         RL -->|fallback| WAN
     end
 ```

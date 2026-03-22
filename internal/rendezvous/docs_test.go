@@ -243,6 +243,132 @@ func TestDocExpectedSlugs(t *testing.T) {
 	}
 }
 
+func TestDocMermaidNoUnquotedSlashes(t *testing.T) {
+	entries, err := docsFS.ReadDir("docs")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mermaidFence := regexp.MustCompile("(?s)```mermaid\n(.*?)```")
+	// Matches unquoted node labels containing / — e.g. [site/foo] but not ["site/foo"]
+	unquotedSlash := regexp.MustCompile(`\[[^"\]]*\/[^"\]]*\]`)
+
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+			continue
+		}
+		data, err := docsFS.ReadFile(path.Join("docs", e.Name()))
+		if err != nil {
+			continue
+		}
+
+		matches := mermaidFence.FindAllSubmatch(data, -1)
+		for i, m := range matches {
+			body := string(m[1])
+			hits := unquotedSlash.FindAllString(body, -1)
+			for _, hit := range hits {
+				t.Errorf("%s: mermaid block %d has unquoted / in node label: %s (use [\"...\"] instead)", e.Name(), i+1, hit)
+			}
+		}
+	}
+}
+
+func TestDocMermaidNoBidirectionalSequenceArrows(t *testing.T) {
+	entries, err := docsFS.ReadDir("docs")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mermaidFence := regexp.MustCompile("(?s)```mermaid\n(.*?)```")
+	biArrow := regexp.MustCompile(`<<->>|<-->>|<<-->`)
+
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+			continue
+		}
+		data, err := docsFS.ReadFile(path.Join("docs", e.Name()))
+		if err != nil {
+			continue
+		}
+
+		matches := mermaidFence.FindAllSubmatch(data, -1)
+		for i, m := range matches {
+			body := string(m[1])
+			if !strings.HasPrefix(strings.TrimSpace(body), "sequenceDiagram") {
+				continue
+			}
+			if hit := biArrow.FindString(body); hit != "" {
+				t.Errorf("%s: mermaid block %d uses unsupported bidirectional arrow %q in sequence diagram", e.Name(), i+1, hit)
+			}
+		}
+	}
+}
+
+func TestDocMermaidNoSelfReferencingEdges(t *testing.T) {
+	entries, err := docsFS.ReadDir("docs")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mermaidFence := regexp.MustCompile("(?s)```mermaid\n(.*?)```")
+	// Matches edges like: X -->|...| Y or X --- Y — capture start and end node IDs
+	edgeRe := regexp.MustCompile(`(?m)^\s*([A-Za-z]\w*)\s+[-<>=.|]+(?:\|[^|]*\|)?\s+([A-Za-z]\w*)\s*$`)
+
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+			continue
+		}
+		data, err := docsFS.ReadFile(path.Join("docs", e.Name()))
+		if err != nil {
+			continue
+		}
+
+		matches := mermaidFence.FindAllSubmatch(data, -1)
+		for i, m := range matches {
+			body := string(m[1])
+			if strings.HasPrefix(strings.TrimSpace(body), "sequenceDiagram") {
+				continue
+			}
+			edges := edgeRe.FindAllStringSubmatch(body, -1)
+			for _, edge := range edges {
+				if edge[1] == edge[2] {
+					t.Errorf("%s: mermaid block %d has self-referencing edge: %s -> %s", e.Name(), i+1, edge[1], edge[2])
+				}
+			}
+		}
+	}
+}
+
+func TestDocMermaidUnquotedSpecialCharsInLinkLabels(t *testing.T) {
+	entries, err := docsFS.ReadDir("docs")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mermaidFence := regexp.MustCompile("(?s)```mermaid\n(.*?)```")
+	// Matches unquoted link labels containing / — e.g. |browse / install| but not |"browse / install"|
+	unquotedLinkSlash := regexp.MustCompile(`\|[^"|\n]*\/[^"|\n]*\|`)
+
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+			continue
+		}
+		data, err := docsFS.ReadFile(path.Join("docs", e.Name()))
+		if err != nil {
+			continue
+		}
+
+		matches := mermaidFence.FindAllSubmatch(data, -1)
+		for i, m := range matches {
+			body := string(m[1])
+			hits := unquotedLinkSlash.FindAllString(body, -1)
+			for _, hit := range hits {
+				t.Errorf("%s: mermaid block %d has unquoted / in link label: %s (use |\"...\"|)", e.Name(), i+1, hit)
+			}
+		}
+	}
+}
+
 func TestDocNoRawHTMLInMermaidBlocks(t *testing.T) {
 	entries, err := docsFS.ReadDir("docs")
 	if err != nil {
