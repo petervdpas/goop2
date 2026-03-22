@@ -88,7 +88,7 @@ local body, err = goop.http.get("https://api.example.com/data")
 local body, err = goop.http.post("https://api.example.com/submit", {key = "val"})
 ```
 
-Only `http://` and `https://` URLs. Private/loopback addresses are blocked.
+Only `http://` and `https://` URLs. Private/loopback addresses are blocked (SSRF-safe with DNS pinning). Limited to 3 requests per invocation, 1 MB max response size.
 
 ## goop.json
 
@@ -145,6 +145,21 @@ Returns a list of all loaded chat command names.
 ```lua
 local cmds = goop.commands()  -- {"hello", "ping", "weather"}
 ```
+
+## Script annotations
+
+Scripts can include metadata in leading `---` comments:
+
+```lua
+--- A weather lookup command
+--- @rate_limit 10
+function handle(args)
+    -- ...
+end
+```
+
+- First `---` line (not `@`-prefixed) becomes the script description, shown in command listings.
+- `@rate_limit N` overrides the per-peer rate limit. `0` = unlimited, `N>0` = custom per-peer-per-minute limit.
 
 ## Security
 

@@ -233,7 +233,7 @@ func TestDocExpectedSlugs(t *testing.T) {
 	expected := []string{
 		"overview", "quickstart", "connecting", "configuration",
 		"templates", "scripting", "groups", "advanced", "faq",
-		"api", "executor",
+		"api", "executor", "sdk",
 	}
 
 	for _, slug := range expected {
