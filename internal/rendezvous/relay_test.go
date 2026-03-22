@@ -29,3 +29,43 @@ func TestBuildPublicAddr_IPv4(t *testing.T) {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
+
+func TestBuildExternalAddrs_TCPOnly(t *testing.T) {
+	addrs := buildExternalAddrs("https://1.2.3.4", 4001, 0)
+	if len(addrs) != 1 {
+		t.Fatalf("expected 1 addr, got %d", len(addrs))
+	}
+	if addrs[0].String() != "/ip4/1.2.3.4/tcp/4001" {
+		t.Fatalf("expected TCP addr, got %s", addrs[0])
+	}
+}
+
+func TestBuildExternalAddrs_TCPAndWSS(t *testing.T) {
+	addrs := buildExternalAddrs("https://1.2.3.4", 4001, 4002)
+	if len(addrs) != 2 {
+		t.Fatalf("expected 2 addrs, got %d", len(addrs))
+	}
+	if addrs[0].String() != "/ip4/1.2.3.4/tcp/4001" {
+		t.Fatalf("expected TCP addr first, got %s", addrs[0])
+	}
+	if addrs[1].String() != "/dns4/1.2.3.4/tcp/443/wss" {
+		t.Fatalf("expected WSS addr second, got %s", addrs[1])
+	}
+}
+
+func TestBuildExternalAddrs_Domain(t *testing.T) {
+	addrs := buildExternalAddrs("https://localhost", 4001, 4002)
+	if len(addrs) != 2 {
+		t.Fatalf("expected 2 addrs, got %d", len(addrs))
+	}
+	if addrs[1].String() != "/dns4/localhost/tcp/443/wss" {
+		t.Fatalf("expected WSS with domain, got %s", addrs[1])
+	}
+}
+
+func TestBuildExternalAddrs_EmptyURL(t *testing.T) {
+	addrs := buildExternalAddrs("", 4001, 4002)
+	if len(addrs) != 0 {
+		t.Fatalf("expected 0 addrs for empty URL, got %d", len(addrs))
+	}
+}

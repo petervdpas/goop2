@@ -20,6 +20,7 @@ import (
 	pbv2 "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/pb"
 	relayv2 "github.com/libp2p/go-libp2p/p2p/protocol/circuitv2/relay"
 	yamux "github.com/libp2p/go-yamux/v4"
+	ma "github.com/multiformats/go-multiaddr"
 )
 
 // RelayInfo describes a circuit relay v2 host that peers can use for NAT traversal.
@@ -130,12 +131,23 @@ func StartRelay(port int, wsPort int, keyFile string, externalURL string, logFn 
 		listenAddrs = append(listenAddrs, fmt.Sprintf("/ip4/127.0.0.1/tcp/%d/ws", wsPort))
 	}
 
-	h, err := libp2p.New(
+	opts := []libp2p.Option{
 		libp2p.Identity(priv),
 		libp2p.ListenAddrStrings(listenAddrs...),
 		libp2p.DisableRelay(),
 		libp2p.Muxer(ymux.ID, (*ymux.Transport)(ymuxCfg)),
-	)
+	}
+
+	if externalURL != "" {
+		extAddrs := buildExternalAddrs(externalURL, port, wsPort)
+		if len(extAddrs) > 0 {
+			opts = append(opts, libp2p.AddrsFactory(func(addrs []ma.Multiaddr) []ma.Multiaddr {
+				return append(addrs, extAddrs...)
+			}))
+		}
+	}
+
+	h, err := libp2p.New(opts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("relay host: %w", err)
 	}
@@ -230,6 +242,45 @@ func buildPublicAddr(externalURL string, port int, peerID string) string {
 		return fmt.Sprintf("/ip4/%s/tcp/%d/p2p/%s", ip.String(), port, peerID)
 	}
 	return fmt.Sprintf("/ip6/%s/tcp/%d/p2p/%s", ip.String(), port, peerID)
+}
+
+func buildExternalAddrs(externalURL string, tcpPort, wsPort int) []ma.Multiaddr {
+	var addrs []ma.Multiaddr
+	u, err := url.Parse(externalURL)
+	if err != nil {
+		return nil
+	}
+	hostname := u.Hostname()
+	if hostname == "" {
+		return nil
+	}
+
+	ip := net.ParseIP(hostname)
+	if ip == nil {
+		ips, err := net.LookupIP(hostname)
+		if err != nil || len(ips) == 0 {
+			return nil
+		}
+		for _, candidate := range ips {
+			if candidate.To4() != nil {
+				ip = candidate
+				break
+			}
+		}
+		if ip == nil {
+			ip = ips[0]
+		}
+	}
+
+	if tcpAddr, err := ma.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", ip.String(), tcpPort)); err == nil {
+		addrs = append(addrs, tcpAddr)
+	}
+	if wsPort > 0 {
+		if wssAddr, err := ma.NewMultiaddr(fmt.Sprintf("/dns4/%s/tcp/443/wss", hostname)); err == nil {
+			addrs = append(addrs, wssAddr)
+		}
+	}
+	return addrs
 }
 
 func buildWSSAddr(externalURL string, peerID string) string {
