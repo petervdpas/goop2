@@ -23,8 +23,6 @@ import (
 	"github.com/petervdpas/goop2/internal/util"
 
 	logging "github.com/ipfs/go-log/v2"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	libp2p "github.com/libp2p/go-libp2p"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -58,17 +56,21 @@ func setLibp2pLogLevel(level string) {
 	}
 }
 
-func SetVerbose(on bool, w io.Writer) {
-	if on && w != nil {
+var verboseOn bool
+
+func SetVerbose(on bool, _ io.Writer) {
+	verboseOn = on
+	if on {
 		log.Printf("verbose: enabling libp2p debug logging")
-		enc := zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig())
-		core := zapcore.NewCore(enc, zapcore.AddSync(w), zapcore.DebugLevel)
-		logging.SetPrimaryCore(core)
 		setLibp2pLogLevel("debug")
 	} else {
 		log.Printf("verbose: disabling libp2p debug logging")
 		setLibp2pLogLevel("error")
 	}
+}
+
+func IsVerbose() bool {
+	return verboseOn
 }
 
 type Node struct {

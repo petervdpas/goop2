@@ -27,6 +27,7 @@
     "peer_db_path": "",
     "external_url": "",
     "relay_port": 0,
+    "relay_ws_port": 0,
     "relay_key_file": "data/relay.key",
     "relay_cleanup_delay_sec": 3,
     "relay_poll_deadline_sec": 25,
@@ -55,7 +56,7 @@
   },
   "viewer": {
     "http_addr": "127.0.0.1:39925",
-    "debug": false,
+    "debug": true,
     "theme": "dark",
     "preferred_cam": "",
     "preferred_mic": "",

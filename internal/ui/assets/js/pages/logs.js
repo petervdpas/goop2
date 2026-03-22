@@ -218,4 +218,19 @@
       es.onerror = () => {};
     })
     .catch(err => appendLine("logs error: " + err));
+
+  // ── Verbose toggle ───────────────────────────────────────────────────────
+  var toggle = document.getElementById('verboseToggle');
+  if (toggle) {
+    fetch('/api/logs/verbose').then(function(r) { return r.json(); }).then(function(d) {
+      toggle.checked = d.on;
+    });
+    toggle.addEventListener('change', function() {
+      fetch('/api/logs/verbose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ on: toggle.checked })
+      });
+    });
+  }
 })();

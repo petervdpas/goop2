@@ -635,6 +635,7 @@ func RunPeer(p PeerParams) error {
 				"status": "recovered",
 				"msg":    "Relay circuit restored — WAN peers are reachable again",
 			})
+			go node.ProbeAllPeers(ctx)
 		} else {
 			mqMgr.PublishLocal("relay:status", "", map[string]any{
 				"status": "lost",

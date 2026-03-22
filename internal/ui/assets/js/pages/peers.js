@@ -173,7 +173,7 @@
     });
   }
 
-  // Initial peer list via REST, then live updates via MQ peer:announce / peer:gone.
+  // Initial peer list load.
   Goop.api.peers.list().then(function(peers) {
     if (peers) renderPeersList(peers);
   }).catch(function() {});
@@ -196,6 +196,20 @@
     };
   }
 
+  function updatePeerRow(peer) {
+    var row = document.querySelector('[data-peer-id="' + peer.ID + '"]');
+    if (!row) return false;
+    var unreachable = !!peer.Offline || peer.Reachable === false;
+    row.classList.toggle('dimmed', unreachable);
+    if (unreachable) row.setAttribute('data-unreachable', '');
+    else row.removeAttribute('data-unreachable');
+    if (peer.Offline) row.setAttribute('inert', '');
+    else row.removeAttribute('inert');
+    var seen = row.querySelector('.peercontent');
+    if (seen) seen.innerHTML = '<code>' + peer.ID.substring(0,8) + '...</code> &middot; seen ' + peer.LastSeen;
+    return true;
+  }
+
   function initPeersMQ() {
     if (!window.Goop || !window.Goop.mq) { setTimeout(initPeersMQ, 100); return; }
     Goop.mq.onPeerAnnounce( function(from, topic, payload, ack) {
@@ -204,10 +218,11 @@
       var idx = currentPeers.findIndex(function(p) { return p.ID === peer.ID; });
       if (idx >= 0) {
         currentPeers[idx] = peer;
+        if (!updatePeerRow(peer)) renderPeersList(null);
       } else {
         currentPeers.push(peer);
+        renderPeersList(null);
       }
-      renderPeersList(null);
       ack();
     });
     Goop.mq.onPeerGone( function(from, topic, payload, ack) {

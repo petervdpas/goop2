@@ -23,6 +23,11 @@ func registerAPILogRoutes(mux *http.ServeMux, d Deps) {
 	mux.HandleFunc("/api/logs/stream", d.Logs.ServeLogsSSE)
 
 	mux.HandleFunc("/api/logs/verbose", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]bool{"on": p2p.IsVerbose()})
+			return
+		}
 		if r.Method == http.MethodPost {
 			var req struct {
 				On bool `json:"on"`
@@ -31,8 +36,8 @@ func registerAPILogRoutes(mux *http.ServeMux, d Deps) {
 				http.Error(w, "bad json", http.StatusBadRequest)
 				return
 			}
-			if w, ok := d.Logs.(io.Writer); ok {
-				p2p.SetVerbose(req.On, w)
+			if lw, ok := d.Logs.(io.Writer); ok {
+				p2p.SetVerbose(req.On, lw)
 			}
 			w.WriteHeader(http.StatusNoContent)
 			return

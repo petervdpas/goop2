@@ -55,9 +55,7 @@ func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled 
 	var failStreak int
 	var lastFailAt time.Time
 	if existing, ok := t.peers[id]; ok {
-		if existing.OfflineSince.IsZero() {
-			reachable = existing.Reachable
-		}
+		reachable = existing.Reachable
 		// Preserve local state across presence updates.
 		favorite = existing.Favorite
 		failStreak = existing.failStreak
