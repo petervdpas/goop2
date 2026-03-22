@@ -276,7 +276,7 @@ func buildExternalAddrs(externalURL string, tcpPort, wsPort int) []ma.Multiaddr 
 		addrs = append(addrs, tcpAddr)
 	}
 	if wsPort > 0 {
-		if wssAddr, err := ma.NewMultiaddr(fmt.Sprintf("/dns4/%s/tcp/443/wss", hostname)); err == nil {
+		if wssAddr, err := ma.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/443/tls/sni/%s/ws", ip.String(), hostname)); err == nil {
 			addrs = append(addrs, wssAddr)
 		}
 	}
@@ -292,7 +292,24 @@ func buildWSSAddr(externalURL string, peerID string) string {
 	if hostname == "" {
 		return ""
 	}
-	return fmt.Sprintf("/dns4/%s/tcp/443/wss/p2p/%s", hostname, peerID)
+
+	ip := net.ParseIP(hostname)
+	if ip == nil {
+		ips, err := net.LookupIP(hostname)
+		if err != nil || len(ips) == 0 {
+			return ""
+		}
+		for _, candidate := range ips {
+			if candidate.To4() != nil {
+				ip = candidate
+				break
+			}
+		}
+		if ip == nil {
+			ip = ips[0]
+		}
+	}
+	return fmt.Sprintf("/ip4/%s/tcp/443/tls/sni/%s/ws/p2p/%s", ip.String(), hostname, peerID)
 }
 
 // loadOrCreateRelayKey loads an Ed25519 key from disk, or creates one.

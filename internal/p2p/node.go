@@ -40,20 +40,28 @@ import (
 	manet "github.com/multiformats/go-multiaddr/net"
 )
 
+var libp2pSubsystems = []string{
+	"swarm2", "relay", "autorelay", "autonat",
+	"net/identify", "basichost", "connmgr",
+	"dht", "pubsub", "mdns",
+}
+
 func init() {
-	// Silence noisy libp2p subsystems.  These produce high-frequency
-	// info/debug output (relay reservations, autorelay ticks, dial retries)
-	// that floods stderr — especially visible in Wails/Windows devtools.
-	logging.SetLogLevel("swarm2", "error")
-	logging.SetLogLevel("relay", "error")
-	logging.SetLogLevel("autorelay", "error")
-	logging.SetLogLevel("autonat", "error")
-	logging.SetLogLevel("net/identify", "error")
-	logging.SetLogLevel("basichost", "error")
-	logging.SetLogLevel("connmgr", "error")
-	logging.SetLogLevel("dht", "error")
-	logging.SetLogLevel("pubsub", "error")
-	logging.SetLogLevel("mdns", "error")
+	setLibp2pLogLevel("error")
+}
+
+func setLibp2pLogLevel(level string) {
+	for _, s := range libp2pSubsystems {
+		logging.SetLogLevel(s, level)
+	}
+}
+
+func SetVerbose(on bool) {
+	if on {
+		setLibp2pLogLevel("debug")
+	} else {
+		setLibp2pLogLevel("error")
+	}
 }
 
 type Node struct {

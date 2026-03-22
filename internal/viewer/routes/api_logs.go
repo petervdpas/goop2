@@ -2,9 +2,12 @@
 package routes
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/petervdpas/goop2/internal/p2p"
 )
 
 // ClientLogger interface for writing client-side logs
@@ -18,6 +21,22 @@ func registerAPILogRoutes(mux *http.ServeMux, d Deps) {
 	}
 	mux.HandleFunc("/api/logs", d.Logs.ServeLogsJSON)
 	mux.HandleFunc("/api/logs/stream", d.Logs.ServeLogsSSE)
+
+	mux.HandleFunc("/api/logs/verbose", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			var req struct {
+				On bool `json:"on"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "bad json", http.StatusBadRequest)
+				return
+			}
+			p2p.SetVerbose(req.On)
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	})
 
 	// Client-side logging endpoint - allows frontend JS to write to the logs page
 	handlePost(mux, "/api/logs/client", func(w http.ResponseWriter, r *http.Request, req struct {

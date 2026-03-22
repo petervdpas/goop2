@@ -3,8 +3,8 @@ package rendezvous
 import "testing"
 
 func TestBuildWSSAddr(t *testing.T) {
-	got := buildWSSAddr("https://goop2.com", "12D3KooWTest")
-	want := "/dns4/goop2.com/tcp/443/wss/p2p/12D3KooWTest"
+	got := buildWSSAddr("https://1.2.3.4", "12D3KooWTest")
+	want := "/ip4/1.2.3.4/tcp/443/tls/sni/1.2.3.4/ws/p2p/12D3KooWTest"
 	if got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
@@ -48,7 +48,7 @@ func TestBuildExternalAddrs_TCPAndWSS(t *testing.T) {
 	if addrs[0].String() != "/ip4/1.2.3.4/tcp/4001" {
 		t.Fatalf("expected TCP addr first, got %s", addrs[0])
 	}
-	if addrs[1].String() != "/dns4/1.2.3.4/tcp/443/wss" {
+	if addrs[1].String() != "/ip4/1.2.3.4/tcp/443/tls/sni/1.2.3.4/ws" {
 		t.Fatalf("expected WSS addr second, got %s", addrs[1])
 	}
 }
@@ -58,8 +58,9 @@ func TestBuildExternalAddrs_Domain(t *testing.T) {
 	if len(addrs) != 2 {
 		t.Fatalf("expected 2 addrs, got %d", len(addrs))
 	}
-	if addrs[1].String() != "/dns4/localhost/tcp/443/wss" {
-		t.Fatalf("expected WSS with domain, got %s", addrs[1])
+	wss := addrs[1].String()
+	if wss != "/ip4/127.0.0.1/tcp/443/tls/sni/localhost/ws" {
+		t.Fatalf("expected WSS with resolved IP + SNI, got %s", wss)
 	}
 }
 
