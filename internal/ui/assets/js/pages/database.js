@@ -689,13 +689,13 @@
     userCols.forEach(function(col) {
       var colType = (col.type || "text").toLowerCase();
       var inputType = "text";
-      if (colType === "date") inputType = "date";
-      else if (colType === "integer") inputType = "number";
+      if (colType === "integer") inputType = "number";
       else if (colType === "real") inputType = "number";
 
       var extra = "";
       if (colType === "real") extra = ' step="any"';
       if (colType === "guid") extra = ' readonly placeholder="(auto-generated)"';
+      if (colType === "date") extra = ' placeholder="Click to pick a date"';
 
       html += '<div class="db-insert-field">' +
         '<label>' + escapeHtml(col.name) + ' <span style="opacity:0.5;font-size:11px">(' + escapeHtml(col.type) + ')</span></label>' +
@@ -710,6 +710,10 @@
     insertFormEl.innerHTML = html;
     on(qs("#db-insert-cancel"), "click", function() { setHidden(insertFormEl, true); });
     on(qs("#db-insert-submit"), "click", submitInsertRow);
+
+    qsa('.db-insert-field input[data-type="date"]', insertFormEl).forEach(function(el) {
+      Goop.datepicker.attach(el);
+    });
 
     var firstInput = qs(".db-insert-field input:not([readonly])", insertFormEl);
     if (firstInput) firstInput.focus();

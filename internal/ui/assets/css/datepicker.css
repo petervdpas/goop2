@@ -1,0 +1,127 @@
+
+/* ── Goop date picker ── */
+
+.gdp-popup{
+  position: absolute;
+  z-index: 1000;
+  min-width: 260px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  padding: 10px;
+  user-select: none;
+}
+
+.gdp-header{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.gdp-month, .gdp-year{
+  font-weight: 700;
+  font-size: 13px;
+  min-width: 40px;
+  text-align: center;
+}
+
+.gdp-month{ min-width: 90px; }
+
+.gdp-nav{
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+  transition: color 0.1s, background 0.1s;
+}
+
+.gdp-nav:hover{
+  color: var(--text);
+  background: var(--glass);
+}
+
+.gdp-days{
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0;
+  margin-bottom: 4px;
+}
+
+.gdp-day-name{
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 2px 0;
+}
+
+.gdp-grid{
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.gdp-cell{
+  text-align: center;
+  font-size: 13px;
+  padding: 5px 0;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.gdp-cell:hover{
+  background: var(--glass);
+}
+
+.gdp-cell.gdp-other{
+  color: var(--muted);
+  opacity: 0.4;
+  cursor: default;
+}
+
+.gdp-cell.gdp-today{
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.gdp-cell.gdp-selected{
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 700;
+}
+
+.gdp-cell.gdp-selected:hover{
+  background: color-mix(in srgb, var(--accent) 85%, var(--text));
+}
+
+.gdp-footer{
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.gdp-today-btn, .gdp-clear-btn{
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  transition: background 0.1s;
+}
+
+.gdp-today-btn:hover, .gdp-clear-btn:hover{
+  background: var(--glass);
+}

@@ -103,7 +103,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 		})
 	})
 
-	// Insert data into a table (ORM tables validate types)
+	// Insert data into a table (ORM tables auto-generate guid/date and validate types)
 	handlePost(mux, "/api/data/insert", func(w http.ResponseWriter, r *http.Request, req struct {
 		Table string         `json:"table"`
 		Data  map[string]any `json:"data"`
@@ -112,15 +112,11 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			http.Error(w, "table name required", http.StatusBadRequest)
 			return
 		}
-		if err := db.ValidateInsert(req.Table, req.Data); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
 		email := ""
 		if selfEmail != nil {
 			email = selfEmail()
 		}
-		id, err := db.Insert(req.Table, selfID, email, req.Data)
+		id, err := db.OrmInsert(req.Table, selfID, email, req.Data)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

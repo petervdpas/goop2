@@ -393,7 +393,7 @@ func commandsFn(engine *Engine) lua.LGFunction {
 
 // ── DB API (Phase 2 — data functions only) ──
 
-func dbQueryFn(inv *invocationCtx, db *storage.DB) lua.LGFunction {
+func dbQueryFn(_ *invocationCtx, db *storage.DB) lua.LGFunction {
 	return func(L *lua.LState) int {
 		query := L.CheckString(1)
 
@@ -423,7 +423,7 @@ func dbQueryFn(inv *invocationCtx, db *storage.DB) lua.LGFunction {
 	}
 }
 
-func dbScalarFn(inv *invocationCtx, db *storage.DB) lua.LGFunction {
+func dbScalarFn(_ *invocationCtx, db *storage.DB) lua.LGFunction {
 	return func(L *lua.LState) int {
 		query := L.CheckString(1)
 
@@ -443,7 +443,7 @@ func dbScalarFn(inv *invocationCtx, db *storage.DB) lua.LGFunction {
 	}
 }
 
-func dbExecFn(inv *invocationCtx, db *storage.DB) lua.LGFunction {
+func dbExecFn(_ *invocationCtx, db *storage.DB) lua.LGFunction {
 	return func(L *lua.LState) int {
 		stmt := L.CheckString(1)
 
@@ -465,7 +465,7 @@ func dbExecFn(inv *invocationCtx, db *storage.DB) lua.LGFunction {
 
 // schemaCreateFn implements goop.schema.create(name, columns) — creates an ORM-managed table.
 // columns is a Lua array of {name, type, key?, required?, default?} tables.
-func schemaCreateFn(inv *invocationCtx, db *storage.DB) lua.LGFunction {
+func schemaCreateFn(_ *invocationCtx, db *storage.DB) lua.LGFunction {
 	return func(L *lua.LState) int {
 		name := L.CheckString(1)
 		colsTbl := L.CheckTable(2)
