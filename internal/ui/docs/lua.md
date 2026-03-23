@@ -81,6 +81,52 @@ local ok, err = goop.schema.validate("tasks", {score="bad"})  -- false, "expects
 
 Column types: `text`, `integer`, `real`, `blob`. System columns (`_id`, `_owner`, `_created_at`, `_updated_at`) are added automatically.
 
+## goop.site — Site file access
+
+Read files from the site content store. Available in data functions only.
+
+```lua
+local content, err = goop.site.read("api.json")
+if not content then
+    error("failed to read: " .. err)
+end
+local config = goop.json.decode(content)
+```
+
+### Virtual REST API pattern
+
+A data function can read `api.json` to serve as a declarative REST API over your tables. The template defines endpoints in JSON; the Lua function handles routing.
+
+```mermaid
+flowchart LR
+    JS["Goop.api.get('posts', {slug})"]
+    SDK["goop-api.js"]
+    DC["db.call('api', params)"]
+    P2P["P2P data protocol"]
+    LUA["api.lua"]
+    CFG["api.json"]
+    DB["SQLite"]
+
+    JS --> SDK --> DC --> P2P --> LUA
+    LUA -->|"goop.site.read"| CFG
+    LUA -->|"goop.db.query"| DB
+    DB --> LUA --> P2P --> DC --> SDK --> JS
+```
+
+```json
+{
+  "posts": {
+    "table": "posts",
+    "slug": "slug",
+    "filter": "published = 1",
+    "get": true,
+    "list": {"order": "_id DESC", "limit": 50}
+  }
+}
+```
+
+The Lua function reads this config once, caches it, and dispatches `get`, `list`, `insert`, `update`, `delete`, and `map` actions based on the declarations. Without `api.json`, all tables are exposed with default CRUD.
+
 ## goop.http
 
 ```lua

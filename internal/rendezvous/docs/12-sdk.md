@@ -33,6 +33,7 @@ graph LR
 | `goop-chat.js` | `Goop.chat` | Direct and broadcast chat over MQ |
 | `goop-realtime.js` | `Goop.realtime` | Virtual MQ-based channels |
 | `goop-call.js` | `Goop.call` | Audio/video calling |
+| `goop-api.js` | `Goop.api` | Virtual REST API over Lua data functions |
 | `goop-site.js` | `Goop.site` | File storage (read, upload, delete) |
 | `goop-ui.js` | `Goop.ui` | Toast, confirm, prompt dialogs |
 | `goop-form.js` | `Goop.form` | JSON-driven form renderer |
@@ -84,6 +85,55 @@ const result = await db.call("score-quiz", {answers: [1, 2, 3]});
 // List available Lua functions
 const fns = await db.functions();
 ```
+
+## Goop.api
+
+Virtual REST-like API backed by a server-side Lua function. Requires `goop-data.js`. Templates define endpoints in `api.json`; without it, all tables get default CRUD.
+
+```javascript
+const api = Goop.api;
+
+// Get a single record by slug or id
+const post = await api.get("posts", {slug: "hello-world"});
+// → {found: true, item: {_id, title, body, ...}}
+
+// List records (paginated)
+const result = await api.list("posts", {limit: 10, offset: 0});
+// → {items: [...]}
+
+// Insert, update, delete
+await api.insert("posts", {title: "New", body: "Content"});
+await api.update("posts", 42, {title: "Updated"});
+await api.delete("posts", 42);
+
+// Config table as key-value map
+const config = await api.map("config");
+// → {theme: "dark", accent: "#2d6a9f"}
+```
+
+### api.json
+
+Endpoint declarations placed in the site root:
+
+```json
+{
+  "posts": {
+    "table": "posts",
+    "slug": "slug",
+    "filter": "published = 1",
+    "fields": ["title", "body", "author_name"],
+    "get": true,
+    "list": {"order": "_id DESC", "limit": 50},
+    "insert": true, "update": true, "delete": true
+  },
+  "config": {
+    "table": "blog_config",
+    "map": {"key": "key", "value": "value"}
+  }
+}
+```
+
+Without `api.json`, all tables are exposed with default CRUD (get by `_id`, list by `_id DESC`, limit 50). See the Lua scripting page for the server-side architecture.
 
 ## Goop.identity
 

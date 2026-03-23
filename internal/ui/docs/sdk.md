@@ -24,6 +24,7 @@ All modules attach to the global `Goop` object. Load only what you need.
 | `goop-chat.js` | `Goop.chat` | Direct and broadcast chat over MQ |
 | `goop-realtime.js` | `Goop.realtime` | Virtual MQ-based channels |
 | `goop-call.js` | `Goop.call` | WebRTC audio/video calling |
+| `goop-api.js` | `Goop.api` | Virtual REST API over Lua data functions |
 | `goop-site.js` | `Goop.site` | File storage (read, upload, delete) |
 | `goop-ui.js` | `Goop.ui` | Toast, confirm, prompt dialogs |
 | `goop-form.js` | `Goop.form` | JSON-driven form renderer |
@@ -81,6 +82,79 @@ const result = await db.call("score-quiz", {answers: [1, 2, 3]});
 // List available Lua functions
 const fns = await db.functions();
 ```
+
+## Goop.api
+
+Virtual REST-like API backed by a server-side Lua function. Requires `goop-data.js`. The template defines endpoints in `api.json`; if absent, all tables are exposed with default CRUD.
+
+```javascript
+const api = Goop.api;
+
+// Get a single record by slug or id
+const post = await api.get("posts", {slug: "hello-world"});
+// → {found: true, item: {_id, title, body, ...}}
+
+const post = await api.get("posts", {id: 42});
+
+// List records (paginated)
+const result = await api.list("posts");
+// → {items: [{_id, title, ...}, ...]}
+
+const page = await api.list("posts", {limit: 10, offset: 20});
+
+// Insert a new record
+const result = await api.insert("posts", {title: "New", body: "Content"});
+// → {id: 5}
+
+// Update a record by id
+await api.update("posts", 42, {title: "Updated"});
+
+// Delete a record by id
+await api.delete("posts", 42);
+
+// Get a config table as a key-value map
+const config = await api.map("config");
+// → {theme: "dark", accent: "#2d6a9f", ...}
+```
+
+### api.json
+
+Endpoint declarations. Place in the site root alongside `index.html`.
+
+```json
+{
+  "posts": {
+    "table": "posts",
+    "slug": "slug",
+    "filter": "published = 1",
+    "fields": ["title", "body", "author_name", "image", "slug", "_created_at"],
+    "get": true,
+    "list": {"order": "_id DESC", "limit": 50},
+    "insert": true,
+    "update": true,
+    "delete": true
+  },
+  "config": {
+    "table": "blog_config",
+    "map": {"key": "key", "value": "value"}
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `table` | Source table name (defaults to resource name) |
+| `slug` | Column used for slug lookups (default: `slug`) |
+| `filter` | WHERE clause applied to all reads |
+| `fields` | Columns to return (default: all) |
+| `get` | Enable get-by-slug/id (default: `true`) |
+| `list` | Enable listing — object with `order` and `limit`, or `true` for defaults |
+| `insert` | Enable inserts (default: `true`) |
+| `update` | Enable updates (default: `true`) |
+| `delete` | Enable deletes (default: `true`) |
+| `map` | Key-value mode — object with `key` and `value` column names |
+
+Without `api.json`, all tables get default CRUD (get by `_id`, list by `_id DESC`, limit 50).
 
 ## Goop.identity
 

@@ -164,6 +164,49 @@ local info = goop.schema.describe("scores")
 local is_orm = goop.schema.is_orm("scores")
 ```
 
+### goop.site
+
+Read files from the site content store (data functions only):
+
+```lua
+local content, err = goop.site.read("api.json")
+local config = goop.json.decode(content)
+```
+
+This enables a **virtual REST API pattern**: a data function reads `api.json` to configure which tables and operations are exposed, then dispatches CRUD requests based on those declarations.
+
+```mermaid
+flowchart LR
+    JS["Goop.api.get('posts', {slug})"]
+    SDK["goop-api.js"]
+    DC["db.call('api', params)"]
+    P2P["P2P data protocol"]
+    LUA["api.lua"]
+    CFG["api.json"]
+    DB["SQLite"]
+
+    JS --> SDK --> DC --> P2P --> LUA
+    LUA -->|"goop.site.read"| CFG
+    LUA -->|"goop.db.query"| DB
+    DB --> LUA --> P2P --> DC --> SDK --> JS
+```
+
+Templates declare endpoints in `api.json`:
+
+```json
+{
+  "posts": {
+    "table": "posts",
+    "slug": "slug",
+    "filter": "published = 1",
+    "get": true,
+    "list": {"order": "_id DESC", "limit": 50}
+  }
+}
+```
+
+Without `api.json`, all tables are exposed with default CRUD. See the SDK documentation for `Goop.api` for the JavaScript side.
+
 ### goop.listen
 
 Audio listening session control:
