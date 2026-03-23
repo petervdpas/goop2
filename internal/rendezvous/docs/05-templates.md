@@ -10,12 +10,14 @@ A template lives in a directory with the following structure:
 templates/
   my-template/
     manifest.json      # Metadata (name, description, icon, category)
-    index.html         # Frontend UI (Go template syntax)
-    style.css          # Template-specific styles
-    app.js             # Client-side logic
     schema.sql         # SQLite schema (tables, indexes)
+    api.json           # Virtual API endpoint declarations (optional)
+    index.html         # Frontend UI
+    post.html          # Detail page (optional, query-param driven)
+    css/style.css      # Template-specific styles
+    js/app.js          # Client-side logic
     lua/functions/     # Server-side Lua logic (optional)
-      my-function.lua
+      api.lua          # Virtual REST API (reads api.json)
 ```
 
 When you apply a template, Goop2 copies the template files into your `site/` directory and initializes the database schema. You can do this from the viewer's **Create > Templates** page.
@@ -76,6 +78,7 @@ Current store templates include:
 | **Day Trader** | Finance | Real-time price charts for any trading instrument with configurable symbols and API |
 | **Kanban** | Productivity | A shared team kanban board -- owner manages columns, co-authors collaborate on cards |
 | **Photobook** | Content | A personal photo gallery with albums and lightbox |
+| **Blog 2.0** | Content | MVC blog with virtual REST API, article detail pages, themed design. Requires `goop-api.js` SDK |
 
 When a credits service is also configured, store templates can be priced. Peers need sufficient credits to download priced templates.
 
@@ -140,10 +143,64 @@ The same template code handles both cases transparently.
 
 To create a template for the store, create a directory in the templates service's `templates_dir`:
 
-1. Add a `manifest.json` with metadata and schema.
-2. Write your `index.html`, `style.css`, and `app.js`.
+1. Add a `manifest.json` with metadata and table policies.
+2. Write your `index.html`, `css/style.css`, and `js/app.js`.
 3. Include `<script src="/sdk/goop-data.js"></script>` for database access.
 4. Optionally add `schema.sql` for database tables.
 5. Optionally add Lua functions in `lua/functions/` for server-side logic.
+6. Optionally add `api.json` for virtual REST API endpoints (see below).
 
 The template will appear in the store and can be installed by any peer connected to that rendezvous server. The templates service supports `extra_dirs` in its config for loading templates from multiple directories.
+
+### MVC pattern with api.json
+
+Templates can follow an MVC architecture using a declarative virtual REST API:
+
+- **Model**: `schema.sql` defines tables, `manifest.json` defines policies
+- **View**: HTML pages + JS that call `Goop.api` methods
+- **Controller**: `api.json` declares endpoints, `api.lua` handles routing
+
+```mermaid
+flowchart TD
+    subgraph "View"
+        HTML["index.html / post.html"]
+        JS["app.js / post.js"]
+    end
+    subgraph "Controller"
+        SDK["Goop.api (goop-api.js)"]
+        LUA["api.lua"]
+        CFG["api.json"]
+    end
+    subgraph "Model"
+        DB["SQLite tables"]
+        SCHEMA["schema.sql"]
+    end
+
+    HTML --> JS --> SDK
+    SDK -->|"db.call('api', ...)"| LUA
+    LUA -->|"goop.site.read"| CFG
+    LUA -->|"goop.schema.find / insert / update / delete"| DB
+    SCHEMA -->|"applied on install"| DB
+```
+
+The `api.json` file declares which tables are exposed and how:
+
+```json
+{
+  "posts": {
+    "table": "posts",
+    "slug": "slug",
+    "filter": "published = 1",
+    "fields": ["title", "body", "author_name", "slug"],
+    "get": true,
+    "list": {"order": "_id DESC", "limit": 50},
+    "insert": true, "update": true, "delete": true
+  },
+  "config": {
+    "table": "blog_config",
+    "map": {"key": "key", "value": "value"}
+  }
+}
+```
+
+Without `api.json`, the API falls back to exposing all tables with default CRUD. See the SDK documentation for `Goop.api` and the Lua scripting page for `goop.schema.find`.
