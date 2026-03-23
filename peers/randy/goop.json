@@ -1,0 +1,80 @@
+{
+  "identity": {
+    "key_file": "data/identity.key"
+  },
+  "paths": {
+    "site_root": "site",
+    "site_source": "site/src",
+    "site_stage": "site/stage"
+  },
+  "p2p": {
+    "listen_port": 0,
+    "mdns_tag": "goop-mdns",
+    "bridge_mode": false,
+    "nacl_public_key": "gngtgCxcADmMzJpvnej1fw/JmQfUybH3rr48MXmiQ3o=",
+    "nacl_private_key": "eD96betXdjY0wyCTxIJvthVbOQmBgi4TW1Qvn/BReLg="
+  },
+  "presence": {
+    "topic": "goop.presence.v1",
+    "ttl_seconds": 20,
+    "heartbeat_seconds": 5,
+    "rendezvous_host": true,
+    "rendezvous_port": 8787,
+    "rendezvous_bind": "127.0.0.1",
+    "rendezvous_wan": "",
+    "rendezvous_only": true,
+    "admin_password": "",
+    "peer_db_path": "",
+    "external_url": "",
+    "relay_port": 0,
+    "relay_ws_port": 0,
+    "relay_key_file": "data/relay.key",
+    "relay_cleanup_delay_sec": 3,
+    "relay_poll_deadline_sec": 10,
+    "relay_connect_timeout_sec": 5,
+    "relay_refresh_interval_sec": 90,
+    "relay_recovery_grace_sec": 5,
+    "use_services": false,
+    "credits_url": "",
+    "registration_url": "",
+    "email_url": "",
+    "templates_url": "",
+    "bridge_url": "",
+    "encryption_url": "",
+    "templates_dir": "",
+    "credits_admin_token": "",
+    "registration_admin_token": "",
+    "templates_admin_token": "",
+    "bridge_admin_token": "",
+    "encryption_admin_token": ""
+  },
+  "profile": {
+    "label": "randy",
+    "email": "",
+    "verification_token": "",
+    "bridge_token": ""
+  },
+  "viewer": {
+    "http_addr": "127.0.0.1:33465",
+    "debug": false,
+    "theme": "dark",
+    "preferred_cam": "",
+    "preferred_mic": "",
+    "video_disabled": false,
+    "hide_unverified": false,
+    "active_template": "",
+    "open_sites_external": false,
+    "splash": "goop2-splash2.png",
+    "peer_offline_grace_min": 15
+  },
+  "lua": {
+    "enabled": false,
+    "script_dir": "site/lua",
+    "timeout_seconds": 5,
+    "max_memory_mb": 10,
+    "rate_limit_per_peer": 30,
+    "rate_limit_global": 120,
+    "http_enabled": true,
+    "kv_enabled": true
+  }
+}

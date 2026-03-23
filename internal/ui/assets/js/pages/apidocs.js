@@ -15,7 +15,7 @@
     swaggerReady = true;
     var cssLink = document.createElement('link');
     cssLink.rel = 'stylesheet';
-    cssLink.href = 'https://unpkg.com/swagger-ui-dist@5.18.2/swagger-ui.css';
+    cssLink.href = '/assets/vendor/swagger-ui/swagger-ui.css';
     document.head.appendChild(cssLink);
 
     var dark = isDark();
@@ -48,7 +48,7 @@
     }
 
     var script = document.createElement('script');
-    script.src = 'https://unpkg.com/swagger-ui-dist@5.18.2/swagger-ui-bundle.js';
+    script.src = '/assets/vendor/swagger-ui/swagger-ui-bundle.js';
     script.onload = function() {
       SwaggerUIBundle({
         url: '/api/openapi.json',
@@ -73,7 +73,7 @@
     redocReady = true;
     var dark = isDark();
     var script = document.createElement('script');
-    script.src = 'https://cdn.redoc.ly/redoc/v2.1.5/bundles/redoc.standalone.js';
+    script.src = '/assets/vendor/redoc/redoc.standalone.js';
     script.onload = function() {
       Redoc.init('/api/executor-api.yaml', {
         scrollYOffset: 0,
@@ -102,6 +102,36 @@
     document.body.appendChild(script);
   }
 
+  var mermaidLoaded = false;
+  function loadMermaid() {
+    if (mermaidLoaded) return;
+    mermaidLoaded = true;
+    var script = document.createElement('script');
+    script.src = '/assets/vendor/mermaid/mermaid.min.js';
+    script.onload = function() {
+      var dark = isDark();
+      mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default' });
+      renderMermaidIn('sdk-panel');
+    };
+    document.body.appendChild(script);
+  }
+  function renderMermaidIn(panelId) {
+    if (!window.mermaid) return;
+    var panel = document.getElementById(panelId);
+    if (!panel) return;
+    var codes = panel.querySelectorAll('pre > code.language-mermaid');
+    if (codes.length === 0) return;
+    codes.forEach(function(code) {
+      var pre = code.parentElement;
+      var div = document.createElement('pre');
+      div.className = 'mermaid';
+      div.textContent = code.textContent;
+      pre.replaceWith(div);
+    });
+    mermaid.run({ nodes: panel.querySelectorAll('.mermaid') });
+  }
+  loadMermaid();
+
   var panels = {
     sdk: document.getElementById('sdk-panel'),
     lua: document.getElementById('lua-panel'),
@@ -119,6 +149,7 @@
         if (panels[k]) panels[k].style.display = k === tab ? '' : 'none';
       });
       if (inits[tab]) inits[tab]();
+      if (panels[tab]) renderMermaidIn(panels[tab].id);
     });
   });
 })();

@@ -1,6 +1,4 @@
 /* Blog template — clean, readable, literary feel */
-@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600&display=swap');
-
 :root {
   --bg: #faf8f5;
   --text: #2c2c2c;
@@ -9,8 +7,8 @@
   --border: #e4ddd4;
   --panel: #ffffff;
   --code-bg: #f0ebe4;
-  --serif: 'Lora', Georgia, serif;
-  --sans: 'Inter', system-ui, sans-serif;
+  --serif: Georgia, 'Times New Roman', serif;
+  --sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
   --body-font: var(--serif);
   --heading-font: var(--serif);
 }

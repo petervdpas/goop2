@@ -17,19 +17,16 @@ Add the `lua` section to your `goop.json`:
 }
 ```
 
-```mermaid
-graph TD
-    subgraph "Chat commands"
-        CM["!command args"] -->|Dispatch| E["Lua Engine"]
-        E -->|"handle(args)"| VM1["Sandboxed VM"]
-        VM1 -->|"string reply"| R["Direct message reply"]
-    end
+Lua scripts come in two flavors: **chat commands** that respond to visitor messages, and **data functions** that provide server-side logic for templates.
 
-    subgraph "Data functions"
-        JS["Goop.data.call"] -->|CallFunction| E
-        E -->|"call(request)"| VM2["Sandboxed VM + goop.db"]
-        VM2 -->|"structured data"| JSON["JSON response"]
-    end
+```mermaid
+graph LR
+    CM["Chat command"] --> E["Lua Engine"]
+    E --> VM1["Sandboxed VM"]
+    VM1 --> R["Reply"]
+    JS["Goop.data.call"] --> E
+    E --> VM2["Data VM + goop.db"]
+    VM2 --> JSON["JSON response"]
 ```
 
 ## Script types

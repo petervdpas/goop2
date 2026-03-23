@@ -1,5 +1,4 @@
 /* Tic-Tac-Toe template */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
   --bg: #f4f6f9;
@@ -11,7 +10,7 @@
   --green: #3a9e6e;
   --border: #d8dce6;
   --panel: #ffffff;
-  --sans: 'Inter', system-ui, sans-serif;
+  --sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 *, *::before, *::after { box-sizing: border-box; }

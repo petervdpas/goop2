@@ -2,8 +2,9 @@ package docs
 
 import (
 	"bytes"
-	"embed"
 	"html/template"
+
+	"github.com/petervdpas/goop2/internal/shareddocs"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
@@ -12,16 +13,13 @@ import (
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
 )
 
-//go:embed sdk.md lua.md
-var docsFS embed.FS
-
 // Rendered holds pre-rendered HTML for the viewer docs tabs.
 type Rendered struct {
 	SDK template.HTML
 	Lua template.HTML
 }
 
-// Render reads the embedded markdown files and returns pre-rendered HTML
+// Render reads the shared markdown files and returns pre-rendered HTML
 // with syntax-highlighted code blocks. Called once at startup.
 func Render() *Rendered {
 	md := goldmark.New(
@@ -41,7 +39,7 @@ func Render() *Rendered {
 }
 
 func renderFile(md goldmark.Markdown, name string) template.HTML {
-	data, err := docsFS.ReadFile(name)
+	data, err := shareddocs.Shared.ReadFile(name)
 	if err != nil {
 		return template.HTML("<p>Failed to load " + name + "</p>")
 	}

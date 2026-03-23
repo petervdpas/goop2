@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"io/fs"
 	"errors"
 	"fmt"
 	"html/template"
@@ -324,6 +325,7 @@ func New(addr string, peerDBPath string, adminPassword string, externalURL strin
 		splashData = nil
 	}
 
+
 	s := &Server{
 		addr:           addr,
 		externalURL:    util.NormalizeURL(externalURL),
@@ -577,6 +579,9 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/assets/docs.css", s.handleDocsCSS)
 	mux.HandleFunc("/favicon.ico", s.handleFavicon)
 	mux.HandleFunc("/assets/goop2-splash.jpg", s.handleSplash)
+	if vendorFS, err := fs.Sub(embedded, "assets/vendor"); err == nil {
+		mux.Handle("/assets/vendor/", http.StripPrefix("/assets/vendor/", http.FileServerFS(vendorFS)))
+	}
 	mux.HandleFunc("/docs", s.handleDocsRedirect)
 	mux.HandleFunc("/docs/", s.handleDocs)
 	mux.HandleFunc("/api/openapi.json", s.handleOpenAPISpec)

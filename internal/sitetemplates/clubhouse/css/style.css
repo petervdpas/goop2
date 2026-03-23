@@ -1,5 +1,4 @@
 /* Clubhouse template — lively real-time chat */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root {
   --bg: #f5f0eb;
@@ -18,7 +17,7 @@
   --online-glow: rgba(34, 197, 94, 0.4);
   --msg-other-bg: #fff;
   --msg-self-bg: linear-gradient(135deg, #e06820, #d45a15);
-  --sans: 'Inter', system-ui, sans-serif;
+  --sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 *, *::before, *::after { box-sizing: border-box; }

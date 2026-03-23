@@ -2,19 +2,34 @@ package rendezvous
 
 import (
 	"bytes"
-	"embed"
 	"html/template"
-	"path"
-	"sort"
 	"strings"
+
+	"github.com/petervdpas/goop2/internal/shareddocs"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-//go:embed all:docs
-var docsFS embed.FS
+// pageOrder defines the display order and slug for each doc page.
+var pageOrder = []struct {
+	File string
+	Slug string
+}{
+	{"overview.md", "overview"},
+	{"quickstart.md", "quickstart"},
+	{"connecting.md", "connecting"},
+	{"configuration.md", "configuration"},
+	{"templates.md", "templates"},
+	{"lua.md", "scripting"},
+	{"groups.md", "groups"},
+	{"advanced.md", "advanced"},
+	{"faq.md", "faq"},
+	{"api.md", "api"},
+	{"executor.md", "executor"},
+	{"sdk.md", "sdk"},
+}
 
 // DocPage holds a single rendered documentation page.
 type DocPage struct {
@@ -30,43 +45,24 @@ type DocSite struct {
 	BySlug map[string]*DocPage
 }
 
-// newDocSite reads all .md files from the embedded docs directory, renders
-// them with goldmark, and returns a DocSite with pages sorted by filename
-// prefix. All rendering happens once at startup.
+// newDocSite reads all doc pages from the centralized docs package,
+// renders them with goldmark, and returns a DocSite ordered by
+// the defined page sequence. All rendering happens once at startup.
 func newDocSite() *DocSite {
 	md := goldmark.New(
 		goldmark.WithExtensions(extension.Table),
 		goldmark.WithRendererOptions(html.WithUnsafe()),
 	)
 
-	entries, err := docsFS.ReadDir("docs")
-	if err != nil {
-		return &DocSite{BySlug: map[string]*DocPage{}}
-	}
-
 	site := &DocSite{BySlug: map[string]*DocPage{}}
 
-	for i, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-			continue
-		}
-
-		data, err := docsFS.ReadFile(path.Join("docs", e.Name()))
+	for i, entry := range pageOrder {
+		data, err := shareddocs.Shared.ReadFile(entry.File)
 		if err != nil {
 			continue
 		}
 
-		// Slug: strip numeric prefix and extension.
-		// "01-overview.md" -> "overview"
-		name := strings.TrimSuffix(e.Name(), ".md")
-		parts := strings.SplitN(name, "-", 2)
-		slug := name
-		if len(parts) == 2 {
-			slug = parts[1]
-		}
-
-		// Title: first "# Heading" line.
-		title := slug
+		title := entry.Slug
 		for _, line := range strings.Split(string(data), "\n") {
 			line = strings.TrimSpace(line)
 			if strings.HasPrefix(line, "# ") {
@@ -81,22 +77,13 @@ func newDocSite() *DocSite {
 		}
 
 		page := DocPage{
-			Slug:  slug,
+			Slug:  entry.Slug,
 			Title: title,
 			Order: i,
 			HTML:  template.HTML(buf.String()),
 		}
 		site.Pages = append(site.Pages, page)
-		site.BySlug[slug] = &site.Pages[len(site.Pages)-1]
-	}
-
-	sort.Slice(site.Pages, func(i, j int) bool {
-		return site.Pages[i].Order < site.Pages[j].Order
-	})
-
-	// Re-index after sort since slice addresses may have changed.
-	for idx := range site.Pages {
-		site.BySlug[site.Pages[idx].Slug] = &site.Pages[idx]
+		site.BySlug[entry.Slug] = &site.Pages[len(site.Pages)-1]
 	}
 
 	return site

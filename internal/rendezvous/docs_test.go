@@ -2,10 +2,11 @@ package rendezvous
 
 import (
 	"fmt"
-	"path"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/petervdpas/goop2/internal/shareddocs"
 )
 
 func TestDocSiteLoadsAllPages(t *testing.T) {
@@ -15,18 +16,8 @@ func TestDocSiteLoadsAllPages(t *testing.T) {
 		t.Fatal("no pages loaded")
 	}
 
-	entries, err := docsFS.ReadDir("docs")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var mdCount int
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".md") {
-			mdCount++
-		}
-	}
-	if len(site.Pages) != mdCount {
-		t.Errorf("loaded %d pages but found %d .md files", len(site.Pages), mdCount)
+	if len(site.Pages) != len(pageOrder) {
+		t.Errorf("loaded %d pages but expected %d from pageOrder", len(site.Pages), len(pageOrder))
 	}
 }
 
@@ -92,12 +83,35 @@ func TestDocPagesOrder(t *testing.T) {
 	}
 }
 
-func TestDocMermaidBlocksAreValid(t *testing.T) {
-	entries, err := docsFS.ReadDir("docs")
+func readSharedDocs() []struct {
+	Name string
+	Data []byte
+} {
+	entries, err := shareddocs.Shared.ReadDir(".")
 	if err != nil {
-		t.Fatal(err)
+		return nil
 	}
+	var result []struct {
+		Name string
+		Data []byte
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+			continue
+		}
+		data, err := shareddocs.Shared.ReadFile(e.Name())
+		if err != nil {
+			continue
+		}
+		result = append(result, struct {
+			Name string
+			Data []byte
+		}{e.Name(), data})
+	}
+	return result
+}
 
+func TestDocMermaidBlocksAreValid(t *testing.T) {
 	mermaidFence := regexp.MustCompile("(?s)```mermaid\n(.*?)```")
 	validTypes := []string{
 		"graph ", "graph\n",
@@ -107,21 +121,12 @@ func TestDocMermaidBlocksAreValid(t *testing.T) {
 		"mindmap", "timeline", "sankey", "quadrantChart",
 	}
 
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-			continue
-		}
-		data, err := docsFS.ReadFile(path.Join("docs", e.Name()))
-		if err != nil {
-			t.Errorf("%s: %v", e.Name(), err)
-			continue
-		}
-
-		matches := mermaidFence.FindAllSubmatch(data, -1)
+	for _, doc := range readSharedDocs() {
+		matches := mermaidFence.FindAllSubmatch(doc.Data, -1)
 		for i, m := range matches {
 			body := strings.TrimSpace(string(m[1]))
 			if body == "" {
-				t.Errorf("%s: mermaid block %d is empty", e.Name(), i+1)
+				t.Errorf("%s: mermaid block %d is empty", doc.Name, i+1)
 				continue
 			}
 			valid := false
@@ -136,7 +141,7 @@ func TestDocMermaidBlocksAreValid(t *testing.T) {
 				if idx := strings.Index(first, "\n"); idx > 0 {
 					first = first[:idx]
 				}
-				t.Errorf("%s: mermaid block %d has unrecognized diagram type: %q", e.Name(), i+1, first)
+				t.Errorf("%s: mermaid block %d has unrecognized diagram type: %q", doc.Name, i+1, first)
 			}
 		}
 	}
@@ -157,24 +162,10 @@ func TestDocMermaidBlocksRenderAsCodeBlocks(t *testing.T) {
 
 func TestDocInternalLinksResolve(t *testing.T) {
 	site := newDocSite()
-
 	linkRe := regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
 
-	entries, err := docsFS.ReadDir("docs")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-			continue
-		}
-		data, err := docsFS.ReadFile(path.Join("docs", e.Name()))
-		if err != nil {
-			continue
-		}
-
-		matches := linkRe.FindAllStringSubmatch(string(data), -1)
+	for _, doc := range readSharedDocs() {
+		matches := linkRe.FindAllStringSubmatch(string(doc.Data), -1)
 		for _, m := range matches {
 			target := m[2]
 			if strings.Contains(target, "://") || strings.HasPrefix(target, "#") ||
@@ -186,28 +177,15 @@ func TestDocInternalLinksResolve(t *testing.T) {
 				continue
 			}
 			if _, ok := site.BySlug[slug]; !ok {
-				t.Errorf("%s: internal link [%s](%s) resolves to unknown slug %q", e.Name(), m[1], target, slug)
+				t.Errorf("%s: internal link [%s](%s) resolves to unknown slug %q", doc.Name, m[1], target, slug)
 			}
 		}
 	}
 }
 
 func TestDocMarkdownHasNoUnclosedFences(t *testing.T) {
-	entries, err := docsFS.ReadDir("docs")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-			continue
-		}
-		data, err := docsFS.ReadFile(path.Join("docs", e.Name()))
-		if err != nil {
-			continue
-		}
-
-		lines := strings.Split(string(data), "\n")
+	for _, doc := range readSharedDocs() {
+		lines := strings.Split(string(doc.Data), "\n")
 		inFence := false
 		fenceLine := 0
 		for i, line := range lines {
@@ -222,7 +200,7 @@ func TestDocMarkdownHasNoUnclosedFences(t *testing.T) {
 			}
 		}
 		if inFence {
-			t.Errorf("%s: unclosed code fence starting at line %d", e.Name(), fenceLine)
+			t.Errorf("%s: unclosed code fence starting at line %d", doc.Name, fenceLine)
 		}
 	}
 }
@@ -244,86 +222,45 @@ func TestDocExpectedSlugs(t *testing.T) {
 }
 
 func TestDocMermaidNoUnquotedSlashes(t *testing.T) {
-	entries, err := docsFS.ReadDir("docs")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	mermaidFence := regexp.MustCompile("(?s)```mermaid\n(.*?)```")
-	// Matches unquoted node labels containing / — e.g. [site/foo] but not ["site/foo"]
 	unquotedSlash := regexp.MustCompile(`\[[^"\]]*\/[^"\]]*\]`)
 
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-			continue
-		}
-		data, err := docsFS.ReadFile(path.Join("docs", e.Name()))
-		if err != nil {
-			continue
-		}
-
-		matches := mermaidFence.FindAllSubmatch(data, -1)
+	for _, doc := range readSharedDocs() {
+		matches := mermaidFence.FindAllSubmatch(doc.Data, -1)
 		for i, m := range matches {
 			body := string(m[1])
 			hits := unquotedSlash.FindAllString(body, -1)
 			for _, hit := range hits {
-				t.Errorf("%s: mermaid block %d has unquoted / in node label: %s (use [\"...\"] instead)", e.Name(), i+1, hit)
+				t.Errorf("%s: mermaid block %d has unquoted / in node label: %s (use [\"...\"] instead)", doc.Name, i+1, hit)
 			}
 		}
 	}
 }
 
 func TestDocMermaidNoBidirectionalSequenceArrows(t *testing.T) {
-	entries, err := docsFS.ReadDir("docs")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	mermaidFence := regexp.MustCompile("(?s)```mermaid\n(.*?)```")
 	biArrow := regexp.MustCompile(`<<->>|<-->>|<<-->`)
 
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-			continue
-		}
-		data, err := docsFS.ReadFile(path.Join("docs", e.Name()))
-		if err != nil {
-			continue
-		}
-
-		matches := mermaidFence.FindAllSubmatch(data, -1)
+	for _, doc := range readSharedDocs() {
+		matches := mermaidFence.FindAllSubmatch(doc.Data, -1)
 		for i, m := range matches {
 			body := string(m[1])
 			if !strings.HasPrefix(strings.TrimSpace(body), "sequenceDiagram") {
 				continue
 			}
 			if hit := biArrow.FindString(body); hit != "" {
-				t.Errorf("%s: mermaid block %d uses unsupported bidirectional arrow %q in sequence diagram", e.Name(), i+1, hit)
+				t.Errorf("%s: mermaid block %d uses unsupported bidirectional arrow %q in sequence diagram", doc.Name, i+1, hit)
 			}
 		}
 	}
 }
 
 func TestDocMermaidNoSelfReferencingEdges(t *testing.T) {
-	entries, err := docsFS.ReadDir("docs")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	mermaidFence := regexp.MustCompile("(?s)```mermaid\n(.*?)```")
-	// Matches edges like: X -->|...| Y or X --- Y — capture start and end node IDs
 	edgeRe := regexp.MustCompile(`(?m)^\s*([A-Za-z]\w*)\s+[-<>=.|]+(?:\|[^|]*\|)?\s+([A-Za-z]\w*)\s*$`)
 
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-			continue
-		}
-		data, err := docsFS.ReadFile(path.Join("docs", e.Name()))
-		if err != nil {
-			continue
-		}
-
-		matches := mermaidFence.FindAllSubmatch(data, -1)
+	for _, doc := range readSharedDocs() {
+		matches := mermaidFence.FindAllSubmatch(doc.Data, -1)
 		for i, m := range matches {
 			body := string(m[1])
 			if strings.HasPrefix(strings.TrimSpace(body), "sequenceDiagram") {
@@ -332,7 +269,7 @@ func TestDocMermaidNoSelfReferencingEdges(t *testing.T) {
 			edges := edgeRe.FindAllStringSubmatch(body, -1)
 			for _, edge := range edges {
 				if edge[1] == edge[2] {
-					t.Errorf("%s: mermaid block %d has self-referencing edge: %s -> %s", e.Name(), i+1, edge[1], edge[2])
+					t.Errorf("%s: mermaid block %d has self-referencing edge: %s -> %s", doc.Name, i+1, edge[1], edge[2])
 				}
 			}
 		}
@@ -340,80 +277,41 @@ func TestDocMermaidNoSelfReferencingEdges(t *testing.T) {
 }
 
 func TestDocMermaidUnquotedSpecialCharsInLinkLabels(t *testing.T) {
-	entries, err := docsFS.ReadDir("docs")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	mermaidFence := regexp.MustCompile("(?s)```mermaid\n(.*?)```")
-	// Matches unquoted link labels containing / — e.g. |browse / install| but not |"browse / install"|
 	unquotedLinkSlash := regexp.MustCompile(`\|[^"|\n]*\/[^"|\n]*\|`)
 
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-			continue
-		}
-		data, err := docsFS.ReadFile(path.Join("docs", e.Name()))
-		if err != nil {
-			continue
-		}
-
-		matches := mermaidFence.FindAllSubmatch(data, -1)
+	for _, doc := range readSharedDocs() {
+		matches := mermaidFence.FindAllSubmatch(doc.Data, -1)
 		for i, m := range matches {
 			body := string(m[1])
 			hits := unquotedLinkSlash.FindAllString(body, -1)
 			for _, hit := range hits {
-				t.Errorf("%s: mermaid block %d has unquoted / in link label: %s (use |\"...\"|)", e.Name(), i+1, hit)
+				t.Errorf("%s: mermaid block %d has unquoted / in link label: %s (use |\"...\"|)", doc.Name, i+1, hit)
 			}
 		}
 	}
 }
 
 func TestDocNoRawHTMLInMermaidBlocks(t *testing.T) {
-	entries, err := docsFS.ReadDir("docs")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	mermaidFence := regexp.MustCompile("(?s)```mermaid\n(.*?)```")
 	htmlTag := regexp.MustCompile("<[a-zA-Z/]")
 
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-			continue
-		}
-		data, err := docsFS.ReadFile(path.Join("docs", e.Name()))
-		if err != nil {
-			continue
-		}
-
-		matches := mermaidFence.FindAllSubmatch(data, -1)
+	for _, doc := range readSharedDocs() {
+		matches := mermaidFence.FindAllSubmatch(doc.Data, -1)
 		for i, m := range matches {
 			if htmlTag.Match(m[1]) {
-				t.Errorf("%s: mermaid block %d contains raw HTML tags", e.Name(), i+1)
+				t.Errorf("%s: mermaid block %d contains raw HTML tags", doc.Name, i+1)
 			}
 		}
 	}
 }
 
 func TestDocMermaidBlockCount(t *testing.T) {
-	entries, err := docsFS.ReadDir("docs")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	mermaidFence := regexp.MustCompile("(?s)```mermaid\n(.*?)```")
 	total := 0
 
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-			continue
-		}
-		data, err := docsFS.ReadFile(path.Join("docs", e.Name()))
-		if err != nil {
-			continue
-		}
-		matches := mermaidFence.FindAllSubmatch(data, -1)
+	for _, doc := range readSharedDocs() {
+		matches := mermaidFence.FindAllSubmatch(doc.Data, -1)
 		total += len(matches)
 	}
 
@@ -435,23 +333,10 @@ func TestDocPagesHaveMinimumContent(t *testing.T) {
 }
 
 func TestDocHeadingHierarchy(t *testing.T) {
-	entries, err := docsFS.ReadDir("docs")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	headingRe := regexp.MustCompile(`^(#{1,6})\s+(.+)`)
 
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-			continue
-		}
-		data, err := docsFS.ReadFile(path.Join("docs", e.Name()))
-		if err != nil {
-			continue
-		}
-
-		lines := strings.Split(string(data), "\n")
+	for _, doc := range readSharedDocs() {
+		lines := strings.Split(string(doc.Data), "\n")
 		inFence := false
 		prevLevel := 0
 		for i, line := range lines {
@@ -469,7 +354,7 @@ func TestDocHeadingHierarchy(t *testing.T) {
 			}
 			level := len(m[1])
 			if prevLevel > 0 && level > prevLevel+1 {
-				t.Errorf("%s:%d: heading jumps from h%d to h%d (%q)", e.Name(), i+1, prevLevel, level, m[2])
+				t.Errorf("%s:%d: heading jumps from h%d to h%d (%q)", doc.Name, i+1, prevLevel, level, m[2])
 			}
 			prevLevel = level
 		}
@@ -477,23 +362,10 @@ func TestDocHeadingHierarchy(t *testing.T) {
 }
 
 func TestDocNoTODOsOrFixmes(t *testing.T) {
-	entries, err := docsFS.ReadDir("docs")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	markers := regexp.MustCompile(`(?i)\b(TODO|FIXME|HACK|XXX)\b`)
 
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-			continue
-		}
-		data, err := docsFS.ReadFile(path.Join("docs", e.Name()))
-		if err != nil {
-			continue
-		}
-
-		lines := strings.Split(string(data), "\n")
+	for _, doc := range readSharedDocs() {
+		lines := strings.Split(string(doc.Data), "\n")
 		inFence := false
 		for i, line := range lines {
 			trimmed := strings.TrimSpace(line)
@@ -505,7 +377,7 @@ func TestDocNoTODOsOrFixmes(t *testing.T) {
 				continue
 			}
 			if m := markers.FindString(line); m != "" {
-				t.Errorf("%s:%d: found %q marker in documentation", e.Name(), i+1, m)
+				t.Errorf("%s:%d: found %q marker in documentation", doc.Name, i+1, m)
 			}
 		}
 	}
