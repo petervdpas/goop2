@@ -451,6 +451,65 @@
 }
 
 /* -----------------------------
+   Tab views
+------------------------------ */
+.db-view{
+  display: none;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.db-view.active{
+  display: flex;
+}
+
+/* -----------------------------
+   Mapper editor
+------------------------------ */
+.db-mapper-editor{
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.db-mapper-form{
+  padding: 4px 0;
+}
+
+.mapper-field-row{
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+
+.mapper-field-row .mapper-field-target{
+  flex: 1.5;
+  min-width: 0;
+}
+
+.mapper-field-row .mapper-field-sources{
+  flex: 2;
+  min-width: 0;
+}
+
+.mapper-field-row .mapper-field-transform{
+  flex: 1.2;
+  min-width: 90px;
+}
+
+.mapper-field-row .mapper-field-args{
+  flex: 1.2;
+  min-width: 0;
+}
+
+.mapper-field-row .mapper-field-constant{
+  flex: 1;
+  min-width: 0;
+}
+
+/* -----------------------------
    Responsive
 ------------------------------ */
 @media (max-width: 980px){
@@ -460,5 +519,8 @@
   }
   .db-sidebar{
     max-height: 200px;
+  }
+  .mapper-field-row{
+    flex-wrap: wrap;
   }
 }

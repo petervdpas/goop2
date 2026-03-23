@@ -124,6 +124,11 @@ func Start(addr string, v Viewer) error {
 		routes.RegisterData(mux, v.DB, v.Node.ID(), v.SelfEmail)
 	}
 
+	// Register mapper endpoints (mappings stored in peerDir/mappings/)
+	if v.PeerDir != "" {
+		routes.RegisterMapper(mux, v.PeerDir, v.DB)
+	}
+
 	// Register group endpoints if group manager is available
 	if v.Groups != nil {
 		routes.RegisterGroups(mux, v.Groups, v.Node.ID(),

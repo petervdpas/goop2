@@ -1,8 +1,8 @@
 {{define "create.tabs"}}
-<div class="create-tabs">
-  <a class="create-tab {{if eq .ContentTmpl "page.editor"}}active{{end}}" href="/edit">Editor</a>
-  <a class="create-tab {{if eq .ContentTmpl "page.lua"}}active{{end}}" href="/lua">Lua Scripts</a>
-  <a class="create-tab {{if eq .ContentTmpl "page.templates"}}active{{end}}" href="/templates">Templates</a>
-  <a class="create-tab {{if eq .ContentTmpl "page.apidocs"}}active{{end}}" href="/apidocs">Docs</a>
+<div class="page-tabs">
+  <a class="page-tab {{if eq .ContentTmpl "page.editor"}}active{{end}}" href="/edit">Editor</a>
+  <a class="page-tab {{if eq .ContentTmpl "page.lua"}}active{{end}}" href="/lua">Lua Scripts</a>
+  <a class="page-tab {{if eq .ContentTmpl "page.templates"}}active{{end}}" href="/templates">Templates</a>
+  <a class="page-tab {{if eq .ContentTmpl "page.apidocs"}}active{{end}}" href="/apidocs">Docs</a>
 </div>
 {{end}}

@@ -166,6 +166,16 @@ func newSandboxedDataVM(inv *invocationCtx, kv *kvStore, engine *Engine, db *sto
 				siteTbl.RawSetString("read", L.NewFunction(siteReadFn(engine.content)))
 				goopTbl.RawSetString("site", siteTbl)
 			}
+
+			if engine.peerDir != "" {
+				mapperTbl := L.NewTable()
+				mapperTbl.RawSetString("load", L.NewFunction(mapperLoadFn(engine.peerDir)))
+				mapperTbl.RawSetString("apply", L.NewFunction(mapperApplyFn(engine.peerDir)))
+				mapperTbl.RawSetString("apply_many", L.NewFunction(mapperApplyManyFn(engine.peerDir)))
+				mapperTbl.RawSetString("list", L.NewFunction(mapperListFn(engine.peerDir)))
+				mapperTbl.RawSetString("transforms", L.NewFunction(mapperTransformsFn))
+				goopTbl.RawSetString("mapper", mapperTbl)
+			}
 		}
 	}
 

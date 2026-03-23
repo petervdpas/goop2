@@ -1,11 +1,11 @@
 {{define "page.apidocs"}}
 {{template "create.tabs" .}}
 
-<div class="create-tabs" style="margin-top:0;">
-  <a class="create-tab active" data-tab="sdk">SDK</a>
-  <a class="create-tab" data-tab="lua">Lua</a>
-  <a class="create-tab" data-tab="api">API Reference</a>
-  <a class="create-tab" data-tab="executor">Executor Protocol</a>
+<div class="page-tabs" style="margin-top:0;">
+  <a class="page-tab active" data-tab="sdk">SDK</a>
+  <a class="page-tab" data-tab="lua">Lua</a>
+  <a class="page-tab" data-tab="api">API Reference</a>
+  <a class="page-tab" data-tab="executor">Executor Protocol</a>
 </div>
 
 <div id="sdk-panel" class="docs-panel" style="height:calc(100vh - 160px);overflow:auto;background:var(--panel);border-radius:8px;padding:36px 48px;line-height:1.75;">{{.SDKDoc}}</div>

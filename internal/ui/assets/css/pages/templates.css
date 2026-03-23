@@ -1,32 +1,4 @@
 
-/* ── Create tabs (Editor / Templates) ── */
-.create-tabs {
-  display: flex;
-  gap: 0;
-  margin-bottom: 1.25rem;
-  border-bottom: 2px solid var(--border);
-}
-
-.create-tab {
-  padding: 0.5rem 1.25rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--muted);
-  text-decoration: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
-  transition: color 0.15s, border-color 0.15s;
-}
-
-.create-tab:hover {
-  color: var(--fg);
-}
-
-.create-tab.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-}
-
 /* ── Templates page ── */
 .page-templates {
   padding: 2px;

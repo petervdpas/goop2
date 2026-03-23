@@ -70,6 +70,7 @@ type Engine struct {
 	selfID       string
 	selfLabel    func() string
 	peers        *state.PeerTable
+	peerDir      string
 	closed       chan struct{}
 }
 
@@ -101,6 +102,7 @@ func NewEngine(cfg config.Lua, peerDir string, selfID string, selfLabel func() s
 		selfID:       selfID,
 		selfLabel:    selfLabel,
 		peers:        peers,
+		peerDir:      peerDir,
 		closed:       make(chan struct{}),
 	}
 

@@ -2,11 +2,32 @@
 (() => {
   const { qs, qsa, on, setHidden, escapeHtml, toast, safeLocalStorageGet, safeLocalStorageSet } = window.Goop.core;
   const api = window.Goop.api.data;
+  const mapperApi = window.Goop.api.mapper;
   const gsel = window.Goop.select;
 
   // Only activate on database page
   const dbPage = qs("#db-page");
   if (!dbPage) return;
+
+  // Top-level tab switching (reuses page-tabs styling)
+  var viewTables = qs("#db-view-tables");
+  var viewMappers = qs("#db-view-mappers");
+
+  qsa("[data-db-tab]").forEach(function(tab) {
+    on(tab, "click", function(e) {
+      e.preventDefault();
+      var target = tab.dataset.dbTab;
+      qsa("[data-db-tab]").forEach(function(t) { t.classList.toggle("active", t === tab); });
+      if (target === "tables") {
+        viewTables.classList.add("active");
+        viewMappers.classList.remove("active");
+      } else {
+        viewTables.classList.remove("active");
+        viewMappers.classList.add("active");
+        loadMappers();
+      }
+    });
+  });
 
   // DOM refs
   const tableListEl  = qs("#db-table-list");
@@ -124,11 +145,11 @@
 
     try {
       // Fetch schema and first page in parallel
-      const [cols, rows] = await Promise.all([
+      const [desc, rows] = await Promise.all([
         api.describeTable({ table: name }),
         api.query({ table: name, limit: pageSize, offset: 0 }),
       ]);
-      columns = cols || [];
+      columns = (desc && desc.schema && desc.schema.columns) || (desc && desc.columns) || [];
       currentOffset = 0;
       hasMore = (rows || []).length >= pageSize;
       populateSearchBar();
@@ -871,6 +892,267 @@
       loadMore();
     }
   });
+
+  // ======== Tab switching ========
+  var tablesContent = qs("#db-content-tables");
+  var mappersContent = qs("#db-content-mappers");
+
+  qsa(".db-tab", dbPage).forEach(function(tab) {
+    on(tab, "click", function() {
+      var target = tab.dataset.tab;
+      qsa(".db-tab", dbPage).forEach(function(t) { t.classList.toggle("active", t === tab); });
+      qsa(".db-tab-content", dbPage).forEach(function(c) {
+        c.classList.toggle("active", c.id === "db-tab-" + target);
+      });
+      if (target === "tables") {
+        setHidden(tablesContent, false);
+        setHidden(mappersContent, true);
+      } else {
+        setHidden(tablesContent, true);
+        setHidden(mappersContent, false);
+        loadMappers();
+      }
+    });
+  });
+
+  // ======== Mapper editor ========
+  var mapperListEl   = qs("#db-mapper-list");
+  var mapperTitleEl  = qs("#db-mapper-title");
+  var mapperActionsEl = qs("#db-mapper-actions");
+  var mapperEditorEl = qs("#db-mapper-editor");
+  var btnNewMapper   = qs("#db-btn-new-mapper");
+  var btnSaveMapper  = qs("#db-btn-save-mapper");
+  var btnDeleteMapper = qs("#db-btn-delete-mapper");
+
+  var currentMapper = null;
+  var availableTransforms = [];
+
+  async function loadTransforms() {
+    if (availableTransforms.length > 0) return;
+    try {
+      availableTransforms = await mapperApi.transforms() || [];
+    } catch (e) { /* ignore */ }
+  }
+
+  async function loadMappers(selectName) {
+    await loadTransforms();
+    try {
+      var mappers = await mapperApi.list() || [];
+      renderMapperList(mappers);
+      if (selectName) {
+        selectMapper(selectName);
+      }
+    } catch (err) {
+      mapperListEl.innerHTML = '<li class="db-table-empty">Failed to load mappings</li>';
+    }
+  }
+
+  function renderMapperList(mappers) {
+    if (!mappers || mappers.length === 0) {
+      mapperListEl.innerHTML = '<li class="db-table-empty">No mappings yet</li>';
+      return;
+    }
+    mapperListEl.innerHTML = "";
+    mappers.forEach(function(m) {
+      var li = document.createElement("li");
+      li.className = "sidebar-item";
+      li.dataset.mapper = m.name;
+      li.innerHTML = '<span class="db-table-name">' + escapeHtml(m.name) + '</span>' +
+        '<span class="badge badge-owner">' + m.field_count + ' fields</span>';
+      on(li, "click", function() { selectMapper(m.name); });
+      mapperListEl.appendChild(li);
+    });
+  }
+
+  function highlightActiveMapper(name) {
+    qsa(".sidebar-item", mapperListEl).forEach(function(el) {
+      el.classList.toggle("active", el.dataset.mapper === name);
+    });
+  }
+
+  async function selectMapper(name) {
+    currentMapper = name;
+    highlightActiveMapper(name);
+    setHidden(mapperActionsEl, false);
+
+    try {
+      var m = await mapperApi.get({ name: name });
+      mapperTitleEl.textContent = m.name;
+      renderMapperEditor(m);
+    } catch (err) {
+      mapperEditorEl.innerHTML = '<p class="empty-state">Error loading mapping: ' + escapeHtml(err.message) + '</p>';
+    }
+  }
+
+  function transformOptions() {
+    var opts = [{ value: "", label: "(none)" }];
+    availableTransforms.forEach(function(t) {
+      opts.push({ value: t, label: t });
+    });
+    return opts;
+  }
+
+  function renderMapperEditor(m) {
+    var html = '<div class="db-mapper-form">';
+    html += '<div class="form-group">' +
+      '<label>Name</label>' +
+      '<input type="text" id="mapper-name" class="form-input" value="' + escapeHtml(m.name || '') + '" />' +
+    '</div>';
+    html += '<div class="form-group">' +
+      '<label>Description</label>' +
+      '<input type="text" id="mapper-desc" class="form-input" value="' + escapeHtml(m.description || '') + '" />' +
+    '</div>';
+
+    html += '<div class="form-group">' +
+      '<label>Field Mappings</label>' +
+      '<div id="mapper-fields">';
+    if (m.fields && m.fields.length > 0) {
+      m.fields.forEach(function(f) { html += mapperFieldRow(f); });
+    } else {
+      html += mapperFieldRow({});
+    }
+    html += '</div>';
+    html += '<button id="mapper-add-field" class="db-action-btn" style="margin-top:6px">+ Field</button>';
+    html += '</div>';
+
+    html += '</div>';
+    mapperEditorEl.innerHTML = html;
+    initFormSelects(mapperEditorEl);
+    bindMapperFieldEvents();
+
+    on(qs("#mapper-add-field"), "click", function() {
+      var container = qs("#mapper-fields");
+      var div = document.createElement("div");
+      div.innerHTML = mapperFieldRow({});
+      var row = div.firstElementChild;
+      container.appendChild(row);
+      initFormSelects(row);
+      bindMapperFieldEvents();
+      qs(".mapper-field-target", row).focus();
+    });
+  }
+
+  function mapperFieldRow(f) {
+    var sources = (f.sources || []).join(", ");
+    var args = (f.args || []).map(function(a) { return JSON.stringify(a); }).join(", ");
+    var constant = f.constant !== undefined && f.constant !== null ? JSON.stringify(f.constant) : "";
+    return '<div class="mapper-field-row">' +
+      '<input type="text" class="form-input mapper-field-target" placeholder="target" value="' + escapeHtml(f.target || '') + '" title="Target field name" />' +
+      '<input type="text" class="form-input mapper-field-sources" placeholder="sources (comma sep)" value="' + escapeHtml(sources) + '" title="Source field(s), comma-separated" />' +
+      gsel.html({ className: "mapper-field-transform", value: f.transform || "", options: transformOptions() }) +
+      '<input type="text" class="form-input mapper-field-args" placeholder="args" value="' + escapeHtml(args) + '" title="Transform arguments (JSON values, comma-separated)" />' +
+      '<input type="text" class="form-input mapper-field-constant" placeholder="constant" value="' + escapeHtml(constant) + '" title="Constant value (JSON)" />' +
+      '<button class="db-col-remove mapper-field-remove">x</button>' +
+    '</div>';
+  }
+
+  function bindMapperFieldEvents() {
+    qsa(".mapper-field-remove", mapperEditorEl).forEach(function(btn) {
+      btn.onclick = function() {
+        var container = qs("#mapper-fields");
+        if (container && container.children.length > 1) {
+          btn.closest(".mapper-field-row").remove();
+        }
+      };
+    });
+  }
+
+  function collectMapperData() {
+    var name = (qs("#mapper-name").value || "").trim();
+    var description = (qs("#mapper-desc").value || "").trim();
+    var fields = [];
+    qsa("#mapper-fields .mapper-field-row").forEach(function(row) {
+      var target = qs(".mapper-field-target", row).value.trim();
+      if (!target) return;
+
+      var field = { target: target };
+      var sourcesStr = qs(".mapper-field-sources", row).value.trim();
+      if (sourcesStr) {
+        field.sources = sourcesStr.split(",").map(function(s) { return s.trim(); }).filter(Boolean);
+      }
+
+      var transform = gsel.val(qs(".mapper-field-transform", row));
+      if (transform) field.transform = transform;
+
+      var argsStr = qs(".mapper-field-args", row).value.trim();
+      if (argsStr) {
+        try {
+          field.args = JSON.parse("[" + argsStr + "]");
+        } catch (e) {
+          toast("Invalid args JSON in field " + target, true);
+        }
+      }
+
+      var constStr = qs(".mapper-field-constant", row).value.trim();
+      if (constStr) {
+        try {
+          field.constant = JSON.parse(constStr);
+        } catch (e) {
+          field.constant = constStr;
+        }
+      }
+
+      fields.push(field);
+    });
+
+    return { name: name, description: description, fields: fields };
+  }
+
+  async function saveMapper() {
+    var data = collectMapperData();
+    if (!data.name) { toast("Mapping name required", true); return; }
+    if (data.fields.length === 0) { toast("Add at least one field", true); return; }
+
+    try {
+      await mapperApi.save(data);
+      toast("Mapping " + data.name + " saved");
+      currentMapper = data.name;
+      await loadMappers(data.name);
+    } catch (err) {
+      toast("Save failed: " + err.message, true);
+    }
+  }
+
+  async function deleteMapper() {
+    if (!currentMapper) return;
+    var name = currentMapper;
+    var answer = await Goop.dialog.confirmDanger({
+      title: "Delete Mapping",
+      message: 'Delete mapping "' + name + '"?',
+      match: name,
+      placeholder: name,
+      okText: "Delete",
+    });
+    if (answer !== name) return;
+
+    try {
+      await mapperApi.delete({ name: name });
+      toast("Mapping " + name + " deleted");
+      currentMapper = null;
+      mapperTitleEl.textContent = "Select a mapping";
+      setHidden(mapperActionsEl, true);
+      mapperEditorEl.innerHTML = '<p class="empty-state">Select a mapping from the sidebar to edit it.</p>';
+      await loadMappers();
+    } catch (err) {
+      toast("Delete failed: " + err.message, true);
+    }
+  }
+
+  function showNewMapperForm() {
+    currentMapper = null;
+    mapperTitleEl.textContent = "New Mapping";
+    setHidden(mapperActionsEl, true);
+    highlightActiveMapper(null);
+
+    renderMapperEditor({ name: "", description: "", fields: [{}] });
+
+    setHidden(mapperActionsEl, false);
+    qs("#mapper-name").focus();
+  }
+
+  on(btnNewMapper, "click", showNewMapperForm);
+  on(btnSaveMapper, "click", saveMapper);
+  on(btnDeleteMapper, "click", deleteMapper);
 
   // -------- Init --------
   loadTables();

@@ -1,59 +1,99 @@
 {{define "page.database"}}
-<p class="muted small">Manage your local SQLite database tables and data.</p>
+<div class="page-tabs">
+  <a class="page-tab active" data-db-tab="tables" href="javascript:void(0)">Tables</a>
+  <a class="page-tab" data-db-tab="mappers" href="javascript:void(0)">Mappings</a>
+</div>
 
-<div id="db-page" class="db-page">
-  <!-- Sidebar: table list -->
-  <div class="db-sidebar panel">
-    <div class="section-head">
-      <span class="section-title">Tables</span>
-      <button id="db-btn-new-table" class="db-sidebar-btn">+ New</button>
+<!-- Tables view -->
+<div id="db-view-tables" class="db-view active">
+  <p class="muted small">Manage your local SQLite database tables and data.</p>
+  <div id="db-page" class="db-page">
+    <!-- Sidebar: table list -->
+    <div class="db-sidebar panel">
+      <div class="section-head">
+        <span class="section-title">Tables</span>
+        <button id="db-btn-new-table" class="db-sidebar-btn">+ New</button>
+      </div>
+      <ul id="db-table-list" class="db-table-list">
+        <!-- populated by JS -->
+      </ul>
     </div>
-    <ul id="db-table-list" class="db-table-list">
-      <!-- populated by JS -->
-    </ul>
+
+    <!-- Main content area -->
+    <div class="db-content panel">
+      <div class="section-head">
+        <span id="db-table-title" class="section-title">Select a table</span>
+        <div id="db-content-actions" class="db-content-actions hidden">
+          <button id="db-btn-insert" class="db-action-btn">+ Row</button>
+          <button id="db-btn-refresh" class="db-action-btn">Refresh</button>
+          <button id="db-btn-alter" class="db-action-btn db-btn-warning">Alter Table</button>
+          <button id="db-btn-delete-table" class="db-action-btn db-btn-danger">Drop Table</button>
+        </div>
+      </div>
+
+      <!-- Create table form (hidden, populated by JS) -->
+      <div id="db-create-form" class="db-create-form hidden"></div>
+
+      <!-- Alter table form (hidden, populated by JS) -->
+      <div id="db-alter-form" class="db-create-form hidden"></div>
+
+      <!-- Insert row form (hidden, populated by JS) -->
+      <div id="db-insert-form" class="db-insert-form hidden"></div>
+
+      <!-- Search bar (hidden until table selected) -->
+      <div id="db-search-bar" class="db-search-bar hidden">
+        <div id="db-search-col" class="gsel" data-value="*" data-placeholder="All columns">
+          <button type="button" class="gsel-trigger">
+            <span class="gsel-text">All columns</span>
+            <span class="gsel-arrow">&#9662;</span>
+          </button>
+          <div class="gsel-dropdown"></div>
+        </div>
+        <input type="text" id="db-search-input" placeholder="Search..." />
+        <button id="db-search-clear" class="db-action-btn">Clear</button>
+        <div class="db-col-picker-wrap">
+          <button id="db-btn-columns" class="db-action-btn">Columns</button>
+          <div id="db-col-picker" class="db-col-picker hidden"></div>
+        </div>
+      </div>
+
+      <!-- Data grid -->
+      <div id="db-grid" class="db-grid">
+        <p class="empty-state">Select a table from the sidebar to view its data.</p>
+      </div>
+    </div>
   </div>
+</div>
 
-  <!-- Main content area -->
-  <div class="db-content panel">
-    <div class="section-head">
-      <span id="db-table-title" class="section-title">Select a table</span>
-      <div id="db-content-actions" class="db-content-actions hidden">
-        <button id="db-btn-insert" class="db-action-btn">+ Row</button>
-        <button id="db-btn-refresh" class="db-action-btn">Refresh</button>
-        <button id="db-btn-alter" class="db-action-btn db-btn-warning">Alter Table</button>
-        <button id="db-btn-delete-table" class="db-action-btn db-btn-danger">Drop Table</button>
+<!-- Mappings view -->
+<div id="db-view-mappers" class="db-view">
+  <p class="muted small">Define reusable data transformations between tables.</p>
+  <div class="db-page">
+    <!-- Sidebar: mapper list -->
+    <div class="db-sidebar panel">
+      <div class="section-head">
+        <span class="section-title">Mappings</span>
+        <button id="db-btn-new-mapper" class="db-sidebar-btn">+ New</button>
       </div>
+      <ul id="db-mapper-list" class="db-table-list">
+        <!-- populated by JS -->
+      </ul>
     </div>
 
-    <!-- Create table form (hidden, populated by JS) -->
-    <div id="db-create-form" class="db-create-form hidden"></div>
-
-    <!-- Alter table form (hidden, populated by JS) -->
-    <div id="db-alter-form" class="db-create-form hidden"></div>
-
-    <!-- Insert row form (hidden, populated by JS) -->
-    <div id="db-insert-form" class="db-insert-form hidden"></div>
-
-    <!-- Search bar (hidden until table selected) -->
-    <div id="db-search-bar" class="db-search-bar hidden">
-      <div id="db-search-col" class="gsel" data-value="*" data-placeholder="All columns">
-        <button type="button" class="gsel-trigger">
-          <span class="gsel-text">All columns</span>
-          <span class="gsel-arrow">&#9662;</span>
-        </button>
-        <div class="gsel-dropdown"></div>
+    <!-- Main content area -->
+    <div class="db-content panel">
+      <div class="section-head">
+        <span id="db-mapper-title" class="section-title">Select a mapping</span>
+        <div id="db-mapper-actions" class="db-content-actions hidden">
+          <button id="db-btn-save-mapper" class="db-action-btn">Save</button>
+          <button id="db-btn-delete-mapper" class="db-action-btn db-btn-danger">Delete</button>
+        </div>
       </div>
-      <input type="text" id="db-search-input" placeholder="Search..." />
-      <button id="db-search-clear" class="db-action-btn">Clear</button>
-      <div class="db-col-picker-wrap">
-        <button id="db-btn-columns" class="db-action-btn">Columns</button>
-        <div id="db-col-picker" class="db-col-picker hidden"></div>
-      </div>
-    </div>
 
-    <!-- Data grid -->
-    <div id="db-grid" class="db-grid">
-      <p class="empty-state">Select a table from the sidebar to view its data.</p>
+      <!-- Mapper editor form -->
+      <div id="db-mapper-editor" class="db-mapper-editor">
+        <p class="empty-state">Select a mapping from the sidebar to edit it.</p>
+      </div>
     </div>
   </div>
 </div>
