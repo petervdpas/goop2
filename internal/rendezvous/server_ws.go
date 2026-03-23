@@ -16,6 +16,7 @@ import (
 type wsClient struct {
 	conn   *websocket.Conn
 	send   chan []byte
+	done   chan struct{}
 	peerID string
 }
 
@@ -99,14 +100,15 @@ func (s *Server) handleWS(ctx context.Context, w http.ResponseWriter, r *http.Re
 	wsc := &wsClient{
 		conn:   conn,
 		send:   make(chan []byte, 128),
+		done:   make(chan struct{}),
 		peerID: peerID,
 	}
 
 	// Register this WebSocket client
 	s.wsClientsMu.Lock()
 	if old, exists := s.wsClients[peerID]; exists {
-		// Close previous connection for this peer (stale/reconnect)
-		close(old.send)
+		// Signal previous write pump to exit (stale/reconnect)
+		close(old.done)
 		old.conn.Close()
 	}
 	s.wsClients[peerID] = wsc
@@ -114,12 +116,26 @@ func (s *Server) handleWS(ctx context.Context, w http.ResponseWriter, r *http.Re
 
 	s.addLog(fmt.Sprintf("WS connected: %s", peerID))
 
-	// Write pump: sends queued messages to the WebSocket
+	// Combined write pump + ping ticker: single goroutine owns all conn writes
 	go func() {
+		ticker := time.NewTicker(WSPingInterval)
+		defer ticker.Stop()
 		defer conn.Close()
-		for msg := range wsc.send {
-			conn.SetWriteDeadline(time.Now().Add(WSWriteDeadline))
-			if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+		for {
+			select {
+			case msg := <-wsc.send:
+				conn.SetWriteDeadline(time.Now().Add(WSWriteDeadline))
+				if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+					return
+				}
+			case <-ticker.C:
+				conn.SetWriteDeadline(time.Now().Add(WSWriteDeadline))
+				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+					return
+				}
+			case <-wsc.done:
+				return
+			case <-ctx.Done():
 				return
 			}
 		}
@@ -132,31 +148,9 @@ func (s *Server) handleWS(ctx context.Context, w http.ResponseWriter, r *http.Re
 		return nil
 	})
 
-	// Ping ticker to keep connection alive
-	pingDone := make(chan struct{})
-	go func() {
-		ticker := time.NewTicker(WSPingInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				conn.SetWriteDeadline(time.Now().Add(WSWriteDeadline))
-				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-					return
-				}
-			case <-pingDone:
-				return
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-
 	defer func() {
-		close(pingDone)
-
 		// Unregister — only if this is still the current client for this peer.
-		// If a newer connection replaced us, it already closed our send channel.
+		// If a newer connection replaced us, it already closed our done channel.
 		s.wsClientsMu.Lock()
 		isCurrent := false
 		if cur, ok := s.wsClients[peerID]; ok && cur == wsc {
@@ -166,7 +160,7 @@ func (s *Server) handleWS(ctx context.Context, w http.ResponseWriter, r *http.Re
 		s.wsClientsMu.Unlock()
 
 		if isCurrent {
-			close(wsc.send)
+			close(wsc.done)
 		}
 
 		s.addLog(fmt.Sprintf("WS disconnected: %s", peerID))
