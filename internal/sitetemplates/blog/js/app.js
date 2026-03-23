@@ -72,7 +72,6 @@
         break;
       case "accent":
         if (value) {
-          // Toggle accent-N class — no inline style needed, fully CSS-driven
           html.className = html.className.replace(/\baccent-\d+\b/g, "").trim();
           var idx = accentToIdx[value] || "1";
           html.classList.add("accent-" + idx);
@@ -115,7 +114,6 @@
 
   // ── Design panel setup (host only) ──
   async function setupDesigner() {
-    // Load all config rows
     try {
       var rows = await db.query("blog_config", { limit: 100 });
       (rows || []).forEach(function (r) {
@@ -123,7 +121,6 @@
       });
     } catch (_) {}
 
-    // Apply config to DOM (owner + visitors + co-authors all benefit)
     var loaded = {
       layout:        (configMap.layout        || {}).value,
       blog_title:    (configMap.blog_title    || {}).value,
@@ -139,9 +136,8 @@
     applyConfigKey("font",          loaded.font);
     applyConfigKey("theme",         loaded.theme);
 
-    if (!isOwner) return; // visitors and co-authors stop here
+    if (!isOwner) return;
 
-    // Ensure default config rows exist
     var defaults = {
       layout:        "list",
       blog_title:    "My Blog",
@@ -157,16 +153,13 @@
       }
     }
 
-    // Populate designer inputs
     document.getElementById("d-title").value =
       (configMap.blog_title || {}).value || "My Blog";
     document.getElementById("d-subtitle").value =
       (configMap.blog_subtitle || {}).value || "";
 
-    // Show customize button
     btnCustomize.classList.remove("hidden");
 
-    // ── Wire layout buttons ──
     document.querySelectorAll(".layout-btn").forEach(function (btn) {
       btn.addEventListener("click", async function () {
         applyConfigKey("layout", btn.dataset.layout);
@@ -174,7 +167,6 @@
       });
     });
 
-    // ── Wire color swatches ──
     document.querySelectorAll(".swatch").forEach(function (sw) {
       sw.addEventListener("click", async function () {
         applyConfigKey("accent", sw.dataset.color);
@@ -182,7 +174,6 @@
       });
     });
 
-    // ── Wire font buttons ──
     document.querySelectorAll(".font-btn").forEach(function (btn) {
       btn.addEventListener("click", async function () {
         applyConfigKey("font", btn.dataset.font);
@@ -190,7 +181,6 @@
       });
     });
 
-    // ── Wire theme buttons ──
     document.querySelectorAll(".theme-btn").forEach(function (btn) {
       btn.addEventListener("click", async function () {
         applyConfigKey("theme", btn.dataset.theme);
@@ -198,7 +188,6 @@
       });
     });
 
-    // ── Wire title input ──
     var titleInput = document.getElementById("d-title");
     titleInput.addEventListener("input", function () {
       applyConfigKey("blog_title", titleInput.value || "My Blog");
@@ -209,7 +198,6 @@
       await saveConfig("blog_title", val);
     });
 
-    // ── Wire subtitle input ──
     var subtitleInput = document.getElementById("d-subtitle");
     subtitleInput.addEventListener("input", function () {
       applyConfigKey("blog_subtitle", subtitleInput.value);
@@ -218,7 +206,6 @@
       await saveConfig("blog_subtitle", subtitleInput.value.trim());
     });
 
-    // ── Wire panel open / close ──
     btnCustomize.addEventListener("click", function () {
       designerPanel.classList.toggle("hidden");
     });
@@ -245,14 +232,14 @@
 
     await db.insert("posts", {
       title: "Hello, World!",
-      body: "Welcome to my blog. This is my first post on the ephemeral web.\n\nI'm running a peer-to-peer site using Goop². Everything here is local-first and distributed — no central servers involved.\n\nFeel free to look around!",
+      body: "Welcome to my blog. This is my first post on the ephemeral web.\n\nI'm running a peer-to-peer site using Goop\u00b2. Everything here is local-first and distributed \u2014 no central servers involved.\n\nFeel free to look around!",
       slug: "hello-world",
       author_name: myLabel,
     });
 
     await db.insert("posts", {
       title: "How This Works",
-      body: "Each peer runs their own site. You're reading this through the p2p network right now.\n\nI write posts from my local editor, and they get served to anyone who connects. No accounts, no passwords, no cloud — just peers talking to peers.",
+      body: "Each peer runs their own site. You're reading this through the p2p network right now.\n\nI write posts from my local editor, and they get served to anyone who connects. No accounts, no passwords, no cloud \u2014 just peers talking to peers.",
       slug: "how-this-works",
       author_name: myLabel,
     });
@@ -288,16 +275,19 @@
         ? new Date(String(p._created_at).replace(" ", "T") + "Z")
             .toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })
         : "";
+      var slug = p.slug || p._id;
+      var postUrl = 'post.html?slug=' + encodeURIComponent(slug);
       var html = '<article class="post">';
       if (p.image) {
-        html += '<img class="post-image" src="images/' + esc(p.image) + '" alt="">';
+        html += '<a href="' + postUrl + '"><img class="post-image" src="images/' + esc(p.image) + '" alt=""></a>';
       }
-      html += '<h2 class="post-title">' + esc(p.title) + "</h2>";
+      html += '<h2 class="post-title"><a class="post-title-link" href="' + postUrl + '">' + esc(p.title) + "</a></h2>";
       html += '<div class="post-meta">' + esc(date) + "</div>";
       if (p.author_name) {
         html += '<div class="post-byline">by ' + esc(p.author_name) + "</div>";
       }
       html += '<div class="post-body">' + esc(p.body) + "</div>";
+      html += '<a class="post-read-more" href="' + postUrl + '">Read more</a>';
       var canEdit = isOwner || (isCoAuthor && p._owner === myId);
       if (canEdit) {
         html += '<div class="post-actions">';
@@ -343,7 +333,6 @@
     document.getElementById("editor-heading").textContent = id ? "Edit Post" : "New Post";
     document.getElementById("btn-save").textContent = id ? "Update" : "Publish";
 
-    // Reset image input + preview
     var fImage = document.getElementById("f-image");
     var fPreview = document.getElementById("f-image-preview");
     if (fImage) fImage.value = "";
@@ -384,7 +373,6 @@
 
     var slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-    // Handle image upload (owner only)
     var imageName = editingId ? editingImage : "";
     var fImage = document.getElementById("f-image");
     var imageFile = fImage && fImage.files && fImage.files[0];
@@ -395,14 +383,11 @@
         "." + ext;
       try {
         await site.upload("images/" + safeName, imageFile);
-        // Remove old image if replacing
         if (editingImage) {
           try { await site.remove("images/" + editingImage); } catch (_) {}
         }
         imageName = safeName;
-      } catch (_) {
-        // Upload failed — save post without image change
-      }
+      } catch (_) {}
     }
 
     if (editingId) {
@@ -418,7 +403,7 @@
   });
 
   // ── Init ──
-  await setupDesigner(); // loads + applies config for everyone; wires controls for owner
+  await setupDesigner();
   await seed();
   loadPosts();
 })();
