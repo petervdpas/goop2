@@ -158,6 +158,12 @@ func newSandboxedDataVM(inv *invocationCtx, kv *kvStore, engine *Engine, db *sto
 			schemaTbl.RawSetString("update", L.NewFunction(schemaUpdateFn(db)))
 			schemaTbl.RawSetString("delete", L.NewFunction(schemaDeleteFn(db)))
 			goopTbl.RawSetString("schema", schemaTbl)
+
+			if engine.content != nil {
+				siteTbl := L.NewTable()
+				siteTbl.RawSetString("read", L.NewFunction(siteReadFn(engine.content)))
+				goopTbl.RawSetString("site", siteTbl)
+			}
 		}
 	}
 

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/petervdpas/goop2/internal/config"
+	"github.com/petervdpas/goop2/internal/content"
 	"github.com/petervdpas/goop2/internal/group_types/listen"
 	"github.com/petervdpas/goop2/internal/state"
 	"github.com/petervdpas/goop2/internal/storage"
@@ -62,6 +63,7 @@ type Engine struct {
 	functionsDir string // site/lua/functions/ — data functions
 	kv           *kvStore
 	db           *storage.DB
+	content      *content.Store
 	listen       *listen.Manager
 	watcher      *fsnotify.Watcher
 	limiter      *rateLimiter
@@ -430,6 +432,11 @@ func (e *Engine) executeScript(ctx context.Context, inv *invocationCtx, proto *l
 // SetDB sets the database reference for goop.db access in data functions.
 func (e *Engine) SetDB(db *storage.DB) {
 	e.db = db
+}
+
+// SetContent sets the content store reference for goop.site.read access in data functions.
+func (e *Engine) SetContent(cs *content.Store) {
+	e.content = cs
 }
 
 // SetListen sets the listen manager reference for goop.listen access in scripts.

@@ -369,6 +369,7 @@ func RunPeer(p PeerParams) error {
 	// It enables Lua in config, starts the engine if needed, and rescans.
 	// setLuaListen is set after listenMgr is created, so ensureLua can wire it.
 	var setLuaListen func()
+	var setLuaContent func()
 	ensureLua := func() {
 		if c, err := config.Load(o.CfgPath); err == nil {
 			if !c.Lua.Enabled {
@@ -380,6 +381,9 @@ func RunPeer(p PeerParams) error {
 		startLua()
 		if setLuaListen != nil {
 			setLuaListen()
+		}
+		if setLuaContent != nil {
+			setLuaContent()
 		}
 		node.RescanLuaFunctions()
 	}
@@ -510,6 +514,14 @@ func RunPeer(p PeerParams) error {
 		store, err := content.NewStore(o.PeerDir, cfg.Paths.SiteRoot)
 		if err != nil {
 			return err
+		}
+		if luaEngine != nil {
+			luaEngine.SetContent(store)
+		}
+		setLuaContent = func() {
+			if luaEngine != nil {
+				luaEngine.SetContent(store)
+			}
 		}
 
 		go viewer.Start(addr, viewer.Viewer{
