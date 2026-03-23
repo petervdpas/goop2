@@ -76,7 +76,7 @@
     var colAccent = cs.getPropertyValue('--accent').trim() || '#7aa2ff';
     var colPanel  = cs.getPropertyValue('--panel').trim() || '#151924';
     var colDirect = '#4ade80';
-    var colRelay  = colAccent;
+    var colRelay  = '#e040fb';
     var colBridge = '#f59e0b';
     var colNone   = '#555b6e';
 
@@ -151,7 +151,7 @@
     if (hasRelay) {
       var relayOk = data.self.has_circuit;
       drawCurvedEdge(ctx, selfX, selfY, relayX, relayY,
-        relayOk ? colRelay : colNone, !relayOk, 1.8);
+        relayOk ? colAccent : colNone, !relayOk, 1.8);
     }
 
     // Self → connected peers.
@@ -176,7 +176,7 @@
     // ── Draw relay node ─────────────────────────────────────────────────
     if (hasRelay) {
       var relayOk = data.self.has_circuit;
-      var rc = relayOk ? colRelay : colNone;
+      var rc = relayOk ? colAccent : colNone;
       drawGlowNode(ctx, relayX, relayY, relayR, rc, 'diamond');
       drawNodeLabel(ctx, data.relay.label || 'Relay', relayX, relayY + relayR + 12, colText, 11);
       if (!relayOk) {
@@ -248,7 +248,7 @@
     var statsX = W - 16, statsY = 12;
     ctx.fillText(onlineCount + ' online / ' + totalCount + ' known', statsX, statsY);
     if (hasRelay) {
-      ctx.fillStyle = data.self.has_circuit ? colRelay : colNone;
+      ctx.fillStyle = data.self.has_circuit ? colAccent : colNone;
       ctx.fillText('circuit: ' + (data.self.has_circuit ? 'active' : 'lost'), statsX, statsY + 16);
     }
     ctx.restore();
