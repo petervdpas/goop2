@@ -285,7 +285,7 @@
       closePopup();
     }).catch(function(err) {
       Goop.log.error('settings', 'save failed: ' + err);
-      alert('Failed to save settings: ' + err.message);
+      Goop.dialog.alert('Error', 'Failed to save settings: ' + err.message);
     });
   }
 

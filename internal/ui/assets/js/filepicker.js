@@ -16,7 +16,7 @@
     var onChange = (options && options.onChange) || null;
 
     function openPicker() {
-      if (!window.Goop.dialogs) return;
+      if (!window.Goop.dialog) return;
       var startDir = input.value.trim();
       if (startDir) {
         var lastSlash = startDir.lastIndexOf("/");
@@ -64,13 +64,13 @@
     return initPicker(container, options, function(opts) {
       if (extensions) opts.extensions = extensions;
       if (filter) opts.filter = filter;
-      return window.Goop.dialogs.filePicker(opts);
+      return window.Goop.dialog.filePicker(opts);
     });
   }
 
   function initPath(container, options) {
     return initPicker(container, options, function(opts) {
-      return window.Goop.dialogs.pathPicker(opts);
+      return window.Goop.dialog.pathPicker(opts);
     });
   }
 

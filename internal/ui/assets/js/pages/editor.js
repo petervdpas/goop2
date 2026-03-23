@@ -84,129 +84,25 @@
     });
   }
 
-  // Dialogs (kept local to editor)
-  function q(html) {
-    const t = document.createElement("template");
-    t.innerHTML = html.trim();
-    return t.content.firstElementChild;
-  }
+  var dlg = window.Goop.dialog;
 
-  function dlgAsk({ title, message, placeholder, value, okText, cancelText, dangerOk }) {
-    return new Promise((resolve) => {
-      const backdrop = q(`<div class="ed-dlg-backdrop"></div>`);
-      const dlg = q(`
-        <div class="ed-dlg" role="dialog" aria-modal="true">
-          <div class="ed-dlg-head"><div class="ed-dlg-title"></div></div>
-          <div class="ed-dlg-body">
-            <div class="ed-dlg-msg"></div>
-            <input class="ed-dlg-input" />
-          </div>
-          <div class="ed-dlg-foot">
-            <button type="button" class="ed-dlg-btn cancel"></button>
-            <button type="button" class="ed-dlg-btn ok"></button>
-          </div>
-        </div>
-      `);
-
-      qs(".ed-dlg-title", dlg).textContent = title || "Input";
-      qs(".ed-dlg-msg", dlg).textContent = message || "";
-
-      const input = qs(".ed-dlg-input", dlg);
-      input.placeholder = placeholder || "";
-      input.value = value || "";
-
-      const bCancel = qs("button.cancel", dlg);
-      const bOk = qs("button.ok", dlg);
-
-      bCancel.textContent = cancelText || "Cancel";
-      bOk.textContent = okText || "OK";
-      if (dangerOk) bOk.classList.add("danger");
-
-      function cleanup(result) {
-        document.removeEventListener("keydown", proveKey);
-        backdrop.remove();
-        resolve(result);
-      }
-
-      function proveKey(e) {
-        if (e.key === "Escape") cleanup(null);
-        if (e.key === "Enter") cleanup(input.value);
-      }
-
-      backdrop.addEventListener("mousedown", (e) => {
-        if (e.target === backdrop) cleanup(null);
-      });
-
-      bCancel.addEventListener("click", () => cleanup(null));
-      bOk.addEventListener("click", () => cleanup(input.value));
-
-      backdrop.appendChild(dlg);
-      document.body.appendChild(backdrop);
-
-      document.addEventListener("keydown", proveKey);
-      setTimeout(() => {
-        input.focus();
-        input.select();
-      }, 0);
-    });
+  function dlgAsk(opts) {
+    return dlg.prompt(opts);
   }
 
   function dlgAlert(title, message) {
-    return new Promise((resolve) => {
-      const backdrop = q(`<div class="ed-dlg-backdrop"></div>`);
-      const dlg = q(`
-        <div class="ed-dlg" role="dialog" aria-modal="true">
-          <div class="ed-dlg-head"><div class="ed-dlg-title"></div></div>
-          <div class="ed-dlg-body"><div class="ed-dlg-msg"></div></div>
-          <div class="ed-dlg-foot">
-            <button type="button" class="ed-dlg-btn ok">OK</button>
-          </div>
-        </div>
-      `);
-
-      qs(".ed-dlg-title", dlg).textContent = title || "Notice";
-      qs(".ed-dlg-msg", dlg).textContent = message || "";
-
-      function cleanup() {
-        document.removeEventListener("keydown", proveKey);
-        backdrop.remove();
-        resolve();
-      }
-
-      function proveKey(e) {
-        if (e.key === "Escape" || e.key === "Enter") cleanup();
-      }
-
-      backdrop.addEventListener("mousedown", (e) => {
-        if (e.target === backdrop) cleanup();
-      });
-
-      qs("button.ok", dlg).addEventListener("click", cleanup);
-
-      backdrop.appendChild(dlg);
-      document.body.appendChild(backdrop);
-
-      document.addEventListener("keydown", proveKey);
-      setTimeout(() => qs("button.ok", dlg).focus(), 0);
-    });
+    return dlg.alert(title, message);
   }
 
   async function dlgConfirmDelete(p, isDir) {
-    const msg = isDir
-      ? `Delete folder "${p}"?\n\nType DELETE to confirm.`
-      : `Delete file "${p}"?\n\nType DELETE to confirm.`;
-
-    const v = await dlgAsk({
+    var label = isDir ? 'folder' : 'file';
+    var result = await dlg.confirmDanger({
       title: "Confirm delete",
-      message: msg,
-      placeholder: "Type DELETE",
-      value: "",
+      message: 'Delete ' + label + ' "' + p + '"?',
+      match: "DELETE",
       okText: "Delete",
-      cancelText: "Cancel",
-      dangerOk: true,
     });
-
-    return v === "DELETE";
+    return result === "DELETE";
   }
 
   async function post(action, params) {

@@ -10,14 +10,18 @@
 
   // New script/function buttons
   document.querySelectorAll('.lua-new-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
+    btn.addEventListener('click', async function() {
       var isFunc = btn.getAttribute('data-func') === '1';
       var label = isFunc ? 'Function' : 'Script';
-      var name = prompt(label + ' name (letters, numbers, hyphens, underscores):');
+      var name = await Goop.dialog.prompt({
+        title: 'New ' + label,
+        message: 'Letters, numbers, hyphens, underscores only.',
+        placeholder: label + ' name',
+      });
       if (!name) return;
       name = name.trim().replace(/\.lua$/i, '');
       if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-        alert('Invalid name. Use only letters, numbers, hyphens, and underscores.');
+        Goop.dialog.alert('Invalid Name', 'Use only letters, numbers, hyphens, and underscores.');
         return;
       }
 
@@ -42,7 +46,7 @@
       var label = isFunc ? 'function' : 'script';
       var msg = 'Delete ' + label + ' "' + name + '.lua"? This cannot be undone.';
 
-      Goop.dialogs.confirm(msg, 'Delete').then(function(ok) {
+      Goop.dialog.confirm(msg, 'Delete').then(function(ok) {
         if (ok) doDelete(name, isFunc);
       });
     });

@@ -79,7 +79,7 @@
     e.preventDefault();
     var content = input.value.trim();
     if (!content) return;
-    if (!window.Goop || !window.Goop.mq) { alert('MQ not available'); return; }
+    if (!window.Goop || !window.Goop.mq) { Goop.dialog.alert('Error', 'MQ not available'); return; }
 
     var outMsg = { from: selfID, to: peerID, content: content, timestamp: Date.now() };
     addMessage(outMsg);
@@ -88,7 +88,7 @@
     window.Goop.mq.sendChat(peerID, { content: content, to: peerID })
       .catch(function(err) {
         Goop.log.error('peer', 'chat send failed: ' + err);
-        alert('Failed to send message');
+        Goop.dialog.alert('Error', 'Failed to send message');
       });
   });
 
@@ -111,8 +111,9 @@
   // ── Clear chat history ──
   var clearBtn = document.getElementById('chat-clear');
   if (clearBtn) {
-    clearBtn.addEventListener('click', function() {
-      if (!confirm('Clear chat history with this peer?')) return;
+    clearBtn.addEventListener('click', async function() {
+      var ok = await Goop.dialog.confirm('Clear chat history with this peer?', 'Clear Chat');
+      if (!ok) return;
       Goop.api.chat.clear(peerID).then(function() {
         _messages = [];
         renderMessages(_messages);
@@ -152,7 +153,7 @@
 
   function startCall(constraints) {
     if (!window.Goop || !window.Goop.callUI) {
-      alert('Call feature not available');
+      Goop.dialog.alert('Error', 'Call feature not available');
       return;
     }
     if (inCall) return;

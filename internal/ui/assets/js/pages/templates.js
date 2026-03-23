@@ -13,7 +13,7 @@
 
       var msg = 'Apply "' + name + '"?\n\nThis will DELETE all your current site files and database tables and replace them with the template. This cannot be undone.';
 
-      Goop.dialogs.confirm(msg, 'Apply Template').then(function(ok) {
+      Goop.dialog.confirm(msg, 'Apply Template').then(function(ok) {
         if (ok) applyTemplate(dir, name, source);
       });
     });
@@ -115,7 +115,7 @@
         var name = document.getElementById('local-tpl-name').textContent || 'local template';
         var msg = 'Apply "' + name + '"?\n\nThis will DELETE all your current site files and database tables and replace them with the template. This cannot be undone.';
 
-        Goop.dialogs.confirm(msg, 'Apply Template').then(function(ok) {
+        Goop.dialog.confirm(msg, 'Apply Template').then(function(ok) {
           if (!ok) return;
           fetch('/api/templates/apply-local', {
             method: 'POST',

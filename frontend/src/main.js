@@ -10,6 +10,7 @@ const splashMap = {
   "goop2-splash2.png": splash2Url,
   "goop2-splash3.png": splash3Url,
 };
+import "../../internal/ui/assets/js/dialogs.js";
 import {
   clear, div, btn, input, h1, h2, p,
   normalizeTheme, applyTheme, normalizeBase
@@ -370,8 +371,9 @@ async function renderLauncher(host) {
   del.addEventListener("click", async () => {
     if (!selected) return;
 
-    const ok = window.confirm(
-      `Delete peer "${selected}"?\n\nThis will remove ./peers/${selected}/`
+    const ok = await window.Goop.dialog.confirm(
+      `Delete peer "${selected}"?\n\nThis will remove ./peers/${selected}/`,
+      "Delete Peer"
     );
     if (!ok) return;
 

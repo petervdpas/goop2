@@ -1,104 +1,152 @@
-// Reusable dialog utilities
-(() => {
+(function() {
+  function qs(sel, root) { return (root || document).querySelector(sel); }
+
+  function escapeHtml(s) {
+    var d = document.createElement("div");
+    d.textContent = s == null ? "" : String(s);
+    return d.innerHTML;
+  }
+
   function createElement(html) {
-    const t = document.createElement("template");
+    var t = document.createElement("template");
     t.innerHTML = html.trim();
     return t.content.firstElementChild;
   }
 
-  function dlgBase({ title, message, hasInput, placeholder, value, okText, cancelText, dangerOk }) {
-    return new Promise((resolve) => {
-      const backdrop = createElement(`<div class="ed-dlg-backdrop"></div>`);
-      const bodyContent = hasInput 
-        ? `<div class="ed-dlg-msg"></div><input class="ed-dlg-input" />`
-        : `<div class="ed-dlg-msg"></div>`;
+  function dialog(opts) {
+    opts = opts || {};
 
-      const dlg = createElement(`
-        <div class="ed-dlg" role="dialog" aria-modal="true">
-          <div class="ed-dlg-head"><div class="ed-dlg-title"></div></div>
-          <div class="ed-dlg-body">${bodyContent}</div>
-          <div class="ed-dlg-foot">
-            <button type="button" class="ed-dlg-btn cancel"></button>
-            <button type="button" class="ed-dlg-btn ok"></button>
-          </div>
-        </div>
-      `);
+    var title     = opts.title || "";
+    var message   = opts.message || "";
+    var input     = opts.input || null;
+    var okLabel   = (opts.ok && opts.ok.label) || opts.okText || "OK";
+    var okDanger  = (opts.ok && opts.ok.danger) || opts.dangerOk || false;
+    var okValue   = opts.ok && opts.ok.value !== undefined ? opts.ok.value : undefined;
+    var cancelLabel = opts.cancel === false ? null : ((opts.cancel && opts.cancel.label) || opts.cancelText || "Cancel");
+    var cancelValue = (opts.cancel && opts.cancel.value !== undefined) ? opts.cancel.value : null;
+    var hideOk    = opts.ok === false;
+    var wide      = opts.wide || false;
 
-      const { qs } = window.Goop.core;
-      qs(".ed-dlg-title", dlg).textContent = title || "Input";
-      qs(".ed-dlg-msg", dlg).textContent = message || "";
+    var hasInput  = !!input;
+    var match     = hasInput && input.match ? input.match : null;
 
-      const input = hasInput ? qs(".ed-dlg-input", dlg) : null;
-      if (input) {
-        input.placeholder = placeholder || "";
-        input.value = value || "";
+    var bodyHtml = '<div class="ed-dlg-msg"></div>';
+    if (hasInput) bodyHtml += '<input class="ed-dlg-input" autocomplete="off" spellcheck="false" />';
+
+    var footHtml = '';
+    if (cancelLabel !== null) footHtml += '<button type="button" class="ed-dlg-btn cancel"></button>';
+    if (!hideOk) footHtml += '<button type="button" class="ed-dlg-btn ok"></button>';
+
+    var dlgClass = "ed-dlg" + (wide ? " ed-dlg-wide" : "");
+
+    return new Promise(function(resolve) {
+      var backdrop = createElement('<div class="ed-dlg-backdrop"></div>');
+      var dlg = createElement(
+        '<div class="' + dlgClass + '" role="dialog" aria-modal="true">' +
+          '<div class="ed-dlg-head"><div class="ed-dlg-title"></div></div>' +
+          '<div class="ed-dlg-body">' + bodyHtml + '</div>' +
+          '<div class="ed-dlg-foot">' + footHtml + '</div>' +
+        '</div>'
+      );
+
+      qs(".ed-dlg-title", dlg).textContent = title;
+      qs(".ed-dlg-msg", dlg).textContent = message;
+
+      var inputEl = hasInput ? qs(".ed-dlg-input", dlg) : null;
+      if (inputEl) {
+        inputEl.placeholder = input.placeholder || "";
+        inputEl.value = input.value || "";
+        if (input.type) inputEl.type = input.type;
       }
 
-      const bCancel = qs("button.cancel", dlg);
-      const bOk = qs("button.ok", dlg);
+      var bCancel = qs("button.cancel", dlg);
+      var bOk = qs("button.ok", dlg);
 
-      bCancel.textContent = cancelText || "Cancel";
-      bOk.textContent = okText || "OK";
-      if (dangerOk) bOk.classList.add("danger");
+      if (bCancel) bCancel.textContent = cancelLabel;
+      if (bOk) {
+        bOk.textContent = okLabel;
+        if (okDanger) bOk.classList.add("danger");
+        if (match) bOk.disabled = true;
+      }
 
-      function cleanup(result) {
+      if (match && inputEl) {
+        inputEl.addEventListener("input", function() {
+          bOk.disabled = inputEl.value !== match;
+        });
+      }
+
+      function getResult(confirmed) {
+        if (!confirmed) return cancelValue;
+        if (hasInput) return inputEl.value;
+        return okValue !== undefined ? okValue : true;
+      }
+
+      function cleanup(confirmed) {
         document.removeEventListener("keydown", handleKey);
         backdrop.remove();
-        resolve(result);
+        resolve(getResult(confirmed));
       }
 
       function handleKey(e) {
-        if (e.key === "Escape") cleanup(null);
-        if (e.key === "Enter") cleanup(input ? input.value : true);
+        if (e.key === "Escape") { cleanup(false); return; }
+        if (e.key === "Enter") {
+          if (match && inputEl && inputEl.value !== match) return;
+          cleanup(true);
+        }
       }
 
-      backdrop.addEventListener("mousedown", (e) => {
-        if (e.target === backdrop) cleanup(null);
+      backdrop.addEventListener("mousedown", function(e) {
+        if (e.target === backdrop) cleanup(false);
       });
 
-      bCancel.addEventListener("click", () => cleanup(null));
-      bOk.addEventListener("click", () => cleanup(input ? input.value : true));
+      if (bCancel) bCancel.addEventListener("click", function() { cleanup(false); });
+      if (bOk) bOk.addEventListener("click", function() { cleanup(true); });
 
       backdrop.appendChild(dlg);
       document.body.appendChild(backdrop);
-
       document.addEventListener("keydown", handleKey);
-      if (input) {
-        setTimeout(() => {
-          input.focus();
-          input.select();
-        }, 0);
-      } else {
-        setTimeout(() => bOk.focus(), 0);
+
+      if (inputEl) {
+        setTimeout(function() { inputEl.focus(); inputEl.select(); }, 0);
+      } else if (bOk) {
+        setTimeout(function() { bOk.focus(); }, 0);
       }
     });
   }
 
-  function dlgAsk(options) {
-    return dlgBase({ ...options, hasInput: true });
-  }
+  dialog.alert = function(title, message) {
+    return dialog({ title: title, message: message, cancel: false });
+  };
 
-  function dlgAlert(title, message) {
-    return dlgBase({
-      title,
-      message,
-      hasInput: false,
-      okText: "OK",
-      cancelText: "Close",
+  dialog.confirm = function(message, title) {
+    return dialog({ title: title || "Confirm", message: message });
+  };
+
+  dialog.prompt = function(opts) {
+    opts = opts || {};
+    return dialog({
+      title: opts.title || "Input",
+      message: opts.message || "",
+      input: { placeholder: opts.placeholder || "", value: opts.value || "", type: opts.type || "text" },
+      okText: opts.okText || "OK",
+      cancelText: opts.cancelText || "Cancel",
+      dangerOk: opts.dangerOk || false
     });
-  }
+  };
 
-  function dlgConfirm(message, title) {
-    return dlgBase({
-      title: title || "Confirm",
-      message,
-      hasInput: false,
-      okText: "OK",
-      cancelText: "Cancel",
+  dialog.confirmDanger = function(opts) {
+    opts = opts || {};
+    return dialog({
+      title: opts.title || "Confirm",
+      message: opts.message || "",
+      input: { placeholder: opts.placeholder || "Type " + (opts.match || "DELETE"), match: opts.match || "DELETE" },
+      okText: opts.okText || "Delete",
+      cancelText: opts.cancelText || "Cancel",
+      dangerOk: true
     });
-  }
+  };
 
-  function dlgFilePicker(options) {
+  dialog.filePicker = function(options) {
     var title = (options && options.title) || "Select File";
     var startDir = (options && options.dir) || "";
     var filter = (options && options.filter) || null;
@@ -110,6 +158,9 @@
         return exts.indexOf(name.substring(dot + 1).toLowerCase()) >= 0;
       };
     }
+
+    var browse = window.Goop && window.Goop.api && window.Goop.api.fs && window.Goop.api.fs.browse;
+    if (!browse) return Promise.resolve(null);
 
     return new Promise(function(resolve) {
       var backdrop = createElement('<div class="ed-dlg-backdrop"></div>');
@@ -126,8 +177,6 @@
         '</div>'
       );
 
-      var qs = window.Goop.core.qs;
-      var escapeHtml = window.Goop.core.escapeHtml;
       qs(".ed-dlg-title", dlg).textContent = title;
       var pathEl = qs(".fp-path", dlg);
       var listEl = qs(".fp-list", dlg);
@@ -144,7 +193,7 @@
 
       function loadDir(dir) {
         listEl.innerHTML = '<p class="muted small">Loading...</p>';
-        window.Goop.api.fs.browse(dir).then(function(data) {
+        browse(dir).then(function(data) {
           pathEl.textContent = data.dir || "/";
           var html = "";
 
@@ -193,11 +242,14 @@
 
       loadDir(startDir);
     });
-  }
+  };
 
-  function dlgPathPicker(options) {
+  dialog.pathPicker = function(options) {
     var title = (options && options.title) || "Select Folder";
     var startDir = (options && options.dir) || "";
+
+    var browse = window.Goop && window.Goop.api && window.Goop.api.fs && window.Goop.api.fs.browse;
+    if (!browse) return Promise.resolve(null);
 
     return new Promise(function(resolve) {
       var backdrop = createElement('<div class="ed-dlg-backdrop"></div>');
@@ -215,8 +267,6 @@
         '</div>'
       );
 
-      var qs = window.Goop.core.qs;
-      var escapeHtml = window.Goop.core.escapeHtml;
       qs(".ed-dlg-title", dlg).textContent = title;
       var pathEl = qs(".fp-path", dlg);
       var listEl = qs(".fp-list", dlg);
@@ -234,7 +284,7 @@
 
       function loadDir(dir) {
         listEl.innerHTML = '<p class="muted small">Loading...</p>';
-        window.Goop.api.fs.browse(dir).then(function(data) {
+        browse(dir).then(function(data) {
           currentDir = data.dir || "/";
           pathEl.textContent = currentDir;
           var html = "";
@@ -276,8 +326,8 @@
 
       loadDir(startDir);
     });
-  }
+  };
 
   window.Goop = window.Goop || {};
-  window.Goop.dialogs = { dlgAsk, dlgAlert, confirm: dlgConfirm, filePicker: dlgFilePicker, pathPicker: dlgPathPicker };
+  window.Goop.dialog = dialog;
 })();

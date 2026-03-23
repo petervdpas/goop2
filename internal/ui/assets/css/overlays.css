@@ -129,6 +129,12 @@
   box-shadow: var(--ring);
 }
 
+.ed-dlg-btn:disabled{
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .ed-dlg-btn.danger{
   border-color: color-mix(in srgb, #ff5a5a 42%, transparent);
   background: color-mix(in srgb, #ff5a5a 14%, transparent);

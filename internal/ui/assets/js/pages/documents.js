@@ -566,7 +566,7 @@
     container.querySelectorAll(".docs-delete-btn").forEach(function(btn) {
       on(btn, "click", function() {
         var filename = btn.getAttribute("data-file");
-        Goop.dialogs.confirm('Delete "' + filename + '"? Other peers will no longer be able to download it.', 'Delete File').then(function(ok) {
+        Goop.dialog.confirm('Delete "' + filename + '"? Other peers will no longer be able to download it.', 'Delete File').then(function(ok) {
           if (ok) deleteFile(filename);
         });
       });

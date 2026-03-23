@@ -465,21 +465,13 @@
 
   // -------- Delete row --------
   async function deleteRow(rowId) {
-    if (!window.Goop || !window.Goop.dialogs) {
-      if (!confirm("Delete row " + rowId + "?")) return;
-    } else {
-      const answer = await window.Goop.dialogs.dlgAsk({
-        title: "Delete Row",
-        message: 'Type "DELETE" to confirm deleting row ' + rowId,
-        placeholder: "DELETE",
-        okText: "Delete",
-        dangerOk: true,
-      });
-      if (answer !== "DELETE") {
-        if (answer !== null) toast("Type DELETE to confirm", true);
-        return;
-      }
-    }
+    var answer = await Goop.dialog.confirmDanger({
+      title: "Delete Row",
+      message: "Delete row " + rowId + "?",
+      match: "DELETE",
+      okText: "Delete",
+    });
+    if (answer !== "DELETE") return;
 
     try {
       await api.delete({ table: currentTable, id: rowId });
@@ -624,21 +616,14 @@
     if (!currentTable) return;
 
     var tableName = currentTable;
-    if (!window.Goop || !window.Goop.dialogs) {
-      if (!confirm("Drop table " + tableName + "?")) return;
-    } else {
-      var answer = await window.Goop.dialogs.dlgAsk({
-        title: "Drop Table",
-        message: 'Type "' + tableName + '" to confirm dropping this table and all its data.',
-        placeholder: tableName,
-        okText: "Drop Table",
-        dangerOk: true,
-      });
-      if (answer !== tableName) {
-        if (answer !== null) toast("Type the table name to confirm", true);
-        return;
-      }
-    }
+    var answer = await Goop.dialog.confirmDanger({
+      title: "Drop Table",
+      message: 'This will drop "' + tableName + '" and all its data.',
+      match: tableName,
+      placeholder: tableName,
+      okText: "Drop Table",
+    });
+    if (answer !== tableName) return;
 
     try {
       await api.dropTable({ table: tableName });
@@ -810,21 +795,14 @@
     qsa(".db-drop-col-btn", alterFormEl).forEach(function(btn) {
       on(btn, "click", async function() {
         var colName = btn.dataset.col;
-        if (!window.Goop || !window.Goop.dialogs) {
-          if (!confirm("Drop column " + colName + "?")) return;
-        } else {
-          var answer = await window.Goop.dialogs.dlgAsk({
-            title: "Drop Column",
-            message: 'Type "' + colName + '" to confirm dropping this column and its data.',
-            placeholder: colName,
-            okText: "Drop",
-            dangerOk: true,
-          });
-          if (answer !== colName) {
-            if (answer !== null) toast("Type the column name to confirm", true);
-            return;
-          }
-        }
+        var answer = await Goop.dialog.confirmDanger({
+          title: "Drop Column",
+          message: 'This will drop "' + colName + '" and its data.',
+          match: colName,
+          placeholder: colName,
+          okText: "Drop",
+        });
+        if (answer !== colName) return;
         try {
           await api.dropColumn({ table: currentTable, column: colName });
           toast("Column " + colName + " dropped");

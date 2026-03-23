@@ -378,8 +378,7 @@
   });
 
   on(qs("#cl-clear-btn"), "click", function () {
-    if (!window.Goop.dialogs) { doClear(); return; }
-    window.Goop.dialogs.confirm("Clear all jobs from the queue?", "Clear Queue").then(function (ok) {
+    Goop.dialog.confirm("Clear all jobs from the queue?", "Clear Queue").then(function (ok) {
       if (ok) doClear();
     });
   });
@@ -409,8 +408,7 @@
   });
 
   on(leaveHostBtn, "click", function () {
-    if (!window.Goop.dialogs) { doLeave(); return; }
-    window.Goop.dialogs.confirm("Close this cluster? All workers will be disconnected.", "Close Cluster").then(function (ok) {
+    Goop.dialog.confirm("Close this cluster? All workers will be disconnected.", "Close Cluster").then(function (ok) {
       if (ok) doLeave();
     });
   });

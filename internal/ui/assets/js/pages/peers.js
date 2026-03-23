@@ -348,7 +348,7 @@
 
   function startPeerCall(peerId, constraints) {
     if (!window.Goop || !window.Goop.callUI) {
-      alert('Call feature not available');
+      Goop.dialog.alert('Error', 'Call feature not available');
       return;
     }
     if (busyPeers.has(peerId)) {
@@ -456,7 +456,7 @@
     }
 
     if (!window.Goop || !window.Goop.mq) {
-      alert('MQ not available');
+      Goop.dialog.alert('Error', 'MQ not available');
       return;
     }
 

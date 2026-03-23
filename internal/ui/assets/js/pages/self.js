@@ -186,7 +186,7 @@
         canvas.toBlob(function(blob) {
           if (!blob) return;
           if (blob.size > 256 * 1024) {
-            alert('Resized image still too large. Try a smaller image.');
+            Goop.dialog.alert('Error', 'Resized image still too large. Try a smaller image.');
             return;
           }
 
@@ -201,7 +201,7 @@
               }
             })
             .catch(function(err) {
-              alert('Upload failed: ' + err.message);
+              Goop.dialog.alert('Error', 'Upload failed: ' + err.message);
             });
         }, 'image/png');
       };
@@ -213,7 +213,7 @@
     removeBtn.addEventListener('click', function() {
       Goop.api.avatar.delete()
         .then(function() { window.location.reload(); })
-        .catch(function(err) { alert('Delete failed: ' + err.message); });
+        .catch(function(err) { Goop.dialog.alert('Error', 'Delete failed: ' + err.message); });
     });
   }
 
@@ -307,7 +307,7 @@
           });
       }
 
-      Goop.dialogs.confirm(msg, 'Import Site').then(function(ok) {
+      Goop.dialog.confirm(msg, 'Import Site').then(function(ok) {
         if (ok) doImport();
         else importFile.value = '';
       });

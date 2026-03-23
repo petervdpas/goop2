@@ -115,7 +115,7 @@
           copyBtn.textContent = "Copied!";
           setTimeout(() => { copyBtn.textContent = orig; }, 2000);
         } catch(e) {
-          alert("Failed to copy: " + e.message);
+          Goop.dialog.alert("Error", "Failed to copy: " + e.message);
         }
         document.body.removeChild(ta);
       });

@@ -240,7 +240,7 @@
               renderHostedGroups(containerEl, opts);
             }).catch(function(err) { toast('Failed to close: ' + err.message, true); });
           }
-          Goop.dialogs.confirm('Close group "' + id + '"? All members will be disconnected.', 'Close Group').then(function(ok) {
+          Goop.dialog.confirm('Close group "' + id + '"? All members will be disconnected.', 'Close Group').then(function(ok) {
             if (ok) doClose();
           });
         });
