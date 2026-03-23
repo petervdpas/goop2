@@ -5,7 +5,8 @@ import (
 	"math"
 	"strconv"
 	"strings"
-	"time"
+
+	"github.com/petervdpas/goop2/internal/orm/schema"
 )
 
 type transformFn func(values []any, args []any) (any, error)
@@ -24,6 +25,8 @@ var transforms = map[string]transformFn{
 	"prefix":     txPrefix,
 	"suffix":     txSuffix,
 	"now":        txNow,
+	"guid":       txGuid,
+	"date":       txDate,
 	"coalesce":   txCoalesce,
 	"replace":    txReplace,
 	"split":      txSplit,
@@ -196,7 +199,7 @@ func txSuffix(values []any, args []any) (any, error) {
 }
 
 func txNow(_ []any, _ []any) (any, error) {
-	return time.Now().UTC().Format(time.RFC3339), nil
+	return schema.NowUTC(), nil
 }
 
 func txCoalesce(values []any, _ []any) (any, error) {
@@ -244,4 +247,12 @@ func txJoin(values []any, args []any) (any, error) {
 
 func txLength(values []any, _ []any) (any, error) {
 	return int64(len(firstString(values))), nil
+}
+
+func txGuid(_ []any, _ []any) (any, error) {
+	return schema.GenerateGUID(), nil
+}
+
+func txDate(_ []any, _ []any) (any, error) {
+	return schema.NowUTC(), nil
 }

@@ -510,6 +510,76 @@
 }
 
 /* -----------------------------
+   Schema designer
+------------------------------ */
+.schema-col-header{
+  display: flex;
+  gap: 6px;
+  padding: 4px 0;
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.schema-h-name{ flex: 2; }
+.schema-h-type{ flex: 1; min-width: 90px; }
+.schema-h-key{ width: 36px; text-align: center; }
+.schema-h-req{ width: 56px; text-align: center; }
+.schema-h-def{ flex: 1; }
+.schema-h-rm{ width: 28px; }
+
+.schema-col-row{
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+
+.schema-col-row .schema-col-name{ flex: 2; min-width: 0; }
+.schema-col-row .schema-col-type{ flex: 1; min-width: 90px; }
+.schema-col-row .schema-col-def{ flex: 1; min-width: 0; }
+
+.schema-col-check{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.schema-col-check .schema-col-key{ width: 36px; }
+.schema-col-check .schema-col-req{ width: 56px; }
+
+.schema-col-check input[type="checkbox"]{
+  margin: 0;
+  cursor: pointer;
+}
+
+.db-schema-ddl{
+  flex: 0 0 auto;
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.db-ddl-code{
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--chip2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+/* -----------------------------
    Responsive
 ------------------------------ */
 @media (max-width: 980px){

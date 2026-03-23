@@ -1582,6 +1582,218 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/data/schemas": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "schema"
+                ],
+                "summary": "List all stored schema definitions (JSON files)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/routes.schemaListEntry"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/schemas/apply": {
+            "post": {
+                "description": "Reads the schema JSON file, validates it, and creates the table with full ORM type support.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "schema"
+                ],
+                "summary": "Create an ORM table from a stored schema definition",
+                "parameters": [
+                    {
+                        "description": "Schema name",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.schemaNameRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    },
+                    "400": {
+                        "description": "validation error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "schema not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/schemas/ddl": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "schema"
+                ],
+                "summary": "Preview the DDL (CREATE TABLE statement) for a schema",
+                "parameters": [
+                    {
+                        "description": "Schema to preview",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.schemaSaveRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.schemaDdlResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/schemas/delete": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "schema"
+                ],
+                "summary": "Delete a schema definition",
+                "parameters": [
+                    {
+                        "description": "Schema name",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.schemaNameRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/schemas/get": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "schema"
+                ],
+                "summary": "Get a schema definition by name",
+                "parameters": [
+                    {
+                        "description": "Schema name",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.schemaNameRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.schemaSaveRequest"
+                        }
+                    },
+                    "404": {
+                        "description": "schema not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/schemas/save": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "schema"
+                ],
+                "summary": "Create or update a schema definition (saves as JSON file)",
+                "parameters": [
+                    {
+                        "description": "Schema definition",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.schemaSaveRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    },
+                    "400": {
+                        "description": "validation error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/api/data/tables": {
             "get": {
                 "produces": [
@@ -5407,6 +5619,75 @@ const docTemplate = `{
                 },
                 "video_disabled": {
                     "type": "boolean"
+                }
+            }
+        },
+        "routes.schemaColumn": {
+            "type": "object",
+            "properties": {
+                "default": {},
+                "key": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "order_id"
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "integer"
+                }
+            }
+        },
+        "routes.schemaDdlResponse": {
+            "type": "object",
+            "properties": {
+                "ddl": {
+                    "type": "string"
+                }
+            }
+        },
+        "routes.schemaListEntry": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "has_key": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "name": {
+                    "type": "string",
+                    "example": "orders"
+                }
+            }
+        },
+        "routes.schemaNameRequest": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "example": "orders"
+                }
+            }
+        },
+        "routes.schemaSaveRequest": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/routes.schemaColumn"
+                    }
+                },
+                "name": {
+                    "type": "string",
+                    "example": "orders"
                 }
             }
         },

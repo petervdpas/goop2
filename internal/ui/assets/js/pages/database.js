@@ -3,6 +3,7 @@
   const { qs, qsa, on, setHidden, escapeHtml, toast, safeLocalStorageGet, safeLocalStorageSet } = window.Goop.core;
   const api = window.Goop.api.data;
   const mapperApi = window.Goop.api.mapper;
+  const schemaApi = window.Goop.api.schema;
   const gsel = window.Goop.select;
 
   // Only activate on database page
@@ -11,18 +12,22 @@
 
   // Top-level tab switching (reuses page-tabs styling)
   var viewTables = qs("#db-view-tables");
+  var viewSchemas = qs("#db-view-schemas");
   var viewMappers = qs("#db-view-mappers");
+  var allViews = [viewTables, viewSchemas, viewMappers];
 
   qsa("[data-db-tab]").forEach(function(tab) {
     on(tab, "click", function(e) {
       e.preventDefault();
       var target = tab.dataset.dbTab;
       qsa("[data-db-tab]").forEach(function(t) { t.classList.toggle("active", t === tab); });
+      allViews.forEach(function(v) { v.classList.remove("active"); });
       if (target === "tables") {
         viewTables.classList.add("active");
-        viewMappers.classList.remove("active");
+      } else if (target === "schemas") {
+        viewSchemas.classList.add("active");
+        loadSchemas();
       } else {
-        viewTables.classList.remove("active");
         viewMappers.classList.add("active");
         loadMappers();
       }
@@ -544,8 +549,10 @@
 
   function colTypeOptions() {
     return [
-      { value: "TEXT", label: "TEXT" },
+      { value: "GUID", label: "GUID" },
       { value: "INTEGER", label: "INTEGER" },
+      { value: "TEXT", label: "TEXT" },
+      { value: "DATE", label: "DATE" },
       { value: "REAL", label: "REAL" },
       { value: "BLOB", label: "BLOB" },
     ];
@@ -914,6 +921,264 @@
       }
     });
   });
+
+  // ======== Schema designer ========
+  var schemaListEl    = qs("#db-schema-list");
+  var schemaTitleEl   = qs("#db-schema-title");
+  var schemaActionsEl = qs("#db-schema-actions");
+  var schemaEditorEl  = qs("#db-schema-editor");
+  var schemaDdlEl     = qs("#db-schema-ddl");
+  var schemaDdlCode   = qs("#db-schema-ddl-code");
+  var btnNewSchema    = qs("#db-btn-new-schema");
+  var btnSaveSchema   = qs("#db-btn-save-schema");
+  var btnApplySchema  = qs("#db-btn-apply-schema");
+  var btnDeleteSchema = qs("#db-btn-delete-schema");
+
+  var currentSchema = null;
+
+  function schemaTypeOptions() {
+    return [
+      { value: "guid", label: "guid" },
+      { value: "integer", label: "integer" },
+      { value: "text", label: "text" },
+      { value: "date", label: "date" },
+      { value: "real", label: "real" },
+      { value: "blob", label: "blob" },
+    ];
+  }
+
+  async function loadSchemas(selectName) {
+    try {
+      var schemas = await schemaApi.list() || [];
+      renderSchemaList(schemas);
+      if (selectName) selectSchemaItem(selectName);
+    } catch (err) {
+      schemaListEl.innerHTML = '<li class="db-table-empty">Failed to load schemas</li>';
+    }
+  }
+
+  function renderSchemaList(schemas) {
+    if (!schemas || schemas.length === 0) {
+      schemaListEl.innerHTML = '<li class="db-table-empty">No schemas yet</li>';
+      return;
+    }
+    schemaListEl.innerHTML = "";
+    schemas.forEach(function(s) {
+      var li = document.createElement("li");
+      li.className = "sidebar-item";
+      li.dataset.schema = s.name;
+      var badge = s.has_key ? "owner" : "open";
+      li.innerHTML = '<span class="db-table-name">' + escapeHtml(s.name) + '</span>' +
+        '<span class="badge badge-' + badge + '">' + s.columns + ' cols</span>';
+      on(li, "click", function() { selectSchemaItem(s.name); });
+      schemaListEl.appendChild(li);
+    });
+  }
+
+  function highlightActiveSchema(name) {
+    qsa(".sidebar-item", schemaListEl).forEach(function(el) {
+      el.classList.toggle("active", el.dataset.schema === name);
+    });
+  }
+
+  async function selectSchemaItem(name) {
+    currentSchema = name;
+    highlightActiveSchema(name);
+    setHidden(schemaActionsEl, false);
+
+    try {
+      var s = await schemaApi.get({ name: name });
+      schemaTitleEl.textContent = s.name;
+      renderSchemaEditor(s);
+      updateDdlPreview();
+    } catch (err) {
+      schemaEditorEl.innerHTML = '<p class="empty-state">Error: ' + escapeHtml(err.message) + '</p>';
+    }
+  }
+
+  function renderSchemaEditor(s) {
+    var html = '<div class="db-mapper-form">';
+    html += '<div class="form-group">' +
+      '<label>Table Name</label>' +
+      '<input type="text" id="schema-name" class="form-input" value="' + escapeHtml(s.name || '') + '" />' +
+    '</div>';
+
+    html += '<div class="form-group">' +
+      '<label>Columns</label>' +
+      '<div class="schema-col-header">' +
+        '<span class="schema-h-name">Name</span>' +
+        '<span class="schema-h-type">Type</span>' +
+        '<span class="schema-h-key">Key</span>' +
+        '<span class="schema-h-req">Required</span>' +
+        '<span class="schema-h-def">Default</span>' +
+        '<span class="schema-h-rm"></span>' +
+      '</div>' +
+      '<div id="schema-columns">';
+    if (s.columns && s.columns.length > 0) {
+      s.columns.forEach(function(c) { html += schemaColRow(c); });
+    } else {
+      html += schemaColRow({ type: "text" });
+    }
+    html += '</div>';
+    html += '<button id="schema-add-col" class="db-action-btn" style="margin-top:6px">+ Column</button>';
+    html += '</div>';
+
+    html += '</div>';
+    schemaEditorEl.innerHTML = html;
+    initFormSelects(schemaEditorEl);
+    bindSchemaColEvents();
+
+    on(qs("#schema-add-col"), "click", function() {
+      var container = qs("#schema-columns");
+      var div = document.createElement("div");
+      div.innerHTML = schemaColRow({ type: "text" });
+      var row = div.firstElementChild;
+      container.appendChild(row);
+      initFormSelects(row);
+      bindSchemaColEvents();
+      qs(".schema-col-name", row).focus();
+    });
+
+    setHidden(schemaDdlEl, false);
+  }
+
+  function schemaColRow(c) {
+    var def = c.default !== undefined && c.default !== null ? String(c.default) : "";
+    return '<div class="schema-col-row">' +
+      '<input type="text" class="form-input schema-col-name" placeholder="column_name" value="' + escapeHtml(c.name || '') + '" />' +
+      gsel.html({ className: "schema-col-type", value: c.type || "text", options: schemaTypeOptions() }) +
+      '<label class="schema-col-check"><input type="checkbox" class="schema-col-key"' + (c.key ? ' checked' : '') + ' /></label>' +
+      '<label class="schema-col-check"><input type="checkbox" class="schema-col-req"' + (c.required ? ' checked' : '') + ' /></label>' +
+      '<input type="text" class="form-input schema-col-def" placeholder="" value="' + escapeHtml(def) + '" />' +
+      '<button class="db-col-remove schema-col-remove">x</button>' +
+    '</div>';
+  }
+
+  function bindSchemaColEvents() {
+    qsa(".schema-col-remove", schemaEditorEl).forEach(function(btn) {
+      btn.onclick = function() {
+        var container = qs("#schema-columns");
+        if (container && container.children.length > 1) {
+          btn.closest(".schema-col-row").remove();
+          updateDdlPreview();
+        }
+      };
+    });
+    qsa("#schema-columns input, #schema-columns .gsel", schemaEditorEl).forEach(function(el) {
+      on(el, "change", function() { updateDdlPreview(); });
+      if (el.tagName === "INPUT") on(el, "input", function() { updateDdlPreview(); });
+    });
+  }
+
+  function collectSchemaData() {
+    var name = (qs("#schema-name").value || "").trim();
+    var cols = [];
+    qsa("#schema-columns .schema-col-row").forEach(function(row) {
+      var colName = qs(".schema-col-name", row).value.trim();
+      if (!colName) return;
+      var col = {
+        name: colName,
+        type: gsel.val(qs(".schema-col-type", row)) || "text",
+      };
+      if (qs(".schema-col-key", row).checked) col.key = true;
+      if (qs(".schema-col-req", row).checked) col.required = true;
+      var def = qs(".schema-col-def", row).value.trim();
+      if (def) {
+        var num = Number(def);
+        col.default = isNaN(num) ? def : num;
+      }
+      cols.push(col);
+    });
+    return { name: name, columns: cols };
+  }
+
+  async function updateDdlPreview() {
+    var data = collectSchemaData();
+    if (!data.name || data.columns.length === 0) {
+      schemaDdlCode.textContent = "-- add a table name and at least one column";
+      return;
+    }
+    try {
+      var resp = await schemaApi.ddl(data);
+      schemaDdlCode.textContent = resp.ddl || "";
+    } catch (err) {
+      schemaDdlCode.textContent = "-- " + err.message;
+    }
+  }
+
+  async function saveSchema() {
+    var data = collectSchemaData();
+    if (!data.name) { toast("Table name required", true); return; }
+    if (data.columns.length === 0) { toast("Add at least one column", true); return; }
+
+    try {
+      await schemaApi.save(data);
+      toast("Schema " + data.name + " saved");
+      currentSchema = data.name;
+      await loadSchemas(data.name);
+    } catch (err) {
+      toast("Save failed: " + err.message, true);
+    }
+  }
+
+  async function applySchema() {
+    if (!currentSchema) return;
+    var name = currentSchema;
+
+    var answer = await Goop.dialog.confirm({
+      title: "Create Table",
+      message: 'Create ORM table "' + name + '" from this schema?',
+    });
+    if (!answer) return;
+
+    try {
+      await schemaApi.apply({ name: name });
+      toast("Table " + name + " created");
+    } catch (err) {
+      toast("Create failed: " + err.message, true);
+    }
+  }
+
+  async function deleteSchema() {
+    if (!currentSchema) return;
+    var name = currentSchema;
+    var answer = await Goop.dialog.confirmDanger({
+      title: "Delete Schema",
+      message: 'Delete schema "' + name + '"?',
+      match: name,
+      placeholder: name,
+      okText: "Delete",
+    });
+    if (answer !== name) return;
+
+    try {
+      await schemaApi.delete({ name: name });
+      toast("Schema " + name + " deleted");
+      currentSchema = null;
+      schemaTitleEl.textContent = "Select a schema";
+      setHidden(schemaActionsEl, true);
+      setHidden(schemaDdlEl, true);
+      schemaEditorEl.innerHTML = '<p class="empty-state">Select a schema from the sidebar to edit it.</p>';
+      await loadSchemas();
+    } catch (err) {
+      toast("Delete failed: " + err.message, true);
+    }
+  }
+
+  function showNewSchemaForm() {
+    currentSchema = null;
+    schemaTitleEl.textContent = "New Schema";
+    highlightActiveSchema(null);
+    setHidden(schemaActionsEl, false);
+    renderSchemaEditor({ name: "", columns: [{ type: "integer", name: "", key: true }] });
+    updateDdlPreview();
+    qs("#schema-name").focus();
+  }
+
+  on(btnNewSchema, "click", showNewSchemaForm);
+  on(btnSaveSchema, "click", saveSchema);
+  on(btnApplySchema, "click", applySchema);
+  on(btnDeleteSchema, "click", deleteSchema);
 
   // ======== Mapper editor ========
   var mapperListEl   = qs("#db-mapper-list");

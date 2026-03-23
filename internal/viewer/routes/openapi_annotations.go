@@ -2192,3 +2192,106 @@ func swagMapperExecute() {}
 //	@Success	200	{array}	string
 //	@Router		/api/data/mappers/transforms [get]
 func swagMapperTransforms() {}
+
+// ── Schema ───────────────────────────────────────────────────────────────────
+
+// schemaListEntry describes one schema in the GET /api/data/schemas response.
+type schemaListEntry struct {
+	Name    string `json:"name"    example:"orders"`
+	Columns int    `json:"columns" example:"5"`
+	HasKey  bool   `json:"has_key" example:"true"`
+}
+
+// schemaNameRequest is the body for endpoints that take a schema name.
+type schemaNameRequest struct {
+	Name string `json:"name" example:"orders"`
+}
+
+// schemaColumn describes a column in a schema definition.
+type schemaColumn struct {
+	Name     string `json:"name"              example:"order_id"`
+	Type     string `json:"type"              example:"integer"`
+	Key      bool   `json:"key,omitempty"`
+	Required bool   `json:"required,omitempty"`
+	Default  any    `json:"default,omitempty"`
+}
+
+// schemaSaveRequest is the body for POST /api/data/schemas/save.
+type schemaSaveRequest struct {
+	Name    string         `json:"name"    example:"orders"`
+	Columns []schemaColumn `json:"columns"`
+}
+
+// schemaDdlResponse is the body for POST /api/data/schemas/ddl.
+type schemaDdlResponse struct {
+	DDL string `json:"ddl"`
+}
+
+// swagSchemaList is a documentation stub for GET /api/data/schemas.
+//
+//	@Summary	List all stored schema definitions (JSON files)
+//	@Tags		schema
+//	@Produce	json
+//	@Success	200	{array}	schemaListEntry
+//	@Router		/api/data/schemas [get]
+func swagSchemaList() {}
+
+// swagSchemaGet is a documentation stub for POST /api/data/schemas/get.
+//
+//	@Summary	Get a schema definition by name
+//	@Tags		schema
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		schemaNameRequest	true	"Schema name"
+//	@Success	200		{object}	schemaSaveRequest
+//	@Failure	404		{string}	string	"schema not found"
+//	@Router		/api/data/schemas/get [post]
+func swagSchemaGet() {}
+
+// swagSchemaSave is a documentation stub for POST /api/data/schemas/save.
+//
+//	@Summary	Create or update a schema definition (saves as JSON file)
+//	@Tags		schema
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		schemaSaveRequest	true	"Schema definition"
+//	@Success	200		{object}	statusOK
+//	@Failure	400		{string}	string	"validation error"
+//	@Router		/api/data/schemas/save [post]
+func swagSchemaSave() {}
+
+// swagSchemaDelete is a documentation stub for POST /api/data/schemas/delete.
+//
+//	@Summary	Delete a schema definition
+//	@Tags		schema
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		schemaNameRequest	true	"Schema name"
+//	@Success	200		{object}	statusOK
+//	@Router		/api/data/schemas/delete [post]
+func swagSchemaDelete() {}
+
+// swagSchemaDdl is a documentation stub for POST /api/data/schemas/ddl.
+//
+//	@Summary	Preview the DDL (CREATE TABLE statement) for a schema
+//	@Tags		schema
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		schemaSaveRequest	true	"Schema to preview"
+//	@Success	200		{object}	schemaDdlResponse
+//	@Router		/api/data/schemas/ddl [post]
+func swagSchemaDdl() {}
+
+// swagSchemaApply is a documentation stub for POST /api/data/schemas/apply.
+//
+//	@Summary	Create an ORM table from a stored schema definition
+//	@Description	Reads the schema JSON file, validates it, and creates the table with full ORM type support.
+//	@Tags		schema
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		schemaNameRequest	true	"Schema name"
+//	@Success	200		{object}	statusOK
+//	@Failure	400		{string}	string	"validation error"
+//	@Failure	404		{string}	string	"schema not found"
+//	@Router		/api/data/schemas/apply [post]
+func swagSchemaApply() {}

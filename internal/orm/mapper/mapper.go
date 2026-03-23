@@ -91,7 +91,7 @@ func (m *Mapping) Validate() error {
 			return fmt.Errorf("duplicate target field %q", f.Target)
 		}
 		seen[f.Target] = true
-		if f.Constant == nil && len(f.Sources) == 0 && f.Transform != "now" {
+		if f.Constant == nil && len(f.Sources) == 0 && f.Transform != "now" && f.Transform != "guid" && f.Transform != "date" {
 			return fmt.Errorf("field %q: needs sources, constant, or a generating transform", f.Target)
 		}
 		if f.Transform != "" {

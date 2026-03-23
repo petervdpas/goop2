@@ -1,0 +1,25 @@
+{
+  "name": "Person",
+  "columns": [
+    {
+      "name": "Id",
+      "type": "guid",
+      "key": true,
+      "required": true
+    },
+    {
+      "name": "Name",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "birthday",
+      "type": "date",
+      "required": true
+    },
+    {
+      "name": "credits",
+      "type": "integer"
+    }
+  ]
+}

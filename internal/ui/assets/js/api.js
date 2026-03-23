@@ -209,6 +209,16 @@
       delete:        function (p) { return _post('/api/data/delete', p); },
     },
 
+    // ── Schema ──────────────────────────────────────────────────────────────
+    schema: {
+      list:   function ()  { return _get('/api/data/schemas'); },
+      get:    function (p) { return _post('/api/data/schemas/get', p); },
+      save:   function (p) { return _post('/api/data/schemas/save', p); },
+      delete: function (p) { return _post('/api/data/schemas/delete', p); },
+      ddl:    function (p) { return _post('/api/data/schemas/ddl', p); },
+      apply:  function (p) { return _post('/api/data/schemas/apply', p); },
+    },
+
     // ── Mapper ──────────────────────────────────────────────────────────────
     mapper: {
       list:       function ()  { return _get('/api/data/mappers'); },

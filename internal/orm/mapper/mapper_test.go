@@ -634,6 +634,46 @@ func TestNow(t *testing.T) {
 	}
 }
 
+// ── Transform: guid ──
+
+func TestGuid(t *testing.T) {
+	m := &Mapping{Name: "t", Fields: []FieldMapping{
+		{Target: "id", Transform: "guid"},
+	}}
+	out, err := m.Apply(schema.Row{})
+	if err != nil {
+		t.Fatalf("guid: %v", err)
+	}
+	s, ok := out["id"].(string)
+	if !ok {
+		t.Fatalf("guid result is %T, not string", out["id"])
+	}
+	if len(s) != 36 {
+		t.Errorf("guid length = %d, want 36: %v", len(s), s)
+	}
+	if s[8] != '-' || s[13] != '-' || s[18] != '-' || s[23] != '-' {
+		t.Errorf("guid format invalid: %v", s)
+	}
+}
+
+func TestGuidUniqueness(t *testing.T) {
+	m := &Mapping{Name: "t", Fields: []FieldMapping{
+		{Target: "id", Transform: "guid"},
+	}}
+	seen := make(map[string]bool)
+	for i := 0; i < 100; i++ {
+		out, err := m.Apply(schema.Row{})
+		if err != nil {
+			t.Fatalf("guid %d: %v", i, err)
+		}
+		s := out["id"].(string)
+		if seen[s] {
+			t.Fatalf("duplicate guid at iteration %d: %v", i, s)
+		}
+		seen[s] = true
+	}
+}
+
 // ── Transform: coalesce ──
 
 func TestCoalesce(t *testing.T) {
@@ -989,7 +1029,7 @@ func TestTransformNames(t *testing.T) {
 	}
 	expected := []string{"uppercase", "lowercase", "trim", "concat", "round", "default",
 		"to_int", "to_text", "to_float", "substring", "prefix", "suffix", "now",
-		"coalesce", "replace", "split", "join", "length"}
+		"coalesce", "replace", "split", "join", "length", "guid", "date"}
 	nameSet := make(map[string]bool)
 	for _, n := range names {
 		nameSet[n] = true

@@ -125,8 +125,10 @@ func Start(addr string, v Viewer) error {
 	}
 
 	// Register mapper endpoints (mappings stored in peerDir/mappings/)
+	// Register schema endpoints (schemas stored in peerDir/schemas/)
 	if v.PeerDir != "" {
 		routes.RegisterMapper(mux, v.PeerDir, v.DB)
+		routes.RegisterSchema(mux, v.PeerDir, v.DB)
 	}
 
 	// Register group endpoints if group manager is available

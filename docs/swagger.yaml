@@ -1045,6 +1045,53 @@ definitions:
       video_disabled:
         type: boolean
     type: object
+  routes.schemaColumn:
+    properties:
+      default: {}
+      key:
+        type: boolean
+      name:
+        example: order_id
+        type: string
+      required:
+        type: boolean
+      type:
+        example: integer
+        type: string
+    type: object
+  routes.schemaDdlResponse:
+    properties:
+      ddl:
+        type: string
+    type: object
+  routes.schemaListEntry:
+    properties:
+      columns:
+        example: 5
+        type: integer
+      has_key:
+        example: true
+        type: boolean
+      name:
+        example: orders
+        type: string
+    type: object
+  routes.schemaNameRequest:
+    properties:
+      name:
+        example: orders
+        type: string
+    type: object
+  routes.schemaSaveRequest:
+    properties:
+      columns:
+        items:
+          $ref: '#/definitions/routes.schemaColumn'
+        type: array
+      name:
+        example: orders
+        type: string
+    type: object
   routes.serviceHealthEntry:
     properties:
       error:
@@ -2348,6 +2395,143 @@ paths:
       summary: Query rows from a table
       tags:
       - data
+  /api/data/schemas:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/routes.schemaListEntry'
+            type: array
+      summary: List all stored schema definitions (JSON files)
+      tags:
+      - schema
+  /api/data/schemas/apply:
+    post:
+      consumes:
+      - application/json
+      description: Reads the schema JSON file, validates it, and creates the table
+        with full ORM type support.
+      parameters:
+      - description: Schema name
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.schemaNameRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+        "400":
+          description: validation error
+          schema:
+            type: string
+        "404":
+          description: schema not found
+          schema:
+            type: string
+      summary: Create an ORM table from a stored schema definition
+      tags:
+      - schema
+  /api/data/schemas/ddl:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Schema to preview
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.schemaSaveRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.schemaDdlResponse'
+      summary: Preview the DDL (CREATE TABLE statement) for a schema
+      tags:
+      - schema
+  /api/data/schemas/delete:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Schema name
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.schemaNameRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+      summary: Delete a schema definition
+      tags:
+      - schema
+  /api/data/schemas/get:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Schema name
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.schemaNameRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.schemaSaveRequest'
+        "404":
+          description: schema not found
+          schema:
+            type: string
+      summary: Get a schema definition by name
+      tags:
+      - schema
+  /api/data/schemas/save:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Schema definition
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.schemaSaveRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+        "400":
+          description: validation error
+          schema:
+            type: string
+      summary: Create or update a schema definition (saves as JSON file)
+      tags:
+      - schema
   /api/data/tables:
     get:
       produces:

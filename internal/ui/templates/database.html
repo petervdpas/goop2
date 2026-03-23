@@ -1,6 +1,7 @@
 {{define "page.database"}}
 <div class="page-tabs">
   <a class="page-tab active" data-db-tab="tables" href="javascript:void(0)">Tables</a>
+  <a class="page-tab" data-db-tab="schemas" href="javascript:void(0)">Schemas</a>
   <a class="page-tab" data-db-tab="mappers" href="javascript:void(0)">Mappings</a>
 </div>
 
@@ -60,6 +61,48 @@
       <!-- Data grid -->
       <div id="db-grid" class="db-grid">
         <p class="empty-state">Select a table from the sidebar to view its data.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Schemas view -->
+<div id="db-view-schemas" class="db-view">
+  <p class="muted small">Design typed table schemas and apply them to create ORM tables.</p>
+  <div class="db-page">
+    <!-- Sidebar: schema list -->
+    <div class="db-sidebar panel">
+      <div class="section-head">
+        <span class="section-title">Schemas</span>
+        <button id="db-btn-new-schema" class="db-sidebar-btn">+ New</button>
+      </div>
+      <ul id="db-schema-list" class="db-table-list">
+        <!-- populated by JS -->
+      </ul>
+    </div>
+
+    <!-- Main content area -->
+    <div class="db-content panel">
+      <div class="section-head">
+        <span id="db-schema-title" class="section-title">Select a schema</span>
+        <div id="db-schema-actions" class="db-content-actions hidden">
+          <button id="db-btn-save-schema" class="db-action-btn">Save</button>
+          <button id="db-btn-apply-schema" class="db-action-btn">Create Table</button>
+          <button id="db-btn-delete-schema" class="db-action-btn db-btn-danger">Delete</button>
+        </div>
+      </div>
+
+      <!-- Schema editor -->
+      <div id="db-schema-editor" class="db-mapper-editor">
+        <p class="empty-state">Select a schema from the sidebar to edit it.</p>
+      </div>
+
+      <!-- DDL preview -->
+      <div id="db-schema-ddl" class="db-schema-ddl hidden">
+        <div class="section-head">
+          <span class="section-title muted small">DDL Preview</span>
+        </div>
+        <pre id="db-schema-ddl-code" class="db-ddl-code"></pre>
       </div>
     </div>
   </div>

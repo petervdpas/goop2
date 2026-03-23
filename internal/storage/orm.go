@@ -154,6 +154,9 @@ func (d *DB) ValidateInsert(tableName string, data map[string]any) error {
 	for _, col := range tbl.Columns {
 		val, exists := data[col.Name]
 		if !exists || val == nil {
+			if col.Type == "guid" || col.Type == "date" {
+				continue
+			}
 			if col.Required && col.Default == nil {
 				return fmt.Errorf("column %q is required", col.Name)
 			}
@@ -199,7 +202,21 @@ func (d *DB) ExportSchema(ctx context.Context, tableName string) (*schema.Table,
 
 // OrmInsert validates and inserts a row into an ORM-managed table.
 // Adds system columns (_owner, _owner_email) automatically.
+// Auto-generates values for guid columns when not provided.
 func (d *DB) OrmInsert(tableName, ownerID, ownerEmail string, data map[string]any) (int64, error) {
+	tbl, _ := d.GetSchema(tableName)
+	if tbl != nil {
+		for _, col := range tbl.Columns {
+			if v, exists := data[col.Name]; !exists || v == nil || v == "" {
+				switch col.Type {
+				case "guid":
+					data[col.Name] = schema.GenerateGUID()
+				case "date":
+					data[col.Name] = schema.NowUTC()
+				}
+			}
+		}
+	}
 	if err := d.ValidateInsert(tableName, data); err != nil {
 		return 0, err
 	}
@@ -320,9 +337,9 @@ func validateType(name, colType string, val any) error {
 			return nil
 		}
 		return fmt.Errorf("column %q expects real, got %T", name, val)
-	case "text":
+	case "text", "guid", "date":
 		if _, ok := val.(string); !ok {
-			return fmt.Errorf("column %q expects text, got %T", name, val)
+			return fmt.Errorf("column %q expects %s, got %T", name, colType, val)
 		}
 	case "blob":
 		switch val.(type) {
@@ -333,6 +350,7 @@ func validateType(name, colType string, val any) error {
 	}
 	return nil
 }
+
 
 func sqlDefault(v any) string {
 	switch val := v.(type) {

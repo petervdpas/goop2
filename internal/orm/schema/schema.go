@@ -1,9 +1,11 @@
 package schema
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // Row is the dynamic entity type — Go's equivalent of ExpandoObject.
@@ -127,7 +129,7 @@ func (t *Table) KeyColumnNames() []string {
 
 func validType(t string) bool {
 	switch strings.ToLower(t) {
-	case "text", "integer", "real", "blob":
+	case "text", "integer", "real", "blob", "guid", "date":
 		return true
 	}
 	return false
@@ -135,8 +137,10 @@ func validType(t string) bool {
 
 func sqlType(t string) string {
 	switch strings.ToLower(t) {
-	case "text":
+	case "text", "guid":
 		return "TEXT"
+	case "date":
+		return "DATETIME"
 	case "integer":
 		return "INTEGER"
 	case "real":
@@ -146,6 +150,21 @@ func sqlType(t string) string {
 	default:
 		return "TEXT"
 	}
+}
+
+// GenerateGUID returns a new UUID v4 string.
+func GenerateGUID() string {
+	var b [16]byte
+	rand.Read(b[:])
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
+		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+// NowUTC returns the current UTC time as an RFC3339 string.
+func NowUTC() string {
+	return time.Now().UTC().Format(time.RFC3339)
 }
 
 func sqlDefault(v any) string {
