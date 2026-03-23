@@ -9,7 +9,7 @@ The executor protocol defines the contract between Goop2's cluster dispatcher an
   var el = document.getElementById('redoc-container');
   if (!el) return;
   var s = document.createElement('script');
-  s.src = 'https://cdn.redoc.ly/redoc/v2.1.5/bundles/redoc.standalone.js';
+  s.src = '/assets/vendor/redoc/redoc.standalone.js';
   s.onload = function() {
     var isDark = document.documentElement.dataset.theme === 'dark';
     Redoc.init('/api/executor-api.yaml', {

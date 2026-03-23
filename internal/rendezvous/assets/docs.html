@@ -95,6 +95,14 @@
         if (oldFooter && newFooter) oldFooter.innerHTML = newFooter.innerHTML;
         if (oldSidebar && newSidebar) oldSidebar.innerHTML = newSidebar.innerHTML;
         if (newTitle) document.title = newTitle.textContent;
+        // Re-execute inline scripts that were inserted via innerHTML
+        if (oldArticle) {
+          oldArticle.querySelectorAll('script').forEach(function(old) {
+            var s = document.createElement('script');
+            s.textContent = old.textContent;
+            old.replaceWith(s);
+          });
+        }
         if (oldArticle) oldArticle.scrollTop = 0;
         var content = document.querySelector('.docs-content');
         if (content) content.scrollTop = 0;
