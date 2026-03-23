@@ -135,6 +135,9 @@ func validType(t string) bool {
 	return false
 }
 
+// SQLType converts a portable schema type to its SQLite column type.
+func SQLType(t string) string { return sqlType(t) }
+
 func sqlType(t string) string {
 	switch strings.ToLower(t) {
 	case "text", "guid":

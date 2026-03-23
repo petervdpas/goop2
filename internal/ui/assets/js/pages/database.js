@@ -120,11 +120,15 @@
     tableListEl.innerHTML = "";
     tables.forEach(function(t) {
       var policy = t.insert_policy || "owner";
+      var mode = t.mode || "classic";
       const li = document.createElement("li");
       li.className = "sidebar-item";
       li.dataset.table = t.name;
+      var badgeClass = mode === "orm" ? "badge-email" : "badge-" + policy;
+      var badgeText = mode === "orm" ? "ORM" : (policyLabels[policy] || policy);
+      var badgeTitle = mode === "orm" ? "ORM table (typed schema)" : "Insert policy: " + policy;
       li.innerHTML = '<span class="db-table-name">' + escapeHtml(t.name) + '</span>' +
-        '<span class="badge badge-' + policy + '" title="Insert policy: ' + policy + '">' + (policyLabels[policy] || policy) + '</span>';
+        '<span class="badge ' + badgeClass + '" title="' + badgeTitle + '">' + badgeText + '</span>';
       on(li, "click", function() { selectTable(t.name); });
       tableListEl.appendChild(li);
     });
@@ -671,7 +675,9 @@
   function showInsertForm() {
     if (!currentTable || columns.length === 0) return;
 
-    var userCols = columns.filter(function(c) { return systemCols.indexOf(c.name) === -1; });
+    var userCols = columns.filter(function(c) {
+      return systemCols.indexOf(c.name) === -1;
+    });
 
     if (userCols.length === 0) {
       toast("No user columns to fill", true);
@@ -681,9 +687,19 @@
     setHidden(insertFormEl, false);
     var html = '<h4>Insert Row into ' + escapeHtml(currentTable) + '</h4>';
     userCols.forEach(function(col) {
+      var colType = (col.type || "text").toLowerCase();
+      var inputType = "text";
+      if (colType === "date") inputType = "date";
+      else if (colType === "integer") inputType = "number";
+      else if (colType === "real") inputType = "number";
+
+      var extra = "";
+      if (colType === "real") extra = ' step="any"';
+      if (colType === "guid") extra = ' readonly placeholder="(auto-generated)"';
+
       html += '<div class="db-insert-field">' +
         '<label>' + escapeHtml(col.name) + ' <span style="opacity:0.5;font-size:11px">(' + escapeHtml(col.type) + ')</span></label>' +
-        '<input type="text" data-col="' + escapeHtml(col.name) + '" class="form-input" />' +
+        '<input type="' + inputType + '"' + extra + ' data-col="' + escapeHtml(col.name) + '" data-type="' + escapeHtml(colType) + '" class="form-input" />' +
       '</div>';
     });
     html += '<div class="form-actions">' +
@@ -695,8 +711,7 @@
     on(qs("#db-insert-cancel"), "click", function() { setHidden(insertFormEl, true); });
     on(qs("#db-insert-submit"), "click", submitInsertRow);
 
-    // Focus first input
-    var firstInput = qs(".db-insert-field input", insertFormEl);
+    var firstInput = qs(".db-insert-field input:not([readonly])", insertFormEl);
     if (firstInput) firstInput.focus();
   }
 
@@ -705,7 +720,16 @@
     qsa(".db-insert-field input", insertFormEl).forEach(function(input) {
       var val = input.value;
       if (val !== "") {
-        data[input.dataset.col] = val;
+        var colType = input.dataset.type || "text";
+        if (colType === "date") {
+          data[input.dataset.col] = val + "T00:00:00Z";
+        } else if (colType === "integer") {
+          data[input.dataset.col] = parseInt(val, 10);
+        } else if (colType === "real") {
+          data[input.dataset.col] = parseFloat(val);
+        } else {
+          data[input.dataset.col] = val;
+        }
       }
     });
 
@@ -1125,11 +1149,8 @@
     if (!currentSchema) return;
     var name = currentSchema;
 
-    var answer = await Goop.dialog.confirm({
-      title: "Create Table",
-      message: 'Create ORM table "' + name + '" from this schema?',
-    });
-    if (!answer) return;
+    var ok = await Goop.dialog.confirm('Create ORM table "' + name + '" from this schema?', "Create Table");
+    if (!ok) return;
 
     try {
       await schemaApi.apply({ name: name });

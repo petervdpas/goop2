@@ -27,7 +27,7 @@ func (d *DB) CreateTableORM(tbl *schema.Table) error {
 	for i, col := range tbl.Columns {
 		columns[i] = ColumnDef{
 			Name:    col.Name,
-			Type:    col.Type,
+			Type:    schema.SQLType(col.Type),
 			NotNull: col.Required || col.Key,
 		}
 		if col.Default != nil {
