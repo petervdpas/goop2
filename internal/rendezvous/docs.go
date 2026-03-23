@@ -10,6 +10,8 @@ import (
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/renderer/html"
+
+	highlighting "github.com/yuin/goldmark-highlighting/v2"
 )
 
 // pageOrder defines the display order and slug for each doc page.
@@ -50,7 +52,12 @@ type DocSite struct {
 // the defined page sequence. All rendering happens once at startup.
 func newDocSite() *DocSite {
 	md := goldmark.New(
-		goldmark.WithExtensions(extension.Table),
+		goldmark.WithExtensions(
+			extension.Table,
+			highlighting.NewHighlighting(
+				highlighting.WithStyle("dracula"),
+			),
+		),
 		goldmark.WithRendererOptions(html.WithUnsafe()),
 	)
 
