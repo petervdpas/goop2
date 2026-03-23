@@ -6,6 +6,7 @@ import (
 
 	"github.com/petervdpas/goop2/internal/shareddocs"
 
+	chromahtml "github.com/alecthomas/chroma/v2/formatters/html"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/renderer/html"
@@ -20,13 +21,16 @@ type Rendered struct {
 }
 
 // Render reads the shared markdown files and returns pre-rendered HTML
-// with syntax-highlighted code blocks. Called once at startup.
+// with syntax-highlighted code blocks using CSS classes (not inline styles)
+// so the theme toggle can switch colors. Called once at startup.
 func Render() *Rendered {
 	md := goldmark.New(
 		goldmark.WithExtensions(
 			extension.Table,
 			highlighting.NewHighlighting(
-				highlighting.WithStyle("dracula"),
+				highlighting.WithFormatOptions(
+					chromahtml.WithClasses(true),
+				),
 			),
 		),
 		goldmark.WithRendererOptions(html.WithUnsafe()),

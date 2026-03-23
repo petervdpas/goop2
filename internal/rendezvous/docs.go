@@ -7,6 +7,7 @@ import (
 
 	"github.com/petervdpas/goop2/internal/shareddocs"
 
+	chromahtml "github.com/alecthomas/chroma/v2/formatters/html"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/renderer/html"
@@ -55,7 +56,9 @@ func newDocSite() *DocSite {
 		goldmark.WithExtensions(
 			extension.Table,
 			highlighting.NewHighlighting(
-				highlighting.WithStyle("dracula"),
+				highlighting.WithFormatOptions(
+					chromahtml.WithClasses(true),
+				),
 			),
 		),
 		goldmark.WithRendererOptions(html.WithUnsafe()),
