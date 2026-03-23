@@ -1,7 +1,8 @@
 //
 // Portable UI helpers for site pages.
 // When the viewer's dialogs.js is loaded, delegates to Goop.dialog.
-// Otherwise uses a self-contained fallback (inline CSS, no deps).
+// Otherwise uses a self-contained fallback — 100% inline styles, no injected
+// stylesheet (WebKitGTK CSP blocks injected <style> tags on site pages).
 //
 // Usage:
 //
@@ -33,31 +34,6 @@
   window.Goop = window.Goop || {};
 
   function hasViewer() { return window.Goop.dialog && typeof window.Goop.dialog === "function"; }
-
-  // ── inject minimal CSS for fallback dialogs + toast (only once) ──
-  const STYLE_ID = "goop-ui-style";
-  if (!document.getElementById(STYLE_ID)) {
-    const s = document.createElement("style");
-    s.id = STYLE_ID;
-    s.textContent = `
-      .goop-toast-wrap{position:fixed;top:1rem;right:1rem;z-index:99999;display:flex;flex-direction:column;gap:.5rem;pointer-events:none}
-      .goop-toast{pointer-events:auto;border-radius:8px;padding:.6rem 1rem;font:14px/1.4 system-ui,sans-serif;animation:goop-fade-in .2s ease}
-      .goop-toast.exit{opacity:0;transition:opacity .25s}
-      .goop-toast-title{font-weight:600;margin-bottom:.15rem}
-      @keyframes goop-fade-in{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
-      .goop-dlg-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
-      .goop-dlg{border-radius:16px;min-width:300px;max-width:420px;font:14px/1.5 system-ui,sans-serif;overflow:hidden}
-      .goop-dlg-head{padding:12px 14px;font-weight:750}
-      .goop-dlg-body{padding:14px;display:flex;flex-direction:column;gap:10px}
-      .goop-dlg-msg{font-size:13px;white-space:pre-wrap}
-      .goop-dlg input{width:100%;box-sizing:border-box;padding:10px 12px;border-radius:999px;font:inherit;outline:none;transition:border-color .17s,box-shadow .17s}
-      .goop-dlg-foot{padding:12px 14px;display:flex;gap:8px;justify-content:flex-end}
-      .goop-dlg-foot button{padding:8px 12px;border-radius:999px;cursor:pointer;font:inherit;transition:background .17s,transform .17s}
-      .goop-dlg-foot button:hover{transform:translateY(-0.5px)}
-      .goop-dlg-foot button:disabled{opacity:.4;cursor:not-allowed;transform:none}
-    `;
-    document.head.appendChild(s);
-  }
 
   var LIGHT = {
     bg: "#ffffff", panel: "#ffffff", text: "#101325", muted: "#4a4f6b",
@@ -104,20 +80,26 @@
     };
   }
 
-  function applyThemeToEl(el, t) {
-    el.style.background = t.panel;
-    el.style.color = t.text;
-    el.style.borderColor = t.line;
-    el.style.boxShadow = t.shadow;
+  function setStyles(el, styles) {
+    for (var k in styles) el.style[k] = styles[k];
+  }
+
+  function esc(s) {
+    var d = document.createElement("div");
+    d.textContent = s == null ? "" : String(s);
+    return d.innerHTML;
   }
 
   // ── toast ──
-  let toastWrap = null;
+  var toastWrap = null;
 
   function ensureToastWrap() {
     if (!toastWrap) {
       toastWrap = document.createElement("div");
-      toastWrap.className = "goop-toast-wrap";
+      setStyles(toastWrap, {
+        position: "fixed", top: "1rem", right: "1rem", zIndex: "99999",
+        display: "flex", flexDirection: "column", gap: "0.5rem", pointerEvents: "none"
+      });
       document.body.appendChild(toastWrap);
     }
     return toastWrap;
@@ -126,24 +108,33 @@
   function toast(opts) {
     if (typeof opts === "string") opts = { message: opts };
     var t = resolveTheme();
-    const wrap = ensureToastWrap();
-    const el = document.createElement("div");
-    el.className = "goop-toast";
-    applyThemeToEl(el, t);
-    const title = opts.title ? '<div class="goop-toast-title">' + esc(opts.title) + "</div>" : "";
+    var wrap = ensureToastWrap();
+    var el = document.createElement("div");
+    setStyles(el, {
+      pointerEvents: "auto", background: t.panel, color: t.text,
+      border: "1px solid " + t.line, borderRadius: "8px",
+      padding: "0.6rem 1rem", font: "14px/1.4 system-ui,sans-serif",
+      boxShadow: t.shadow, opacity: "0", transform: "translateY(-8px)",
+      transition: "opacity 0.2s ease, transform 0.2s ease"
+    });
+    var title = opts.title ? '<div style="font-weight:600;margin-bottom:0.15rem">' + esc(opts.title) + "</div>" : "";
     el.innerHTML = title + "<div>" + esc(opts.message || "") + "</div>";
     wrap.appendChild(el);
-    const dur = opts.duration || 4000;
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() { el.style.opacity = "1"; el.style.transform = "none"; });
+    });
+    var dur = opts.duration || 4000;
     if (dur > 0) {
-      setTimeout(() => {
-        el.classList.add("exit");
-        setTimeout(() => el.remove(), 300);
+      setTimeout(function() {
+        el.style.opacity = "0";
+        el.style.transform = "translateY(-8px)";
+        setTimeout(function() { el.remove(); }, 300);
       }, dur);
     }
     return el;
   }
 
-  // ── fallback dialog (self-contained, no external deps) ──
+  // ── fallback dialog (100% inline styles, CSP-safe) ──
   function fallbackDialog(opts) {
     opts = opts || {};
     var title      = opts.title || "";
@@ -160,66 +151,104 @@
       var t = resolveTheme();
 
       var bg = document.createElement("div");
-      bg.className = "goop-dlg-bg";
+      setStyles(bg, {
+        position: "fixed", top: "0", left: "0", right: "0", bottom: "0",
+        background: "rgba(0,0,0,0.55)", zIndex: "99998",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        backdropFilter: "blur(6px)"
+      });
 
-      var bodyHtml = '<div class="goop-dlg-msg"></div>';
-      if (hasInput) bodyHtml += '<input autocomplete="off" spellcheck="false" />';
+      var dlg = document.createElement("div");
+      setStyles(dlg, {
+        background: t.panel, color: t.text, border: "1px solid " + t.line,
+        borderRadius: "16px", minWidth: "300px", maxWidth: "420px",
+        font: "14px/1.5 system-ui,sans-serif", boxShadow: t.shadow, overflow: "hidden"
+      });
 
-      var footHtml = '';
-      if (cancelLabel !== null) footHtml += '<button class="cancel"></button>';
-      if (!hideOk) footHtml += '<button class="ok' + (okDanger ? ' danger' : '') + '"></button>';
-
-      bg.innerHTML =
-        '<div class="goop-dlg">' +
-          '<div class="goop-dlg-head"></div>' +
-          '<div class="goop-dlg-body">' + bodyHtml + '</div>' +
-          '<div class="goop-dlg-foot">' + footHtml + '</div>' +
-        '</div>';
-
-      var dlg = bg.querySelector(".goop-dlg");
-      applyThemeToEl(dlg, t);
-
-      var head = dlg.querySelector(".goop-dlg-head");
+      var head = document.createElement("div");
       head.textContent = title;
-      head.style.borderBottomColor = t.line;
+      setStyles(head, {
+        padding: "12px 14px", borderBottom: "1px solid " + t.line, fontWeight: "750"
+      });
 
-      var msg = dlg.querySelector(".goop-dlg-msg");
+      var body = document.createElement("div");
+      setStyles(body, { padding: "14px", display: "flex", flexDirection: "column", gap: "10px" });
+
+      var msg = document.createElement("div");
       msg.textContent = message;
-      msg.style.color = t.muted;
+      setStyles(msg, { color: t.muted, fontSize: "13px", whiteSpace: "pre-wrap" });
+      body.appendChild(msg);
 
-      var foot = dlg.querySelector(".goop-dlg-foot");
-      foot.style.borderTopColor = t.line;
-
-      var inp = hasInput ? dlg.querySelector("input") : null;
-      if (inp) {
+      var inp = null;
+      if (hasInput) {
+        inp = document.createElement("input");
+        inp.autocomplete = "off";
+        inp.spellcheck = false;
         inp.placeholder = input.placeholder || "";
         inp.value = input.value || "";
         if (input.type) inp.type = input.type;
-        inp.style.border = "1px solid " + t.line;
-        inp.style.background = t.field;
-        inp.style.color = t.text;
+        setStyles(inp, {
+          width: "100%", boxSizing: "border-box", padding: "10px 12px",
+          border: "1px solid " + t.line, borderRadius: "999px",
+          background: t.field, color: t.text, font: "inherit", outline: "none"
+        });
+        body.appendChild(inp);
       }
 
-      var bCancel = dlg.querySelector("button.cancel");
-      var bOk = dlg.querySelector("button.ok");
+      var foot = document.createElement("div");
+      setStyles(foot, {
+        padding: "12px 14px", borderTop: "1px solid " + t.line,
+        display: "flex", gap: "8px", justifyContent: "flex-end"
+      });
 
-      function styleBtn(btn, danger) {
+      function makeBtn(label, danger) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = label;
         var c = danger ? "#ff5a5a" : t.accent;
-        btn.style.border = "1px solid " + c;
-        btn.style.background = "color-mix(in srgb," + c + " 14%,transparent)";
-        btn.style.color = t.text;
+        setStyles(btn, {
+          padding: "8px 12px", border: "1px solid " + c, borderRadius: "999px",
+          cursor: "pointer", font: "inherit", color: t.text,
+          background: "color-mix(in srgb," + c + " 14%,transparent)",
+          transition: "background 0.17s, transform 0.17s"
+        });
+        btn.addEventListener("mouseenter", function() {
+          btn.style.background = "color-mix(in srgb," + c + " 22%,transparent)";
+          btn.style.transform = "translateY(-0.5px)";
+        });
+        btn.addEventListener("mouseleave", function() {
+          btn.style.background = "color-mix(in srgb," + c + " 14%,transparent)";
+          btn.style.transform = "none";
+        });
+        return btn;
       }
 
-      if (bCancel) { bCancel.textContent = cancelLabel; styleBtn(bCancel, false); }
-      if (bOk) {
-        bOk.textContent = okLabel;
-        styleBtn(bOk, okDanger);
-        if (match) bOk.disabled = true;
+      var bCancel = null;
+      var bOk = null;
+
+      if (cancelLabel !== null) {
+        bCancel = makeBtn(cancelLabel, false);
+        foot.appendChild(bCancel);
+      }
+      if (!hideOk) {
+        bOk = makeBtn(okLabel, okDanger);
+        if (match) { bOk.disabled = true; bOk.style.opacity = "0.4"; bOk.style.cursor = "not-allowed"; }
+        foot.appendChild(bOk);
       }
 
       if (match && inp) {
-        inp.addEventListener("input", function() { bOk.disabled = inp.value !== match; });
+        inp.addEventListener("input", function() {
+          var ok = inp.value === match;
+          bOk.disabled = !ok;
+          bOk.style.opacity = ok ? "1" : "0.4";
+          bOk.style.cursor = ok ? "pointer" : "not-allowed";
+        });
       }
+
+      dlg.appendChild(head);
+      dlg.appendChild(body);
+      dlg.appendChild(foot);
+      bg.appendChild(dlg);
 
       function cleanup(confirmed) {
         document.removeEventListener("keydown", onKey);
@@ -246,16 +275,9 @@
     });
   }
 
-  // ── helpers ──
-  function esc(s) {
-    var d = document.createElement("div");
-    d.textContent = s == null ? "" : String(s);
-    return d.innerHTML;
-  }
-
   // ── public API ──
   window.Goop.ui = {
-    toast,
+    toast: toast,
 
     dialog: function(opts) {
       return hasViewer() ? Goop.dialog(opts) : fallbackDialog(opts);
@@ -269,8 +291,8 @@
       return hasViewer() ? Goop.dialog.confirm(message, title) : fallbackDialog({ title: title || "Confirm", message: message });
     },
 
-    prompt: function(opts) {
-      if (typeof opts === "string") opts = { message: opts };
+    prompt: function(opts, defaultValue) {
+      if (typeof opts === "string") opts = { message: opts, value: defaultValue || "" };
       opts = opts || {};
       if (hasViewer()) return Goop.dialog.prompt(opts);
       return fallbackDialog({
