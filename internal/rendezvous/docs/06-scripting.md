@@ -164,6 +164,25 @@ local info = goop.schema.describe("scores")
 local is_orm = goop.schema.is_orm("scores")
 ```
 
+### goop.schema.find / find_one
+
+Filtered queries with ordering, pagination, and field selection:
+
+```lua
+local rows = goop.schema.find("posts", {
+    where = "published = 1",
+    order = "_id DESC",
+    limit = 10,
+    fields = {"title", "slug"}
+})
+
+local row = goop.schema.find_one("posts", {
+    where = "slug = ?",
+    args = {"hello-world"}
+})
+-- returns the row directly (not an array), or nil
+```
+
 ### goop.site
 
 Read files from the site content store (data functions only):

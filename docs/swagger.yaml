@@ -369,6 +369,31 @@ definitions:
         example: inserted
         type: string
     type: object
+  routes.dataLuaCallRequest:
+    properties:
+      function:
+        example: api
+        type: string
+      params:
+        additionalProperties: {}
+        type: object
+    type: object
+  routes.dataLuaFunctionInfo:
+    properties:
+      description:
+        example: Virtual REST API endpoint
+        type: string
+      name:
+        example: api
+        type: string
+    type: object
+  routes.dataLuaListResponse:
+    properties:
+      functions:
+        items:
+          $ref: '#/definitions/routes.dataLuaFunctionInfo'
+        type: array
+    type: object
   routes.dataPolicyRequest:
     properties:
       policy:
@@ -1999,6 +2024,50 @@ paths:
           schema:
             type: string
       summary: Insert a row into a table (ORM tables validate column types)
+      tags:
+      - data
+  /api/data/lua/call:
+    post:
+      consumes:
+      - application/json
+      description: Invokes a server-side Lua function by name with parameters. Used
+        by the virtual REST API (Goop.api) and custom data functions.
+      parameters:
+      - description: Function name and parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.dataLuaCallRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: function name required
+          schema:
+            type: string
+        "500":
+          description: lua scripting not enabled / function error
+          schema:
+            type: string
+      summary: Call a Lua data function
+      tags:
+      - data
+  /api/data/lua/list:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.dataLuaListResponse'
+      summary: List available Lua data functions
       tags:
       - data
   /api/data/query:

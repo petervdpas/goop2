@@ -79,6 +79,37 @@ local schema = goop.schema.describe("tasks")      -- {name, columns}
 local ok, err = goop.schema.validate("tasks", {score="bad"})  -- false, "expects real"
 ```
 
+### Querying with find / find_one
+
+Filtered queries with ordering, pagination, and field selection:
+
+```lua
+-- Find multiple rows
+local rows, err = goop.schema.find("posts", {
+    where = "published = 1",
+    order = "_id DESC",
+    limit = 10,
+    offset = 0,
+    fields = {"title", "slug", "author_name"}
+})
+
+-- Find a single row (auto LIMIT 1, returns row or nil)
+local row, err = goop.schema.find_one("posts", {
+    where = "slug = ?",
+    args = {"hello-world"},
+    fields = {"title", "body", "author_name"}
+})
+```
+
+| Option | Description |
+|--------|-------------|
+| `where` | SQL WHERE clause |
+| `args` | Bind parameters for the WHERE clause |
+| `fields` | Columns to return (default: all) |
+| `order` | ORDER BY clause (default: none) |
+| `limit` | Max rows (default: unlimited for find, 1 for find_one) |
+| `offset` | Skip N rows |
+
 Column types: `text`, `integer`, `real`, `blob`. System columns (`_id`, `_owner`, `_created_at`, `_updated_at`) are added automatically.
 
 ## goop.site — Site file access

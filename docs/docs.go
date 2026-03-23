@@ -1229,6 +1229,72 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/data/lua/call": {
+            "post": {
+                "description": "Invokes a server-side Lua function by name with parameters. Used by the virtual REST API (Goop.api) and custom data functions.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "data"
+                ],
+                "summary": "Call a Lua data function",
+                "parameters": [
+                    {
+                        "description": "Function name and parameters",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.dataLuaCallRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "function name required",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "lua scripting not enabled / function error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/lua/list": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "data"
+                ],
+                "summary": "List available Lua data functions",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.dataLuaListResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/data/query": {
             "post": {
                 "consumes": [
@@ -4110,6 +4176,43 @@ const docTemplate = `{
                 "status": {
                     "type": "string",
                     "example": "inserted"
+                }
+            }
+        },
+        "routes.dataLuaCallRequest": {
+            "type": "object",
+            "properties": {
+                "function": {
+                    "type": "string",
+                    "example": "api"
+                },
+                "params": {
+                    "type": "object",
+                    "additionalProperties": {}
+                }
+            }
+        },
+        "routes.dataLuaFunctionInfo": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Virtual REST API endpoint"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "api"
+                }
+            }
+        },
+        "routes.dataLuaListResponse": {
+            "type": "object",
+            "properties": {
+                "functions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/routes.dataLuaFunctionInfo"
+                    }
                 }
             }
         },

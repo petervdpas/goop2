@@ -1619,6 +1619,46 @@ func swagDataTablesRename() {}
 //	@Router		/api/data/tables/export-schema [post]
 func swagDataTablesExportSchema() {}
 
+// swagDataLuaCall is a documentation stub for POST /api/data/lua/call.
+//
+//	@Summary	Call a Lua data function
+//	@Description	Invokes a server-side Lua function by name with parameters. Used by the virtual REST API (Goop.api) and custom data functions.
+//	@Tags		data
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		dataLuaCallRequest	true	"Function name and parameters"
+//	@Success	200		{object}	map[string]interface{}
+//	@Failure	400		{string}	string	"function name required"
+//	@Failure	500		{string}	string	"lua scripting not enabled / function error"
+//	@Router		/api/data/lua/call [post]
+func swagDataLuaCall() {}
+
+// swagDataLuaList is a documentation stub for GET /api/data/lua/list.
+//
+//	@Summary	List available Lua data functions
+//	@Tags		data
+//	@Produce	json
+//	@Success	200	{object}	dataLuaListResponse
+//	@Router		/api/data/lua/list [get]
+func swagDataLuaList() {}
+
+// dataLuaCallRequest is the body for POST /api/data/lua/call.
+type dataLuaCallRequest struct {
+	Function string         `json:"function" example:"api"`
+	Params   map[string]any `json:"params"`
+}
+
+// dataLuaListResponse is the response for GET /api/data/lua/list.
+type dataLuaListResponse struct {
+	Functions []dataLuaFunctionInfo `json:"functions"`
+}
+
+// dataLuaFunctionInfo describes a loaded Lua data function.
+type dataLuaFunctionInfo struct {
+	Name        string `json:"name" example:"api"`
+	Description string `json:"description" example:"Virtual REST API endpoint"`
+}
+
 // ── Avatar ───────────────────────────────────────────────────────────────────
 
 // swagAvatarGet is a documentation stub for GET /api/avatar.

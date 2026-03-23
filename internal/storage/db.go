@@ -600,6 +600,7 @@ type SelectOpts struct {
 	Columns []string
 	Where   string
 	Args    []any
+	Order   string
 	Limit   int
 	Offset  int
 }
@@ -633,6 +634,9 @@ func (d *DB) SelectPaged(opts SelectOpts) ([]map[string]any, error) {
 	query := fmt.Sprintf("SELECT %s FROM %s", colStr, opts.Table)
 	if opts.Where != "" {
 		query += " WHERE " + opts.Where
+	}
+	if opts.Order != "" {
+		query += " ORDER BY " + opts.Order
 	}
 	if opts.Limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", opts.Limit)

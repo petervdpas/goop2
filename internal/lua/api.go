@@ -688,6 +688,115 @@ func schemaDeleteFn(db *storage.DB) lua.LGFunction {
 	}
 }
 
+// schemaFindFn implements goop.schema.find(table, opts) — filtered query with ordering and pagination.
+// opts: {where, args, fields, order, limit, offset}
+func schemaFindFn(db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		tableName := L.CheckString(1)
+		optsTbl := L.OptTable(2, nil)
+
+		opts := storage.SelectOpts{Table: tableName}
+		if optsTbl != nil {
+			if v := optsTbl.RawGetString("where"); v != lua.LNil {
+				opts.Where = v.String()
+			}
+			if v := optsTbl.RawGetString("order"); v != lua.LNil {
+				opts.Order = v.String()
+			}
+			if v := optsTbl.RawGetString("limit"); v != lua.LNil {
+				if n, ok := v.(lua.LNumber); ok {
+					opts.Limit = int(n)
+				}
+			}
+			if v := optsTbl.RawGetString("offset"); v != lua.LNil {
+				if n, ok := v.(lua.LNumber); ok {
+					opts.Offset = int(n)
+				}
+			}
+			if v, ok := optsTbl.RawGetString("args").(*lua.LTable); ok {
+				v.ForEach(func(_, val lua.LValue) {
+					opts.Args = append(opts.Args, luaToGo(val))
+				})
+			}
+			if v, ok := optsTbl.RawGetString("fields").(*lua.LTable); ok {
+				v.ForEach(func(_, val lua.LValue) {
+					if s, ok := val.(lua.LString); ok {
+						opts.Columns = append(opts.Columns, string(s))
+					}
+				})
+			}
+		}
+
+		rows, err := db.SelectPaged(opts)
+		if err != nil {
+			L.Push(lua.LNil)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+
+		tbl := L.NewTable()
+		for i, row := range rows {
+			rowTbl := L.NewTable()
+			for k, v := range row {
+				rowTbl.RawSetString(k, goToLua(L, v))
+			}
+			tbl.RawSetInt(i+1, rowTbl)
+		}
+		L.Push(tbl)
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
+// schemaFindOneFn implements goop.schema.find_one(table, opts) — single row query.
+// Same opts as find, but auto-sets limit=1 and returns the row directly (not an array).
+func schemaFindOneFn(db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		tableName := L.CheckString(1)
+		optsTbl := L.OptTable(2, nil)
+
+		opts := storage.SelectOpts{Table: tableName, Limit: 1}
+		if optsTbl != nil {
+			if v := optsTbl.RawGetString("where"); v != lua.LNil {
+				opts.Where = v.String()
+			}
+			if v, ok := optsTbl.RawGetString("args").(*lua.LTable); ok {
+				v.ForEach(func(_, val lua.LValue) {
+					opts.Args = append(opts.Args, luaToGo(val))
+				})
+			}
+			if v, ok := optsTbl.RawGetString("fields").(*lua.LTable); ok {
+				v.ForEach(func(_, val lua.LValue) {
+					if s, ok := val.(lua.LString); ok {
+						opts.Columns = append(opts.Columns, string(s))
+					}
+				})
+			}
+		}
+
+		rows, err := db.SelectPaged(opts)
+		if err != nil {
+			L.Push(lua.LNil)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+
+		if len(rows) == 0 {
+			L.Push(lua.LNil)
+			L.Push(lua.LNil)
+			return 2
+		}
+
+		rowTbl := L.NewTable()
+		for k, v := range rows[0] {
+			rowTbl.RawSetString(k, goToLua(L, v))
+		}
+		L.Push(rowTbl)
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
 func luaTableToMap(tbl *lua.LTable) map[string]any {
 	data := make(map[string]any)
 	tbl.ForEach(func(key, val lua.LValue) {
