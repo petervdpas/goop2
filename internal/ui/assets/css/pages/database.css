@@ -509,6 +509,45 @@
   min-width: 0;
 }
 
+.mapper-table-selectors{
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.mapper-table-selectors .gsel{
+  flex: 1;
+  min-width: 0;
+}
+
+.mapper-arrow{
+  font-size: 18px;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.mapper-field-cell{
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.mapper-field-target-wrap{
+  flex: 1.5;
+}
+
+.mapper-field-sources-wrap{
+  flex: 2;
+}
+
+.mapper-type-hint{
+  font-size: 10px;
+  color: var(--accent);
+  opacity: 0.7;
+  padding-left: 12px;
+}
+
 /* -----------------------------
    Schema designer
 ------------------------------ */

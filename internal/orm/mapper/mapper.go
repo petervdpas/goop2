@@ -21,6 +21,8 @@ type FieldMapping struct {
 type Mapping struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description,omitempty"`
+	SourceTable string         `json:"source_table,omitempty"`
+	TargetTable string         `json:"target_table,omitempty"`
 	Fields      []FieldMapping `json:"fields"`
 }
 

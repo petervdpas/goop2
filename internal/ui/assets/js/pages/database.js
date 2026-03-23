@@ -1212,10 +1212,12 @@
   var mapperEditorEl = qs("#db-mapper-editor");
   var btnNewMapper   = qs("#db-btn-new-mapper");
   var btnSaveMapper  = qs("#db-btn-save-mapper");
+  var btnRunMapper   = qs("#db-btn-run-mapper");
   var btnDeleteMapper = qs("#db-btn-delete-mapper");
 
   var currentMapper = null;
   var availableTransforms = [];
+  var availableTables = [];
 
   async function loadTransforms() {
     if (availableTransforms.length > 0) return;
@@ -1227,7 +1229,12 @@
   async function loadMappers(selectName) {
     await loadTransforms();
     try {
-      var mappers = await mapperApi.list() || [];
+      var results = await Promise.all([
+        mapperApi.list(),
+        api.tables(),
+      ]);
+      var mappers = results[0] || [];
+      availableTables = results[1] || [];
       renderMapperList(mappers);
       if (selectName) {
         selectMapper(selectName);
@@ -1268,6 +1275,28 @@
     try {
       var m = await mapperApi.get({ name: name });
       mapperTitleEl.textContent = m.name;
+
+      if (m.source_table && m.target_table) {
+        try {
+          var descs = await Promise.all([
+            api.describeTable({ table: m.source_table }),
+            api.describeTable({ table: m.target_table }),
+          ]);
+          var srcCols = (descs[0].schema && descs[0].schema.columns) || descs[0].columns || [];
+          var tgtCols = (descs[1].schema && descs[1].schema.columns) || descs[1].columns || [];
+
+          var srcTypes = {};
+          srcCols.forEach(function(c) { srcTypes[c.name.toLowerCase()] = (c.type || "").toLowerCase(); });
+          var tgtTypes = {};
+          tgtCols.forEach(function(c) { tgtTypes[c.name.toLowerCase()] = (c.type || "").toLowerCase(); });
+
+          (m.fields || []).forEach(function(f) {
+            if (f.target) f._targetType = tgtTypes[f.target.toLowerCase()] || "";
+            if (f.sources && f.sources.length > 0) f._sourceType = srcTypes[f.sources[0].toLowerCase()] || "";
+          });
+        } catch (e) { /* tables may not exist yet */ }
+      }
+
       renderMapperEditor(m);
     } catch (err) {
       mapperEditorEl.innerHTML = '<p class="empty-state">Error loading mapping: ' + escapeHtml(err.message) + '</p>';
@@ -1282,6 +1311,14 @@
     return opts;
   }
 
+  function tableSelectOptions() {
+    var opts = [{ value: "", label: "(select table)" }];
+    availableTables.forEach(function(t) {
+      opts.push({ value: t.name, label: t.name + (t.mode === "orm" ? " (ORM)" : "") });
+    });
+    return opts;
+  }
+
   function renderMapperEditor(m) {
     var html = '<div class="db-mapper-form">';
     html += '<div class="form-group">' +
@@ -1291,6 +1328,16 @@
     html += '<div class="form-group">' +
       '<label>Description</label>' +
       '<input type="text" id="mapper-desc" class="form-input" value="' + escapeHtml(m.description || '') + '" />' +
+    '</div>';
+
+    html += '<div class="form-group">' +
+      '<label>Source / Target</label>' +
+      '<div class="mapper-table-selectors">' +
+        gsel.html({ id: "mapper-source-table", value: m.source_table || "", options: tableSelectOptions(), placeholder: "Source table" }) +
+        '<span class="mapper-arrow">&#8594;</span>' +
+        gsel.html({ id: "mapper-target-table", value: m.target_table || "", options: tableSelectOptions(), placeholder: "Target table" }) +
+        '<button id="mapper-auto-map" class="db-action-btn">Auto-map</button>' +
+      '</div>' +
     '</div>';
 
     html += '<div class="form-group">' +
@@ -1310,6 +1357,11 @@
     initFormSelects(mapperEditorEl);
     bindMapperFieldEvents();
 
+    gsel.init(qs("#mapper-source-table"));
+    gsel.init(qs("#mapper-target-table"));
+
+    on(qs("#mapper-auto-map"), "click", autoMapFields);
+
     on(qs("#mapper-add-field"), "click", function() {
       var container = qs("#mapper-fields");
       var div = document.createElement("div");
@@ -1322,13 +1374,85 @@
     });
   }
 
+  async function autoMapFields() {
+    var sourceTable = gsel.val(qs("#mapper-source-table"));
+    var targetTable = gsel.val(qs("#mapper-target-table"));
+
+    if (!sourceTable || !targetTable) {
+      toast("Select both source and target tables", true);
+      return;
+    }
+
+    try {
+      var results = await Promise.all([
+        api.describeTable({ table: sourceTable }),
+        api.describeTable({ table: targetTable }),
+      ]);
+
+      var sourceCols = (results[0].schema && results[0].schema.columns) || results[0].columns || [];
+      var targetCols = (results[1].schema && results[1].schema.columns) || results[1].columns || [];
+
+      var sourceInfo = {};
+      sourceCols.forEach(function(c) {
+        if (systemCols.indexOf(c.name) === -1) {
+          sourceInfo[c.name.toLowerCase()] = { name: c.name, type: (c.type || "").toLowerCase() };
+        }
+      });
+
+      var fields = [];
+      targetCols.forEach(function(tc) {
+        if (systemCols.indexOf(tc.name) === -1) {
+          var colType = (tc.type || "").toLowerCase();
+          var match = sourceInfo[tc.name.toLowerCase()];
+          var f = { target: tc.name, _targetType: colType };
+
+          if (colType === "guid") {
+            f.transform = "guid";
+          } else if (match) {
+            f.sources = [match.name];
+            f._sourceType = match.type;
+          } else if (colType === "date") {
+            f.transform = "date";
+          } else {
+            f.sources = [];
+          }
+
+          fields.push(f);
+        }
+      });
+
+      var container = qs("#mapper-fields");
+      container.innerHTML = "";
+      if (fields.length === 0) {
+        container.innerHTML = mapperFieldRow({});
+      } else {
+        fields.forEach(function(f) {
+          container.innerHTML += mapperFieldRow(f);
+        });
+      }
+      initFormSelects(container);
+      bindMapperFieldEvents();
+      toast("Mapped " + fields.length + " fields");
+    } catch (err) {
+      toast("Auto-map failed: " + err.message, true);
+    }
+  }
+
   function mapperFieldRow(f) {
     var sources = (f.sources || []).join(", ");
     var args = (f.args || []).map(function(a) { return JSON.stringify(a); }).join(", ");
     var constant = f.constant !== undefined && f.constant !== null ? JSON.stringify(f.constant) : "";
+    var targetType = f._targetType ? ' <span class="mapper-type-hint">' + escapeHtml(f._targetType) + '</span>' : "";
+    var sourceType = f._sourceType ? ' <span class="mapper-type-hint">' + escapeHtml(f._sourceType) + '</span>' : "";
     return '<div class="mapper-field-row">' +
-      '<input type="text" class="form-input mapper-field-target" placeholder="target" value="' + escapeHtml(f.target || '') + '" title="Target field name" />' +
-      '<input type="text" class="form-input mapper-field-sources" placeholder="sources (comma sep)" value="' + escapeHtml(sources) + '" title="Source field(s), comma-separated" />' +
+      '<div class="mapper-field-cell mapper-field-target-wrap">' +
+        '<input type="text" class="form-input mapper-field-target" placeholder="target" value="' + escapeHtml(f.target || '') + '" title="Target field name" />' +
+        targetType +
+      '</div>' +
+      '<div class="mapper-field-cell mapper-field-sources-wrap">' +
+        '<input type="text" class="form-input mapper-field-sources" placeholder="sources (comma sep)" value="' + escapeHtml(sources) + '" title="Source field(s), comma-separated" />' +
+        sourceType +
+      '</div>' +
       gsel.html({ className: "mapper-field-transform", value: f.transform || "", options: transformOptions() }) +
       '<input type="text" class="form-input mapper-field-args" placeholder="args" value="' + escapeHtml(args) + '" title="Transform arguments (JSON values, comma-separated)" />' +
       '<input type="text" class="form-input mapper-field-constant" placeholder="constant" value="' + escapeHtml(constant) + '" title="Constant value (JSON)" />' +
@@ -1385,7 +1509,14 @@
       fields.push(field);
     });
 
-    return { name: name, description: description, fields: fields };
+    var sourceTable = "";
+    var targetTable = "";
+    var srcEl = qs("#mapper-source-table");
+    var tgtEl = qs("#mapper-target-table");
+    if (srcEl) sourceTable = gsel.val(srcEl) || "";
+    if (tgtEl) targetTable = gsel.val(tgtEl) || "";
+
+    return { name: name, description: description, source_table: sourceTable, target_table: targetTable, fields: fields };
   }
 
   async function saveMapper() {
@@ -1400,6 +1531,35 @@
       await loadMappers(data.name);
     } catch (err) {
       toast("Save failed: " + err.message, true);
+    }
+  }
+
+  async function executeMapper() {
+    if (!currentMapper) { toast("Save the mapping first", true); return; }
+
+    var sourceTable = gsel.val(qs("#mapper-source-table"));
+    var targetTable = gsel.val(qs("#mapper-target-table"));
+
+    if (!sourceTable || !targetTable) {
+      toast("Select both source and target tables", true);
+      return;
+    }
+
+    var ok = await Goop.dialog.confirm(
+      'Execute mapping "' + currentMapper + '"?\n\nSource: ' + sourceTable + '\nTarget: ' + targetTable,
+      "Execute Mapping"
+    );
+    if (!ok) return;
+
+    try {
+      var result = await mapperApi.execute({
+        name: currentMapper,
+        source_table: sourceTable,
+        target_table: targetTable,
+      });
+      toast("Inserted " + (result.inserted || 0) + " rows into " + targetTable);
+    } catch (err) {
+      toast("Execute failed: " + err.message, true);
     }
   }
 
@@ -1442,6 +1602,7 @@
 
   on(btnNewMapper, "click", showNewMapperForm);
   on(btnSaveMapper, "click", saveMapper);
+  on(btnRunMapper, "click", executeMapper);
   on(btnDeleteMapper, "click", deleteMapper);
 
   // -------- Init --------

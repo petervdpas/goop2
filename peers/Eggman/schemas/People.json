@@ -1,0 +1,16 @@
+{
+  "name": "People",
+  "columns": [
+    {
+      "name": "Id",
+      "type": "integer",
+      "key": true,
+      "required": true
+    },
+    {
+      "name": "Name",
+      "type": "text",
+      "required": true
+    }
+  ]
+}
