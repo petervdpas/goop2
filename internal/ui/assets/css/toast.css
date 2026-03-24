@@ -109,6 +109,22 @@
   line-height: 1.4;
 }
 
+/* Toast levels */
+.toast-error   { border-left-color: #e55; }
+.toast-error   .toast-icon { color: #e55; }
+.toast-error   .toast-title { color: #e55; }
+
+.toast-warning { border-left-color: #f5a623; }
+.toast-warning .toast-icon { color: #f5a623; }
+.toast-warning .toast-title { color: #f5a623; }
+
+.toast-success { border-left-color: #68d391; }
+.toast-success .toast-icon { color: #68d391; }
+.toast-success .toast-title { color: #68d391; }
+
+.toast-info    { border-left-color: var(--accent); }
+.toast-info    .toast-icon { color: var(--accent); }
+
 .toast-peer-id {
   color: var(--accent);
   font-weight: 500;

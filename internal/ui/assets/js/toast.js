@@ -16,7 +16,7 @@
     const container = ensureContainer();
     
     const toast = document.createElement('div');
-    toast.className = 'toast';
+    toast.className = 'toast' + (options.level ? ' toast-' + options.level : '');
     
     const icon = options.icon || '💬';
     const title = options.title || 'Notification';

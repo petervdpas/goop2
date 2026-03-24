@@ -81,18 +81,29 @@
     });
   }
 
-  function toast(msg, isError) {
+  var toastLevels = {
+    error:   { icon: "!", title: "Error",   cls: "toast-error",   duration: 6000 },
+    warning: { icon: "!", title: "Warning", cls: "toast-warning", duration: 5000 },
+    success: { icon: "ok", title: "Success", cls: "toast-success", duration: 3000 },
+    info:    { icon: "i", title: "Info",    cls: "toast-info",    duration: 4000 },
+  };
+
+  function toast(msg, level) {
     if (window.Goop && window.Goop.toast) {
+      if (level === true) level = "error";
+      if (!level) level = "success";
+      var cfg = toastLevels[level] || toastLevels.info;
       var text = String(msg || "");
       if (text.length > 100) {
         var parts = text.split(": ");
         text = parts.length > 2 ? parts.slice(0, 2).join(": ") : text.substring(0, 100) + "\u2026";
       }
       window.Goop.toast({
-        icon: isError ? "!" : "ok",
-        title: isError ? "Error" : "Success",
+        icon: cfg.icon,
+        title: cfg.title,
         message: text,
-        duration: isError ? 6000 : 3000,
+        duration: cfg.duration,
+        level: level,
       });
     }
   }
