@@ -1047,6 +1047,8 @@ definitions:
     type: object
   routes.schemaColumn:
     properties:
+      auto:
+        type: boolean
       default: {}
       key:
         type: boolean

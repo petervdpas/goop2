@@ -486,6 +486,9 @@ func schemaCreateFn(_ *invocationCtx, db *storage.DB) lua.LGFunction {
 			if v := row.RawGetString("required"); v == lua.LTrue {
 				col.Required = true
 			}
+			if v := row.RawGetString("auto"); v == lua.LTrue {
+				col.Auto = true
+			}
 			if v := row.RawGetString("default"); v != lua.LNil {
 				col.Default = luaToGo(v)
 			}
@@ -530,6 +533,7 @@ func schemaDescribeFn(db *storage.DB) lua.LGFunction {
 			colTbl.RawSetString("type", lua.LString(c.Type))
 			colTbl.RawSetString("key", lua.LBool(c.Key))
 			colTbl.RawSetString("required", lua.LBool(c.Required))
+			colTbl.RawSetString("auto", lua.LBool(c.Auto))
 			if c.Default != nil {
 				colTbl.RawSetString("default", goToLua(L, c.Default))
 			}

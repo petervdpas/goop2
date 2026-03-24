@@ -285,6 +285,12 @@ func (d *DB) CreateTable(name string, columns []ColumnDef) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
+	var exists int
+	d.db.QueryRow(`SELECT COUNT(*) FROM _tables WHERE name = ?`, name).Scan(&exists)
+	if exists > 0 {
+		return fmt.Errorf("table %q already exists", name)
+	}
+
 	// Build column definitions
 	colSQL := ""
 	for i, col := range columns {

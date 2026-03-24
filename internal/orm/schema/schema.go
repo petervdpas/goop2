@@ -23,6 +23,7 @@ type Column struct {
 	Type     string `json:"type"`
 	Key      bool   `json:"key,omitempty"`
 	Required bool   `json:"required,omitempty"`
+	Auto     bool   `json:"auto,omitempty"`
 	Default  any    `json:"default,omitempty"`
 }
 
@@ -95,7 +96,9 @@ func (t *Table) DDL() string {
 		for i, c := range t.Columns {
 			if c.Key {
 				cols[i] = c.Name + " " + sqlType(c.Type) + " PRIMARY KEY"
-				if c.Type == "integer" {
+				if c.Type == "integer" && c.Auto {
+					cols[i] += " AUTOINCREMENT"
+				} else if c.Type == "integer" {
 					cols[i] += " NOT NULL"
 				}
 				break

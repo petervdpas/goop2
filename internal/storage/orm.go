@@ -104,6 +104,7 @@ type LuaSchemaColumn struct {
 	Type     string
 	Key      bool
 	Required bool
+	Auto     bool
 	Default  any
 }
 
@@ -116,6 +117,7 @@ func (d *DB) CreateTableORMFromLua(name string, columns []LuaSchemaColumn) error
 			Type:     c.Type,
 			Key:      c.Key,
 			Required: c.Required,
+			Auto:     c.Auto,
 			Default:  c.Default,
 		}
 	}
@@ -154,7 +156,7 @@ func (d *DB) ValidateInsert(tableName string, data map[string]any) error {
 	for _, col := range tbl.Columns {
 		val, exists := data[col.Name]
 		if !exists || val == nil {
-			if col.Type == "guid" || col.Type == "date" {
+			if col.Auto {
 				continue
 			}
 			if col.Required && col.Default == nil {
@@ -207,12 +209,17 @@ func (d *DB) OrmInsert(tableName, ownerID, ownerEmail string, data map[string]an
 	tbl, _ := d.GetSchema(tableName)
 	if tbl != nil {
 		for _, col := range tbl.Columns {
+			if !col.Auto {
+				continue
+			}
 			if v, exists := data[col.Name]; !exists || v == nil || v == "" {
 				switch col.Type {
 				case "guid":
 					data[col.Name] = schema.GenerateGUID()
 				case "date":
 					data[col.Name] = schema.NowUTC()
+				case "integer":
+					// integer auto = AUTOINCREMENT — don't set, let SQLite handle it
 				}
 			}
 		}

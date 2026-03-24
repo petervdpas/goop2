@@ -10,7 +10,7 @@ import (
 
 func hasSchemaFields(cols []schema.Column) bool {
 	for _, c := range cols {
-		if c.Key || c.Required {
+		if c.Key || c.Required || c.Auto {
 			return true
 		}
 	}

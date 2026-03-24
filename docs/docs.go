@@ -5625,6 +5625,9 @@ const docTemplate = `{
         "routes.schemaColumn": {
             "type": "object",
             "properties": {
+                "auto": {
+                    "type": "boolean"
+                },
                 "default": {},
                 "key": {
                     "type": "boolean"

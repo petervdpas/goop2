@@ -2213,6 +2213,7 @@ type schemaColumn struct {
 	Type     string `json:"type"              example:"integer"`
 	Key      bool   `json:"key,omitempty"`
 	Required bool   `json:"required,omitempty"`
+	Auto     bool   `json:"auto,omitempty"`
 	Default  any    `json:"default,omitempty"`
 }
 

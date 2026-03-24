@@ -5,7 +5,8 @@
       "name": "Id",
       "type": "guid",
       "key": true,
-      "required": true
+      "required": true,
+      "auto": true
     },
     {
       "name": "Name",

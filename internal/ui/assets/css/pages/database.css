@@ -586,6 +586,7 @@
 .schema-h-type{ flex: 1; min-width: 90px; }
 .schema-h-key{ width: 36px; text-align: center; }
 .schema-h-req{ width: 56px; text-align: center; }
+.schema-h-auto{ width: 36px; text-align: center; }
 .schema-h-def{ flex: 1; }
 .schema-h-rm{ width: 28px; }
 

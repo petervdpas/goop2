@@ -694,8 +694,8 @@
 
       var extra = "";
       if (colType === "real") extra = ' step="any"';
-      if (colType === "guid") extra = ' readonly placeholder="(auto-generated)"';
-      if (colType === "date") extra = ' placeholder="Click to pick a date"';
+      if (col.auto) extra = ' readonly placeholder="(auto-generated)"';
+      else if (colType === "date") extra = ' placeholder="Click to pick a date"';
 
       html += '<div class="db-insert-field">' +
         '<label>' + escapeHtml(col.name) + ' <span style="opacity:0.5;font-size:11px">(' + escapeHtml(col.type) + ')</span></label>' +
@@ -1038,6 +1038,7 @@
         '<span class="schema-h-type">Type</span>' +
         '<span class="schema-h-key">Key</span>' +
         '<span class="schema-h-req">Required</span>' +
+        '<span class="schema-h-auto">Auto</span>' +
         '<span class="schema-h-def">Default</span>' +
         '<span class="schema-h-rm"></span>' +
       '</div>' +
@@ -1077,6 +1078,7 @@
       gsel.html({ className: "schema-col-type", value: c.type || "text", options: schemaTypeOptions() }) +
       '<label class="schema-col-check"><input type="checkbox" class="schema-col-key"' + (c.key ? ' checked' : '') + ' /></label>' +
       '<label class="schema-col-check"><input type="checkbox" class="schema-col-req"' + (c.required ? ' checked' : '') + ' /></label>' +
+      '<label class="schema-col-check"><input type="checkbox" class="schema-col-auto"' + (c.auto ? ' checked' : '') + ' /></label>' +
       '<input type="text" class="form-input schema-col-def" placeholder="" value="' + escapeHtml(def) + '" />' +
       '<button class="db-col-remove schema-col-remove">x</button>' +
     '</div>';
@@ -1110,6 +1112,7 @@
       };
       if (qs(".schema-col-key", row).checked) col.key = true;
       if (qs(".schema-col-req", row).checked) col.required = true;
+      if (qs(".schema-col-auto", row).checked) col.auto = true;
       var def = qs(".schema-col-def", row).value.trim();
       if (def) {
         var num = Number(def);
@@ -1195,7 +1198,7 @@
     schemaTitleEl.textContent = "New Schema";
     highlightActiveSchema(null);
     setHidden(schemaActionsEl, false);
-    renderSchemaEditor({ name: "", columns: [{ type: "integer", name: "", key: true }] });
+    renderSchemaEditor({ name: "", columns: [{ type: "guid", name: "Id", key: true, auto: true }] });
     updateDdlPreview();
     qs("#schema-name").focus();
   }
