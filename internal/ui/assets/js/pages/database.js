@@ -477,7 +477,7 @@
       if (newValue === "") {
         td.innerHTML = '<span class="db-cell-null">NULL</span>';
       }
-      toast(colName + " updated");
+      toast(colName + " updated", "info");
     } catch (err) {
       restoreCell(td, oldValue);
       toast("Update failed: " + err.message, true);
@@ -609,9 +609,9 @@
   async function submitCreateTable() {
     var name = (qs("#db-new-name").value || "").trim();
 
-    if (!name) { toast("Table name required", true); return; }
+    if (!name) { toast("Table name required", "warning"); return; }
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
-      toast("Name must be letters, digits, underscore (start with letter or _)", true);
+      toast("Name must be letters, digits, underscore (start with letter or _)", "warning");
       return;
     }
 
@@ -625,7 +625,7 @@
       }
     });
 
-    if (cols.length === 0) { toast("Add at least one column", true); return; }
+    if (cols.length === 0) { toast("Add at least one column", "warning"); return; }
 
     var policy = gsel.val(qs("#db-new-policy")) || "owner";
 
@@ -680,7 +680,7 @@
     });
 
     if (userCols.length === 0) {
-      toast("No user columns to fill", true);
+      toast("No user columns to fill", "warning");
       return;
     }
 
@@ -817,7 +817,7 @@
         await api.setPolicy({ table: currentTable, policy: newPolicy });
         currentPolicy = newPolicy;
         tablesMeta[currentTable] = { insert_policy: newPolicy };
-        toast("Insert policy set to " + newPolicy);
+        toast("Insert policy set to " + newPolicy, "info");
         // Update header badge
         tableTitleEl.innerHTML = escapeHtml(currentTable) +
           ' <span class="badge badge-' + newPolicy + '">' + (policyLabels[newPolicy] || newPolicy) + '</span>';
@@ -834,7 +834,7 @@
       var newName = (qs("#db-rename-input").value || "").trim();
       if (!newName || newName === currentTable) return;
       if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(newName)) {
-        toast("Invalid table name", true);
+        toast("Invalid table name", "warning");
         return;
       }
       try {
@@ -874,9 +874,9 @@
     on(qs("#db-addcol-btn"), "click", async function() {
       var colName = (qs("#db-addcol-name").value || "").trim();
       var colType = gsel.val(qs("#db-addcol-type"));
-      if (!colName) { toast("Column name required", true); return; }
+      if (!colName) { toast("Column name required", "warning"); return; }
       if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(colName)) {
-        toast("Invalid column name", true);
+        toast("Invalid column name", "warning");
         return;
       }
       try {
@@ -1139,8 +1139,8 @@
 
   async function saveSchema() {
     var data = collectSchemaData();
-    if (!data.name) { toast("Table name required", true); return; }
-    if (data.columns.length === 0) { toast("Add at least one column", true); return; }
+    if (!data.name) { toast("Table name required", "warning"); return; }
+    if (data.columns.length === 0) { toast("Add at least one column", "warning"); return; }
 
     try {
       await schemaApi.save(data);
@@ -1390,7 +1390,7 @@
     var targetTable = gsel.val(qs("#mapper-target-table"));
 
     if (!sourceTable || !targetTable) {
-      toast("Select both source and target tables", true);
+      toast("Select both source and target tables", "warning");
       return;
     }
 
@@ -1443,7 +1443,7 @@
       }
       initFormSelects(container);
       bindMapperFieldEvents();
-      toast("Mapped " + fields.length + " fields");
+      toast("Mapped " + fields.length + " fields", "info");
     } catch (err) {
       toast("Auto-map failed: " + err.message, true);
     }
@@ -1504,7 +1504,7 @@
         try {
           field.args = JSON.parse("[" + argsStr + "]");
         } catch (e) {
-          toast("Invalid args JSON in field " + target, true);
+          toast("Invalid args JSON in field " + target, "warning");
         }
       }
 
@@ -1532,8 +1532,8 @@
 
   async function saveMapper() {
     var data = collectMapperData();
-    if (!data.name) { toast("Mapping name required", true); return; }
-    if (data.fields.length === 0) { toast("Add at least one field", true); return; }
+    if (!data.name) { toast("Mapping name required", "warning"); return; }
+    if (data.fields.length === 0) { toast("Add at least one field", "warning"); return; }
 
     try {
       await mapperApi.save(data);
@@ -1546,13 +1546,13 @@
   }
 
   async function executeMapper() {
-    if (!currentMapper) { toast("Save the mapping first", true); return; }
+    if (!currentMapper) { toast("Save the mapping first", "warning"); return; }
 
     var sourceTable = gsel.val(qs("#mapper-source-table"));
     var targetTable = gsel.val(qs("#mapper-target-table"));
 
     if (!sourceTable || !targetTable) {
-      toast("Select both source and target tables", true);
+      toast("Select both source and target tables", "warning");
       return;
     }
 

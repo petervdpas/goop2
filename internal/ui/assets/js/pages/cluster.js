@@ -402,7 +402,7 @@
     var val = parseInt(maxEl && maxEl.value || "0", 10) || 0;
     if (!_groupID) return;
     api.groups.setMaxMembers({ group_id: _groupID, max_members: val }).then(function () {
-      toast("Max workers updated");
+      toast("Max workers updated", "info");
       loadClusterGroups();
     }).catch(function (err) { toast("Failed: " + err.message, true); });
   });
@@ -430,7 +430,7 @@
     fn().then(function () {
       _workerPaused = !_workerPaused;
       updatePauseBtn();
-      toast(_workerPaused ? "Worker paused" : "Worker resumed");
+      toast(_workerPaused ? "Worker paused" : "Worker resumed", "info");
     }).catch(function (err) { toast("Failed: " + err.message, true); });
   });
 
@@ -497,10 +497,10 @@
 
   on(submitBtn, "click", function () {
     var type = gsel.val(jobType);
-    if (!type) { toast("Select a job type", true); return; }
+    if (!type) { toast("Select a job type", "warning"); return; }
 
     var p = core.validateJSON(jobPayload.value);
-    if (!p.ok) { toast("Payload: " + p.error, true); jobPayload.focus(); return; }
+    if (!p.ok) { toast("Payload: " + p.error, "warning"); jobPayload.focus(); return; }
 
     api.cluster.submit({
       type:      type,
@@ -529,10 +529,10 @@
 
   on(binaryBtn, "click", function () {
     var path = binaryPicker ? binaryPicker.value() : "";
-    if (!path) { toast("Binary path is required", true); return; }
+    if (!path) { toast("Binary path is required", "warning"); return; }
     var mode = gsel.val(binaryModeEl) || "oneshot";
     api.cluster.binary({ path: path, mode: mode }).then(function () {
-      toast("Binary set");
+      toast("Binary set", "info");
       workerStatusEl.textContent = "Binary: " + path + " (" + mode + ")";
     }).catch(function (err) { toast("Failed: " + err.message, true); });
   });

@@ -244,7 +244,7 @@
               })
               .then(function(data) {
                 if (data.cancelled) return;
-                Goop.toast({ title: 'Exported', message: 'Saved to ' + data.path, duration: 3000 });
+                Goop.toast({ title: 'Exported', message: 'Saved to ' + data.path, duration: 3000, level: 'success' });
               });
           }
           // Fallback: browser download
@@ -256,11 +256,11 @@
           a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
-          Goop.toast({ title: 'Exported', message: 'Site archive downloaded.', duration: 3000 });
+          Goop.toast({ title: 'Exported', message: 'Site archive downloaded.', duration: 3000, level: 'success' });
         })
         .catch(function(err) {
           var errMsg = err.message || 'Unknown error';
-          Goop.toast({ title: 'Export Error', message: errMsg, duration: 6000 });
+          Goop.toast({ title: 'Export Error', message: errMsg, duration: 6000, level: 'error' });
         })
         .finally(function() {
           exportBtn.disabled = false;
@@ -295,12 +295,12 @@
             return res.json();
           })
           .then(function() {
-            Goop.toast({ title: 'Site Imported', message: 'Archive applied. Redirecting to editor...', duration: 3000 });
+            Goop.toast({ title: 'Site Imported', message: 'Archive applied. Redirecting to editor...', duration: 3000, level: 'success' });
             setTimeout(function() { window.location.href = '/edit'; }, 1500);
           })
           .catch(function(err) {
             var errMsg = err.message || 'Unknown error';
-            Goop.toast({ title: 'Import Error', message: errMsg, duration: 6000 });
+            Goop.toast({ title: 'Import Error', message: errMsg, duration: 6000, level: 'error' });
           })
           .finally(function() {
             importFile.value = '';

@@ -30,7 +30,7 @@
     .then(function(res) {
       if (res.status === 402) {
         return res.text().then(function(t) {
-          Goop.toast({ title: 'Warning', message: t || 'Template could not be applied, insufficient funding', duration: 6000 });
+          Goop.toast({ title: 'Warning', message: t || 'Template could not be applied, insufficient funding', duration: 6000, level: 'warning' });
           return null;
         });
       }
@@ -65,11 +65,11 @@
         var el = document.getElementById('meCredits');
         if (el) el.textContent = '\uD83E\uDE99 ' + data.balance + ' credits';
       }
-      Goop.toast({ title: 'Template Applied', message: msg, duration: 5000 });
+      Goop.toast({ title: 'Template Applied', message: msg, duration: 5000, level: 'success' });
     })
     .catch(function(err) {
       var errMsg = err.message || 'Unknown error';
-      Goop.toast({ title: 'Error', message: errMsg, duration: 6000 });
+      Goop.toast({ title: 'Error', message: errMsg, duration: 6000, level: 'error' });
     });
   }
   // ── Local Template ──
@@ -104,7 +104,7 @@
         preview.style.display = '';
       })
       .catch(function(err) {
-        Goop.toast({ title: 'Invalid Template', message: err.message || 'Could not read template', duration: 5000 });
+        Goop.toast({ title: 'Invalid Template', message: err.message || 'Could not read template', duration: 5000, level: 'warning' });
       });
     }
 
@@ -135,10 +135,10 @@
               oldStar.title = 'Previously applied';
             }
             document.querySelectorAll('.tpl-card-active').forEach(function(c) { c.classList.remove('tpl-card-active'); });
-            Goop.toast({ title: 'Template Applied', message: '"' + (data.template || name) + '" is now active.', duration: 5000 });
+            Goop.toast({ title: 'Template Applied', message: '"' + (data.template || name) + '" is now active.', duration: 5000, level: 'success' });
           })
           .catch(function(err) {
-            Goop.toast({ title: 'Error', message: err.message || 'Unknown error', duration: 6000 });
+            Goop.toast({ title: 'Error', message: err.message || 'Unknown error', duration: 6000, level: 'error' });
           });
         });
       });

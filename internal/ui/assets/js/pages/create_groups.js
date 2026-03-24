@@ -25,7 +25,7 @@
     var appType = (gsel.val(appTypeSelect) || 'general').trim();
     var maxMembers = parseInt(maxMembersInput.value, 10) || 0;
 
-    if (!name) { toast('Group name is required', true); return; }
+    if (!name) { toast('Group name is required', "warning"); return; }
 
     var p;
     if (appType === 'listen' && window.Goop && window.Goop.listen) {

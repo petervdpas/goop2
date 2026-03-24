@@ -127,12 +127,12 @@
   function applyPrefab(dir, script, label) {
     api('/api/lua/prefabs/apply', { prefab: dir, script: script || undefined, csrf: csrf })
     .then(function() {
-      Goop.toast({ title: 'Installed', message: '"' + label + '" added.', duration: 2000 });
+      Goop.toast({ title: 'Installed', message: '"' + label + '" added.', duration: 2000, level: 'success' });
       setTimeout(function() { window.location.href = '/lua'; }, 500);
     })
     .catch(function(err) {
       var errMsg = err.message || 'Unknown error';
-      Goop.toast({ title: 'Error', message: errMsg, duration: 6000 });
+      Goop.toast({ title: 'Error', message: errMsg, duration: 6000, level: 'error' });
     });
   }
 })();
