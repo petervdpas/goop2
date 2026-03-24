@@ -1342,6 +1342,14 @@
 
     html += '<div class="form-group">' +
       '<label>Field Mappings</label>' +
+      '<div class="mapper-field-header">' +
+        '<span class="mapper-h-src">SOURCE</span>' +
+        '<span class="mapper-h-tx">TRANSFORM</span>' +
+        '<span class="mapper-h-tgt">TARGET</span>' +
+        '<span class="mapper-h-args">ARGS</span>' +
+        '<span class="mapper-h-const">CONSTANT</span>' +
+        '<span class="mapper-h-rm"></span>' +
+      '</div>' +
       '<div id="mapper-fields">';
     if (m.fields && m.fields.length > 0) {
       m.fields.forEach(function(f) { html += mapperFieldRow(f); });
@@ -1445,15 +1453,15 @@
     var targetType = f._targetType ? ' <span class="mapper-type-hint">' + escapeHtml(f._targetType) + '</span>' : "";
     var sourceType = f._sourceType ? ' <span class="mapper-type-hint">' + escapeHtml(f._sourceType) + '</span>' : "";
     return '<div class="mapper-field-row">' +
+      '<div class="mapper-field-cell mapper-field-sources-wrap">' +
+        '<input type="text" class="form-input mapper-field-sources" placeholder="source" value="' + escapeHtml(sources) + '" title="Source field(s), comma-separated" />' +
+        sourceType +
+      '</div>' +
+      gsel.html({ className: "mapper-field-transform", value: f.transform || "", options: transformOptions() }) +
       '<div class="mapper-field-cell mapper-field-target-wrap">' +
         '<input type="text" class="form-input mapper-field-target" placeholder="target" value="' + escapeHtml(f.target || '') + '" title="Target field name" />' +
         targetType +
       '</div>' +
-      '<div class="mapper-field-cell mapper-field-sources-wrap">' +
-        '<input type="text" class="form-input mapper-field-sources" placeholder="sources (comma sep)" value="' + escapeHtml(sources) + '" title="Source field(s), comma-separated" />' +
-        sourceType +
-      '</div>' +
-      gsel.html({ className: "mapper-field-transform", value: f.transform || "", options: transformOptions() }) +
       '<input type="text" class="form-input mapper-field-args" placeholder="args" value="' + escapeHtml(args) + '" title="Transform arguments (JSON values, comma-separated)" />' +
       '<input type="text" class="form-input mapper-field-constant" placeholder="constant" value="' + escapeHtml(constant) + '" title="Constant value (JSON)" />' +
       '<button class="db-col-remove mapper-field-remove">x</button>' +
