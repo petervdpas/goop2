@@ -1544,6 +1544,46 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/data/schemas/set-context": {
+            "post": {
+                "description": "When context is true, the schema's table is exposed via the GraphQL API. Auto-rebuilds the GraphQL schema.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "schema"
+                ],
+                "summary": "Toggle whether a schema is included in the GraphQL context",
+                "parameters": [
+                    {
+                        "description": "Schema name and context flag",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.schemaSetContextRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    },
+                    "404": {
+                        "description": "schema not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/api/data/tables": {
             "get": {
                 "produces": [
@@ -1873,7 +1913,7 @@ const docTemplate = `{
                 "summary": "Delete a transformation definition",
                 "parameters": [
                     {
-                        "description": "Mapping name",
+                        "description": "Transformation name",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -1952,7 +1992,7 @@ const docTemplate = `{
                 "summary": "Get a transformation definition by name",
                 "parameters": [
                     {
-                        "description": "Mapping name",
+                        "description": "Transformation name",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -1991,7 +2031,7 @@ const docTemplate = `{
                 "summary": "Preview a transformation by applying it to sample rows (dry run)",
                 "parameters": [
                     {
-                        "description": "Mapping name and sample rows",
+                        "description": "Transformation name and sample rows",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -2107,6 +2147,138 @@ const docTemplate = `{
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/routes.dataUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/datafed/contributions": {
+            "post": {
+                "description": "Returns each peer's contributed tables and relationships. Tables with the same name from multiple peers are merged by column intersection in the federated GraphQL schema.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "data-federation"
+                ],
+                "summary": "Get all peer contributions for a data-federation group",
+                "parameters": [
+                    {
+                        "description": "Group ID",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.datafedGroupIDRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/routes.datafedPeerContribution"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/datafed/groups": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "data-federation"
+                ],
+                "summary": "List all active data-federation groups and their contributions",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/routes.datafedGroupInfo"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/datafed/offer": {
+            "post": {
+                "description": "Contributes selected tables (and optional relationships) to the group's federated graph. Triggers a federated schema rebuild.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "data-federation"
+                ],
+                "summary": "Offer context tables to a data-federation group",
+                "parameters": [
+                    {
+                        "description": "Tables to offer",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.datafedOfferRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    },
+                    "400": {
+                        "description": "validation error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/datafed/withdraw": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "data-federation"
+                ],
+                "summary": "Withdraw all contributed tables from a data-federation group",
+                "parameters": [
+                    {
+                        "description": "Group ID",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.datafedGroupIDRequest"
                         }
                     }
                 ],
@@ -2382,6 +2554,80 @@ const docTemplate = `{
                         "description": "cannot read directory",
                         "schema": {
                             "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/graphql": {
+            "post": {
+                "description": "Queries and mutations are auto-generated from ORM schemas with context: true. Supports filtering, ordering, pagination, insert, update, and delete.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "graphql"
+                ],
+                "summary": "Execute a GraphQL query or mutation",
+                "parameters": [
+                    {
+                        "description": "GraphQL request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.graphqlRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/graphql/rebuild": {
+            "post": {
+                "description": "Forces a rebuild of the GraphQL schema. Called automatically when schemas change, but can be triggered manually.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "graphql"
+                ],
+                "summary": "Rebuild the GraphQL schema from current context tables",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/graphql/status": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "graphql"
+                ],
+                "summary": "Get GraphQL engine status and context tables",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.graphqlStatusResponse"
                         }
                     }
                 }
@@ -4800,6 +5046,99 @@ const docTemplate = `{
                 }
             }
         },
+        "routes.datafedGroupIDRequest": {
+            "type": "object",
+            "properties": {
+                "group_id": {
+                    "type": "string",
+                    "example": "a1b2c3d4e5f6g7h8"
+                }
+            }
+        },
+        "routes.datafedGroupInfo": {
+            "type": "object",
+            "properties": {
+                "contributions": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "group_id": {
+                    "type": "string",
+                    "example": "a1b2c3d4e5f6g7h8"
+                }
+            }
+        },
+        "routes.datafedOfferRequest": {
+            "type": "object",
+            "properties": {
+                "group_id": {
+                    "type": "string",
+                    "example": "a1b2c3d4e5f6g7h8"
+                },
+                "relationships": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/routes.datafedRelationship"
+                    }
+                },
+                "tables": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "Person",
+                        "Order"
+                    ]
+                }
+            }
+        },
+        "routes.datafedPeerContribution": {
+            "type": "object",
+            "properties": {
+                "peer_id": {
+                    "type": "string"
+                },
+                "relationships": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/routes.datafedRelationship"
+                    }
+                },
+                "tables": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/routes.schemaSaveRequest"
+                    }
+                }
+            }
+        },
+        "routes.datafedRelationship": {
+            "type": "object",
+            "properties": {
+                "from_column": {
+                    "type": "string",
+                    "example": "customer_id"
+                },
+                "from_table": {
+                    "type": "string",
+                    "example": "Order"
+                },
+                "to_column": {
+                    "type": "string",
+                    "example": "Id"
+                },
+                "to_table": {
+                    "type": "string",
+                    "example": "Customer"
+                }
+            }
+        },
         "routes.docFileInfo": {
             "type": "object",
             "properties": {
@@ -4908,6 +5247,41 @@ const docTemplate = `{
                 "parent": {
                     "type": "string",
                     "example": "/home"
+                }
+            }
+        },
+        "routes.graphqlRequest": {
+            "type": "object",
+            "properties": {
+                "operationName": {
+                    "type": "string"
+                },
+                "query": {
+                    "type": "string",
+                    "example": "{ Person { Name credits } }"
+                },
+                "variables": {
+                    "type": "object",
+                    "additionalProperties": {}
+                }
+            }
+        },
+        "routes.graphqlStatusResponse": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "tables": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "Person",
+                        "Order"
+                    ]
                 }
             }
         },
@@ -5550,6 +5924,10 @@ const docTemplate = `{
                     "type": "integer",
                     "example": 5
                 },
+                "context": {
+                    "type": "boolean",
+                    "example": false
+                },
                 "has_key": {
                     "type": "boolean",
                     "example": true
@@ -5577,6 +5955,19 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/routes.schemaColumn"
                     }
+                },
+                "name": {
+                    "type": "string",
+                    "example": "orders"
+                }
+            }
+        },
+        "routes.schemaSetContextRequest": {
+            "type": "object",
+            "properties": {
+                "context": {
+                    "type": "boolean",
+                    "example": true
                 },
                 "name": {
                     "type": "string",

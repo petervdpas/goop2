@@ -480,6 +480,69 @@ definitions:
         example: my_table
         type: string
     type: object
+  routes.datafedGroupIDRequest:
+    properties:
+      group_id:
+        example: a1b2c3d4e5f6g7h8
+        type: string
+    type: object
+  routes.datafedGroupInfo:
+    properties:
+      contributions:
+        additionalProperties:
+          items:
+            type: string
+          type: array
+        type: object
+      group_id:
+        example: a1b2c3d4e5f6g7h8
+        type: string
+    type: object
+  routes.datafedOfferRequest:
+    properties:
+      group_id:
+        example: a1b2c3d4e5f6g7h8
+        type: string
+      relationships:
+        items:
+          $ref: '#/definitions/routes.datafedRelationship'
+        type: array
+      tables:
+        example:
+        - Person
+        - Order
+        items:
+          type: string
+        type: array
+    type: object
+  routes.datafedPeerContribution:
+    properties:
+      peer_id:
+        type: string
+      relationships:
+        items:
+          $ref: '#/definitions/routes.datafedRelationship'
+        type: array
+      tables:
+        items:
+          $ref: '#/definitions/routes.schemaSaveRequest'
+        type: array
+    type: object
+  routes.datafedRelationship:
+    properties:
+      from_column:
+        example: customer_id
+        type: string
+      from_table:
+        example: Order
+        type: string
+      to_column:
+        example: Id
+        type: string
+      to_table:
+        example: Customer
+        type: string
+    type: object
   routes.docFileInfo:
     properties:
       mod_time:
@@ -556,6 +619,30 @@ definitions:
       parent:
         example: /home
         type: string
+    type: object
+  routes.graphqlRequest:
+    properties:
+      operationName:
+        type: string
+      query:
+        example: '{ Person { Name credits } }'
+        type: string
+      variables:
+        additionalProperties: {}
+        type: object
+    type: object
+  routes.graphqlStatusResponse:
+    properties:
+      enabled:
+        example: true
+        type: boolean
+      tables:
+        example:
+        - Person
+        - Order
+        items:
+          type: string
+        type: array
     type: object
   routes.groupCreateRequest:
     properties:
@@ -994,6 +1081,9 @@ definitions:
       columns:
         example: 5
         type: integer
+      context:
+        example: false
+        type: boolean
       has_key:
         example: true
         type: boolean
@@ -1013,6 +1103,15 @@ definitions:
         items:
           $ref: '#/definitions/routes.schemaColumn'
         type: array
+      name:
+        example: orders
+        type: string
+    type: object
+  routes.schemaSetContextRequest:
+    properties:
+      context:
+        example: true
+        type: boolean
       name:
         example: orders
         type: string
@@ -2402,6 +2501,33 @@ paths:
       summary: Create or update a schema definition (saves as JSON file)
       tags:
       - schema
+  /api/data/schemas/set-context:
+    post:
+      consumes:
+      - application/json
+      description: When context is true, the schema's table is exposed via the GraphQL
+        API. Auto-rebuilds the GraphQL schema.
+      parameters:
+      - description: Schema name and context flag
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.schemaSetContextRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+        "404":
+          description: schema not found
+          schema:
+            type: string
+      summary: Toggle whether a schema is included in the GraphQL context
+      tags:
+      - schema
   /api/data/tables:
     get:
       produces:
@@ -2612,7 +2738,7 @@ paths:
       consumes:
       - application/json
       parameters:
-      - description: Mapping name
+      - description: Transformation name
         in: body
         name: body
         required: true
@@ -2666,7 +2792,7 @@ paths:
       consumes:
       - application/json
       parameters:
-      - description: Mapping name
+      - description: Transformation name
         in: body
         name: body
         required: true
@@ -2691,7 +2817,7 @@ paths:
       consumes:
       - application/json
       parameters:
-      - description: Mapping name and sample rows
+      - description: Transformation name and sample rows
         in: body
         name: body
         required: true
@@ -2778,6 +2904,94 @@ paths:
       summary: Update rows in a table
       tags:
       - data
+  /api/datafed/contributions:
+    post:
+      consumes:
+      - application/json
+      description: Returns each peer's contributed tables and relationships. Tables
+        with the same name from multiple peers are merged by column intersection in
+        the federated GraphQL schema.
+      parameters:
+      - description: Group ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.datafedGroupIDRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/routes.datafedPeerContribution'
+            type: array
+      summary: Get all peer contributions for a data-federation group
+      tags:
+      - data-federation
+  /api/datafed/groups:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/routes.datafedGroupInfo'
+            type: array
+      summary: List all active data-federation groups and their contributions
+      tags:
+      - data-federation
+  /api/datafed/offer:
+    post:
+      consumes:
+      - application/json
+      description: Contributes selected tables (and optional relationships) to the
+        group's federated graph. Triggers a federated schema rebuild.
+      parameters:
+      - description: Tables to offer
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.datafedOfferRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+        "400":
+          description: validation error
+          schema:
+            type: string
+      summary: Offer context tables to a data-federation group
+      tags:
+      - data-federation
+  /api/datafed/withdraw:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Group ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.datafedGroupIDRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+      summary: Withdraw all contributed tables from a data-federation group
+      tags:
+      - data-federation
   /api/docs/browse:
     get:
       parameters:
@@ -2952,6 +3166,57 @@ paths:
       summary: Browse the local filesystem (directories and files)
       tags:
       - fs
+  /api/graphql:
+    post:
+      consumes:
+      - application/json
+      description: 'Queries and mutations are auto-generated from ORM schemas with
+        context: true. Supports filtering, ordering, pagination, insert, update, and
+        delete.'
+      parameters:
+      - description: GraphQL request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.graphqlRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Execute a GraphQL query or mutation
+      tags:
+      - graphql
+  /api/graphql/rebuild:
+    post:
+      description: Forces a rebuild of the GraphQL schema. Called automatically when
+        schemas change, but can be triggered manually.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+      summary: Rebuild the GraphQL schema from current context tables
+      tags:
+      - graphql
+  /api/graphql/status:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.graphqlStatusResponse'
+      summary: Get GraphQL engine status and context tables
+      tags:
+      - graphql
   /api/groups:
     get:
       produces:

@@ -7,6 +7,7 @@
     "/assets/js/mq/topics.js",
     "/assets/js/mq/peers.js",
     "/assets/js/select.js",
+    "/assets/js/toggle_switch.js",
     "/assets/js/datepicker.js",
     "/assets/js/layout.js",
     "/assets/js/notify.js",

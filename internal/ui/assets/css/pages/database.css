@@ -700,21 +700,23 @@
   }
 }
 
-/* GraphQL context toggle */
-.schema-ctx-toggle{
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  margin-right: 6px;
+/* GraphQL context indicator (sidebar icon) */
+.schema-gql-icon{
   flex-shrink: 0;
-  cursor: pointer;
-  border: 1px solid var(--border);
+  fill: var(--green, #22c55e);
+  stroke: var(--green, #22c55e);
+  stroke-width: 1.5;
+  opacity: 0.85;
 }
-.schema-ctx-on{
-  background: var(--green, #22c55e);
-  border-color: var(--green, #22c55e);
+
+/* GraphQL context toggle (editor form) */
+.schema-ctx-group{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px !important;
 }
-.schema-ctx-off{
-  background: transparent;
+.schema-ctx-text{
+  font-size: 0.9em;
+  color: var(--text-muted, #aaa);
 }

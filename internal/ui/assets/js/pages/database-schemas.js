@@ -4,6 +4,7 @@
   if (!G || !G.core) return;
   var qs = G.core.qs, qsa = G.core.qsa, on = G.core.on;
   var setHidden = G.core.setHidden, escapeHtml = G.core.escapeHtml, toast = G.core.toast;
+  var toggle = G.toggle_switch;
   var schemaApi = G.api.schema;
   var gsel = G.select;
 
@@ -63,28 +64,13 @@ function renderSchemaList(schemas) {
     li.className = "sidebar-item";
     li.dataset.schema = s.name;
     var badge = s.has_key ? "owner" : "open";
-    var ctxClass = s.context ? "schema-ctx-on" : "schema-ctx-off";
-    var ctxTitle = s.context ? "In GraphQL context (click to remove)" : "Not in GraphQL context (click to add)";
-    li.innerHTML = '<span class="schema-ctx-toggle ' + ctxClass + '" title="' + ctxTitle + '"></span>' +
-      '<span class="db-table-name">' + escapeHtml(s.name) + '</span>' +
+    var ctxIcon = s.context ? '<svg class="schema-gql-icon" title="In GraphQL context" viewBox="0 0 16 16" width="14" height="14"><circle cx="3" cy="3" r="2" /><circle cx="13" cy="3" r="2" /><circle cx="8" cy="13" r="2" /><line x1="3" y1="5" x2="8" y2="11" /><line x1="13" y1="5" x2="8" y2="11" /><line x1="5" y1="3" x2="11" y2="3" /></svg>' : '';
+    li.innerHTML = '<span class="db-table-name">' + escapeHtml(s.name) + '</span>' +
+      ctxIcon +
       '<span class="badge badge-' + badge + '">' + s.columns + ' cols</span>';
-    on(qs(".schema-ctx-toggle", li), "click", function(e) {
-      e.stopPropagation();
-      toggleContext(s.name, !s.context);
-    });
     on(li, "click", function() { selectSchemaItem(s.name); });
     schemaListEl.appendChild(li);
   });
-}
-
-async function toggleContext(name, enabled) {
-  try {
-    await schemaApi.setContext({ name: name, context: enabled });
-    toast(name + (enabled ? " added to" : " removed from") + " GraphQL context");
-    await loadSchemas(currentSchema);
-  } catch (err) {
-    toast("Failed: " + err.message, true);
-  }
 }
 
 function highlightActiveSchema(name) {
@@ -115,6 +101,10 @@ function renderSchemaEditor(s) {
     '<input type="text" id="schema-name" class="form-input" value="' + escapeHtml(s.name || '') + '" />' +
   '</div>';
 
+  html += '<div class="form-group schema-ctx-group">' +
+    toggle.html({ id: "schema-context", label: "Include in GraphQL context", checked: !!s.context }) +
+  '</div>';
+
   html += '<div class="form-group">' +
     '<label>Columns</label>' +
     '<div class="schema-col-header">' +
@@ -140,6 +130,15 @@ function renderSchemaEditor(s) {
   schemaEditorEl.innerHTML = html;
   initFormSelects(schemaEditorEl);
   bindSchemaColEvents();
+
+  toggle.onChange("schema-context", function(enabled) {
+    var name = (qs("#schema-name").value || "").trim();
+    if (!name) return;
+    schemaApi.setContext({ name: name, context: enabled }).then(function() {
+      toast(name + (enabled ? " added to" : " removed from") + " GraphQL context");
+      loadSchemas(currentSchema);
+    }).catch(function(err) { toast("Failed: " + err.message, true); });
+  });
 
   on(qs("#schema-add-col"), "click", function() {
     var container = qs("#schema-columns");
@@ -308,7 +307,9 @@ function collectSchemaData() {
     }
     cols.push(col);
   });
-  return { name: name, columns: cols };
+  var data = { name: name, columns: cols };
+  if (toggle.val("schema-context")) data.context = true;
+  return data;
 }
 
 async function updateDdlPreview() {
