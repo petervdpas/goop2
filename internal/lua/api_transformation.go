@@ -3,7 +3,7 @@ package lua
 import (
 	"path/filepath"
 
-	"github.com/petervdpas/goop2/internal/orm/mapper"
+	"github.com/petervdpas/goop2/internal/orm/transformation"
 	"github.com/petervdpas/goop2/internal/orm/schema"
 
 	lua "github.com/yuin/gopher-lua"
@@ -14,7 +14,7 @@ func transformLoadFn(peerDir string) lua.LGFunction {
 		name := L.CheckString(1)
 		dir := filepath.Join(peerDir, "transformations")
 
-		t, err := mapper.Load(dir, name)
+		t, err := transformation.Load(dir, name)
 		if err != nil {
 			L.Push(lua.LNil)
 			L.Push(lua.LString(err.Error()))
@@ -34,7 +34,7 @@ func transformApplyFn(peerDir string) lua.LGFunction {
 		rowTbl := L.CheckTable(2)
 
 		dir := filepath.Join(peerDir, "transformations")
-		t, err := mapper.Load(dir, name)
+		t, err := transformation.Load(dir, name)
 		if err != nil {
 			L.Push(lua.LNil)
 			L.Push(lua.LString(err.Error()))
@@ -61,7 +61,7 @@ func transformApplyManyFn(peerDir string) lua.LGFunction {
 		rowsTbl := L.CheckTable(2)
 
 		dir := filepath.Join(peerDir, "transformations")
-		t, err := mapper.Load(dir, name)
+		t, err := transformation.Load(dir, name)
 		if err != nil {
 			L.Push(lua.LNil)
 			L.Push(lua.LString(err.Error()))
@@ -95,7 +95,7 @@ func transformApplyManyFn(peerDir string) lua.LGFunction {
 func transformListFn(peerDir string) lua.LGFunction {
 	return func(L *lua.LState) int {
 		dir := filepath.Join(peerDir, "transformations")
-		items, err := mapper.LoadDir(dir)
+		items, err := transformation.LoadDir(dir)
 		if err != nil {
 			L.Push(lua.LNil)
 			L.Push(lua.LString(err.Error()))
@@ -117,7 +117,7 @@ func transformListFn(peerDir string) lua.LGFunction {
 }
 
 func transformNamesFn(L *lua.LState) int {
-	names := mapper.TransformNames()
+	names := transformation.TransformNames()
 	tbl := L.NewTable()
 	for i, n := range names {
 		tbl.RawSetInt(i+1, lua.LString(n))
@@ -144,7 +144,7 @@ func schemaRowToLua(L *lua.LState, row schema.Row) *lua.LTable {
 	return tbl
 }
 
-func transformationToLua(L *lua.LState, t *mapper.Transformation) *lua.LTable {
+func transformationToLua(L *lua.LState, t *transformation.Transformation) *lua.LTable {
 	tbl := L.NewTable()
 	tbl.RawSetString("name", lua.LString(t.Name))
 	tbl.RawSetString("description", lua.LString(t.Description))

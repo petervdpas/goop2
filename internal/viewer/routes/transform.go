@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/petervdpas/goop2/internal/orm/mapper"
+	"github.com/petervdpas/goop2/internal/orm/transformation"
 	"github.com/petervdpas/goop2/internal/orm/schema"
 	"github.com/petervdpas/goop2/internal/storage"
 )
@@ -15,7 +15,7 @@ func RegisterTransformations(mux *http.ServeMux, peerDir string, db *storage.DB)
 	txDir := filepath.Join(peerDir, "transformations")
 
 	handleGet(mux, "/api/data/transformations", func(w http.ResponseWriter, r *http.Request) {
-		items, err := mapper.LoadDir(txDir)
+		items, err := transformation.LoadDir(txDir)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -47,7 +47,7 @@ func RegisterTransformations(mux *http.ServeMux, peerDir string, db *storage.DB)
 			http.Error(w, "name required", http.StatusBadRequest)
 			return
 		}
-		t, err := mapper.Load(txDir, req.Name)
+		t, err := transformation.Load(txDir, req.Name)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
@@ -55,8 +55,8 @@ func RegisterTransformations(mux *http.ServeMux, peerDir string, db *storage.DB)
 		writeJSON(w, t)
 	})
 
-	handlePost(mux, "/api/data/transformations/save", func(w http.ResponseWriter, r *http.Request, req mapper.Transformation) {
-		if err := mapper.Save(txDir, &req); err != nil {
+	handlePost(mux, "/api/data/transformations/save", func(w http.ResponseWriter, r *http.Request, req transformation.Transformation) {
+		if err := transformation.Save(txDir, &req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -70,7 +70,7 @@ func RegisterTransformations(mux *http.ServeMux, peerDir string, db *storage.DB)
 			http.Error(w, "name required", http.StatusBadRequest)
 			return
 		}
-		if err := mapper.Delete(txDir, req.Name); err != nil {
+		if err := transformation.Delete(txDir, req.Name); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -85,7 +85,7 @@ func RegisterTransformations(mux *http.ServeMux, peerDir string, db *storage.DB)
 			http.Error(w, "name required", http.StatusBadRequest)
 			return
 		}
-		t, err := mapper.Load(txDir, req.Name)
+		t, err := transformation.Load(txDir, req.Name)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
@@ -113,7 +113,7 @@ func RegisterTransformations(mux *http.ServeMux, peerDir string, db *storage.DB)
 			return
 		}
 
-		t, err := mapper.Load(txDir, req.Name)
+		t, err := transformation.Load(txDir, req.Name)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
@@ -145,7 +145,7 @@ func RegisterTransformations(mux *http.ServeMux, peerDir string, db *storage.DB)
 				sourceRows[i] = r
 			}
 		} else {
-			reader, err := mapper.NewSourceReader(t.Source)
+			reader, err := transformation.NewSourceReader(t.Source)
 			if err != nil {
 				http.Error(w, "source: "+err.Error(), http.StatusBadRequest)
 				return
@@ -182,7 +182,7 @@ func RegisterTransformations(mux *http.ServeMux, peerDir string, db *storage.DB)
 				"inserted": inserted,
 			})
 		} else {
-			writer, err := mapper.NewTargetWriter(t.Target)
+			writer, err := transformation.NewTargetWriter(t.Target)
 			if err != nil {
 				http.Error(w, "target: "+err.Error(), http.StatusBadRequest)
 				return
@@ -201,7 +201,7 @@ func RegisterTransformations(mux *http.ServeMux, peerDir string, db *storage.DB)
 	})
 
 	handleGet(mux, "/api/data/transformations/transforms", func(w http.ResponseWriter, r *http.Request) {
-		names := mapper.TransformNames()
+		names := transformation.TransformNames()
 		sort.Strings(names)
 		writeJSON(w, names)
 	})
@@ -217,7 +217,7 @@ func RegisterTransformations(mux *http.ServeMux, peerDir string, db *storage.DB)
 		writeJSON(w, map[string]bool{"exists": err == nil})
 	})
 
-	handlePost(mux, "/api/data/transformations/source-fields", func(w http.ResponseWriter, r *http.Request, req mapper.DataEndpoint) {
+	handlePost(mux, "/api/data/transformations/source-fields", func(w http.ResponseWriter, r *http.Request, req transformation.DataEndpoint) {
 		if req.Type == "table" {
 			if db == nil || req.Name == "" {
 				http.Error(w, "table name required", http.StatusBadRequest)
@@ -241,7 +241,7 @@ func RegisterTransformations(mux *http.ServeMux, peerDir string, db *storage.DB)
 			return
 		}
 
-		reader, err := mapper.NewSourceReader(req)
+		reader, err := transformation.NewSourceReader(req)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

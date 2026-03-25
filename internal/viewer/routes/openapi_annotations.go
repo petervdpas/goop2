@@ -2138,7 +2138,7 @@ func swagTransformList() {}
 //	@Tags		transformation
 //	@Accept		json
 //	@Produce	json
-//	@Param		body	body		transformNameRequest	true	"Mapping name"
+//	@Param		body	body		transformNameRequest	true	"Transformation name"
 //	@Success	200		{object}	transformSaveRequest
 //	@Failure	404		{string}	string	"transformation not found"
 //	@Router		/api/data/transformations/get [post]
@@ -2162,7 +2162,7 @@ func swagTransformSave() {}
 //	@Tags		transformation
 //	@Accept		json
 //	@Produce	json
-//	@Param		body	body		transformNameRequest	true	"Mapping name"
+//	@Param		body	body		transformNameRequest	true	"Transformation name"
 //	@Success	200		{object}	statusOK
 //	@Router		/api/data/transformations/delete [post]
 func swagTransformDelete() {}
@@ -2173,7 +2173,7 @@ func swagTransformDelete() {}
 //	@Tags		transformation
 //	@Accept		json
 //	@Produce	json
-//	@Param		body	body		transformPreviewRequest	true	"Mapping name and sample rows"
+//	@Param		body	body		transformPreviewRequest	true	"Transformation name and sample rows"
 //	@Success	200		{array}		map[string]any
 //	@Failure	400		{string}	string	"transformation error"
 //	@Failure	404		{string}	string	"transformation not found"
@@ -2210,6 +2210,7 @@ type schemaListEntry struct {
 	Name    string `json:"name"    example:"orders"`
 	Columns int    `json:"columns" example:"5"`
 	HasKey  bool   `json:"has_key" example:"true"`
+	Context bool   `json:"context" example:"false"`
 }
 
 // schemaNameRequest is the body for endpoints that take a schema name.
@@ -2313,3 +2314,148 @@ func swagSchemaDdl() {}
 //	@Failure	404		{string}	string	"schema not found"
 //	@Router		/api/data/schemas/apply [post]
 func swagSchemaApply() {}
+
+// schemaSetContextRequest is the body for POST /api/data/schemas/set-context.
+type schemaSetContextRequest struct {
+	Name    string `json:"name"    example:"orders"`
+	Context bool   `json:"context" example:"true"`
+}
+
+// swagSchemaSetContext is a documentation stub for POST /api/data/schemas/set-context.
+//
+//	@Summary	Toggle whether a schema is included in the GraphQL context
+//	@Description	When context is true, the schema's table is exposed via the GraphQL API. Auto-rebuilds the GraphQL schema.
+//	@Tags		schema
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		schemaSetContextRequest	true	"Schema name and context flag"
+//	@Success	200		{object}	statusOK
+//	@Failure	404		{string}	string	"schema not found"
+//	@Router		/api/data/schemas/set-context [post]
+func swagSchemaSetContext() {}
+
+// ── GraphQL ─────────────────────────────────────────────────────────────────
+
+// graphqlRequest is the body for POST /api/graphql.
+type graphqlRequest struct {
+	Query         string         `json:"query"         example:"{ Person { Name credits } }"`
+	Variables     map[string]any `json:"variables,omitempty"`
+	OperationName string         `json:"operationName,omitempty"`
+}
+
+// graphqlStatusResponse is the body for GET /api/graphql/status.
+type graphqlStatusResponse struct {
+	Enabled bool     `json:"enabled" example:"true"`
+	Tables  []string `json:"tables"  example:"Person,Order"`
+}
+
+// swagGraphQLQuery is a documentation stub for POST /api/graphql.
+//
+//	@Summary	Execute a GraphQL query or mutation
+//	@Description	Queries and mutations are auto-generated from ORM schemas with context: true. Supports filtering, ordering, pagination, insert, update, and delete.
+//	@Tags		graphql
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body	graphqlRequest	true	"GraphQL request"
+//	@Success	200		{object}	map[string]any
+//	@Router		/api/graphql [post]
+func swagGraphQLQuery() {}
+
+// swagGraphQLRebuild is a documentation stub for POST /api/graphql/rebuild.
+//
+//	@Summary	Rebuild the GraphQL schema from current context tables
+//	@Description	Forces a rebuild of the GraphQL schema. Called automatically when schemas change, but can be triggered manually.
+//	@Tags		graphql
+//	@Produce	json
+//	@Success	200	{object}	statusOK
+//	@Router		/api/graphql/rebuild [post]
+func swagGraphQLRebuild() {}
+
+// swagGraphQLStatus is a documentation stub for GET /api/graphql/status.
+//
+//	@Summary	Get GraphQL engine status and context tables
+//	@Tags		graphql
+//	@Produce	json
+//	@Success	200	{object}	graphqlStatusResponse
+//	@Router		/api/graphql/status [get]
+func swagGraphQLStatus() {}
+
+// ── Data Federation ─────────────────────────────────────────────────────────
+
+// datafedGroupInfo describes a data-federation group.
+type datafedGroupInfo struct {
+	GroupID       string              `json:"group_id"       example:"a1b2c3d4e5f6g7h8"`
+	Contributions map[string][]string `json:"contributions"`
+}
+
+// datafedOfferRequest is the body for POST /api/datafed/offer.
+type datafedOfferRequest struct {
+	GroupID       string               `json:"group_id"       example:"a1b2c3d4e5f6g7h8"`
+	Tables        []string             `json:"tables"         example:"Person,Order"`
+	Relationships []datafedRelationship `json:"relationships,omitempty"`
+}
+
+// datafedRelationship describes a cross-peer table relationship.
+type datafedRelationship struct {
+	FromTable  string `json:"from_table"  example:"Order"`
+	FromColumn string `json:"from_column" example:"customer_id"`
+	ToTable    string `json:"to_table"    example:"Customer"`
+	ToColumn   string `json:"to_column"   example:"Id"`
+}
+
+// datafedGroupIDRequest is the body for endpoints that take a group_id.
+type datafedGroupIDRequest struct {
+	GroupID string `json:"group_id" example:"a1b2c3d4e5f6g7h8"`
+}
+
+// datafedPeerContribution describes a single peer's contribution to a federation group.
+type datafedPeerContribution struct {
+	PeerID        string                `json:"peer_id"`
+	Tables        []schemaSaveRequest   `json:"tables"`
+	Relationships []datafedRelationship `json:"relationships,omitempty"`
+}
+
+// swagDataFedGroups is a documentation stub for GET /api/datafed/groups.
+//
+//	@Summary	List all active data-federation groups and their contributions
+//	@Tags		data-federation
+//	@Produce	json
+//	@Success	200	{array}	datafedGroupInfo
+//	@Router		/api/datafed/groups [get]
+func swagDataFedGroups() {}
+
+// swagDataFedOffer is a documentation stub for POST /api/datafed/offer.
+//
+//	@Summary	Offer context tables to a data-federation group
+//	@Description	Contributes selected tables (and optional relationships) to the group's federated graph. Triggers a federated schema rebuild.
+//	@Tags		data-federation
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		datafedOfferRequest	true	"Tables to offer"
+//	@Success	200		{object}	statusOK
+//	@Failure	400		{string}	string	"validation error"
+//	@Router		/api/datafed/offer [post]
+func swagDataFedOffer() {}
+
+// swagDataFedWithdraw is a documentation stub for POST /api/datafed/withdraw.
+//
+//	@Summary	Withdraw all contributed tables from a data-federation group
+//	@Tags		data-federation
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		datafedGroupIDRequest	true	"Group ID"
+//	@Success	200		{object}	statusOK
+//	@Router		/api/datafed/withdraw [post]
+func swagDataFedWithdraw() {}
+
+// swagDataFedContributions is a documentation stub for POST /api/datafed/contributions.
+//
+//	@Summary	Get all peer contributions for a data-federation group
+//	@Description	Returns each peer's contributed tables and relationships. Tables with the same name from multiple peers are merged by column intersection in the federated GraphQL schema.
+//	@Tags		data-federation
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		datafedGroupIDRequest	true	"Group ID"
+//	@Success	200		{array}		datafedPeerContribution
+//	@Router		/api/datafed/contributions [post]
+func swagDataFedContributions() {}

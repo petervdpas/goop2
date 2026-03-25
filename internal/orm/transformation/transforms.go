@@ -1,4 +1,4 @@
-package mapper
+package transformation
 
 import (
 	"fmt"

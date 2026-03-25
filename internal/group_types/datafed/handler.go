@@ -42,7 +42,8 @@ type Manager struct {
 	selfID  string
 	schemas func() []*schema.Table
 
-	groups map[string]*federatedGroup
+	groups   map[string]*federatedGroup
+	onChange func()
 }
 
 type federatedGroup struct {
@@ -74,6 +75,21 @@ func New(mqMgr *mq.Manager, grpMgr *group.Manager, selfID string, schemas func()
 }
 
 func (m *Manager) AppType() string { return AppType }
+
+func (m *Manager) SetOnChange(fn func()) {
+	m.mu.Lock()
+	m.onChange = fn
+	m.mu.Unlock()
+}
+
+func (m *Manager) notifyChange() {
+	m.mu.RLock()
+	fn := m.onChange
+	m.mu.RUnlock()
+	if fn != nil {
+		go fn()
+	}
+}
 
 func (m *Manager) Flags() group.TypeFlags {
 	return group.TypeFlags{HostCanJoin: true}
@@ -115,6 +131,7 @@ func (m *Manager) OnJoin(groupID, peerID string, isHost bool) {
 	}
 
 	m.publishSync(groupID)
+	m.notifyChange()
 	log.Printf("DATA-FED: %s joined group %s (host=%v)", peerID, groupID, isHost)
 }
 
@@ -129,6 +146,7 @@ func (m *Manager) OnLeave(groupID, peerID string, isHost bool) {
 		fg.rwmu.Unlock()
 		m.publishSync(groupID)
 	}
+	m.notifyChange()
 	log.Printf("DATA-FED: %s left group %s", peerID, groupID)
 }
 
@@ -136,6 +154,7 @@ func (m *Manager) OnClose(groupID string) {
 	m.mu.Lock()
 	delete(m.groups, groupID)
 	m.mu.Unlock()
+	m.notifyChange()
 	log.Printf("DATA-FED: Group %s closed", groupID)
 }
 
@@ -200,6 +219,7 @@ func (m *Manager) handleSchemaOffer(groupID, from string, raw json.RawMessage) {
 	fg.rwmu.Unlock()
 
 	m.publishSync(groupID)
+	m.notifyChange()
 	log.Printf("DATA-FED: %s offered %d tables to group %s", from, len(offer.Tables), groupID)
 }
 
@@ -216,6 +236,7 @@ func (m *Manager) handleSchemaWithdraw(groupID, from string) {
 	fg.rwmu.Unlock()
 
 	m.publishSync(groupID)
+	m.notifyChange()
 	log.Printf("DATA-FED: %s withdrew from group %s", from, groupID)
 }
 
@@ -361,6 +382,7 @@ func (m *Manager) handlePeerGone(from string, payload any) {
 		for groupID := range m.groups {
 			m.publishSync(groupID)
 		}
+		m.notifyChange()
 	}
 }
 
@@ -393,6 +415,7 @@ func (m *Manager) handlePeerAnnounce(from string, payload any) {
 		for groupID := range m.groups {
 			m.publishSync(groupID)
 		}
+		m.notifyChange()
 	}
 }
 
@@ -424,6 +447,33 @@ func isOffline(payload any) bool {
 		}
 	}
 	return false
+}
+
+func (m *Manager) AllPeerSources() map[string][]schema.Table {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	result := make(map[string][]schema.Table)
+	for _, fg := range m.groups {
+		fg.rwmu.RLock()
+		for peerID, c := range fg.contributions {
+			if peerID == m.selfID {
+				continue
+			}
+			existing := result[peerID]
+			seen := make(map[string]bool, len(existing))
+			for _, t := range existing {
+				seen[t.Name] = true
+			}
+			for _, t := range c.Tables {
+				if !seen[t.Name] {
+					result[peerID] = append(result[peerID], t)
+				}
+			}
+		}
+		fg.rwmu.RUnlock()
+	}
+	return result
 }
 
 func (m *Manager) AllGroups() []string {

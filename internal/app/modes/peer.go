@@ -532,6 +532,18 @@ func RunPeer(p PeerParams) error {
 			}
 		}
 
+		dataFedMgr.SetOnChange(func() {
+			peerSources := dataFedMgr.AllPeerSources()
+			var peers []gql.PeerSource
+			for peerID, tables := range peerSources {
+				peers = append(peers, gql.PeerSource{PeerID: peerID, Tables: tables})
+			}
+			queryFn := gql.DefaultPeerQueryFunc(url)
+			if err := gqlEngine.RebuildFederated(gqlEngine.ContextTables(), peers, queryFn); err != nil {
+				log.Printf("DATA-FED: rebuild failed: %v", err)
+			}
+		})
+
 		go viewer.Start(addr, viewer.Viewer{
 			Node:        node,
 			SelfLabel:   selfContent,
