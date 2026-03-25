@@ -339,4 +339,21 @@
       tplDirPicker.setValue(tplDirHidden.value);
     }
   }
+
+  // ── Services toggle ──
+  var toggle = window.Goop.toggle_switch;
+  if (toggle) {
+    toggle.onChange("use_services", function(on) {
+      var body = document.getElementById('svc-body');
+      if (body) {
+        body.style.opacity = on ? '1' : '0.4';
+        body.style.pointerEvents = on ? '' : 'none';
+      }
+      fetch('/api/settings/quick', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({use_services: on}),
+      });
+    });
+  }
 })();

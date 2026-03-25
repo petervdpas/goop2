@@ -10,10 +10,7 @@
   <a class="log-tab page-tab log-tab--encrypt" data-tab="encrypt">Encrypt</a>
   <a class="log-tab page-tab log-tab--cluster" data-tab="cluster">Cluster</a>
   <a class="log-tab page-tab" data-tab="topology">Topology</a>
-  <label class="switch" style="margin-left:auto;align-self:center;margin-right:8px" title="Verbose libp2p logging">
-    <input id="verboseToggle" type="checkbox">
-    <span class="slider"></span>
-  </label>
+  {{toggle false "id" "verboseToggle" "title" "Verbose libp2p logging" "style" "margin-left:auto;align-self:center;margin-right:8px"}}
   <span class="muted small" style="align-self:center;margin-right:8px">Verbose</span>
   <button id="copyLogsBtn" class="btn btn-sm" style="align-self:center;" title="Copy logs to clipboard">Copy</button>
 </div>

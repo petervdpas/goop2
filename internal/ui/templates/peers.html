@@ -6,10 +6,7 @@
       <h1 class="peers-header">
         <span>Peers <span class="peer-count muted" id="peer-count">({{len .Peers}})</span></span>
         <div class="addressbook-control">
-          <label class="switch" id="addressbook-switch" title="Show favorites only">
-            <input type="checkbox" id="addressbook-toggle">
-            <span class="slider"></span>
-          </label>
+          {{toggle false "id" "addressbook-toggle" "title" "Show favorites only"}}
           <span class="control-label">Show favorites</span>
         </div>
       </h1>

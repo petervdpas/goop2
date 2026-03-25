@@ -108,12 +108,7 @@
             <div class="field">
               <label>Debug mode</label>
               <div style="display: flex; align-items: center; gap: 8px;">
-                <label class="switch" title="Enable debug mode">
-                  <input type="checkbox"
-                         name="viewer_debug"
-                         {{if .Cfg.Viewer.Debug}}checked{{end}}>
-                  <span class="slider"></span>
-                </label>
+                {{toggle .Cfg.Viewer.Debug "name" "viewer_debug" "title" "Enable debug mode"}}
                 <span class="muted small">Show console debug indicator (F12)</span>
               </div>
             </div>
@@ -123,12 +118,7 @@
             <div class="field">
               <label>Hide unverified peers</label>
               <div style="display: flex; align-items: center; gap: 8px;">
-                <label class="switch" title="Hide unverified peers from the peer list">
-                  <input type="checkbox"
-                         name="viewer_hide_unverified"
-                         {{if .Cfg.Viewer.HideUnverified}}checked{{end}}>
-                  <span class="slider"></span>
-                </label>
+                {{toggle .Cfg.Viewer.HideUnverified "name" "viewer_hide_unverified" "title" "Hide unverified peers from the peer list"}}
                 <span class="muted small">Only show verified peers</span>
               </div>
             </div>
@@ -136,12 +126,7 @@
             <div class="field">
               <label>Open sites in external browser</label>
               <div style="display: flex; align-items: center; gap: 8px;">
-                <label class="switch" title="Open peer sites in external browser instead of embedded tabs">
-                  <input type="checkbox"
-                         name="viewer_open_sites_external"
-                         {{if .Cfg.Viewer.OpenSitesExternal}}checked{{end}}>
-                  <span class="slider"></span>
-                </label>
+                {{toggle .Cfg.Viewer.OpenSitesExternal "name" "viewer_open_sites_external" "title" "Open peer sites in external browser instead of embedded tabs"}}
                 <span class="muted small">Use system browser for sites</span>
               </div>
             </div>
@@ -199,12 +184,7 @@
           <div class="field">
             <label>Disable video/audio calls</label>
             <div style="display: flex; align-items: center; gap: 8px;">
-              <label class="switch" title="Disable video/audio calls">
-                <input type="checkbox"
-                       name="viewer_video_disabled"
-                       {{if .Cfg.Viewer.VideoDisabled}}checked{{end}}>
-                <span class="slider"></span>
-              </label>
+              {{toggle .Cfg.Viewer.VideoDisabled "name" "viewer_video_disabled" "title" "Disable video/audio calls"}}
               <span class="muted small">Peers will see that calls are unavailable</span>
             </div>
             <div class="hint">
@@ -304,12 +284,7 @@
             {{if .Cfg.Profile.BridgeToken}}
             <div style="margin-top:14px;display:flex;align-items:center;gap:10px">
               <span class="muted small">Thin Client</span>
-              <label class="switch" title="Thin client mode: connect via bridge instead of libp2p">
-                <input type="checkbox"
-                       name="p2p_bridge_mode"
-                       {{if .Cfg.P2P.BridgeMode}}checked{{end}}>
-                <span class="slider"></span>
-              </label>
+              {{toggle .Cfg.P2P.BridgeMode "name" "p2p_bridge_mode" "title" "Thin client mode: connect via bridge instead of libp2p"}}
             </div>
             <div class="hint">Routes all traffic through the bridge server. Requires restart.</div>
             {{end}}
@@ -330,14 +305,7 @@
 
             <div class="rv-local-toggle">
               <span class="muted small">Off</span>
-              <label class="switch" title="Run as a dedicated rendezvous server (disables P2P)">
-                <input id="rv_host"
-                       type="checkbox"
-                       name="presence_rendezvous_server"
-                       {{if .Cfg.Presence.RendezvousOnly}}checked{{end}}
-                       onchange="var on=this.checked;document.getElementById('rv-server-opts').style.display=on?'':'none';document.querySelectorAll('.rv-server-section').forEach(el=>el.style.display=on?'':'none');document.querySelectorAll('.rv-server-nav').forEach(el=>el.style.display=on?'':'none')">
-                <span class="slider"></span>
-              </label>
+              {{toggle .Cfg.Presence.RendezvousOnly "name" "presence_rendezvous_server" "id" "rv_host" "title" "Run as a dedicated rendezvous server (disables P2P)"}}
               <span class="muted small">On</span>
             </div>
           </div>
@@ -524,14 +492,7 @@
             <div class="rv-local-title">External Services</div>
             <div class="rv-local-toggle">
               <span class="muted small">Off</span>
-              <label class="switch" title="Enable external microservices (credits, registration, email, templates)">
-                <input id="use_services"
-                       type="checkbox"
-                       name="presence_use_services"
-                       {{if .Cfg.Presence.UseServices}}checked{{end}}
-                       onchange="var on=this.checked;document.getElementById('svc-body').style.opacity=on?'1':'0.4';document.getElementById('svc-body').style.pointerEvents=on?'':'none';fetch('/api/settings/quick',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({use_services:on})})">
-                <span class="slider"></span>
-              </label>
+              {{toggle .Cfg.Presence.UseServices "name" "presence_use_services" "id" "use_services" "title" "Enable external microservices (credits, registration, email, templates)"}}
               <span class="muted small">On</span>
             </div>
           </div>
@@ -729,11 +690,7 @@
           <h3 class="section-title">Lua Scripting</h3>
           <div style="display: flex; align-items: center; gap: 8px;">
             <span class="muted small">Off</span>
-            <label class="switch" title="Enable Lua chat scripts">
-              <input type="checkbox" name="lua_enabled"
-                     {{if .Cfg.Lua.Enabled}}checked{{end}}>
-              <span class="slider"></span>
-            </label>
+            {{toggle .Cfg.Lua.Enabled "name" "lua_enabled" "title" "Enable Lua chat scripts"}}
             <span class="muted small">On</span>
           </div>
           <div class="hint">

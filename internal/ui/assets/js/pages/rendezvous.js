@@ -24,6 +24,11 @@
 
       setHidden(open, !on);
 
+      const rvOpts = qs("#rv-server-opts");
+      if (rvOpts) rvOpts.style.display = on ? '' : 'none';
+      document.querySelectorAll('.rv-server-section').forEach(el => el.style.display = on ? '' : 'none');
+      document.querySelectorAll('.rv-server-nav').forEach(el => el.style.display = on ? '' : 'none');
+
       if (link) {
         const p = normalizePort(port.value);
         link.href = `http://127.0.0.1:${p}/`;

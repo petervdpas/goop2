@@ -55,6 +55,32 @@ export function p(text) {
 }
 
 /**
+ * Toggle switch — creates the same label.switch markup used across the app.
+ * Returns { el: HTMLElement, input: HTMLInputElement }
+ */
+export function toggleSwitch(opts) {
+  opts = opts || {};
+  const label = document.createElement("label");
+  label.className = "switch";
+  if (opts.title) label.title = opts.title;
+
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  if (opts.id) cb.id = opts.id;
+  if (opts.name) cb.name = opts.name;
+  if (opts.checked) cb.checked = true;
+  if (opts.ariaLabel) cb.setAttribute("aria-label", opts.ariaLabel);
+
+  const slider = document.createElement("span");
+  slider.className = "slider";
+
+  label.appendChild(cb);
+  label.appendChild(slider);
+
+  return { el: label, input: cb };
+}
+
+/**
  * Theme utilities
  */
 export function normalizeTheme(t) {

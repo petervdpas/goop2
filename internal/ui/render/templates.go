@@ -35,6 +35,49 @@ func InitTemplates() error {
 
 			"defaults": func() config.Config { return config.Default() },
 
+			"toggle": func(checked bool, attrs ...string) template.HTML {
+				var name, id, title, style, aria string
+				for i := 0; i+1 < len(attrs); i += 2 {
+					switch attrs[i] {
+					case "name":
+						name = attrs[i+1]
+					case "id":
+						id = attrs[i+1]
+					case "title":
+						title = attrs[i+1]
+					case "style":
+						style = attrs[i+1]
+					case "aria":
+						aria = attrs[i+1]
+					}
+				}
+				var inputAttrs string
+				if name != "" {
+					inputAttrs += ` name="` + html.EscapeString(name) + `"`
+				}
+				if id != "" {
+					inputAttrs += ` id="` + html.EscapeString(id) + `"`
+				}
+				if aria != "" {
+					inputAttrs += ` aria-label="` + html.EscapeString(aria) + `"`
+				}
+				if checked {
+					inputAttrs += ` checked`
+				}
+				var labelAttrs string
+				if title != "" {
+					labelAttrs += ` title="` + html.EscapeString(title) + `"`
+				}
+				if style != "" {
+					labelAttrs += ` style="` + html.EscapeString(style) + `"`
+				}
+				return template.HTML(
+					`<label class="switch"` + labelAttrs + `>` +
+						`<input type="checkbox"` + inputAttrs + `>` +
+						`<span class="slider"></span>` +
+						`</label>`)
+			},
+
 			"include": func(name string, data any) template.HTML {
 				if tmpl == nil {
 					return template.HTML(`<pre class="err">templates not initialized</pre>`)

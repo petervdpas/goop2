@@ -13,7 +13,7 @@ const splashMap = {
 import "../../internal/ui/assets/js/dialogs.js";
 import {
   clear, div, btn, input, h1, h2, p,
-  normalizeTheme, applyTheme, normalizeBase
+  normalizeTheme, applyTheme, normalizeBase, toggleSwitch
 } from "./utils.js";
 
 /*
@@ -50,15 +50,22 @@ async function setThemeAuthoritative(t) {
 }
 
 async function wireThemeToggle() {
-  const themeToggle = document.getElementById("themeToggle");
-  if (!themeToggle) return;
+  const mount = document.getElementById("theme-toggle-mount");
+  if (!mount) return;
 
   const t0 = await loadThemeAuthoritative();
   applyTheme(t0);
-  themeToggle.checked = t0 === "light";
 
-  themeToggle.addEventListener("change", async () => {
-    const t = themeToggle.checked ? "light" : "dark";
+  const { el: switchEl, input: cb } = toggleSwitch({
+    id: "themeToggle",
+    title: "Toggle light/dark",
+    ariaLabel: "Toggle theme",
+    checked: t0 === "light",
+  });
+  mount.appendChild(switchEl);
+
+  cb.addEventListener("change", async () => {
+    const t = cb.checked ? "light" : "dark";
     await setThemeAuthoritative(t);
   });
 }
