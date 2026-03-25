@@ -1039,3 +1039,45 @@ input:checked + .slider::before {
   color: var(--accent);
   border-bottom-color: var(--accent);
 }
+
+/* -----------------------------
+   Data grid (div-based, reusable)
+   Set --dg-cols on the container
+------------------------------ */
+.dg-header{
+  display: grid;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--chip2);
+  border-bottom: 1px solid var(--line);
+}
+
+.dg-th{
+  padding: 8px 10px;
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dg-row{
+  display: grid;
+  grid-template-columns: var(--dg-cols);
+  border-bottom: 1px solid var(--line);
+}
+
+.dg-row:hover .dg-cell{
+  background: var(--glass);
+}
+
+.dg-cell{
+  padding: 6px 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  position: relative;
+}

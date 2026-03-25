@@ -328,6 +328,60 @@
     });
   };
 
+  dialog.custom = function(opts) {
+    opts = opts || {};
+    var title = opts.title || "";
+    var wide = opts.wide !== false;
+    var okLabel = opts.okText || "OK";
+    var cancelLabel = opts.cancelText || "Cancel";
+
+    return new Promise(function(resolve) {
+      var backdrop = createElement('<div class="ed-dlg-backdrop"></div>');
+      var dlg = createElement(
+        '<div class="ed-dlg' + (wide ? ' ed-dlg-wide' : '') + '" role="dialog" aria-modal="true">' +
+          '<div class="ed-dlg-head"><div class="ed-dlg-title"></div></div>' +
+          '<div class="ed-dlg-body"></div>' +
+          '<div class="ed-dlg-foot">' +
+            '<button type="button" class="ed-dlg-btn cancel"></button>' +
+            '<button type="button" class="ed-dlg-btn ok"></button>' +
+          '</div>' +
+        '</div>'
+      );
+
+      qs(".ed-dlg-title", dlg).textContent = title;
+      qs("button.cancel", dlg).textContent = cancelLabel;
+      qs("button.ok", dlg).textContent = okLabel;
+
+      var bodyEl = qs(".ed-dlg-body", dlg);
+
+      function cleanup(result) {
+        document.removeEventListener("keydown", handleKey);
+        backdrop.remove();
+        resolve(result);
+      }
+
+      function handleKey(e) {
+        if (e.key === "Escape") cleanup(null);
+      }
+
+      if (opts.build) opts.build(bodyEl, cleanup);
+
+      qs("button.cancel", dlg).addEventListener("click", function() { cleanup(null); });
+      qs("button.ok", dlg).addEventListener("click", function() {
+        var result = opts.collect ? opts.collect(bodyEl) : true;
+        cleanup(result);
+      });
+
+      backdrop.addEventListener("mousedown", function(e) {
+        if (e.target === backdrop) cleanup(null);
+      });
+
+      backdrop.appendChild(dlg);
+      document.body.appendChild(backdrop);
+      document.addEventListener("keydown", handleKey);
+    });
+  };
+
   window.Goop = window.Goop || {};
   window.Goop.dialog = dialog;
 })();

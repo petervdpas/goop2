@@ -19,12 +19,19 @@ type Table struct {
 
 // Column describes a single column in a table.
 type Column struct {
-	Name     string `json:"name"`
-	Type     string `json:"type"`
-	Key      bool   `json:"key,omitempty"`
-	Required bool   `json:"required,omitempty"`
-	Auto     bool   `json:"auto,omitempty"`
-	Default  any    `json:"default,omitempty"`
+	Name     string      `json:"name"`
+	Type     string      `json:"type"`
+	Key      bool        `json:"key,omitempty"`
+	Required bool        `json:"required,omitempty"`
+	Auto     bool        `json:"auto,omitempty"`
+	Default  any         `json:"default,omitempty"`
+	Values   []EnumValue `json:"values,omitempty"`
+}
+
+// EnumValue is a key/label pair for enum columns.
+type EnumValue struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
 }
 
 // ParseTable parses a Table from JSON bytes.
@@ -64,6 +71,9 @@ func (t *Table) Validate() error {
 		seen[c.Name] = true
 		if !validType(c.Type) {
 			return fmt.Errorf("schema: table %q column %q has invalid type %q", t.Name, c.Name, c.Type)
+		}
+		if c.Type == "enum" && len(c.Values) == 0 {
+			return fmt.Errorf("schema: table %q column %q is enum but has no values", t.Name, c.Name)
 		}
 		if c.Key {
 			hasKey = true
@@ -132,7 +142,7 @@ func (t *Table) KeyColumnNames() []string {
 
 func validType(t string) bool {
 	switch strings.ToLower(t) {
-	case "text", "integer", "real", "blob", "guid", "datetime", "date", "time":
+	case "text", "integer", "real", "blob", "guid", "datetime", "date", "time", "enum":
 		return true
 	}
 	return false
@@ -143,7 +153,7 @@ func SQLType(t string) string { return sqlType(t) }
 
 func sqlType(t string) string {
 	switch strings.ToLower(t) {
-	case "text", "guid":
+	case "text", "guid", "enum":
 		return "TEXT"
 	case "datetime":
 		return "DATETIME"

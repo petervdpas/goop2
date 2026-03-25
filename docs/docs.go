@@ -5642,6 +5642,12 @@ const docTemplate = `{
                 "type": {
                     "type": "string",
                     "example": "integer"
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/routes.schemaEnumValue"
+                    }
                 }
             }
         },
@@ -5650,6 +5656,19 @@ const docTemplate = `{
             "properties": {
                 "ddl": {
                     "type": "string"
+                }
+            }
+        },
+        "routes.schemaEnumValue": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string",
+                    "example": "active"
+                },
+                "label": {
+                    "type": "string",
+                    "example": "Active"
                 }
             }
         },

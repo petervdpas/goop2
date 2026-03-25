@@ -240,47 +240,13 @@
 }
 
 /* -----------------------------
-   Data grid
+   Data grid container
 ------------------------------ */
 .db-grid{
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-}
-
-.db-grid table{
-  width: 100%;
-  border-collapse: collapse;
   font-size: 13px;
-  table-layout: fixed;
-}
-
-.db-grid th{
-  padding: 8px 10px;
-  text-align: left;
-  font-weight: 700;
-  font-size: 12px;
-  color: var(--muted);
-  background: var(--chip2);
-  border-bottom: 1px solid var(--line);
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  white-space: nowrap;
-}
-
-.db-grid td{
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--line);
-  vertical-align: middle;
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.db-grid tr:hover td{
-  background: var(--glass);
 }
 
 /* System columns (non-editable) */
@@ -306,18 +272,19 @@
 /* Editable cells */
 .db-cell-editable{
   cursor: pointer;
-  position: relative;
   border-bottom: 1px dashed color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 .db-cell-editable:hover{
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
   border-bottom-color: var(--accent);
 }
 
-/* Inline editing input */
+/* Inline editing */
 .db-cell-editing{
   padding: 2px 4px;
+  overflow: visible;
+  z-index: 3;
 }
 
 .db-cell-editing input{
@@ -332,10 +299,13 @@
   box-shadow: var(--ring);
 }
 
+.db-cell-editing .gsel{
+  min-width: 100%;
+}
+
 /* Row actions */
 .db-row-actions{
   text-align: right;
-  width: 40px;
 }
 
 .db-row-delete{
@@ -349,7 +319,7 @@
   transition: opacity var(--ease), background var(--ease);
 }
 
-.db-grid tr:hover .db-row-delete{
+.dg-row:hover .db-row-delete{
   opacity: 1;
 }
 
@@ -636,6 +606,67 @@
   margin: 0;
   max-height: 160px;
   overflow-y: auto;
+}
+
+/* -----------------------------
+   Enum editor
+------------------------------ */
+.schema-type-wrap{
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex: 1;
+  min-width: 90px;
+}
+
+.schema-type-wrap .gsel{
+  flex: 1;
+  min-width: 0;
+}
+
+.schema-enum-btn{
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s;
+}
+
+.schema-enum-btn:hover{
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.schema-enum-popup-header{
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.schema-enum-popup-hint{
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.schema-enum-pair{
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+
+.schema-enum-pair .schema-enum-key{
+  flex: 1;
+}
+
+.schema-enum-pair .schema-enum-label{
+  flex: 1;
 }
 
 /* -----------------------------

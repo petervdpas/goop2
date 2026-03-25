@@ -291,58 +291,49 @@
     loadingMore = false;
   }
 
-  // -------- Data grid --------
-  function buildColgroup() {
+  // -------- Data grid (div-based CSS grid) --------
+  function gridTemplate() {
     var vc = visibleCols();
-    var cg = '<colgroup>';
+    var cols = [];
     vc.forEach(function(col) {
-      if (col.name === '_id') {
-        cg += '<col style="width:50px">';
-      } else if (col.name === '_created_at' || col.name === '_updated_at') {
-        cg += '<col style="width:170px">';
-      } else if (col.name === '_owner' || col.name === '_owner_email') {
-        cg += '<col style="width:140px">';
-      } else {
-        cg += '<col>';
-      }
+      if (col.name === '_id') cols.push('60px');
+      else if (col.name === '_created_at' || col.name === '_updated_at') cols.push('170px');
+      else if (col.name === '_owner' || col.name === '_owner_email') cols.push('140px');
+      else cols.push('minmax(80px, 1fr)');
     });
-    cg += '<col style="width:40px">';
-    cg += '</colgroup>';
-    return cg;
+    cols.push('40px');
+    return cols.join(' ');
   }
 
   function buildRowHtml(row) {
     var vc = visibleCols();
     var rowId = row._id;
-    var html = '<tr data-row-id="' + rowId + '">';
+    var html = '<div class="dg-row" data-row-id="' + rowId + '">';
     vc.forEach(function(col) {
       var val = row[col.name];
       var isSystem = systemCols.indexOf(col.name) !== -1;
       var isNull = val === null || val === undefined;
 
       if (isSystem) {
-        html += '<td class="db-cell-system">';
-        if (isNull) {
-          html += '<span class="db-cell-null">NULL</span>';
-        } else {
-          html += '<span class="db-cell-truncate" title="' + escapeHtml(val) + '">' + escapeHtml(val) + '</span>';
-        }
-        html += '</td>';
+        html += '<div class="dg-cell db-cell-system">';
+        html += isNull ? '<span class="db-cell-null">NULL</span>' :
+          '<span class="db-cell-truncate" title="' + escapeHtml(val) + '">' + escapeHtml(val) + '</span>';
+        html += '</div>';
       } else {
-        html += '<td class="db-cell-editable" data-col="' + escapeHtml(col.name) + '" data-row-id="' + rowId + '">';
+        html += '<div class="dg-cell db-cell-editable" data-col="' + escapeHtml(col.name) + '" data-row-id="' + rowId + '">';
         html += isNull ? '<span class="db-cell-null">NULL</span>' : escapeHtml(val);
-        html += '</td>';
+        html += '</div>';
       }
     });
-    html += '<td class="db-row-actions"><button class="db-row-delete" data-row-id="' + rowId + '" title="Delete row">x</button></td>';
-    html += '</tr>';
+    html += '<div class="dg-cell db-row-actions"><button class="db-row-delete" data-row-id="' + rowId + '" title="Delete row">x</button></div>';
+    html += '</div>';
     return html;
   }
 
   function bindRowEvents(container) {
-    qsa(".db-cell-editable:not([data-bound])", container).forEach(function(td) {
-      td.dataset.bound = "1";
-      on(td, "click", function() { startEdit(td); });
+    qsa(".db-cell-editable:not([data-bound])", container).forEach(function(cell) {
+      cell.dataset.bound = "1";
+      on(cell, "click", function() { startEdit(cell); });
     });
     qsa(".db-row-delete:not([data-bound])", container).forEach(function(btn) {
       btn.dataset.bound = "1";
@@ -359,66 +350,166 @@
       return;
     }
 
-    // Cache rows for column toggle re-render
+    var gt = gridTemplate();
+
     if (!append) {
       lastRows = rows || [];
     } else if (rows && rows.length > 0) {
       lastRows = lastRows.concat(rows);
     }
 
-    // Append rows to existing tbody
     if (append) {
-      var tbody = qs("tbody", gridEl);
-      if (tbody && rows && rows.length > 0) {
-        var fragment = document.createElement("tbody");
+      var body = qs(".dg-body", gridEl);
+      if (body && rows && rows.length > 0) {
+        var frag = document.createElement("div");
         var html = "";
         rows.forEach(function(row) { html += buildRowHtml(row); });
-        fragment.innerHTML = html;
-        while (fragment.firstChild) {
-          tbody.appendChild(fragment.firstChild);
+        frag.innerHTML = html;
+        while (frag.firstChild) {
+          body.appendChild(frag.firstChild);
         }
-        bindRowEvents(tbody);
+        bindRowEvents(body);
       }
       return;
     }
 
-    // Full render
     var vc = visibleCols();
-    if (!rows || rows.length === 0) {
-      var html = '<table>' + buildColgroup() + '<thead><tr>';
-      vc.forEach(function(col) {
-        html += '<th>' + escapeHtml(col.name) + '</th>';
-      });
-      html += '<th></th></tr></thead>';
-      html += '<tbody><tr><td colspan="' + (vc.length + 1) + '" class="empty-state">No rows. Click "+ Row" to add data.</td></tr></tbody></table>';
-      gridEl.innerHTML = html;
-      return;
-    }
-
-    var html = '<table>' + buildColgroup() + '<thead><tr>';
+    var html = '<div class="dg-header" style="grid-template-columns:' + gt + '">';
     vc.forEach(function(col) {
-      html += '<th>' + escapeHtml(col.name) + '</th>';
+      html += '<div class="dg-th">' + escapeHtml(col.name) + '</div>';
     });
-    html += '<th></th></tr></thead><tbody>';
-    rows.forEach(function(row) { html += buildRowHtml(row); });
-    html += '</tbody></table>';
+    html += '<div class="dg-th"></div></div>';
+
+    html += '<div class="dg-body">';
+    if (!rows || rows.length === 0) {
+      html += '<div class="empty-state" style="grid-column:1/-1">No rows. Click "+ Row" to add data.</div>';
+    } else {
+      rows.forEach(function(row) { html += buildRowHtml(row); });
+    }
+    html += '</div>';
+
     gridEl.innerHTML = html;
+    gridEl.style.setProperty("--dg-cols", gt);
     bindRowEvents(gridEl);
   }
 
   // -------- Inline editing --------
+  function generateFallbackGUID() {
+    var d = Date.now();
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(c) {
+      var r = (d + Math.random() * 16) % 16 | 0;
+      d = Math.floor(d / 16);
+      return (c === "x" ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+  }
+
+  function colType(colName) {
+    for (var i = 0; i < columns.length; i++) {
+      if (columns[i].name === colName) return (columns[i].type || "text").toLowerCase();
+    }
+    return "text";
+  }
+
+  function colAuto(colName) {
+    for (var i = 0; i < columns.length; i++) {
+      if (columns[i].name === colName) return !!columns[i].auto;
+    }
+    return false;
+  }
+
   function startEdit(td) {
-    // Already editing?
     if (td.classList.contains("db-cell-editing")) return;
 
-    const colName = td.dataset.col;
-    const rowId = parseInt(td.dataset.rowId, 10);
-    const nullSpan = qs(".db-cell-null", td);
-    const oldValue = nullSpan ? "" : td.textContent;
+    var colName = td.dataset.col;
+    var rowId = parseInt(td.dataset.rowId, 10);
+    var nullSpan = qs(".db-cell-null", td);
+    var oldValue = nullSpan ? "" : td.textContent;
+    var ct = colType(colName);
+
+    if (ct === "enum") {
+      var enumCol = null;
+      for (var ei = 0; ei < columns.length; ei++) {
+        if (columns[ei].name === colName) { enumCol = columns[ei]; break; }
+      }
+      var enumVals = (enumCol && enumCol.values) || [];
+      if (enumVals.length === 0) return;
+
+      td.classList.add("db-cell-editing");
+      var enumOpts = enumVals.map(function(v) { return { value: v.key, label: v.label || v.key }; });
+      var selDiv = document.createElement("div");
+      selDiv.innerHTML = gsel.html({ className: "db-cell-enum-sel", value: oldValue, options: enumOpts });
+      td.textContent = "";
+      td.appendChild(selDiv.firstElementChild);
+      var selEl = qs(".db-cell-enum-sel", td);
+      gsel.init(selEl, function(val) {
+        td.classList.remove("db-cell-editing");
+        if (val !== oldValue) {
+          commitEdit(td, rowId, colName, val, oldValue);
+        } else {
+          restoreCell(td, oldValue);
+        }
+      });
+      qs(".gsel-trigger", selEl).click();
+      return;
+    }
+
+    if (ct === "guid") {
+      Goop.dialog.confirm("Regenerate GUID for " + colName + "?", "Regenerate").then(function(ok) {
+        if (!ok) return;
+        var newGuid = crypto.randomUUID ? crypto.randomUUID() : generateFallbackGUID();
+        commitEdit(td, rowId, colName, newGuid, oldValue);
+      });
+      return;
+    }
+
+    if (ct === "datetime" || ct === "date") {
+      td.classList.add("db-cell-editing");
+      var dateInput = document.createElement("input");
+      dateInput.type = "text";
+      dateInput.value = oldValue ? oldValue.substring(0, 10) : "";
+      td.textContent = "";
+      td.appendChild(dateInput);
+      Goop.datepicker.attach(dateInput);
+      dateInput.addEventListener("change", function() {
+        var val = dateInput.value;
+        if (ct === "datetime" && val) val = val + "T00:00:00Z";
+        td.classList.remove("db-cell-editing");
+        if (val !== oldValue) {
+          commitEdit(td, rowId, colName, val, oldValue);
+        } else {
+          restoreCell(td, oldValue);
+        }
+      });
+      dateInput.click();
+      return;
+    }
+
+    if (ct === "time") {
+      td.classList.add("db-cell-editing");
+      var timeInput = document.createElement("input");
+      timeInput.type = "text";
+      timeInput.value = oldValue || "";
+      td.textContent = "";
+      td.appendChild(timeInput);
+      Goop.timepicker.attach(timeInput);
+      timeInput.addEventListener("change", function() {
+        var val = timeInput.value;
+        td.classList.remove("db-cell-editing");
+        if (val !== oldValue) {
+          commitEdit(td, rowId, colName, val, oldValue);
+        } else {
+          restoreCell(td, oldValue);
+        }
+      });
+      timeInput.click();
+      return;
+    }
 
     td.classList.add("db-cell-editing");
-    const input = document.createElement("input");
-    input.type = "text";
+    var input = document.createElement("input");
+    if (ct === "integer") input.type = "number";
+    else if (ct === "real") { input.type = "number"; input.step = "any"; }
+    else input.type = "text";
     input.value = oldValue;
     td.textContent = "";
     td.appendChild(input);
@@ -427,7 +518,7 @@
     input.select();
 
     function commit() {
-      const newValue = input.value;
+      var newValue = input.value;
       cleanup();
       if (newValue !== oldValue) {
         commitEdit(td, rowId, colName, newValue, oldValue);
@@ -469,15 +560,44 @@
     td.textContent = newValue || "";
 
     try {
-      const data = {};
-      // Send empty string as null
-      data[colName] = newValue === "" ? null : newValue;
+      var data = {};
+      var ct = colType(colName);
+      var isRequired = false;
+      for (var ci = 0; ci < columns.length; ci++) {
+        if (columns[ci].name === colName) { isRequired = !!columns[ci].required; break; }
+      }
+
+      if (newValue === "" || newValue === null) {
+        if (isRequired) {
+          restoreCell(td, oldValue);
+          toast(colName + " is required", "warning");
+          return;
+        }
+        data[colName] = null;
+      } else if (ct === "integer") {
+        var n = Number(newValue);
+        if (isNaN(n) || newValue.trim() === "" || n !== Math.floor(n)) {
+          restoreCell(td, oldValue);
+          toast(colName + ": expected integer", "warning");
+          return;
+        }
+        data[colName] = parseInt(newValue, 10);
+      } else if (ct === "real") {
+        var f = Number(newValue);
+        if (isNaN(f) || newValue.trim() === "") {
+          restoreCell(td, oldValue);
+          toast(colName + ": expected number", "warning");
+          return;
+        }
+        data[colName] = parseFloat(newValue);
+      } else {
+        data[colName] = newValue;
+      }
       await api.update({ table: currentTable, id: rowId, data: data });
       // If value is null, render as NULL span
       if (newValue === "") {
         td.innerHTML = '<span class="db-cell-null">NULL</span>';
       }
-      toast(colName + " updated", "info");
     } catch (err) {
       restoreCell(td, oldValue);
       toast("Update failed: " + err.message, true);
@@ -690,6 +810,18 @@
     var html = '<h4>Insert Row into ' + escapeHtml(currentTable) + '</h4>';
     userCols.forEach(function(col) {
       var colType = (col.type || "text").toLowerCase();
+
+      if (colType === "enum" && col.values && col.values.length > 0) {
+        var enumOpts = [{ value: "", label: "(select)" }];
+        col.values.forEach(function(v) { enumOpts.push({ value: v.key, label: v.label || v.key }); });
+        html += '<div class="db-insert-field">' +
+          '<label>' + escapeHtml(col.name) + ' <span style="opacity:0.5;font-size:11px">(enum)</span></label>' +
+          gsel.html({ className: "db-insert-enum", value: col.default || "", options: enumOpts }) +
+          '<input type="hidden" data-col="' + escapeHtml(col.name) + '" data-type="enum" class="db-insert-enum-val" />' +
+        '</div>';
+        return;
+      }
+
       var inputType = "text";
       if (colType === "integer") inputType = "number";
       else if (colType === "real") inputType = "number";
@@ -713,6 +845,11 @@
     insertFormEl.innerHTML = html;
     on(qs("#db-insert-cancel"), "click", function() { setHidden(insertFormEl, true); });
     on(qs("#db-insert-submit"), "click", submitInsertRow);
+
+    qsa('.db-insert-enum', insertFormEl).forEach(function(sel) {
+      var hiddenInput = sel.parentNode.querySelector('.db-insert-enum-val');
+      gsel.init(sel, function(val) { if (hiddenInput) hiddenInput.value = val; });
+    });
 
     qsa('.db-insert-field input[data-type="datetime"], .db-insert-field input[data-type="date"]', insertFormEl).forEach(function(el) {
       if (!el.hasAttribute("readonly")) Goop.datepicker.attach(el);
@@ -977,6 +1114,7 @@
       { value: "guid", label: "guid" },
       { value: "integer", label: "integer" },
       { value: "text", label: "text" },
+      { value: "enum", label: "enum" },
       { value: "datetime", label: "datetime" },
       { value: "date", label: "date" },
       { value: "time", label: "time" },
@@ -1083,15 +1221,90 @@
 
   function schemaColRow(c) {
     var def = c.default !== undefined && c.default !== null ? String(c.default) : "";
-    return '<div class="schema-col-row">' +
-      '<input type="text" class="form-input schema-col-name" placeholder="column_name" value="' + escapeHtml(c.name || '') + '" />' +
-      gsel.html({ className: "schema-col-type", value: c.type || "text", options: schemaTypeOptions() }) +
-      '<label class="schema-col-check"><input type="checkbox" class="schema-col-key"' + (c.key ? ' checked' : '') + ' /></label>' +
-      '<label class="schema-col-check"><input type="checkbox" class="schema-col-req"' + (c.required ? ' checked' : '') + ' /></label>' +
-      '<label class="schema-col-check"><input type="checkbox" class="schema-col-auto"' + (c.auto ? ' checked' : '') + ' /></label>' +
-      '<input type="text" class="form-input schema-col-def" placeholder="" value="' + escapeHtml(def) + '" />' +
-      '<button class="db-col-remove schema-col-remove">x</button>' +
+    var isEnum = (c.type || "text") === "enum";
+    var enumJSON = isEnum ? escapeHtml(JSON.stringify(c.values || [])) : "[]";
+    var enumCount = (c.values || []).length;
+    var enumBtnLabel = isEnum ? (enumCount > 0 ? enumCount + " vals" : "edit") : "";
+
+    return '<div class="schema-col-row-wrap" data-enum-values="' + enumJSON + '">' +
+      '<div class="schema-col-row">' +
+        '<input type="text" class="form-input schema-col-name" placeholder="column_name" value="' + escapeHtml(c.name || '') + '" />' +
+        '<div class="schema-type-wrap">' +
+          gsel.html({ className: "schema-col-type", value: c.type || "text", options: schemaTypeOptions() }) +
+          '<button class="schema-enum-btn' + (isEnum ? '' : ' hidden') + '" title="Edit enum values">' + enumBtnLabel + '</button>' +
+        '</div>' +
+        '<label class="schema-col-check"><input type="checkbox" class="schema-col-key"' + (c.key ? ' checked' : '') + ' /></label>' +
+        '<label class="schema-col-check"><input type="checkbox" class="schema-col-req"' + (c.required ? ' checked' : '') + ' /></label>' +
+        '<label class="schema-col-check"><input type="checkbox" class="schema-col-auto"' + (c.auto ? ' checked' : '') + ' /></label>' +
+        '<input type="text" class="form-input schema-col-def" placeholder="" value="' + escapeHtml(def) + '" />' +
+        '<button class="db-col-remove schema-col-remove">x</button>' +
+      '</div>' +
     '</div>';
+  }
+
+  function openEnumEditor(wrap) {
+    var existing = [];
+    try { existing = JSON.parse(wrap.dataset.enumValues || "[]"); } catch(e) {}
+
+    Goop.dialog.custom({
+      title: "Enum Values",
+      okText: "Save",
+      build: function(body) {
+        var html = '<div class="schema-enum-popup-hint">Key is stored in the database. Label is shown to the user.</div>';
+        html += '<div class="schema-enum-pairs">';
+        if (existing.length > 0) {
+          existing.forEach(function(v) { html += enumPairHtml(v.key, v.label); });
+        } else {
+          html += enumPairHtml("", "");
+        }
+        html += '</div>';
+        html += '<button class="db-action-btn schema-enum-popup-add" style="margin-top:6px">+ Value</button>';
+        body.innerHTML = html;
+
+        qs(".schema-enum-popup-add", body).onclick = function() {
+          var pairs = qs(".schema-enum-pairs", body);
+          var div = document.createElement("div");
+          div.innerHTML = enumPairHtml("", "");
+          pairs.appendChild(div.firstElementChild);
+          bindEnumPopupRemove(body);
+          var keys = qsa(".schema-enum-key", pairs);
+          if (keys.length > 0) keys[keys.length - 1].focus();
+        };
+        bindEnumPopupRemove(body);
+      },
+      collect: function(body) {
+        var vals = [];
+        qsa(".schema-enum-pair", body).forEach(function(pair) {
+          var key = qs(".schema-enum-key", pair).value.trim();
+          var label = qs(".schema-enum-label", pair).value.trim();
+          if (key) vals.push({ key: key, label: label || key });
+        });
+        return vals;
+      },
+    }).then(function(vals) {
+      if (vals === null) return;
+      wrap.dataset.enumValues = JSON.stringify(vals);
+      var btn = qs(".schema-enum-btn", wrap);
+      if (btn) btn.textContent = vals.length > 0 ? vals.length + " vals" : "edit";
+      updateDdlPreview();
+    });
+  }
+
+  function enumPairHtml(key, label) {
+    return '<div class="schema-enum-pair">' +
+      '<input type="text" class="form-input schema-enum-key" placeholder="key" value="' + escapeHtml(key || '') + '" />' +
+      '<input type="text" class="form-input schema-enum-label" placeholder="label" value="' + escapeHtml(label || '') + '" />' +
+      '<button class="db-col-remove schema-enum-remove">x</button>' +
+    '</div>';
+  }
+
+  function bindEnumPopupRemove(container) {
+    qsa(".schema-enum-remove", container).forEach(function(btn) {
+      btn.onclick = function() {
+        var pairs = qsa(".schema-enum-pair", container);
+        if (pairs.length > 1) btn.closest(".schema-enum-pair").remove();
+      };
+    });
   }
 
   function bindSchemaColEvents() {
@@ -1099,9 +1312,34 @@
       btn.onclick = function() {
         var container = qs("#schema-columns");
         if (container && container.children.length > 1) {
-          btn.closest(".schema-col-row").remove();
+          btn.closest(".schema-col-row-wrap").remove();
           updateDdlPreview();
         }
+      };
+    });
+    qsa("#schema-columns .gsel.schema-col-type", schemaEditorEl).forEach(function(sel) {
+      gsel.init(sel, function(val) {
+        var wrap = sel.closest(".schema-col-row-wrap");
+        if (!wrap) return;
+        var enumBtn = qs(".schema-enum-btn", wrap);
+        if (enumBtn) {
+          if (val === "enum") {
+            enumBtn.classList.remove("hidden");
+            if (!wrap.dataset.enumValues || wrap.dataset.enumValues === "[]") {
+              enumBtn.textContent = "edit";
+            }
+          } else {
+            enumBtn.classList.add("hidden");
+          }
+        }
+        updateDdlPreview();
+      });
+    });
+    qsa(".schema-enum-btn", schemaEditorEl).forEach(function(btn) {
+      btn.onclick = function(e) {
+        e.preventDefault();
+        var wrap = btn.closest(".schema-col-row-wrap");
+        if (wrap) openEnumEditor(wrap);
       };
     });
     qsa("#schema-columns input, #schema-columns .gsel", schemaEditorEl).forEach(function(el) {
@@ -1113,7 +1351,8 @@
   function collectSchemaData() {
     var name = (qs("#schema-name").value || "").trim();
     var cols = [];
-    qsa("#schema-columns .schema-col-row").forEach(function(row) {
+    qsa("#schema-columns .schema-col-row-wrap").forEach(function(wrap) {
+      var row = qs(".schema-col-row", wrap);
       var colName = qs(".schema-col-name", row).value.trim();
       if (!colName) return;
       var col = {
@@ -1127,6 +1366,9 @@
       if (def) {
         var num = Number(def);
         col.default = isNaN(num) ? def : num;
+      }
+      if (col.type === "enum") {
+        try { col.values = JSON.parse(wrap.dataset.enumValues || "[]"); } catch(e) { col.values = []; }
       }
       cols.push(col);
     });

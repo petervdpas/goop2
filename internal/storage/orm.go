@@ -106,6 +106,7 @@ type LuaSchemaColumn struct {
 	Required bool
 	Auto     bool
 	Default  any
+	Values   []schema.EnumValue
 }
 
 // CreateTableORMFromLua creates an ORM-managed table from Lua-provided columns.
@@ -119,6 +120,7 @@ func (d *DB) CreateTableORMFromLua(name string, columns []LuaSchemaColumn) error
 			Required: c.Required,
 			Auto:     c.Auto,
 			Default:  c.Default,
+			Values:   c.Values,
 		}
 	}
 	tbl := &schema.Table{Name: name, Columns: schemaCols}
@@ -166,6 +168,19 @@ func (d *DB) ValidateInsert(tableName string, data map[string]any) error {
 		}
 		if err := validateType(col.Name, col.Type, val); err != nil {
 			return err
+		}
+		if col.Type == "enum" && len(col.Values) > 0 {
+			s, _ := val.(string)
+			valid := false
+			for _, ev := range col.Values {
+				if ev.Key == s {
+					valid = true
+					break
+				}
+			}
+			if !valid {
+				return fmt.Errorf("column %q: value %q is not a valid enum option", col.Name, s)
+			}
 		}
 	}
 	return nil
@@ -348,7 +363,7 @@ func validateType(name, colType string, val any) error {
 			return nil
 		}
 		return fmt.Errorf("column %q expects real, got %T", name, val)
-	case "text", "guid", "datetime", "date", "time":
+	case "text", "guid", "datetime", "date", "time", "enum":
 		if _, ok := val.(string); !ok {
 			return fmt.Errorf("column %q expects %s, got %T", name, colType, val)
 		}

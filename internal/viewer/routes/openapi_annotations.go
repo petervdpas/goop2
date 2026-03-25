@@ -2209,12 +2209,19 @@ type schemaNameRequest struct {
 
 // schemaColumn describes a column in a schema definition.
 type schemaColumn struct {
-	Name     string `json:"name"              example:"order_id"`
-	Type     string `json:"type"              example:"integer"`
-	Key      bool   `json:"key,omitempty"`
-	Required bool   `json:"required,omitempty"`
-	Auto     bool   `json:"auto,omitempty"`
-	Default  any    `json:"default,omitempty"`
+	Name     string            `json:"name"              example:"order_id"`
+	Type     string            `json:"type"              example:"integer"`
+	Key      bool              `json:"key,omitempty"`
+	Required bool              `json:"required,omitempty"`
+	Auto     bool              `json:"auto,omitempty"`
+	Default  any               `json:"default,omitempty"`
+	Values   []schemaEnumValue `json:"values,omitempty"`
+}
+
+// schemaEnumValue is a key/label pair for enum columns.
+type schemaEnumValue struct {
+	Key   string `json:"key"   example:"active"`
+	Label string `json:"label" example:"Active"`
 }
 
 // schemaSaveRequest is the body for POST /api/data/schemas/save.

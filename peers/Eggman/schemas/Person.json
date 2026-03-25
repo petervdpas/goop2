@@ -21,6 +21,20 @@
     {
       "name": "credits",
       "type": "integer"
+    },
+    {
+      "name": "etest",
+      "type": "enum",
+      "values": [
+        {
+          "key": "done",
+          "label": "Done"
+        },
+        {
+          "key": "busy",
+          "label": "Busy"
+        }
+      ]
     }
   ]
 }

@@ -1060,10 +1060,23 @@ definitions:
       type:
         example: integer
         type: string
+      values:
+        items:
+          $ref: '#/definitions/routes.schemaEnumValue'
+        type: array
     type: object
   routes.schemaDdlResponse:
     properties:
       ddl:
+        type: string
+    type: object
+  routes.schemaEnumValue:
+    properties:
+      key:
+        example: active
+        type: string
+      label:
+        example: Active
         type: string
     type: object
   routes.schemaListEntry:
