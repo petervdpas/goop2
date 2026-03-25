@@ -52,10 +52,7 @@ type uiState struct {
 	Theme string `json:"theme"`
 }
 
-const (
-	uiPath   = "data/ui.json"
-	themeKey = "goop.theme"
-)
+const uiPath = "data/ui.json"
 
 const defaultIndexHTML = `<!doctype html>
 <html lang="en">
