@@ -132,7 +132,7 @@ func (t *Table) KeyColumnNames() []string {
 
 func validType(t string) bool {
 	switch strings.ToLower(t) {
-	case "text", "integer", "real", "blob", "guid", "date":
+	case "text", "integer", "real", "blob", "guid", "datetime", "date", "time":
 		return true
 	}
 	return false
@@ -145,8 +145,12 @@ func sqlType(t string) string {
 	switch strings.ToLower(t) {
 	case "text", "guid":
 		return "TEXT"
-	case "date":
+	case "datetime":
 		return "DATETIME"
+	case "date":
+		return "DATE"
+	case "time":
+		return "TIME"
 	case "integer":
 		return "INTEGER"
 	case "real":
@@ -171,6 +175,16 @@ func GenerateGUID() string {
 // NowUTC returns the current UTC time as an RFC3339 string.
 func NowUTC() string {
 	return time.Now().UTC().Format(time.RFC3339)
+}
+
+// NowDate returns the current UTC date as YYYY-MM-DD.
+func NowDate() string {
+	return time.Now().UTC().Format("2006-01-02")
+}
+
+// NowTime returns the current UTC time as HH:MM:SS.
+func NowTime() string {
+	return time.Now().UTC().Format("15:04:05")
 }
 
 func sqlDefault(v any) string {

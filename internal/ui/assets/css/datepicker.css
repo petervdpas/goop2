@@ -125,3 +125,71 @@
 .gdp-today-btn:hover, .gdp-clear-btn:hover{
   background: var(--glass);
 }
+
+/* ── Time picker ── */
+
+.gtp-popup{
+  min-width: 200px;
+}
+
+.gtp-header{
+  font-weight: 700;
+  font-size: 13px;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.gtp-selectors{
+  display: flex;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.gtp-col{
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.gtp-label{
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.gtp-scroll{
+  max-height: 180px;
+  overflow-y: auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gtp-sep{
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--muted);
+  padding-top: 22px;
+}
+
+.gtp-item{
+  text-align: center;
+  font-size: 13px;
+  padding: 4px 0;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.gtp-item:hover{
+  background: var(--glass);
+}
+
+.gtp-item.gtp-selected{
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 700;
+}

@@ -556,7 +556,9 @@
       { value: "GUID", label: "GUID" },
       { value: "INTEGER", label: "INTEGER" },
       { value: "TEXT", label: "TEXT" },
+      { value: "DATETIME", label: "DATETIME" },
       { value: "DATE", label: "DATE" },
+      { value: "TIME", label: "TIME" },
       { value: "REAL", label: "REAL" },
       { value: "BLOB", label: "BLOB" },
     ];
@@ -694,8 +696,9 @@
 
       var extra = "";
       if (colType === "real") extra = ' step="any"';
+      if (colType === "time") inputType = "time";
       if (col.auto) extra = ' readonly placeholder="(auto-generated)"';
-      else if (colType === "date") extra = ' placeholder="Click to pick a date"';
+      else if (colType === "datetime" || colType === "date") extra = ' placeholder="Click to pick a date"';
 
       html += '<div class="db-insert-field">' +
         '<label>' + escapeHtml(col.name) + ' <span style="opacity:0.5;font-size:11px">(' + escapeHtml(col.type) + ')</span></label>' +
@@ -711,8 +714,11 @@
     on(qs("#db-insert-cancel"), "click", function() { setHidden(insertFormEl, true); });
     on(qs("#db-insert-submit"), "click", submitInsertRow);
 
-    qsa('.db-insert-field input[data-type="date"]', insertFormEl).forEach(function(el) {
-      Goop.datepicker.attach(el);
+    qsa('.db-insert-field input[data-type="datetime"], .db-insert-field input[data-type="date"]', insertFormEl).forEach(function(el) {
+      if (!el.hasAttribute("readonly")) Goop.datepicker.attach(el);
+    });
+    qsa('.db-insert-field input[data-type="time"]', insertFormEl).forEach(function(el) {
+      if (!el.hasAttribute("readonly")) Goop.timepicker.attach(el);
     });
 
     var firstInput = qs(".db-insert-field input:not([readonly])", insertFormEl);
@@ -725,8 +731,10 @@
       var val = input.value;
       if (val !== "") {
         var colType = input.dataset.type || "text";
-        if (colType === "date") {
+        if (colType === "datetime") {
           data[input.dataset.col] = val + "T00:00:00Z";
+        } else if (colType === "date" || colType === "time") {
+          data[input.dataset.col] = val;
         } else if (colType === "integer") {
           data[input.dataset.col] = parseInt(val, 10);
         } else if (colType === "real") {
@@ -969,7 +977,9 @@
       { value: "guid", label: "guid" },
       { value: "integer", label: "integer" },
       { value: "text", label: "text" },
+      { value: "datetime", label: "datetime" },
       { value: "date", label: "date" },
+      { value: "time", label: "time" },
       { value: "real", label: "real" },
       { value: "blob", label: "blob" },
     ];
@@ -1422,8 +1432,12 @@
           } else if (match) {
             f.sources = [match.name];
             f._sourceType = match.type;
+          } else if (colType === "datetime") {
+            f.transform = "datetime";
           } else if (colType === "date") {
             f.transform = "date";
+          } else if (colType === "time") {
+            f.transform = "time";
           } else {
             f.sources = [];
           }

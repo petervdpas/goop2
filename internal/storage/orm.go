@@ -216,8 +216,12 @@ func (d *DB) OrmInsert(tableName, ownerID, ownerEmail string, data map[string]an
 				switch col.Type {
 				case "guid":
 					data[col.Name] = schema.GenerateGUID()
-				case "date":
+				case "datetime":
 					data[col.Name] = schema.NowUTC()
+				case "date":
+					data[col.Name] = schema.NowDate()
+				case "time":
+					data[col.Name] = schema.NowTime()
 				case "integer":
 					// integer auto = AUTOINCREMENT — don't set, let SQLite handle it
 				}
@@ -344,7 +348,7 @@ func validateType(name, colType string, val any) error {
 			return nil
 		}
 		return fmt.Errorf("column %q expects real, got %T", name, val)
-	case "text", "guid", "date":
+	case "text", "guid", "datetime", "date", "time":
 		if _, ok := val.(string); !ok {
 			return fmt.Errorf("column %q expects %s, got %T", name, colType, val)
 		}

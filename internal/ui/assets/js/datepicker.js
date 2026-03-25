@@ -190,4 +190,130 @@
     val: function(input) { return input.value || ""; },
     setVal: function(input, v) { input.value = v || ""; },
   };
+
+  // ── Time picker ──
+
+  function parseTime(s) {
+    if (!s) return null;
+    var parts = s.split(":");
+    if (parts.length < 2) return null;
+    return { hour: parseInt(parts[0], 10), minute: parseInt(parts[1], 10) };
+  }
+
+  function buildTimePicker(input) {
+    closePopup();
+
+    var parsed = parseTime(input.value);
+    var hour = parsed ? parsed.hour : new Date().getHours();
+    var minute = parsed ? parsed.minute : new Date().getMinutes();
+
+    var popup = document.createElement("div");
+    popup.className = "gdp-popup gtp-popup";
+    activePopup = popup;
+
+    var html = '<div class="gtp-header">Select Time</div>';
+    html += '<div class="gtp-selectors">';
+    html += '<div class="gtp-col"><span class="gtp-label">Hour</span><div class="gtp-scroll" id="gtp-hours">';
+    for (var h = 0; h < 24; h++) {
+      var hStr = pad(h);
+      var cls = h === hour ? "gtp-item gtp-selected" : "gtp-item";
+      html += '<span class="' + cls + '" data-val="' + hStr + '">' + hStr + '</span>';
+    }
+    html += '</div></div>';
+    html += '<span class="gtp-sep">:</span>';
+    html += '<div class="gtp-col"><span class="gtp-label">Min</span><div class="gtp-scroll" id="gtp-minutes">';
+    for (var m = 0; m < 60; m += 5) {
+      var mStr = pad(m);
+      var cls2 = m === (minute - minute % 5) ? "gtp-item gtp-selected" : "gtp-item";
+      html += '<span class="' + cls2 + '" data-val="' + mStr + '">' + mStr + '</span>';
+    }
+    html += '</div></div>';
+    html += '</div>';
+
+    html += '<div class="gdp-footer">' +
+      '<button class="gdp-today-btn gtp-now-btn">Now</button>' +
+      '<button class="gdp-clear-btn">Clear</button>' +
+    '</div>';
+
+    popup.innerHTML = html;
+
+    var rect = input.getBoundingClientRect();
+    popup.style.top = (rect.bottom + window.scrollY + 4) + "px";
+    popup.style.left = (rect.left + window.scrollX) + "px";
+    document.body.appendChild(popup);
+
+    function selectTime(h, m) {
+      input.value = pad(h) + ":" + pad(m) + ":00";
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      closePopup();
+    }
+
+    popup.querySelectorAll("#gtp-hours .gtp-item").forEach(function(el) {
+      el.addEventListener("click", function(e) {
+        e.stopPropagation();
+        var selMin = popup.querySelector("#gtp-minutes .gtp-selected");
+        var m = selMin ? parseInt(selMin.dataset.val, 10) : minute;
+        selectTime(parseInt(el.dataset.val, 10), m);
+      });
+    });
+
+    popup.querySelectorAll("#gtp-minutes .gtp-item").forEach(function(el) {
+      el.addEventListener("click", function(e) {
+        e.stopPropagation();
+        var selHour = popup.querySelector("#gtp-hours .gtp-selected");
+        var h = selHour ? parseInt(selHour.dataset.val, 10) : hour;
+        selectTime(h, parseInt(el.dataset.val, 10));
+      });
+    });
+
+    var nowBtn = popup.querySelector(".gtp-now-btn");
+    if (nowBtn) {
+      nowBtn.addEventListener("click", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var now = new Date();
+        selectTime(now.getHours(), now.getMinutes());
+      });
+    }
+
+    var clearBtn = popup.querySelector(".gdp-clear-btn");
+    if (clearBtn) {
+      clearBtn.addEventListener("click", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        input.value = "";
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        closePopup();
+      });
+    }
+
+    var selHourEl = popup.querySelector("#gtp-hours .gtp-selected");
+    if (selHourEl) selHourEl.scrollIntoView({ block: "center" });
+    var selMinEl = popup.querySelector("#gtp-minutes .gtp-selected");
+    if (selMinEl) selMinEl.scrollIntoView({ block: "center" });
+  }
+
+  function attachTime(input) {
+    if (input.dataset.gtpBound) return;
+    input.dataset.gtpBound = "1";
+    input.type = "text";
+    input.setAttribute("readonly", "");
+    input.style.cursor = "pointer";
+    if (!input.placeholder) input.placeholder = "Click to pick a time";
+
+    input.addEventListener("click", function(e) {
+      e.stopPropagation();
+      if (activePopup) {
+        closePopup();
+        return;
+      }
+      buildTimePicker(input);
+    });
+  }
+
+  Goop.timepicker = {
+    attach: attachTime,
+    val: function(input) { return input.value || ""; },
+    setVal: function(input, v) { input.value = v || ""; },
+  };
 })();

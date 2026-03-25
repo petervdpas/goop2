@@ -26,7 +26,9 @@ var transforms = map[string]transformFn{
 	"suffix":     txSuffix,
 	"now":        txNow,
 	"guid":       txGuid,
+	"datetime":   txDatetime,
 	"date":       txDate,
+	"time":       txTime,
 	"coalesce":   txCoalesce,
 	"replace":    txReplace,
 	"split":      txSplit,
@@ -253,6 +255,14 @@ func txGuid(_ []any, _ []any) (any, error) {
 	return schema.GenerateGUID(), nil
 }
 
-func txDate(_ []any, _ []any) (any, error) {
+func txDatetime(_ []any, _ []any) (any, error) {
 	return schema.NowUTC(), nil
+}
+
+func txDate(_ []any, _ []any) (any, error) {
+	return schema.NowDate(), nil
+}
+
+func txTime(_ []any, _ []any) (any, error) {
+	return schema.NowTime(), nil
 }

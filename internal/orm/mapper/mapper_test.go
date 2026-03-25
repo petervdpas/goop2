@@ -1029,7 +1029,7 @@ func TestTransformNames(t *testing.T) {
 	}
 	expected := []string{"uppercase", "lowercase", "trim", "concat", "round", "default",
 		"to_int", "to_text", "to_float", "substring", "prefix", "suffix", "now",
-		"coalesce", "replace", "split", "join", "length", "guid", "date"}
+		"coalesce", "replace", "split", "join", "length", "guid", "datetime", "date", "time"}
 	nameSet := make(map[string]bool)
 	for _, n := range names {
 		nameSet[n] = true
