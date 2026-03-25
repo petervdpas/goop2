@@ -1,0 +1,42 @@
+{
+  "name": "Test",
+  "description": "Test",
+  "source": {
+    "type": "csv",
+    "path": "/home/peter/Projects/goop2/test-persons.csv"
+  },
+  "target": {
+    "type": "table",
+    "name": "Person"
+  },
+  "fields": [
+    {
+      "target": "Id",
+      "transform": "guid"
+    },
+    {
+      "target": "Name",
+      "sources": [
+        "Name"
+      ]
+    },
+    {
+      "target": "birthday",
+      "sources": [
+        "birthday"
+      ]
+    },
+    {
+      "target": "credits",
+      "sources": [
+        "credits"
+      ]
+    },
+    {
+      "target": "etest",
+      "sources": [
+        "etest"
+      ]
+    }
+  ]
+}

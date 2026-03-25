@@ -228,6 +228,7 @@
       preview:    function (p) { return _post('/api/data/transformations/preview', p); },
       execute:    function (p) { return _post('/api/data/transformations/execute', p); },
       transforms: function () { return _get('/api/data/transformations/transforms'); },
+      sourceFields: function (p) { return _post('/api/data/transformations/source-fields', p); },
     },
 
     // ── Site (editor) ─────────────────────────────────────────────────────────

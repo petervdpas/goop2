@@ -6,6 +6,7 @@
   flex: 1 1 auto;
   display:grid;
   grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 18px;
   align-items: stretch;
   min-height: 0;
@@ -423,11 +424,16 @@
 /* -----------------------------
    Tab views
 ------------------------------ */
+.page.page-no-scroll {
+  overflow: hidden;
+}
+
 .db-view{
   display: none;
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
+  overflow: hidden;
 }
 
 .db-view.active{
@@ -437,49 +443,49 @@
 /* -----------------------------
    Mapper editor
 ------------------------------ */
-.db-mapper-editor{
+.db-tx-editor{
   flex: 1 1 auto;
   overflow-y: auto;
   min-height: 0;
 }
 
-.db-mapper-form{
+.db-tx-form{
   padding: 4px 0;
 }
 
-.mapper-field-row{
+.tx-field-row{
   display: flex;
   gap: 6px;
   margin-bottom: 6px;
   align-items: center;
 }
 
-.mapper-field-row .mapper-field-sources{
+.tx-field-row .tx-field-sources{
   flex: 2;
   min-width: 0;
 }
 
-.mapper-field-row .mapper-field-target{
+.tx-field-row .tx-field-target{
   flex: 1.5;
   min-width: 0;
 }
 
-.mapper-field-row .mapper-field-transform{
+.tx-field-row .tx-field-transform{
   flex: 1.2;
   min-width: 90px;
 }
 
-.mapper-field-row .mapper-field-args{
+.tx-field-row .tx-field-args{
   flex: 1.2;
   min-width: 0;
 }
 
-.mapper-field-row .mapper-field-constant{
+.tx-field-row .tx-field-constant{
   flex: 1;
   min-width: 0;
 }
 
-.mapper-field-header{
+.tx-field-header{
   display: flex;
   gap: 6px;
   padding: 4px 0;
@@ -491,46 +497,55 @@
   letter-spacing: 0.03em;
 }
 
-.mapper-h-src{ flex: 2; }
-.mapper-h-tx{ flex: 1.2; min-width: 90px; }
-.mapper-h-tgt{ flex: 1.5; }
-.mapper-h-args{ flex: 1.2; }
-.mapper-h-const{ flex: 1; }
-.mapper-h-rm{ width: 28px; }
+.tx-h-src{ flex: 2; }
+.tx-h-tx{ flex: 1.2; min-width: 90px; }
+.tx-h-tgt{ flex: 1.5; }
+.tx-h-args{ flex: 1.2; }
+.tx-h-const{ flex: 1; }
+.tx-h-rm{ width: 28px; }
 
-.mapper-table-selectors{
+.tx-ep-row{
   display: flex;
   gap: 8px;
   align-items: center;
 }
 
-.mapper-table-selectors .gsel{
+.tx-ep-type{
+  flex: 0 0 100px;
+}
+
+.tx-ep-value{
   flex: 1;
   min-width: 0;
 }
 
-.mapper-arrow{
-  font-size: 18px;
-  color: var(--muted);
-  flex: 0 0 auto;
+.tx-ep-path-wrap{
+  display: flex;
+  gap: 6px;
+  align-items: center;
 }
 
-.mapper-field-cell{
+.tx-ep-path-wrap input{
+  flex: 1;
+  min-width: 0;
+}
+
+.tx-field-cell{
   display: flex;
   flex-direction: column;
   gap: 1px;
   min-width: 0;
 }
 
-.mapper-field-target-wrap{
+.tx-field-target-wrap{
   flex: 1.5;
 }
 
-.mapper-field-sources-wrap{
+.tx-field-sources-wrap{
   flex: 2;
 }
 
-.mapper-type-hint{
+.tx-type-hint{
   font-size: 10px;
   color: var(--accent);
   opacity: 0.7;
@@ -680,7 +695,7 @@
   .db-sidebar{
     max-height: 200px;
   }
-  .mapper-field-row{
+  .tx-field-row{
     flex-wrap: wrap;
   }
 }

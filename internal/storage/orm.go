@@ -238,7 +238,11 @@ func (d *DB) OrmInsert(tableName, ownerID, ownerEmail string, data map[string]an
 				case "time":
 					data[col.Name] = schema.NowTime()
 				case "integer":
-					// integer auto = AUTOINCREMENT — don't set, let SQLite handle it
+					var maxVal int64
+					d.db.QueryRow(
+						"SELECT COALESCE(MAX("+col.Name+"), 0) FROM "+tableName,
+					).Scan(&maxVal)
+					data[col.Name] = maxVal + 1
 				}
 			}
 		}

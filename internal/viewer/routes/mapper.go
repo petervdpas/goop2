@@ -118,60 +118,134 @@ func RegisterTransformations(mux *http.ServeMux, peerDir string, db *storage.DB)
 			return
 		}
 
-		if t.Source.Type != "table" || t.Source.Name == "" {
-			http.Error(w, "execute requires source type 'table' with a name", http.StatusBadRequest)
-			return
-		}
-		if t.Target.Type != "table" || t.Target.Name == "" {
-			http.Error(w, "execute requires target type 'table' with a name", http.StatusBadRequest)
-			return
+		var sourceRows []schema.Row
+
+		if t.Source.Type == "table" {
+			if t.Source.Name == "" {
+				http.Error(w, "table source requires a name", http.StatusBadRequest)
+				return
+			}
+			limit := req.Limit
+			if limit <= 0 {
+				limit = 10000
+			}
+			dbRows, err := db.SelectPaged(storage.SelectOpts{
+				Table: t.Source.Name,
+				Where: req.Where,
+				Args:  req.Args,
+				Limit: limit,
+			})
+			if err != nil {
+				http.Error(w, "source query: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			sourceRows = make([]schema.Row, len(dbRows))
+			for i, r := range dbRows {
+				sourceRows[i] = r
+			}
+		} else {
+			reader, err := mapper.NewSourceReader(t.Source)
+			if err != nil {
+				http.Error(w, "source: "+err.Error(), http.StatusBadRequest)
+				return
+			}
+			sourceRows, err = reader.Read()
+			if err != nil {
+				http.Error(w, "source read: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 
-		limit := req.Limit
-		if limit <= 0 {
-			limit = 10000
-		}
-		sourceRows, err := db.SelectPaged(storage.SelectOpts{
-			Table: t.Source.Name,
-			Where: req.Where,
-			Args:  req.Args,
-			Limit: limit,
-		})
-		if err != nil {
-			http.Error(w, "source query: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		schemaRows := make([]schema.Row, len(sourceRows))
-		for i, r := range sourceRows {
-			schemaRows[i] = r
-		}
-		results, err := t.ApplyMany(schemaRows)
+		results, err := t.ApplyMany(sourceRows)
 		if err != nil {
 			http.Error(w, "transform: "+err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		inserted := 0
-		for _, row := range results {
-			if _, err := db.Insert(t.Target.Name, "", "", row); err != nil {
-				http.Error(w, "insert: "+err.Error(), http.StatusInternalServerError)
+		if t.Target.Type == "table" {
+			if t.Target.Name == "" {
+				http.Error(w, "table target requires a name", http.StatusBadRequest)
 				return
 			}
-			inserted++
+			inserted := 0
+			for _, row := range results {
+				if _, err := db.Insert(t.Target.Name, "", "", row); err != nil {
+					http.Error(w, "insert: "+err.Error(), http.StatusInternalServerError)
+					return
+				}
+				inserted++
+			}
+			writeJSON(w, map[string]any{
+				"status":   "executed",
+				"target":   t.Target.Name,
+				"inserted": inserted,
+			})
+		} else {
+			writer, err := mapper.NewTargetWriter(t.Target)
+			if err != nil {
+				http.Error(w, "target: "+err.Error(), http.StatusBadRequest)
+				return
+			}
+			written, err := writer.Write(results)
+			if err != nil {
+				http.Error(w, "target write: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, map[string]any{
+				"status":  "executed",
+				"target":  t.Target.Path,
+				"written": written,
+			})
 		}
-
-		writeJSON(w, map[string]any{
-			"status":   "executed",
-			"source":   t.Source.Name,
-			"target":   t.Target.Name,
-			"inserted": inserted,
-		})
 	})
 
 	handleGet(mux, "/api/data/transformations/transforms", func(w http.ResponseWriter, r *http.Request) {
 		names := mapper.TransformNames()
 		sort.Strings(names)
 		writeJSON(w, names)
+	})
+
+	handlePost(mux, "/api/data/transformations/source-fields", func(w http.ResponseWriter, r *http.Request, req mapper.DataEndpoint) {
+		if req.Type == "table" {
+			if db == nil || req.Name == "" {
+				http.Error(w, "table name required", http.StatusBadRequest)
+				return
+			}
+			tbl, err := db.GetSchema(req.Name)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if tbl != nil {
+				writeJSON(w, tbl.Columns)
+				return
+			}
+			cols, err := db.DescribeTable(req.Name)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, cols)
+			return
+		}
+
+		reader, err := mapper.NewSourceReader(req)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		rows, err := reader.Read()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		var fields []string
+		if len(rows) > 0 {
+			for k := range rows[0] {
+				fields = append(fields, k)
+			}
+			sort.Strings(fields)
+		}
+		writeJSON(w, fields)
 	})
 }
