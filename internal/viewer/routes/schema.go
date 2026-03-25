@@ -9,6 +9,7 @@ import (
 
 	"github.com/petervdpas/goop2/internal/orm/schema"
 	"github.com/petervdpas/goop2/internal/storage"
+	"github.com/petervdpas/goop2/internal/ui/render"
 )
 
 func RegisterSchema(mux *http.ServeMux, peerDir string, db *storage.DB, onSchemaChange func()) {
@@ -129,7 +130,11 @@ func RegisterSchema(mux *http.ServeMux, peerDir string, db *storage.DB, onSchema
 			http.Error(w, "name and columns required", http.StatusBadRequest)
 			return
 		}
-		writeJSON(w, map[string]string{"ddl": req.DDL()})
+		ddl := req.DDL()
+		writeJSON(w, map[string]string{
+			"ddl":  ddl,
+			"html": render.Highlight(ddl, "sql"),
+		})
 	})
 
 	handlePost(mux, "/api/data/schemas/apply", func(w http.ResponseWriter, r *http.Request, req struct {

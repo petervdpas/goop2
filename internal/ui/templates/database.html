@@ -92,17 +92,26 @@
         </div>
       </div>
 
-      <!-- Schema editor -->
+      <!-- Schema sub-tabs -->
+      <div id="db-schema-subtabs" class="sub-tabs hidden">
+        <div class="sub-tab active" data-schema-view="edit">Edit</div>
+        <div class="sub-tab" data-schema-view="ddl">DDL</div>
+        <div class="sub-tab hidden" data-schema-view="gql" id="schema-gql-tab">GraphQL</div>
+      </div>
+
+      <!-- Edit view -->
       <div id="db-schema-editor" class="db-tx-editor">
         <p class="empty-state">Select a schema from the sidebar to edit it.</p>
       </div>
 
-      <!-- DDL preview -->
-      <div id="db-schema-ddl" class="db-schema-ddl hidden">
-        <div class="section-head">
-          <span class="section-title muted small">DDL Preview</span>
-        </div>
-        <pre id="db-schema-ddl-code" class="db-ddl-code"></pre>
+      <!-- DDL view -->
+      <div id="db-schema-ddl" class="schema-view-pane hidden">
+        <div id="db-schema-ddl-code" class="schema-code-wrap"></div>
+      </div>
+
+      <!-- GraphQL view -->
+      <div id="db-schema-gql" class="schema-view-pane hidden">
+        <div id="db-schema-gql-code" class="schema-code-wrap"></div>
       </div>
     </div>
   </div>

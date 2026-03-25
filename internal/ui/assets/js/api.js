@@ -225,6 +225,7 @@
       query:   function (q, vars) { return _post('/api/graphql', { query: q, variables: vars || {} }); },
       rebuild: function ()        { return _post('/api/graphql/rebuild', {}); },
       status:  function ()        { return _get('/api/graphql/status'); },
+      schema:  function (p)       { return _post('/api/graphql/schema', p); },
     },
 
     // ── Data Federation ──────────────────────────────────────────────────

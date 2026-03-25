@@ -101,6 +101,70 @@ func (e *Engine) Execute(query string, variables map[string]any, operationName s
 	})
 }
 
+func (e *Engine) TableSDL(tableName string) string {
+	tbl, err := e.db.GetSchema(tableName)
+	if err != nil || tbl == nil || !tbl.Context {
+		return ""
+	}
+	return generateSDL(tbl)
+}
+
+func TableSDLFromSchema(tbl *schema.Table) string {
+	if tbl == nil {
+		return ""
+	}
+	return generateSDL(tbl)
+}
+
+func generateSDL(tbl *schema.Table) string {
+	name := sanitizeName(tbl.Name)
+	var b strings.Builder
+
+	b.WriteString("type " + name + " {\n")
+	b.WriteString("  _id: Int\n")
+	b.WriteString("  _owner: String\n")
+	b.WriteString("  _owner_email: String\n")
+	b.WriteString("  _created_at: String\n")
+	b.WriteString("  _updated_at: String\n")
+	for _, col := range tbl.Columns {
+		gqlType := schemaTypeToSDL(col.Type)
+		required := ""
+		if col.Required || col.Key {
+			required = "!"
+		}
+		b.WriteString("  " + col.Name + ": " + gqlType + required + "\n")
+	}
+	b.WriteString("}\n\n")
+
+	b.WriteString("type Query {\n")
+	b.WriteString("  " + name + "(where: " + name + "_where, limit: Int, offset: Int, order_by: " + name + "_order_by): [" + name + "!]!\n")
+	b.WriteString("  " + name + "_by_pk(_id: Int!): " + name + "\n")
+	b.WriteString("}\n\n")
+
+	b.WriteString("type Mutation {\n")
+	b.WriteString("  insert_" + name + "(object: " + name + "_insert_input!): " + name + "\n")
+	b.WriteString("  update_" + name + "_by_pk(_id: Int!, _set: " + name + "_set_input!): " + name + "\n")
+	b.WriteString("  delete_" + name + "_by_pk(_id: Int!): " + name + "_delete_result\n")
+	b.WriteString("}\n")
+
+	return b.String()
+}
+
+func schemaTypeToSDL(t string) string {
+	switch strings.ToLower(t) {
+	case "integer":
+		return "Int"
+	case "real":
+		return "Float"
+	case "text", "guid", "datetime", "date", "time", "enum":
+		return "String"
+	case "blob":
+		return "String"
+	default:
+		return "String"
+	}
+}
+
 func (e *Engine) ContextTables() []*schema.Table {
 	tables, _ := e.contextTables()
 	return tables

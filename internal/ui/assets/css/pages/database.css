@@ -720,3 +720,27 @@
   font-size: 0.9em;
   color: var(--text-muted, #aaa);
 }
+
+/* Schema view panes (DDL / GraphQL full-panel views) */
+.schema-view-pane{
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.schema-code-wrap{
+  height: 100%;
+  overflow: auto;
+  background: var(--chip2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
+.schema-code-wrap .chroma{
+  margin: 0;
+  background: transparent !important;
+}
+.schema-code-wrap .chroma pre{
+  margin: 0;
+  padding: 0;
+  background: transparent !important;
+}

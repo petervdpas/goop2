@@ -20,8 +20,28 @@ var schemaListEl    = qs("#db-schema-list");
 var schemaTitleEl   = qs("#db-schema-title");
 var schemaActionsEl = qs("#db-schema-actions");
 var schemaEditorEl  = qs("#db-schema-editor");
-var schemaDdlEl     = qs("#db-schema-ddl");
-var schemaDdlCode   = qs("#db-schema-ddl-code");
+var schemaSubtabs    = qs("#db-schema-subtabs");
+var schemaDdlEl      = qs("#db-schema-ddl");
+var schemaDdlCode    = qs("#db-schema-ddl-code");
+var schemaGqlEl      = qs("#db-schema-gql");
+var schemaGqlCode    = qs("#db-schema-gql-code");
+var schemaGqlTab     = qs("#schema-gql-tab");
+var graphqlApi       = G.api.graphql;
+
+function switchSchemaView(view) {
+  qsa(".sub-tab", schemaSubtabs).forEach(function(t) {
+    t.classList.toggle("active", t.dataset.schemaView === view);
+  });
+  setHidden(schemaEditorEl, view !== "edit");
+  setHidden(schemaDdlEl, view !== "ddl");
+  setHidden(schemaGqlEl, view !== "gql");
+}
+
+qsa(".sub-tab", schemaSubtabs).forEach(function(tab) {
+  on(tab, "click", function() {
+    switchSchemaView(tab.dataset.schemaView);
+  });
+});
 var btnNewSchema    = qs("#db-btn-new-schema");
 var btnSaveSchema   = qs("#db-btn-save-schema");
 var btnApplySchema  = qs("#db-btn-apply-schema");
@@ -89,6 +109,7 @@ async function selectSchemaItem(name) {
     schemaTitleEl.textContent = s.name;
     renderSchemaEditor(s);
     updateDdlPreview();
+    updateGqlPreview(s.name, !!s.context);
   } catch (err) {
     schemaEditorEl.innerHTML = '<p class="empty-state">Error: ' + escapeHtml(err.message) + '</p>';
   }
@@ -137,6 +158,7 @@ function renderSchemaEditor(s) {
     schemaApi.setContext({ name: name, context: enabled }).then(function() {
       toast(name + (enabled ? " added to" : " removed from") + " GraphQL context");
       loadSchemas(currentSchema);
+      updateGqlPreview(name, enabled);
     }).catch(function(err) { toast("Failed: " + err.message, true); });
   });
 
@@ -151,7 +173,8 @@ function renderSchemaEditor(s) {
     qs(".schema-col-name", row).focus();
   });
 
-  setHidden(schemaDdlEl, false);
+  setHidden(schemaSubtabs, false);
+  switchSchemaView("edit");
 }
 
 function schemaColRow(c) {
@@ -320,9 +343,31 @@ async function updateDdlPreview() {
   }
   try {
     var resp = await schemaApi.ddl(data);
-    schemaDdlCode.textContent = resp.ddl || "";
+    schemaDdlCode.innerHTML = resp.html || escapeHtml(resp.ddl || "");
   } catch (err) {
     schemaDdlCode.textContent = "-- " + err.message;
+  }
+}
+
+async function updateGqlPreview(name, contextEnabled) {
+  if (!contextEnabled || !name) {
+    setHidden(schemaGqlTab, true);
+    setHidden(schemaGqlEl, true);
+    return;
+  }
+  var data = collectSchemaData();
+  if (!data.name || data.columns.length === 0) {
+    setHidden(schemaGqlTab, true);
+    setHidden(schemaGqlEl, true);
+    return;
+  }
+  try {
+    var resp = await graphqlApi.schema(data);
+    schemaGqlCode.innerHTML = resp.html || escapeHtml(resp.sdl || "");
+    setHidden(schemaGqlTab, false);
+  } catch (err) {
+    schemaGqlCode.textContent = "# " + err.message;
+    setHidden(schemaGqlTab, false);
   }
 }
 
@@ -374,7 +419,7 @@ async function deleteSchema() {
     currentSchema = null;
     schemaTitleEl.textContent = "Select a schema";
     setHidden(schemaActionsEl, true);
-    setHidden(schemaDdlEl, true);
+    setHidden(schemaSubtabs, true);
     schemaEditorEl.innerHTML = '<p class="empty-state">Select a schema from the sidebar to edit it.</p>';
     await loadSchemas();
   } catch (err) {
