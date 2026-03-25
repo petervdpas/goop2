@@ -128,15 +128,19 @@ func Start(addr string, v Viewer) error {
 	}
 
 	// Register data/storage endpoints if DB is available
+	var rebuildGQL func()
+	if v.GQL != nil {
+		rebuildGQL = func() { _ = v.GQL.Rebuild() }
+	}
 	if v.DB != nil {
-		routes.RegisterData(mux, v.DB, v.Node.ID(), v.SelfEmail)
+		routes.RegisterData(mux, v.DB, v.Node.ID(), v.SelfEmail, rebuildGQL)
 		routes.RegisterGraphQL(mux, v.GQL)
 	}
 
 	// Register transformation + schema endpoints (file-based, in peerDir)
 	if v.PeerDir != "" {
 		routes.RegisterTransformations(mux, v.PeerDir, v.DB)
-		routes.RegisterSchema(mux, v.PeerDir, v.DB)
+		routes.RegisterSchema(mux, v.PeerDir, v.DB, rebuildGQL)
 	}
 
 	// Register group endpoints if group manager is available

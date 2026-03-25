@@ -11,7 +11,10 @@ import (
 	"github.com/petervdpas/goop2/internal/storage"
 )
 
-func RegisterSchema(mux *http.ServeMux, peerDir string, db *storage.DB) {
+func RegisterSchema(mux *http.ServeMux, peerDir string, db *storage.DB, onSchemaChange func()) {
+	if onSchemaChange == nil {
+		onSchemaChange = func() {}
+	}
 	schemasDir := filepath.Join(peerDir, "schemas")
 
 	handleGet(mux, "/api/data/schemas", func(w http.ResponseWriter, r *http.Request) {
@@ -159,6 +162,7 @@ func RegisterSchema(mux *http.ServeMux, peerDir string, db *storage.DB) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		onSchemaChange()
 		writeJSON(w, map[string]string{"status": "created", "table": tbl.Name})
 	})
 
@@ -194,6 +198,7 @@ func RegisterSchema(mux *http.ServeMux, peerDir string, db *storage.DB) {
 		if db != nil {
 			db.UpdateSchemaContext(tbl.Name, req.Context)
 		}
+		onSchemaChange()
 		writeJSON(w, map[string]any{"status": "updated", "context": req.Context})
 	})
 }

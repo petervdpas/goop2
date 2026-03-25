@@ -18,7 +18,10 @@ func hasSchemaFields(cols []schema.Column) bool {
 }
 
 // RegisterData adds data/storage API endpoints
-func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail func() string) {
+func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail func() string, onSchemaChange func()) {
+	if onSchemaChange == nil {
+		onSchemaChange = func() {}
+	}
 	// List all tables (includes mode: orm/classic)
 	handleGet(mux, "/api/data/tables", func(w http.ResponseWriter, r *http.Request) {
 		tables, err := db.ListTables()
@@ -74,6 +77,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
+			onSchemaChange()
 			writeJSON(w, map[string]string{
 				"status": "created",
 				"table":  req.Name,
@@ -199,6 +203,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		onSchemaChange()
 		writeJSON(w, map[string]string{
 			"status": "deleted",
 			"table":  req.Table,
@@ -259,6 +264,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		onSchemaChange()
 		writeJSON(w, map[string]string{"status": "added"})
 	})
 
@@ -275,6 +281,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		onSchemaChange()
 		writeJSON(w, map[string]string{"status": "dropped"})
 	})
 
@@ -318,6 +325,7 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			return
 		}
 		db.RenameSchemaORM(req.OldName, req.NewName)
+		onSchemaChange()
 		writeJSON(w, map[string]string{
 			"status":   "renamed",
 			"new_name": req.NewName,
