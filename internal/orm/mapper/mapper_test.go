@@ -1140,3 +1140,149 @@ func TestRoundTrip(t *testing.T) {
 		t.Errorf("unit = %v", out["unit"])
 	}
 }
+
+// ── Transform: datetime ──
+
+func TestDatetime(t *testing.T) {
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
+		{Target: "ts", Transform: "datetime"},
+	}}
+	out, err := m.Apply(schema.Row{})
+	if err != nil {
+		t.Fatalf("datetime: %v", err)
+	}
+	s, ok := out["ts"].(string)
+	if !ok {
+		t.Fatalf("datetime result is %T", out["ts"])
+	}
+	if len(s) < 20 || s[4] != '-' || s[10] != 'T' {
+		t.Errorf("datetime format invalid: %v", s)
+	}
+}
+
+// ── Transform: date ──
+
+func TestDate(t *testing.T) {
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
+		{Target: "d", Transform: "date"},
+	}}
+	out, err := m.Apply(schema.Row{})
+	if err != nil {
+		t.Fatalf("date: %v", err)
+	}
+	s, ok := out["d"].(string)
+	if !ok {
+		t.Fatalf("date result is %T", out["d"])
+	}
+	if len(s) != 10 || s[4] != '-' || s[7] != '-' {
+		t.Errorf("date format invalid: %v", s)
+	}
+}
+
+// ── Transform: time ──
+
+func TestTime(t *testing.T) {
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
+		{Target: "tm", Transform: "time"},
+	}}
+	out, err := m.Apply(schema.Row{})
+	if err != nil {
+		t.Fatalf("time: %v", err)
+	}
+	s, ok := out["tm"].(string)
+	if !ok {
+		t.Fatalf("time result is %T", out["tm"])
+	}
+	if len(s) != 8 || s[2] != ':' || s[5] != ':' {
+		t.Errorf("time format invalid: %v", s)
+	}
+}
+
+// ── Validation: generating transforms without sources ──
+
+func TestValidationGeneratingTransforms(t *testing.T) {
+	generators := []string{"now", "guid", "datetime", "date", "time"}
+	for _, tx := range generators {
+		m := &Transformation{Name: "t", Fields: []FieldTransform{
+			{Target: "out", Transform: tx},
+		}}
+		if err := m.Validate(); err != nil {
+			t.Errorf("transform %q should be valid without sources: %v", tx, err)
+		}
+	}
+}
+
+// ── DataEndpoint / Source-Target round-trip ──
+
+func TestTransformationWithSourceTarget(t *testing.T) {
+	dir := t.TempDir()
+
+	tx := &Transformation{
+		Name:        "csv-to-table",
+		Description: "Import CSV into orders",
+		Source:      DataEndpoint{Type: "csv", Path: "/data/orders.csv"},
+		Target:      DataEndpoint{Type: "table", Name: "orders"},
+		Fields: []FieldTransform{
+			{Target: "id", Transform: "guid"},
+			{Target: "name", Sources: []string{"customer_name"}},
+			{Target: "amount", Sources: []string{"total"}, Transform: "to_float"},
+		},
+	}
+
+	if err := Save(dir, tx); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	loaded, err := Load(dir, "csv-to-table")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	if loaded.Source.Type != "csv" {
+		t.Errorf("source type = %v, want csv", loaded.Source.Type)
+	}
+	if loaded.Source.Path != "/data/orders.csv" {
+		t.Errorf("source path = %v", loaded.Source.Path)
+	}
+	if loaded.Target.Type != "table" {
+		t.Errorf("target type = %v, want table", loaded.Target.Type)
+	}
+	if loaded.Target.Name != "orders" {
+		t.Errorf("target name = %v", loaded.Target.Name)
+	}
+}
+
+func TestDataEndpointTypes(t *testing.T) {
+	endpoints := []DataEndpoint{
+		{Type: "table", Name: "users"},
+		{Type: "csv", Path: "/tmp/data.csv"},
+		{Type: "json", Path: "/tmp/data.json"},
+		{Type: "json", URL: "https://api.example.com/data"},
+		{Type: "api", URL: "https://api.example.com/users"},
+	}
+	for _, ep := range endpoints {
+		if ep.Type == "" {
+			t.Error("empty type")
+		}
+	}
+
+	dir := t.TempDir()
+	for i, ep := range endpoints {
+		tx := &Transformation{
+			Name:   "ep-test-" + ep.Type + "-" + string(rune('0'+i)),
+			Source: ep,
+			Target: DataEndpoint{Type: "table", Name: "out"},
+			Fields: []FieldTransform{{Target: "x", Constant: 1}},
+		}
+		if err := Save(dir, tx); err != nil {
+			t.Fatalf("Save %s: %v", ep.Type, err)
+		}
+		loaded, err := Load(dir, tx.Name)
+		if err != nil {
+			t.Fatalf("Load %s: %v", ep.Type, err)
+		}
+		if loaded.Source.Type != ep.Type {
+			t.Errorf("type mismatch: got %v, want %v", loaded.Source.Type, ep.Type)
+		}
+	}
+}

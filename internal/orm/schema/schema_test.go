@@ -424,3 +424,211 @@ func TestCodec_CompositeKey(t *testing.T) {
 func contains(s, sub string) bool {
 	return strings.Contains(s, sub)
 }
+
+// ── New type tests ──
+
+func TestValidType_AllTypes(t *testing.T) {
+	valid := []string{"text", "integer", "real", "blob", "guid", "datetime", "date", "time", "enum"}
+	for _, ty := range valid {
+		if !validType(ty) {
+			t.Errorf("%q should be valid", ty)
+		}
+	}
+	invalid := []string{"string", "int", "float", "boolean", "timestamp", ""}
+	for _, ty := range invalid {
+		if validType(ty) {
+			t.Errorf("%q should be invalid", ty)
+		}
+	}
+}
+
+func TestSQLType_Mapping(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"text", "TEXT"},
+		{"guid", "TEXT"},
+		{"enum", "TEXT"},
+		{"integer", "INTEGER"},
+		{"real", "REAL"},
+		{"blob", "BLOB"},
+		{"datetime", "DATETIME"},
+		{"date", "DATE"},
+		{"time", "TIME"},
+	}
+	for _, tt := range tests {
+		got := SQLType(tt.in)
+		if got != tt.want {
+			t.Errorf("SQLType(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestDDL_GuidKey(t *testing.T) {
+	tbl := &Table{Name: "t", Columns: []Column{
+		{Name: "id", Type: "guid", Key: true},
+		{Name: "name", Type: "text"},
+	}}
+	ddl := tbl.DDL()
+	if !contains(ddl, "id TEXT PRIMARY KEY") {
+		t.Errorf("DDL missing guid key: %v", ddl)
+	}
+}
+
+func TestDDL_IntegerAutoincrement(t *testing.T) {
+	tbl := &Table{Name: "t", Columns: []Column{
+		{Name: "id", Type: "integer", Key: true, Auto: true},
+		{Name: "name", Type: "text"},
+	}}
+	ddl := tbl.DDL()
+	if !contains(ddl, "AUTOINCREMENT") {
+		t.Errorf("DDL missing AUTOINCREMENT: %v", ddl)
+	}
+}
+
+func TestDDL_IntegerKeyNoAuto(t *testing.T) {
+	tbl := &Table{Name: "t", Columns: []Column{
+		{Name: "id", Type: "integer", Key: true},
+		{Name: "name", Type: "text"},
+	}}
+	ddl := tbl.DDL()
+	if contains(ddl, "AUTOINCREMENT") {
+		t.Errorf("DDL should not have AUTOINCREMENT without auto: %v", ddl)
+	}
+	if !contains(ddl, "NOT NULL") {
+		t.Errorf("DDL missing NOT NULL: %v", ddl)
+	}
+}
+
+func TestDDL_DateTimeTypes(t *testing.T) {
+	tbl := &Table{Name: "t", Columns: []Column{
+		{Name: "id", Type: "integer", Key: true},
+		{Name: "created", Type: "datetime"},
+		{Name: "dob", Type: "date"},
+		{Name: "alarm", Type: "time"},
+	}}
+	ddl := tbl.DDL()
+	if !contains(ddl, "created DATETIME") {
+		t.Errorf("DDL missing DATETIME: %v", ddl)
+	}
+	if !contains(ddl, "dob DATE") {
+		t.Errorf("DDL missing DATE: %v", ddl)
+	}
+	if !contains(ddl, "alarm TIME") {
+		t.Errorf("DDL missing TIME: %v", ddl)
+	}
+}
+
+func TestDDL_EnumAsText(t *testing.T) {
+	tbl := &Table{Name: "t", Columns: []Column{
+		{Name: "id", Type: "integer", Key: true},
+		{Name: "status", Type: "enum", Values: []EnumValue{
+			{Key: "active", Label: "Active"},
+			{Key: "inactive", Label: "Inactive"},
+		}},
+	}}
+	ddl := tbl.DDL()
+	if !contains(ddl, "status TEXT") {
+		t.Errorf("DDL should store enum as TEXT: %v", ddl)
+	}
+}
+
+func TestValidate_EnumNoValues(t *testing.T) {
+	tbl := &Table{Name: "t", Columns: []Column{
+		{Name: "id", Type: "integer", Key: true},
+		{Name: "status", Type: "enum"},
+	}}
+	err := tbl.Validate()
+	if err == nil {
+		t.Fatal("expected error for enum without values")
+	}
+	if !contains(err.Error(), "no values") {
+		t.Errorf("error should mention values: %v", err)
+	}
+}
+
+func TestValidate_EnumWithValues(t *testing.T) {
+	tbl := &Table{Name: "t", Columns: []Column{
+		{Name: "id", Type: "integer", Key: true},
+		{Name: "status", Type: "enum", Values: []EnumValue{{Key: "a", Label: "A"}}},
+	}}
+	if err := tbl.Validate(); err != nil {
+		t.Errorf("should be valid: %v", err)
+	}
+}
+
+func TestAutoColumn_InJSON(t *testing.T) {
+	tbl := &Table{Name: "t", Columns: []Column{
+		{Name: "id", Type: "guid", Key: true, Auto: true},
+		{Name: "created", Type: "datetime", Auto: true},
+	}}
+	data, err := tbl.JSON()
+	if err != nil {
+		t.Fatalf("JSON: %v", err)
+	}
+	s := string(data)
+	if !contains(s, `"auto": true`) {
+		t.Errorf("JSON should contain auto field: %v", s)
+	}
+}
+
+func TestEnumValues_InJSON(t *testing.T) {
+	tbl := &Table{Name: "t", Columns: []Column{
+		{Name: "id", Type: "integer", Key: true},
+		{Name: "status", Type: "enum", Values: []EnumValue{
+			{Key: "on", Label: "On"},
+			{Key: "off", Label: "Off"},
+		}},
+	}}
+	data, _ := tbl.JSON()
+	parsed, err := ParseTable(data)
+	if err != nil {
+		t.Fatalf("ParseTable: %v", err)
+	}
+	if len(parsed.Columns[1].Values) != 2 {
+		t.Errorf("enum values = %d, want 2", len(parsed.Columns[1].Values))
+	}
+	if parsed.Columns[1].Values[0].Key != "on" {
+		t.Errorf("enum[0].key = %v", parsed.Columns[1].Values[0].Key)
+	}
+}
+
+func TestGenerateGUID_Format(t *testing.T) {
+	g := GenerateGUID()
+	if len(g) != 36 {
+		t.Errorf("GUID length = %d, want 36", len(g))
+	}
+	if g[8] != '-' || g[13] != '-' || g[18] != '-' || g[23] != '-' {
+		t.Errorf("GUID format invalid: %v", g)
+	}
+}
+
+func TestGenerateGUID_Unique(t *testing.T) {
+	seen := make(map[string]bool)
+	for i := 0; i < 100; i++ {
+		g := GenerateGUID()
+		if seen[g] {
+			t.Fatalf("duplicate GUID at %d", i)
+		}
+		seen[g] = true
+	}
+}
+
+func TestNowUTC_Format(t *testing.T) {
+	s := NowUTC()
+	if len(s) < 20 || s[4] != '-' || s[10] != 'T' {
+		t.Errorf("NowUTC format invalid: %v", s)
+	}
+}
+
+func TestNowDate_Format(t *testing.T) {
+	s := NowDate()
+	if len(s) != 10 || s[4] != '-' || s[7] != '-' {
+		t.Errorf("NowDate format invalid: %v", s)
+	}
+}
+
+func TestNowTime_Format(t *testing.T) {
+	s := NowTime()
+	if len(s) != 8 || s[2] != ':' || s[5] != ':' {
+		t.Errorf("NowTime format invalid: %v", s)
+	}
+}

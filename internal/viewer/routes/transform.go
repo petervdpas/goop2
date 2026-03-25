@@ -2,6 +2,7 @@ package routes
 
 import (
 	"net/http"
+	"os"
 	"path/filepath"
 	"sort"
 
@@ -203,6 +204,17 @@ func RegisterTransformations(mux *http.ServeMux, peerDir string, db *storage.DB)
 		names := mapper.TransformNames()
 		sort.Strings(names)
 		writeJSON(w, names)
+	})
+
+	handlePost(mux, "/api/data/transformations/file-exists", func(w http.ResponseWriter, r *http.Request, req struct {
+		Path string `json:"path"`
+	}) {
+		if req.Path == "" {
+			writeJSON(w, map[string]bool{"exists": false})
+			return
+		}
+		_, err := os.Stat(req.Path)
+		writeJSON(w, map[string]bool{"exists": err == nil})
 	})
 
 	handlePost(mux, "/api/data/transformations/source-fields", func(w http.ResponseWriter, r *http.Request, req mapper.DataEndpoint) {

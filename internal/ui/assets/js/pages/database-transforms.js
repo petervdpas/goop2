@@ -283,53 +283,60 @@
     var src = collectEndpoint("tx-src");
     var tgt = collectEndpoint("tx-tgt");
 
-    if (tgt.type !== "table" || !tgt.name) {
-      toast("Auto-map requires the target to be a table", "warning");
-      return;
-    }
-
     try {
       var srcFieldsRaw = await txApi.sourceFields(src);
-      var tgtDesc = await api.describeTable({ table: tgt.name });
-      var targetCols = (tgtDesc.schema && tgtDesc.schema.columns) || tgtDesc.columns || [];
 
-      var sourceInfo = {};
+      var targetCols = null;
+      if (tgt.type === "table" && tgt.name) {
+        var tgtDesc = await api.describeTable({ table: tgt.name });
+        targetCols = (tgtDesc.schema && tgtDesc.schema.columns) || tgtDesc.columns || [];
+      }
+
+      var srcList = [];
       if (Array.isArray(srcFieldsRaw)) {
         srcFieldsRaw.forEach(function(c) {
           if (typeof c === "string") {
-            sourceInfo[c.toLowerCase()] = { name: c, type: "" };
-          } else if (c.name) {
-            if (systemCols.indexOf(c.name) === -1) {
-              sourceInfo[c.name.toLowerCase()] = { name: c.name, type: (c.type || "").toLowerCase() };
-            }
+            srcList.push({ name: c, type: "" });
+          } else if (c.name && systemCols.indexOf(c.name) === -1) {
+            srcList.push({ name: c.name, type: (c.type || "").toLowerCase() });
           }
         });
       }
 
-      var fields = [];
-      targetCols.forEach(function(tc) {
-        if (systemCols.indexOf(tc.name) === -1) {
-          var colType = (tc.type || "").toLowerCase();
-          var match = sourceInfo[tc.name.toLowerCase()];
-          var f = { target: tc.name, _targetType: colType };
+      var sourceInfo = {};
+      srcList.forEach(function(c) { sourceInfo[c.name.toLowerCase()] = c; });
 
-          if (colType === "guid") {
-            f.transform = "guid";
-          } else if (match) {
-            f.sources = [match.name];
-            f._sourceType = match.type;
-          } else if (colType === "datetime") {
-            f.transform = "datetime";
-          } else if (colType === "date") {
-            f.transform = "date";
-          } else if (colType === "time") {
-            f.transform = "time";
-          } else {
-            f.sources = [];
+      var fields = [];
+
+      if (targetCols) {
+        targetCols.forEach(function(tc) {
+          if (systemCols.indexOf(tc.name) === -1) {
+            var colType = (tc.type || "").toLowerCase();
+            var match = sourceInfo[tc.name.toLowerCase()];
+            var f = { target: tc.name, _targetType: colType };
+
+            if (colType === "guid") {
+              f.transform = "guid";
+            } else if (match) {
+              f.sources = [match.name];
+              f._sourceType = match.type;
+            } else if (colType === "datetime") {
+              f.transform = "datetime";
+            } else if (colType === "date") {
+              f.transform = "date";
+            } else if (colType === "time") {
+              f.transform = "time";
+            } else {
+              f.sources = [];
+            }
+            fields.push(f);
           }
-          fields.push(f);
-        }
-      });
+        });
+      } else {
+        srcList.forEach(function(c) {
+          fields.push({ sources: [c.name], target: c.name, _sourceType: c.type });
+        });
+      }
 
       var container = qs("#tx-fields");
       container.innerHTML = "";
@@ -438,15 +445,31 @@
   async function executeTx() {
     if (!currentTx) { toast("Save the transformation first", "warning"); return; }
 
-    var ok = await G.dialog.confirm(
-      'Execute transformation "' + currentTx + '"?',
-      "Execute"
-    );
+    var data = collectTxData();
+    var tgt = data.target || {};
+    var msg = 'Execute transformation "' + currentTx + '"?';
+
+    if ((tgt.type === "csv" || tgt.type === "json") && tgt.path) {
+      try {
+        var check = await txApi.fileExists({ path: tgt.path });
+        if (check && check.exists) {
+          var overwrite = await G.dialog.confirm(
+            'Target file already exists:\n' + tgt.path + '\n\nOverwrite?',
+            "File Exists"
+          );
+          if (!overwrite) return;
+          msg = 'Execute transformation "' + currentTx + '"?\n\nTarget file will be overwritten.';
+        }
+      } catch (e) {}
+    }
+
+    var ok = await G.dialog.confirm(msg, "Execute");
     if (!ok) return;
 
     try {
       var result = await txApi.execute({ name: currentTx });
-      toast("Executed: " + (result.inserted || 0) + " rows" + (result.target ? " → " + result.target : ""));
+      var count = result.inserted || result.written || 0;
+      toast("Executed: " + count + " rows" + (result.target ? " → " + result.target : ""));
     } catch (err) {
       toast("Execute failed: " + err.message, true);
     }

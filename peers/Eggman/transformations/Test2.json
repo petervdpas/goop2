@@ -1,0 +1,44 @@
+{
+  "name": "Test2",
+  "description": "Second Test",
+  "source": {
+    "type": "table",
+    "name": "Person"
+  },
+  "target": {
+    "type": "json",
+    "path": "/home/peter/Projects/goop2/person_export.json"
+  },
+  "fields": [
+    {
+      "target": "Id",
+      "sources": [
+        "Id"
+      ]
+    },
+    {
+      "target": "Name",
+      "sources": [
+        "Name"
+      ]
+    },
+    {
+      "target": "birthday",
+      "sources": [
+        "birthday"
+      ]
+    },
+    {
+      "target": "credits",
+      "sources": [
+        "credits"
+      ]
+    },
+    {
+      "target": "etest",
+      "sources": [
+        "etest"
+      ]
+    }
+  ]
+}
