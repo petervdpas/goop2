@@ -10,7 +10,7 @@ import (
 	"github.com/petervdpas/goop2/internal/orm/schema"
 )
 
-type FieldMapping struct {
+type FieldTransform struct {
 	Target    string   `json:"target"`
 	Sources   []string `json:"sources,omitempty"`
 	Transform string   `json:"transform,omitempty"`
@@ -18,17 +18,24 @@ type FieldMapping struct {
 	Constant  any      `json:"constant,omitempty"`
 }
 
-type Mapping struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description,omitempty"`
-	SourceTable string         `json:"source_table,omitempty"`
-	TargetTable string         `json:"target_table,omitempty"`
-	Fields      []FieldMapping `json:"fields"`
+type DataEndpoint struct {
+	Type string `json:"type"`
+	Name string `json:"name,omitempty"`
+	Path string `json:"path,omitempty"`
+	URL  string `json:"url,omitempty"`
 }
 
-func (m *Mapping) Apply(row schema.Row) (schema.Row, error) {
-	out := make(schema.Row, len(m.Fields))
-	for _, f := range m.Fields {
+type Transformation struct {
+	Name        string           `json:"name"`
+	Description string           `json:"description,omitempty"`
+	Source      DataEndpoint     `json:"source"`
+	Target      DataEndpoint     `json:"target"`
+	Fields      []FieldTransform `json:"fields"`
+}
+
+func (t *Transformation) Apply(row schema.Row) (schema.Row, error) {
+	out := make(schema.Row, len(t.Fields))
+	for _, f := range t.Fields {
 		val, err := resolveField(f, row)
 		if err != nil {
 			return nil, fmt.Errorf("field %q: %w", f.Target, err)
@@ -38,10 +45,10 @@ func (m *Mapping) Apply(row schema.Row) (schema.Row, error) {
 	return out, nil
 }
 
-func (m *Mapping) ApplyMany(rows []schema.Row) ([]schema.Row, error) {
+func (t *Transformation) ApplyMany(rows []schema.Row) ([]schema.Row, error) {
 	results := make([]schema.Row, 0, len(rows))
 	for i, row := range rows {
-		out, err := m.Apply(row)
+		out, err := t.Apply(row)
 		if err != nil {
 			return nil, fmt.Errorf("row %d: %w", i, err)
 		}
@@ -50,7 +57,7 @@ func (m *Mapping) ApplyMany(rows []schema.Row) ([]schema.Row, error) {
 	return results, nil
 }
 
-func resolveField(f FieldMapping, row schema.Row) (any, error) {
+func resolveField(f FieldTransform, row schema.Row) (any, error) {
 	if f.Constant != nil {
 		return f.Constant, nil
 	}
@@ -77,15 +84,15 @@ func resolveField(f FieldMapping, row schema.Row) (any, error) {
 	return fn(values, f.Args)
 }
 
-func (m *Mapping) Validate() error {
-	if strings.TrimSpace(m.Name) == "" {
-		return fmt.Errorf("mapping name is required")
+func (t *Transformation) Validate() error {
+	if strings.TrimSpace(t.Name) == "" {
+		return fmt.Errorf("transformation name is required")
 	}
-	if len(m.Fields) == 0 {
-		return fmt.Errorf("mapping must have at least one field")
+	if len(t.Fields) == 0 {
+		return fmt.Errorf("transformation must have at least one field")
 	}
-	seen := make(map[string]bool, len(m.Fields))
-	for i, f := range m.Fields {
+	seen := make(map[string]bool, len(t.Fields))
+	for i, f := range t.Fields {
 		if strings.TrimSpace(f.Target) == "" {
 			return fmt.Errorf("field %d: target is required", i)
 		}
@@ -105,30 +112,30 @@ func (m *Mapping) Validate() error {
 	return nil
 }
 
-func LoadFile(path string) (*Mapping, error) {
+func LoadFile(path string) (*Transformation, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	var m Mapping
-	if err := json.Unmarshal(data, &m); err != nil {
+	var t Transformation
+	if err := json.Unmarshal(data, &t); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", filepath.Base(path), err)
 	}
-	return &m, nil
+	return &t, nil
 }
 
-func SaveFile(path string, m *Mapping) error {
-	if err := m.Validate(); err != nil {
+func SaveFile(path string, t *Transformation) error {
+	if err := t.Validate(); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(m, "", "  ")
+	data, err := json.MarshalIndent(t, "", "  ")
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(path, append(data, '\n'), 0644)
 }
 
-func LoadDir(dir string) ([]*Mapping, error) {
+func LoadDir(dir string) ([]*Transformation, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -136,31 +143,31 @@ func LoadDir(dir string) ([]*Mapping, error) {
 		}
 		return nil, err
 	}
-	var mappings []*Mapping
+	var results []*Transformation
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
 		}
-		m, err := LoadFile(filepath.Join(dir, e.Name()))
+		t, err := LoadFile(filepath.Join(dir, e.Name()))
 		if err != nil {
 			continue
 		}
-		mappings = append(mappings, m)
+		results = append(results, t)
 	}
-	return mappings, nil
+	return results, nil
 }
 
-func Load(dir, name string) (*Mapping, error) {
+func Load(dir, name string) (*Transformation, error) {
 	path := filepath.Join(dir, name+".json")
 	return LoadFile(path)
 }
 
-func Save(dir string, m *Mapping) error {
+func Save(dir string, t *Transformation) error {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
-	path := filepath.Join(dir, m.Name+".json")
-	return SaveFile(path, m)
+	path := filepath.Join(dir, t.Name+".json")
+	return SaveFile(path, t)
 }
 
 func Delete(dir, name string) error {

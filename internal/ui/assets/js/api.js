@@ -219,15 +219,15 @@
       apply:  function (p) { return _post('/api/data/schemas/apply', p); },
     },
 
-    // ── Mapper ──────────────────────────────────────────────────────────────
-    mapper: {
-      list:       function ()  { return _get('/api/data/mappers'); },
-      get:        function (p) { return _post('/api/data/mappers/get', p); },
-      save:       function (p) { return _post('/api/data/mappers/save', p); },
-      delete:     function (p) { return _post('/api/data/mappers/delete', p); },
-      preview:    function (p) { return _post('/api/data/mappers/preview', p); },
-      execute:    function (p) { return _post('/api/data/mappers/execute', p); },
-      transforms: function () { return _get('/api/data/mappers/transforms'); },
+    // ── Transformations ────────────────────────────────────────────────────
+    transform: {
+      list:       function ()  { return _get('/api/data/transformations'); },
+      get:        function (p) { return _post('/api/data/transformations/get', p); },
+      save:       function (p) { return _post('/api/data/transformations/save', p); },
+      delete:     function (p) { return _post('/api/data/transformations/delete', p); },
+      preview:    function (p) { return _post('/api/data/transformations/preview', p); },
+      execute:    function (p) { return _post('/api/data/transformations/execute', p); },
+      transforms: function () { return _get('/api/data/transformations/transforms'); },
     },
 
     // ── Site (editor) ─────────────────────────────────────────────────────────

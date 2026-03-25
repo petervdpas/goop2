@@ -2,7 +2,7 @@
 <div class="page-tabs">
   <a class="page-tab active" data-db-tab="tables" href="javascript:void(0)">Tables</a>
   <a class="page-tab" data-db-tab="schemas" href="javascript:void(0)">Schemas</a>
-  <a class="page-tab" data-db-tab="mappers" href="javascript:void(0)">Mappings</a>
+  <a class="page-tab" data-db-tab="transforms" href="javascript:void(0)">Transformations</a>
 </div>
 
 <!-- Tables view -->
@@ -93,7 +93,7 @@
       </div>
 
       <!-- Schema editor -->
-      <div id="db-schema-editor" class="db-mapper-editor">
+      <div id="db-schema-editor" class="db-tx-editor">
         <p class="empty-state">Select a schema from the sidebar to edit it.</p>
       </div>
 
@@ -108,17 +108,17 @@
   </div>
 </div>
 
-<!-- Mappings view -->
-<div id="db-view-mappers" class="db-view">
+<!-- Transformations view -->
+<div id="db-view-transforms" class="db-view">
   <p class="muted small">Define reusable data transformations between tables.</p>
   <div class="db-page">
     <!-- Sidebar: mapper list -->
     <div class="db-sidebar panel">
       <div class="section-head">
-        <span class="section-title">Mappings</span>
-        <button id="db-btn-new-mapper" class="db-sidebar-btn">+ New</button>
+        <span class="section-title">Transformations</span>
+        <button id="db-btn-new-tx" class="db-sidebar-btn">+ New</button>
       </div>
-      <ul id="db-mapper-list" class="db-table-list">
+      <ul id="db-tx-list" class="db-table-list">
         <!-- populated by JS -->
       </ul>
     </div>
@@ -126,17 +126,17 @@
     <!-- Main content area -->
     <div class="db-content panel">
       <div class="section-head">
-        <span id="db-mapper-title" class="section-title">Select a mapping</span>
-        <div id="db-mapper-actions" class="db-content-actions hidden">
-          <button id="db-btn-save-mapper" class="db-action-btn">Save</button>
-          <button id="db-btn-run-mapper" class="db-action-btn">Execute</button>
-          <button id="db-btn-delete-mapper" class="db-action-btn db-btn-danger">Delete</button>
+        <span id="db-tx-title" class="section-title">Select a transformation</span>
+        <div id="db-tx-actions" class="db-content-actions hidden">
+          <button id="db-btn-save-tx" class="db-action-btn">Save</button>
+          <button id="db-btn-run-tx" class="db-action-btn">Execute</button>
+          <button id="db-btn-delete-tx" class="db-action-btn db-btn-danger">Delete</button>
         </div>
       </div>
 
       <!-- Mapper editor form -->
-      <div id="db-mapper-editor" class="db-mapper-editor">
-        <p class="empty-state">Select a mapping from the sidebar to edit it.</p>
+      <div id="db-tx-editor" class="db-tx-editor">
+        <p class="empty-state">Select a transformation from the sidebar to edit it.</p>
       </div>
     </div>
   </div>

@@ -1295,256 +1295,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/data/mappers": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "mapper"
-                ],
-                "summary": "List all stored mapping definitions",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/routes.mapperListEntry"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/data/mappers/delete": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "mapper"
-                ],
-                "summary": "Delete a mapping definition",
-                "parameters": [
-                    {
-                        "description": "Mapping name",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/routes.mapperNameRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/routes.statusOK"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/data/mappers/execute": {
-            "post": {
-                "description": "Reads rows from source_table (with optional WHERE filter), applies the named mapping, and inserts results into target_table. Both tables must exist.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "mapper"
-                ],
-                "summary": "Execute a mapping: read from source table, transform, insert into target table",
-                "parameters": [
-                    {
-                        "description": "Execute request",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/routes.mapperExecuteRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/routes.mapperExecuteResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "validation/mapping error",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "404": {
-                        "description": "mapping not found",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/data/mappers/get": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "mapper"
-                ],
-                "summary": "Get a mapping definition by name",
-                "parameters": [
-                    {
-                        "description": "Mapping name",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/routes.mapperNameRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/routes.mapperSaveRequest"
-                        }
-                    },
-                    "404": {
-                        "description": "mapping not found",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/data/mappers/preview": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "mapper"
-                ],
-                "summary": "Preview a mapping by applying it to sample rows (dry run)",
-                "parameters": [
-                    {
-                        "description": "Mapping name and sample rows",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/routes.mapperPreviewRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "additionalProperties": true
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "mapping error",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "404": {
-                        "description": "mapping not found",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/data/mappers/save": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "mapper"
-                ],
-                "summary": "Create or update a mapping definition (saves as JSON file)",
-                "parameters": [
-                    {
-                        "description": "Mapping definition",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/routes.mapperSaveRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/routes.statusOK"
-                        }
-                    },
-                    "400": {
-                        "description": "validation error",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/data/mappers/transforms": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "mapper"
-                ],
-                "summary": "List available transform functions for mapping fields",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/api/data/query": {
             "post": {
                 "consumes": [
@@ -2082,6 +1832,256 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/routes.statusOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/transformations": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transformation"
+                ],
+                "summary": "List all stored transformation definitions",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/routes.transformListEntry"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/transformations/delete": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transformation"
+                ],
+                "summary": "Delete a transformation definition",
+                "parameters": [
+                    {
+                        "description": "Mapping name",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.transformNameRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/transformations/execute": {
+            "post": {
+                "description": "Reads rows from source_table (with optional WHERE filter), applies the named mapping, and inserts results into target_table. Both tables must exist.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transformation"
+                ],
+                "summary": "Execute a transformation: read from source table, transform, insert into target table",
+                "parameters": [
+                    {
+                        "description": "Execute request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.transformExecuteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.transformExecuteResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "validation/transformation error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "transformation not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/transformations/get": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transformation"
+                ],
+                "summary": "Get a transformation definition by name",
+                "parameters": [
+                    {
+                        "description": "Mapping name",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.transformNameRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.transformSaveRequest"
+                        }
+                    },
+                    "404": {
+                        "description": "transformation not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/transformations/preview": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transformation"
+                ],
+                "summary": "Preview a transformation by applying it to sample rows (dry run)",
+                "parameters": [
+                    {
+                        "description": "Mapping name and sample rows",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.transformPreviewRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": true
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "transformation error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "transformation not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/transformations/save": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transformation"
+                ],
+                "summary": "Create or update a transformation definition (saves as JSON file)",
+                "parameters": [
+                    {
+                        "description": "Transformation definition",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.transformSaveRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    },
+                    "400": {
+                        "description": "validation error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/transformations/transforms": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transformation"
+                ],
+                "summary": "List available transform functions for transformation fields",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -5305,135 +5305,6 @@ const docTemplate = `{
                 }
             }
         },
-        "routes.mapperExecuteRequest": {
-            "type": "object",
-            "properties": {
-                "args": {
-                    "type": "array",
-                    "items": {}
-                },
-                "limit": {
-                    "type": "integer",
-                    "example": 10000
-                },
-                "name": {
-                    "type": "string",
-                    "example": "order-to-invoice"
-                },
-                "source_table": {
-                    "type": "string",
-                    "example": "orders"
-                },
-                "target_table": {
-                    "type": "string",
-                    "example": "invoices"
-                },
-                "where": {
-                    "type": "string"
-                }
-            }
-        },
-        "routes.mapperExecuteResponse": {
-            "type": "object",
-            "properties": {
-                "inserted": {
-                    "type": "integer",
-                    "example": 42
-                },
-                "status": {
-                    "type": "string",
-                    "example": "executed"
-                }
-            }
-        },
-        "routes.mapperFieldMapping": {
-            "type": "object",
-            "properties": {
-                "args": {
-                    "type": "array",
-                    "items": {}
-                },
-                "constant": {},
-                "sources": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "order_id"
-                    ]
-                },
-                "target": {
-                    "type": "string",
-                    "example": "invoice_number"
-                },
-                "transform": {
-                    "type": "string",
-                    "example": "prefix"
-                }
-            }
-        },
-        "routes.mapperListEntry": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string",
-                    "example": "Convert paid orders to invoice records"
-                },
-                "field_count": {
-                    "type": "integer",
-                    "example": 5
-                },
-                "name": {
-                    "type": "string",
-                    "example": "order-to-invoice"
-                }
-            }
-        },
-        "routes.mapperNameRequest": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "example": "order-to-invoice"
-                }
-            }
-        },
-        "routes.mapperPreviewRequest": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "example": "order-to-invoice"
-                },
-                "rows": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "additionalProperties": {}
-                    }
-                }
-            }
-        },
-        "routes.mapperSaveRequest": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string",
-                    "example": "Convert paid orders to invoice records"
-                },
-                "fields": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/routes.mapperFieldMapping"
-                    }
-                },
-                "name": {
-                    "type": "string",
-                    "example": "order-to-invoice"
-                }
-            }
-        },
         "routes.mqAckRequest": {
             "type": "object",
             "properties": {
@@ -6053,6 +5924,162 @@ const docTemplate = `{
                 },
                 "self": {
                     "$ref": "#/definitions/routes.topologyNode"
+                }
+            }
+        },
+        "routes.transformDataEndpoint": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "example": "orders"
+                },
+                "path": {
+                    "type": "string",
+                    "example": "imports/data.csv"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "table"
+                },
+                "url": {
+                    "type": "string",
+                    "example": "https://api.example.com/data"
+                }
+            }
+        },
+        "routes.transformExecuteRequest": {
+            "type": "object",
+            "properties": {
+                "args": {
+                    "type": "array",
+                    "items": {}
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 10000
+                },
+                "name": {
+                    "type": "string",
+                    "example": "order-to-invoice"
+                },
+                "where": {
+                    "type": "string"
+                }
+            }
+        },
+        "routes.transformExecuteResponse": {
+            "type": "object",
+            "properties": {
+                "inserted": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "status": {
+                    "type": "string",
+                    "example": "executed"
+                }
+            }
+        },
+        "routes.transformField": {
+            "type": "object",
+            "properties": {
+                "args": {
+                    "type": "array",
+                    "items": {}
+                },
+                "constant": {},
+                "sources": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "order_id"
+                    ]
+                },
+                "target": {
+                    "type": "string",
+                    "example": "invoice_number"
+                },
+                "transform": {
+                    "type": "string",
+                    "example": "prefix"
+                }
+            }
+        },
+        "routes.transformListEntry": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Convert paid orders to invoice records"
+                },
+                "field_count": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "name": {
+                    "type": "string",
+                    "example": "order-to-invoice"
+                },
+                "source_type": {
+                    "type": "string",
+                    "example": "table"
+                },
+                "target_type": {
+                    "type": "string",
+                    "example": "table"
+                }
+            }
+        },
+        "routes.transformNameRequest": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "example": "order-to-invoice"
+                }
+            }
+        },
+        "routes.transformPreviewRequest": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "example": "order-to-invoice"
+                },
+                "rows": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                }
+            }
+        },
+        "routes.transformSaveRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Convert paid orders to invoice records"
+                },
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/routes.transformField"
+                    }
+                },
+                "name": {
+                    "type": "string",
+                    "example": "order-to-invoice"
+                },
+                "source": {
+                    "$ref": "#/definitions/routes.transformDataEndpoint"
+                },
+                "target": {
+                    "$ref": "#/definitions/routes.transformDataEndpoint"
                 }
             }
         },

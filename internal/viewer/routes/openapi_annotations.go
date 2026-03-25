@@ -2061,22 +2061,32 @@ type templateApplyStoreResponse struct {
 //	@Router		/api/templates/apply-store [post]
 func swagTemplatesApplyStore() {}
 
-// ── Mapper ───────────────────────────────────────────────────────────────────
+// ── Transformation ───────────────────────────────────────────────────────────────────
 
-// mapperListEntry describes one mapping in the GET /api/data/mappers response.
-type mapperListEntry struct {
+// transformListEntry describes one transformation in the GET /api/data/transformations response.
+type transformListEntry struct {
 	Name        string `json:"name"        example:"order-to-invoice"`
 	Description string `json:"description" example:"Convert paid orders to invoice records"`
 	FieldCount  int    `json:"field_count" example:"5"`
+	SourceType  string `json:"source_type" example:"table"`
+	TargetType  string `json:"target_type" example:"table"`
 }
 
-// mapperNameRequest is the body for endpoints that take a mapping name.
-type mapperNameRequest struct {
+// transformNameRequest is the body for endpoints that take a transformation name.
+type transformNameRequest struct {
 	Name string `json:"name" example:"order-to-invoice"`
 }
 
-// mapperFieldMapping describes a single field mapping rule.
-type mapperFieldMapping struct {
+// transformDataEndpoint describes a source or target for a transformation.
+type transformDataEndpoint struct {
+	Type string `json:"type"           example:"table"`
+	Name string `json:"name,omitempty" example:"orders"`
+	Path string `json:"path,omitempty" example:"imports/data.csv"`
+	URL  string `json:"url,omitempty"  example:"https://api.example.com/data"`
+}
+
+// transformField describes a single field transformation rule.
+type transformField struct {
 	Target    string   `json:"target"              example:"invoice_number"`
 	Sources   []string `json:"sources,omitempty"   example:"order_id"`
 	Transform string   `json:"transform,omitempty" example:"prefix"`
@@ -2084,114 +2094,114 @@ type mapperFieldMapping struct {
 	Constant  any      `json:"constant,omitempty"`
 }
 
-// mapperSaveRequest is the body for POST /api/data/mappers/save.
-type mapperSaveRequest struct {
-	Name        string               `json:"name"        example:"order-to-invoice"`
-	Description string               `json:"description" example:"Convert paid orders to invoice records"`
-	Fields      []mapperFieldMapping `json:"fields"`
+// transformSaveRequest is the body for POST /api/data/transformations/save.
+type transformSaveRequest struct {
+	Name        string                `json:"name"        example:"order-to-invoice"`
+	Description string                `json:"description" example:"Convert paid orders to invoice records"`
+	Source      transformDataEndpoint `json:"source"`
+	Target      transformDataEndpoint `json:"target"`
+	Fields      []transformField      `json:"fields"`
 }
 
-// mapperPreviewRequest is the body for POST /api/data/mappers/preview.
-type mapperPreviewRequest struct {
+// transformPreviewRequest is the body for POST /api/data/transformations/preview.
+type transformPreviewRequest struct {
 	Name string           `json:"name" example:"order-to-invoice"`
 	Rows []map[string]any `json:"rows"`
 }
 
-// mapperExecuteRequest is the body for POST /api/data/mappers/execute.
-type mapperExecuteRequest struct {
-	Name        string `json:"name"         example:"order-to-invoice"`
-	SourceTable string `json:"source_table" example:"orders"`
-	TargetTable string `json:"target_table" example:"invoices"`
-	Where       string `json:"where,omitempty"`
+// transformExecuteRequest is the body for POST /api/data/transformations/execute.
+type transformExecuteRequest struct {
+	Name  string `json:"name" example:"order-to-invoice"`
+	Where string `json:"where,omitempty"`
 	Args        []any  `json:"args,omitempty"`
 	Limit       int    `json:"limit,omitempty" example:"10000"`
 }
 
-// mapperExecuteResponse is the body for POST /api/data/mappers/execute.
-type mapperExecuteResponse struct {
+// transformExecuteResponse is the body for POST /api/data/transformations/execute.
+type transformExecuteResponse struct {
 	Status   string `json:"status"   example:"executed"`
 	Inserted int    `json:"inserted" example:"42"`
 }
 
-// swagMapperList is a documentation stub for GET /api/data/mappers.
+// swagTransformList is a documentation stub for GET /api/data/transformations.
 //
-//	@Summary	List all stored mapping definitions
-//	@Tags		mapper
+//	@Summary	List all stored transformation definitions
+//	@Tags		transformation
 //	@Produce	json
-//	@Success	200	{array}	mapperListEntry
-//	@Router		/api/data/mappers [get]
-func swagMapperList() {}
+//	@Success	200	{array}	transformListEntry
+//	@Router		/api/data/transformations [get]
+func swagTransformList() {}
 
-// swagMapperGet is a documentation stub for POST /api/data/mappers/get.
+// swagTransformGet is a documentation stub for POST /api/data/transformations/get.
 //
-//	@Summary	Get a mapping definition by name
-//	@Tags		mapper
+//	@Summary	Get a transformation definition by name
+//	@Tags		transformation
 //	@Accept		json
 //	@Produce	json
-//	@Param		body	body		mapperNameRequest	true	"Mapping name"
-//	@Success	200		{object}	mapperSaveRequest
-//	@Failure	404		{string}	string	"mapping not found"
-//	@Router		/api/data/mappers/get [post]
-func swagMapperGet() {}
+//	@Param		body	body		transformNameRequest	true	"Mapping name"
+//	@Success	200		{object}	transformSaveRequest
+//	@Failure	404		{string}	string	"transformation not found"
+//	@Router		/api/data/transformations/get [post]
+func swagTransformGet() {}
 
-// swagMapperSave is a documentation stub for POST /api/data/mappers/save.
+// swagTransformSave is a documentation stub for POST /api/data/transformations/save.
 //
-//	@Summary	Create or update a mapping definition (saves as JSON file)
-//	@Tags		mapper
+//	@Summary	Create or update a transformation definition (saves as JSON file)
+//	@Tags		transformation
 //	@Accept		json
 //	@Produce	json
-//	@Param		body	body		mapperSaveRequest	true	"Mapping definition"
+//	@Param		body	body		transformSaveRequest	true	"Transformation definition"
 //	@Success	200		{object}	statusOK
 //	@Failure	400		{string}	string	"validation error"
-//	@Router		/api/data/mappers/save [post]
-func swagMapperSave() {}
+//	@Router		/api/data/transformations/save [post]
+func swagTransformSave() {}
 
-// swagMapperDelete is a documentation stub for POST /api/data/mappers/delete.
+// swagTransformDelete is a documentation stub for POST /api/data/transformations/delete.
 //
-//	@Summary	Delete a mapping definition
-//	@Tags		mapper
+//	@Summary	Delete a transformation definition
+//	@Tags		transformation
 //	@Accept		json
 //	@Produce	json
-//	@Param		body	body		mapperNameRequest	true	"Mapping name"
+//	@Param		body	body		transformNameRequest	true	"Mapping name"
 //	@Success	200		{object}	statusOK
-//	@Router		/api/data/mappers/delete [post]
-func swagMapperDelete() {}
+//	@Router		/api/data/transformations/delete [post]
+func swagTransformDelete() {}
 
-// swagMapperPreview is a documentation stub for POST /api/data/mappers/preview.
+// swagTransformPreview is a documentation stub for POST /api/data/transformations/preview.
 //
-//	@Summary	Preview a mapping by applying it to sample rows (dry run)
-//	@Tags		mapper
+//	@Summary	Preview a transformation by applying it to sample rows (dry run)
+//	@Tags		transformation
 //	@Accept		json
 //	@Produce	json
-//	@Param		body	body		mapperPreviewRequest	true	"Mapping name and sample rows"
+//	@Param		body	body		transformPreviewRequest	true	"Mapping name and sample rows"
 //	@Success	200		{array}		map[string]any
-//	@Failure	400		{string}	string	"mapping error"
-//	@Failure	404		{string}	string	"mapping not found"
-//	@Router		/api/data/mappers/preview [post]
-func swagMapperPreview() {}
+//	@Failure	400		{string}	string	"transformation error"
+//	@Failure	404		{string}	string	"transformation not found"
+//	@Router		/api/data/transformations/preview [post]
+func swagTransformPreview() {}
 
-// swagMapperExecute is a documentation stub for POST /api/data/mappers/execute.
+// swagTransformExecute is a documentation stub for POST /api/data/transformations/execute.
 //
-//	@Summary	Execute a mapping: read from source table, transform, insert into target table
+//	@Summary	Execute a transformation: read from source table, transform, insert into target table
 //	@Description	Reads rows from source_table (with optional WHERE filter), applies the named mapping, and inserts results into target_table. Both tables must exist.
-//	@Tags		mapper
+//	@Tags		transformation
 //	@Accept		json
 //	@Produce	json
-//	@Param		body	body		mapperExecuteRequest	true	"Execute request"
-//	@Success	200		{object}	mapperExecuteResponse
-//	@Failure	400		{string}	string	"validation/mapping error"
-//	@Failure	404		{string}	string	"mapping not found"
-//	@Router		/api/data/mappers/execute [post]
-func swagMapperExecute() {}
+//	@Param		body	body		transformExecuteRequest	true	"Execute request"
+//	@Success	200		{object}	transformExecuteResponse
+//	@Failure	400		{string}	string	"validation/transformation error"
+//	@Failure	404		{string}	string	"transformation not found"
+//	@Router		/api/data/transformations/execute [post]
+func swagTransformExecute() {}
 
-// swagMapperTransforms is a documentation stub for GET /api/data/mappers/transforms.
+// swagTransformTransforms is a documentation stub for GET /api/data/transformations/transforms.
 //
-//	@Summary	List available transform functions for mapping fields
-//	@Tags		mapper
+//	@Summary	List available transform functions for transformation fields
+//	@Tags		transformation
 //	@Produce	json
 //	@Success	200	{array}	string
-//	@Router		/api/data/mappers/transforms [get]
-func swagMapperTransforms() {}
+//	@Router		/api/data/transformations/transforms [get]
+func swagTransformTransforms() {}
 
 // ── Schema ───────────────────────────────────────────────────────────────────
 

@@ -12,9 +12,9 @@ import (
 // ── Apply basics ──
 
 func TestApplySimpleRename(t *testing.T) {
-	m := &Mapping{
+	m := &Transformation{
 		Name: "test",
-		Fields: []FieldMapping{
+		Fields: []FieldTransform{
 			{Target: "full_name", Sources: []string{"name"}},
 			{Target: "age_years", Sources: []string{"age"}},
 		},
@@ -34,9 +34,9 @@ func TestApplySimpleRename(t *testing.T) {
 }
 
 func TestApplyConstant(t *testing.T) {
-	m := &Mapping{
+	m := &Transformation{
 		Name: "test",
-		Fields: []FieldMapping{
+		Fields: []FieldTransform{
 			{Target: "currency", Constant: "EUR"},
 			{Target: "status", Constant: float64(1)},
 			{Target: "active", Constant: true},
@@ -59,9 +59,9 @@ func TestApplyConstant(t *testing.T) {
 }
 
 func TestApplyMissingSource(t *testing.T) {
-	m := &Mapping{
+	m := &Transformation{
 		Name: "test",
-		Fields: []FieldMapping{
+		Fields: []FieldTransform{
 			{Target: "out", Sources: []string{"nonexistent"}},
 		},
 	}
@@ -75,9 +75,9 @@ func TestApplyMissingSource(t *testing.T) {
 }
 
 func TestApplyMultipleSourcesNoTransform(t *testing.T) {
-	m := &Mapping{
+	m := &Transformation{
 		Name: "test",
-		Fields: []FieldMapping{
+		Fields: []FieldTransform{
 			{Target: "both", Sources: []string{"a", "b"}},
 		},
 	}
@@ -95,9 +95,9 @@ func TestApplyMultipleSourcesNoTransform(t *testing.T) {
 }
 
 func TestApplyNoSourcesNoTransform(t *testing.T) {
-	m := &Mapping{
+	m := &Transformation{
 		Name: "test",
-		Fields: []FieldMapping{
+		Fields: []FieldTransform{
 			{Target: "empty", Constant: "ok"},
 		},
 	}
@@ -111,9 +111,9 @@ func TestApplyNoSourcesNoTransform(t *testing.T) {
 }
 
 func TestApplyUnknownTransform(t *testing.T) {
-	m := &Mapping{
+	m := &Transformation{
 		Name: "test",
-		Fields: []FieldMapping{
+		Fields: []FieldTransform{
 			{Target: "x", Sources: []string{"a"}, Transform: "bogus"},
 		},
 	}
@@ -129,9 +129,9 @@ func TestApplyUnknownTransform(t *testing.T) {
 // ── ApplyMany ──
 
 func TestApplyMany(t *testing.T) {
-	m := &Mapping{
+	m := &Transformation{
 		Name: "test",
-		Fields: []FieldMapping{
+		Fields: []FieldTransform{
 			{Target: "name", Sources: []string{"label"}, Transform: "uppercase"},
 		},
 	}
@@ -157,9 +157,9 @@ func TestApplyMany(t *testing.T) {
 }
 
 func TestApplyManyEmpty(t *testing.T) {
-	m := &Mapping{
+	m := &Transformation{
 		Name:   "test",
-		Fields: []FieldMapping{{Target: "x", Constant: 1}},
+		Fields: []FieldTransform{{Target: "x", Constant: 1}},
 	}
 	results, err := m.ApplyMany(nil)
 	if err != nil {
@@ -171,9 +171,9 @@ func TestApplyManyEmpty(t *testing.T) {
 }
 
 func TestApplyManyErrorPropagation(t *testing.T) {
-	m := &Mapping{
+	m := &Transformation{
 		Name: "test",
-		Fields: []FieldMapping{
+		Fields: []FieldTransform{
 			{Target: "n", Sources: []string{"v"}, Transform: "to_int"},
 		},
 	}
@@ -205,7 +205,7 @@ func TestUppercase(t *testing.T) {
 		{float64(42), "42"},
 	}
 	for _, tt := range tests {
-		m := &Mapping{Name: "t", Fields: []FieldMapping{{Target: "o", Sources: []string{"i"}, Transform: "uppercase"}}}
+		m := &Transformation{Name: "t", Fields: []FieldTransform{{Target: "o", Sources: []string{"i"}, Transform: "uppercase"}}}
 		out, err := m.Apply(schema.Row{"i": tt.input})
 		if err != nil {
 			t.Errorf("uppercase(%v): %v", tt.input, err)
@@ -231,7 +231,7 @@ func TestLowercase(t *testing.T) {
 		{nil, ""},
 	}
 	for _, tt := range tests {
-		m := &Mapping{Name: "t", Fields: []FieldMapping{{Target: "o", Sources: []string{"i"}, Transform: "lowercase"}}}
+		m := &Transformation{Name: "t", Fields: []FieldTransform{{Target: "o", Sources: []string{"i"}, Transform: "lowercase"}}}
 		out, err := m.Apply(schema.Row{"i": tt.input})
 		if err != nil {
 			t.Errorf("lowercase(%v): %v", tt.input, err)
@@ -257,7 +257,7 @@ func TestTrim(t *testing.T) {
 		{nil, ""},
 	}
 	for _, tt := range tests {
-		m := &Mapping{Name: "t", Fields: []FieldMapping{{Target: "o", Sources: []string{"i"}, Transform: "trim"}}}
+		m := &Transformation{Name: "t", Fields: []FieldTransform{{Target: "o", Sources: []string{"i"}, Transform: "trim"}}}
 		out, err := m.Apply(schema.Row{"i": tt.input})
 		if err != nil {
 			t.Errorf("trim(%v): %v", tt.input, err)
@@ -272,7 +272,7 @@ func TestTrim(t *testing.T) {
 // ── Transform: concat ──
 
 func TestConcat(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "full", Sources: []string{"first", "last"}, Transform: "concat", Args: []any{" "}},
 	}}
 	out, err := m.Apply(schema.Row{"first": "John", "last": "Doe"})
@@ -285,7 +285,7 @@ func TestConcat(t *testing.T) {
 }
 
 func TestConcatNoSeparator(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "out", Sources: []string{"a", "b"}, Transform: "concat"},
 	}}
 	out, err := m.Apply(schema.Row{"a": "foo", "b": "bar"})
@@ -298,7 +298,7 @@ func TestConcatNoSeparator(t *testing.T) {
 }
 
 func TestConcatWithNil(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "out", Sources: []string{"a", "b"}, Transform: "concat", Args: []any{"-"}},
 	}}
 	out, err := m.Apply(schema.Row{"a": "hello", "b": nil})
@@ -311,7 +311,7 @@ func TestConcatWithNil(t *testing.T) {
 }
 
 func TestConcatMixedTypes(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "out", Sources: []string{"a", "b", "c"}, Transform: "concat", Args: []any{"|"}},
 	}}
 	out, err := m.Apply(schema.Row{"a": "text", "b": float64(42), "c": true})
@@ -338,7 +338,7 @@ func TestRound(t *testing.T) {
 		{float64(100), 2, 100.0},
 	}
 	for _, tt := range tests {
-		m := &Mapping{Name: "t", Fields: []FieldMapping{
+		m := &Transformation{Name: "t", Fields: []FieldTransform{
 			{Target: "o", Sources: []string{"v"}, Transform: "round", Args: []any{float64(tt.decimals)}},
 		}}
 		out, err := m.Apply(schema.Row{"v": tt.input})
@@ -353,7 +353,7 @@ func TestRound(t *testing.T) {
 }
 
 func TestRoundNil(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "o", Sources: []string{"v"}, Transform: "round"},
 	}}
 	out, err := m.Apply(schema.Row{"v": nil})
@@ -366,7 +366,7 @@ func TestRoundNil(t *testing.T) {
 }
 
 func TestRoundString(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "o", Sources: []string{"v"}, Transform: "round"},
 	}}
 	out, err := m.Apply(schema.Row{"v": "not_a_number"})
@@ -381,7 +381,7 @@ func TestRoundString(t *testing.T) {
 // ── Transform: default ──
 
 func TestDefault(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "s", Sources: []string{"s"}, Transform: "default", Args: []any{"fallback"}},
 	}}
 
@@ -407,7 +407,7 @@ func TestDefault(t *testing.T) {
 }
 
 func TestDefaultNoArgs(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "s", Sources: []string{"s"}, Transform: "default"},
 	}}
 	out, _ := m.Apply(schema.Row{"s": nil})
@@ -431,7 +431,7 @@ func TestToInt(t *testing.T) {
 		{"not_a_number", 0, true},
 	}
 	for _, tt := range tests {
-		m := &Mapping{Name: "t", Fields: []FieldMapping{
+		m := &Transformation{Name: "t", Fields: []FieldTransform{
 			{Target: "o", Sources: []string{"v"}, Transform: "to_int"},
 		}}
 		out, err := m.Apply(schema.Row{"v": tt.input})
@@ -452,7 +452,7 @@ func TestToInt(t *testing.T) {
 }
 
 func TestToIntNil(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "o", Sources: []string{"v"}, Transform: "to_int"},
 	}}
 	out, err := m.Apply(schema.Row{"v": nil})
@@ -479,7 +479,7 @@ func TestToText(t *testing.T) {
 		{int64(99), "99"},
 	}
 	for _, tt := range tests {
-		m := &Mapping{Name: "t", Fields: []FieldMapping{
+		m := &Transformation{Name: "t", Fields: []FieldTransform{
 			{Target: "o", Sources: []string{"v"}, Transform: "to_text"},
 		}}
 		out, err := m.Apply(schema.Row{"v": tt.input})
@@ -507,7 +507,7 @@ func TestToFloat(t *testing.T) {
 		{"bad", 0, true},
 	}
 	for _, tt := range tests {
-		m := &Mapping{Name: "t", Fields: []FieldMapping{
+		m := &Transformation{Name: "t", Fields: []FieldTransform{
 			{Target: "o", Sources: []string{"v"}, Transform: "to_float"},
 		}}
 		out, err := m.Apply(schema.Row{"v": tt.input})
@@ -528,7 +528,7 @@ func TestToFloat(t *testing.T) {
 }
 
 func TestToFloatNil(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "o", Sources: []string{"v"}, Transform: "to_float"},
 	}}
 	out, err := m.Apply(schema.Row{"v": nil})
@@ -556,7 +556,7 @@ func TestSubstring(t *testing.T) {
 		{"hello", 2, 2, "ll"},
 	}
 	for _, tt := range tests {
-		m := &Mapping{Name: "t", Fields: []FieldMapping{
+		m := &Transformation{Name: "t", Fields: []FieldTransform{
 			{Target: "o", Sources: []string{"v"}, Transform: "substring", Args: []any{float64(tt.start), float64(tt.length)}},
 		}}
 		out, err := m.Apply(schema.Row{"v": tt.input})
@@ -571,7 +571,7 @@ func TestSubstring(t *testing.T) {
 }
 
 func TestSubstringNegativeStart(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "o", Sources: []string{"v"}, Transform: "substring", Args: []any{float64(-5), float64(3)}},
 	}}
 	out, err := m.Apply(schema.Row{"v": "hello"})
@@ -586,7 +586,7 @@ func TestSubstringNegativeStart(t *testing.T) {
 // ── Transform: prefix / suffix ──
 
 func TestPrefix(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "o", Sources: []string{"id"}, Transform: "prefix", Args: []any{"INV-"}},
 	}}
 	out, _ := m.Apply(schema.Row{"id": "100"})
@@ -596,7 +596,7 @@ func TestPrefix(t *testing.T) {
 }
 
 func TestPrefixNilSource(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "o", Sources: []string{"id"}, Transform: "prefix", Args: []any{"X-"}},
 	}}
 	out, _ := m.Apply(schema.Row{"id": nil})
@@ -606,7 +606,7 @@ func TestPrefixNilSource(t *testing.T) {
 }
 
 func TestSuffix(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "o", Sources: []string{"name"}, Transform: "suffix", Args: []any{" Jr."}},
 	}}
 	out, _ := m.Apply(schema.Row{"name": "Bob"})
@@ -618,7 +618,7 @@ func TestSuffix(t *testing.T) {
 // ── Transform: now ──
 
 func TestNow(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "ts", Transform: "now"},
 	}}
 	out, err := m.Apply(schema.Row{})
@@ -637,7 +637,7 @@ func TestNow(t *testing.T) {
 // ── Transform: guid ──
 
 func TestGuid(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "id", Transform: "guid"},
 	}}
 	out, err := m.Apply(schema.Row{})
@@ -657,7 +657,7 @@ func TestGuid(t *testing.T) {
 }
 
 func TestGuidUniqueness(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "id", Transform: "guid"},
 	}}
 	seen := make(map[string]bool)
@@ -677,7 +677,7 @@ func TestGuidUniqueness(t *testing.T) {
 // ── Transform: coalesce ──
 
 func TestCoalesce(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "val", Sources: []string{"a", "b", "c"}, Transform: "coalesce"},
 	}}
 
@@ -700,7 +700,7 @@ func TestCoalesce(t *testing.T) {
 // ── Transform: replace ──
 
 func TestReplace(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "o", Sources: []string{"raw"}, Transform: "replace", Args: []any{"-", "_"}},
 	}}
 	out, _ := m.Apply(schema.Row{"raw": "foo-bar-baz"})
@@ -710,7 +710,7 @@ func TestReplace(t *testing.T) {
 }
 
 func TestReplaceNoMatch(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "o", Sources: []string{"raw"}, Transform: "replace", Args: []any{"xyz", "!"}},
 	}}
 	out, _ := m.Apply(schema.Row{"raw": "hello"})
@@ -722,7 +722,7 @@ func TestReplaceNoMatch(t *testing.T) {
 // ── Transform: split ──
 
 func TestSplitIndex(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "first", Sources: []string{"csv"}, Transform: "split", Args: []any{",", float64(0)}},
 		{Target: "second", Sources: []string{"csv"}, Transform: "split", Args: []any{",", float64(1)}},
 		{Target: "third", Sources: []string{"csv"}, Transform: "split", Args: []any{",", float64(2)}},
@@ -743,7 +743,7 @@ func TestSplitIndex(t *testing.T) {
 }
 
 func TestSplitNoIndex(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "parts", Sources: []string{"csv"}, Transform: "split", Args: []any{","}},
 	}}
 	out, err := m.Apply(schema.Row{"csv": "a,b,c"})
@@ -760,7 +760,7 @@ func TestSplitNoIndex(t *testing.T) {
 }
 
 func TestSplitOutOfBounds(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "o", Sources: []string{"csv"}, Transform: "split", Args: []any{",", float64(99)}},
 	}}
 	out, err := m.Apply(schema.Row{"csv": "a,b"})
@@ -779,7 +779,7 @@ func TestSplitOutOfBounds(t *testing.T) {
 // ── Transform: join ──
 
 func TestJoin(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "o", Sources: []string{"a", "b", "c"}, Transform: "join", Args: []any{" - "}},
 	}}
 	out, _ := m.Apply(schema.Row{"a": "x", "b": "y", "c": "z"})
@@ -789,7 +789,7 @@ func TestJoin(t *testing.T) {
 }
 
 func TestJoinDefaultSep(t *testing.T) {
-	m := &Mapping{Name: "t", Fields: []FieldMapping{
+	m := &Transformation{Name: "t", Fields: []FieldTransform{
 		{Target: "o", Sources: []string{"a", "b"}, Transform: "join"},
 	}}
 	out, _ := m.Apply(schema.Row{"a": "x", "b": "y"})
@@ -811,7 +811,7 @@ func TestLength(t *testing.T) {
 		{float64(123), 3},
 	}
 	for _, tt := range tests {
-		m := &Mapping{Name: "t", Fields: []FieldMapping{
+		m := &Transformation{Name: "t", Fields: []FieldTransform{
 			{Target: "o", Sources: []string{"v"}, Transform: "length"},
 		}}
 		out, _ := m.Apply(schema.Row{"v": tt.input})
@@ -850,10 +850,10 @@ func TestToStringHelper(t *testing.T) {
 func TestSaveLoadDelete(t *testing.T) {
 	dir := t.TempDir()
 
-	m := &Mapping{
+	m := &Transformation{
 		Name:        "order-to-invoice",
 		Description: "Test mapping",
-		Fields: []FieldMapping{
+		Fields: []FieldTransform{
 			{Target: "id", Sources: []string{"order_id"}, Transform: "prefix", Args: []any{"INV-"}},
 			{Target: "currency", Constant: "EUR"},
 		},
@@ -931,7 +931,7 @@ func TestLoadNonexistent(t *testing.T) {
 
 func TestSaveCreatesDir(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "sub", "dir")
-	m := &Mapping{Name: "test", Fields: []FieldMapping{{Target: "x", Constant: 1}}}
+	m := &Transformation{Name: "test", Fields: []FieldTransform{{Target: "x", Constant: 1}}}
 	if err := Save(dir, m); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -942,7 +942,7 @@ func TestSaveCreatesDir(t *testing.T) {
 
 func TestSaveValidationError(t *testing.T) {
 	dir := t.TempDir()
-	m := &Mapping{Name: "", Fields: nil}
+	m := &Transformation{Name: "", Fields: nil}
 	if err := Save(dir, m); err == nil {
 		t.Fatal("expected validation error")
 	}
@@ -960,10 +960,10 @@ func TestDeleteNonexistent(t *testing.T) {
 func TestSaveOverwrite(t *testing.T) {
 	dir := t.TempDir()
 
-	m1 := &Mapping{Name: "test", Fields: []FieldMapping{{Target: "v1", Constant: 1}}}
+	m1 := &Transformation{Name: "test", Fields: []FieldTransform{{Target: "v1", Constant: 1}}}
 	Save(dir, m1)
 
-	m2 := &Mapping{Name: "test", Fields: []FieldMapping{{Target: "v2", Constant: 2}}}
+	m2 := &Transformation{Name: "test", Fields: []FieldTransform{{Target: "v2", Constant: 2}}}
 	Save(dir, m2)
 
 	loaded, err := Load(dir, "test")
@@ -980,33 +980,33 @@ func TestSaveOverwrite(t *testing.T) {
 func TestValidation(t *testing.T) {
 	tests := []struct {
 		name    string
-		mapping Mapping
+		mapping Transformation
 		wantErr bool
 	}{
-		{"empty name", Mapping{Name: "", Fields: []FieldMapping{{Target: "x", Constant: 1}}}, true},
-		{"whitespace name", Mapping{Name: "  ", Fields: []FieldMapping{{Target: "x", Constant: 1}}}, true},
-		{"no fields", Mapping{Name: "test", Fields: nil}, true},
-		{"empty fields", Mapping{Name: "test", Fields: []FieldMapping{}}, true},
-		{"no target", Mapping{Name: "test", Fields: []FieldMapping{{Sources: []string{"a"}}}}, true},
-		{"whitespace target", Mapping{Name: "test", Fields: []FieldMapping{{Target: "  ", Sources: []string{"a"}}}}, true},
-		{"duplicate target", Mapping{Name: "test", Fields: []FieldMapping{
+		{"empty name", Transformation{Name: "", Fields: []FieldTransform{{Target: "x", Constant: 1}}}, true},
+		{"whitespace name", Transformation{Name: "  ", Fields: []FieldTransform{{Target: "x", Constant: 1}}}, true},
+		{"no fields", Transformation{Name: "test", Fields: nil}, true},
+		{"empty fields", Transformation{Name: "test", Fields: []FieldTransform{}}, true},
+		{"no target", Transformation{Name: "test", Fields: []FieldTransform{{Sources: []string{"a"}}}}, true},
+		{"whitespace target", Transformation{Name: "test", Fields: []FieldTransform{{Target: "  ", Sources: []string{"a"}}}}, true},
+		{"duplicate target", Transformation{Name: "test", Fields: []FieldTransform{
 			{Target: "x", Constant: 1},
 			{Target: "x", Constant: 2},
 		}}, true},
-		{"no source or constant", Mapping{Name: "test", Fields: []FieldMapping{{Target: "x"}}}, true},
-		{"unknown transform", Mapping{Name: "test", Fields: []FieldMapping{
+		{"no source or constant", Transformation{Name: "test", Fields: []FieldTransform{{Target: "x"}}}, true},
+		{"unknown transform", Transformation{Name: "test", Fields: []FieldTransform{
 			{Target: "x", Sources: []string{"a"}, Transform: "nonexistent"},
 		}}, true},
-		{"valid with sources", Mapping{Name: "test", Fields: []FieldMapping{
+		{"valid with sources", Transformation{Name: "test", Fields: []FieldTransform{
 			{Target: "x", Sources: []string{"a"}},
 		}}, false},
-		{"valid with constant", Mapping{Name: "test", Fields: []FieldMapping{
+		{"valid with constant", Transformation{Name: "test", Fields: []FieldTransform{
 			{Target: "x", Constant: "hello"},
 		}}, false},
-		{"valid with transform", Mapping{Name: "test", Fields: []FieldMapping{
+		{"valid with transform", Transformation{Name: "test", Fields: []FieldTransform{
 			{Target: "x", Sources: []string{"a"}, Transform: "uppercase"},
 		}}, false},
-		{"valid now transform no sources", Mapping{Name: "test", Fields: []FieldMapping{
+		{"valid now transform no sources", Transformation{Name: "test", Fields: []FieldTransform{
 			{Target: "ts", Transform: "now"},
 		}}, false},
 	}
@@ -1044,10 +1044,10 @@ func TestTransformNames(t *testing.T) {
 // ── Complex mapping (real-world scenario) ──
 
 func TestComplexMapping(t *testing.T) {
-	m := &Mapping{
+	m := &Transformation{
 		Name:        "order-to-invoice",
 		Description: "Convert paid orders to invoice records",
-		Fields: []FieldMapping{
+		Fields: []FieldTransform{
 			{Target: "invoice_number", Sources: []string{"order_id"}, Transform: "prefix", Args: []any{"INV-"}},
 			{Target: "customer", Sources: []string{"first_name", "last_name"}, Transform: "concat", Args: []any{" "}},
 			{Target: "email", Sources: []string{"email"}, Transform: "lowercase"},
@@ -1108,9 +1108,9 @@ func TestComplexMapping(t *testing.T) {
 func TestRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 
-	m := &Mapping{
+	m := &Transformation{
 		Name: "sensor-normalize",
-		Fields: []FieldMapping{
+		Fields: []FieldTransform{
 			{Target: "device", Sources: []string{"device_id"}, Transform: "uppercase"},
 			{Target: "temp_c", Sources: []string{"temp_raw"}, Transform: "round", Args: []any{float64(1)}},
 			{Target: "unit", Constant: "celsius"},

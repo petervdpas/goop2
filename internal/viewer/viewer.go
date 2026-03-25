@@ -124,10 +124,9 @@ func Start(addr string, v Viewer) error {
 		routes.RegisterData(mux, v.DB, v.Node.ID(), v.SelfEmail)
 	}
 
-	// Register mapper endpoints (mappings stored in peerDir/mappings/)
-	// Register schema endpoints (schemas stored in peerDir/schemas/)
+	// Register transformation + schema endpoints (file-based, in peerDir)
 	if v.PeerDir != "" {
-		routes.RegisterMapper(mux, v.PeerDir, v.DB)
+		routes.RegisterTransformations(mux, v.PeerDir, v.DB)
 		routes.RegisterSchema(mux, v.PeerDir, v.DB)
 	}
 

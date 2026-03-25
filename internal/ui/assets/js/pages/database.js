@@ -2,7 +2,7 @@
 (() => {
   const { qs, qsa, on, setHidden, escapeHtml, toast, safeLocalStorageGet, safeLocalStorageSet } = window.Goop.core;
   const api = window.Goop.api.data;
-  const mapperApi = window.Goop.api.mapper;
+  const txApi = window.Goop.api.transform;
   const schemaApi = window.Goop.api.schema;
   const gsel = window.Goop.select;
 
@@ -13,8 +13,8 @@
   // Top-level tab switching (reuses page-tabs styling)
   var viewTables = qs("#db-view-tables");
   var viewSchemas = qs("#db-view-schemas");
-  var viewMappers = qs("#db-view-mappers");
-  var allViews = [viewTables, viewSchemas, viewMappers];
+  var viewTransforms = qs("#db-view-transforms");
+  var allViews = [viewTables, viewSchemas, viewTransforms];
 
   qsa("[data-db-tab]").forEach(function(tab) {
     on(tab, "click", function(e) {
@@ -28,8 +28,8 @@
         viewSchemas.classList.add("active");
         loadSchemas();
       } else {
-        viewMappers.classList.add("active");
-        loadMappers();
+        viewTransforms.classList.add("active");
+        loadTxList();
       }
     });
   });
@@ -1075,7 +1075,7 @@
 
   // ======== Tab switching ========
   var tablesContent = qs("#db-content-tables");
-  var mappersContent = qs("#db-content-mappers");
+  var transformsContent = qs("#db-content-transforms");
 
   qsa(".db-tab", dbPage).forEach(function(tab) {
     on(tab, "click", function() {
@@ -1086,11 +1086,11 @@
       });
       if (target === "tables") {
         setHidden(tablesContent, false);
-        setHidden(mappersContent, true);
+        setHidden(transformsContent, true);
       } else {
         setHidden(tablesContent, true);
-        setHidden(mappersContent, false);
-        loadMappers();
+        setHidden(transformsContent, false);
+        loadTxList();
       }
     });
   });
@@ -1461,81 +1461,83 @@
   on(btnDeleteSchema, "click", deleteSchema);
 
   // ======== Mapper editor ========
-  var mapperListEl   = qs("#db-mapper-list");
-  var mapperTitleEl  = qs("#db-mapper-title");
-  var mapperActionsEl = qs("#db-mapper-actions");
-  var mapperEditorEl = qs("#db-mapper-editor");
-  var btnNewMapper   = qs("#db-btn-new-mapper");
-  var btnSaveMapper  = qs("#db-btn-save-mapper");
-  var btnRunMapper   = qs("#db-btn-run-mapper");
-  var btnDeleteMapper = qs("#db-btn-delete-mapper");
+  var txListEl   = qs("#db-tx-list");
+  var txTitleEl  = qs("#db-tx-title");
+  var txActionsEl = qs("#db-tx-actions");
+  var txEditorEl = qs("#db-tx-editor");
+  var btnNewTx   = qs("#db-btn-new-tx");
+  var btnSaveTx  = qs("#db-btn-save-tx");
+  var btnRunTx   = qs("#db-btn-run-tx");
+  var btnDeleteTx = qs("#db-btn-delete-tx");
 
-  var currentMapper = null;
+  var currentTx = null;
   var availableTransforms = [];
   var availableTables = [];
 
   async function loadTransforms() {
     if (availableTransforms.length > 0) return;
     try {
-      availableTransforms = await mapperApi.transforms() || [];
+      availableTransforms = await txApi.transforms() || [];
     } catch (e) { /* ignore */ }
   }
 
-  async function loadMappers(selectName) {
+  async function loadTxList(selectName) {
     await loadTransforms();
     try {
       var results = await Promise.all([
-        mapperApi.list(),
+        txApi.list(),
         api.tables(),
       ]);
-      var mappers = results[0] || [];
+      var txItems = results[0] || [];
       availableTables = results[1] || [];
-      renderMapperList(mappers);
+      renderTxList(txItems);
       if (selectName) {
-        selectMapper(selectName);
+        selectTx(selectName);
       }
     } catch (err) {
-      mapperListEl.innerHTML = '<li class="db-table-empty">Failed to load mappings</li>';
+      txListEl.innerHTML = '<li class="db-table-empty">Failed to load mappings</li>';
     }
   }
 
-  function renderMapperList(mappers) {
-    if (!mappers || mappers.length === 0) {
-      mapperListEl.innerHTML = '<li class="db-table-empty">No mappings yet</li>';
+  function renderTxList(txItems) {
+    if (!items || items.length === 0) {
+      txListEl.innerHTML = '<li class="db-table-empty">No mappings yet</li>';
       return;
     }
-    mapperListEl.innerHTML = "";
-    mappers.forEach(function(m) {
+    txListEl.innerHTML = "";
+    items.forEach(function(m) {
       var li = document.createElement("li");
       li.className = "sidebar-item";
-      li.dataset.mapper = m.name;
+      li.dataset.tx = m.name;
       li.innerHTML = '<span class="db-table-name">' + escapeHtml(m.name) + '</span>' +
         '<span class="badge badge-owner">' + m.field_count + ' fields</span>';
-      on(li, "click", function() { selectMapper(m.name); });
-      mapperListEl.appendChild(li);
+      on(li, "click", function() { selectTx(m.name); });
+      txListEl.appendChild(li);
     });
   }
 
-  function highlightActiveMapper(name) {
-    qsa(".sidebar-item", mapperListEl).forEach(function(el) {
-      el.classList.toggle("active", el.dataset.mapper === name);
+  function highlightActiveTx(name) {
+    qsa(".sidebar-item", txListEl).forEach(function(el) {
+      el.classList.toggle("active", el.dataset.tx === name);
     });
   }
 
-  async function selectMapper(name) {
-    currentMapper = name;
-    highlightActiveMapper(name);
-    setHidden(mapperActionsEl, false);
+  async function selectTx(name) {
+    currentTx = name;
+    highlightActiveTx(name);
+    setHidden(txActionsEl, false);
 
     try {
-      var m = await mapperApi.get({ name: name });
-      mapperTitleEl.textContent = m.name;
+      var m = await txApi.get({ name: name });
+      txTitleEl.textContent = m.name;
 
-      if (m.source_table && m.target_table) {
+      var srcName = m.source && m.source.name || "";
+      var tgtName = m.target && m.target.name || "";
+      if (srcName && tgtName) {
         try {
           var descs = await Promise.all([
-            api.describeTable({ table: m.source_table }),
-            api.describeTable({ table: m.target_table }),
+            api.describeTable({ table: srcName }),
+            api.describeTable({ table: tgtName }),
           ]);
           var srcCols = (descs[0].schema && descs[0].schema.columns) || descs[0].columns || [];
           var tgtCols = (descs[1].schema && descs[1].schema.columns) || descs[1].columns || [];
@@ -1552,9 +1554,9 @@
         } catch (e) { /* tables may not exist yet */ }
       }
 
-      renderMapperEditor(m);
+      renderTxEditor(m);
     } catch (err) {
-      mapperEditorEl.innerHTML = '<p class="empty-state">Error loading mapping: ' + escapeHtml(err.message) + '</p>';
+      txEditorEl.innerHTML = '<p class="empty-state">Error loading mapping: ' + escapeHtml(err.message) + '</p>';
     }
   }
 
@@ -1574,24 +1576,24 @@
     return opts;
   }
 
-  function renderMapperEditor(m) {
+  function renderTxEditor(m) {
     var html = '<div class="db-mapper-form">';
     html += '<div class="form-group">' +
       '<label>Name</label>' +
-      '<input type="text" id="mapper-name" class="form-input" value="' + escapeHtml(m.name || '') + '" />' +
+      '<input type="text" id="tx-name" class="form-input" value="' + escapeHtml(m.name || '') + '" />' +
     '</div>';
     html += '<div class="form-group">' +
       '<label>Description</label>' +
-      '<input type="text" id="mapper-desc" class="form-input" value="' + escapeHtml(m.description || '') + '" />' +
+      '<input type="text" id="tx-desc" class="form-input" value="' + escapeHtml(m.description || '') + '" />' +
     '</div>';
 
     html += '<div class="form-group">' +
       '<label>Source / Target</label>' +
       '<div class="mapper-table-selectors">' +
-        gsel.html({ id: "mapper-source-table", value: m.source_table || "", options: tableSelectOptions(), placeholder: "Source table" }) +
+        gsel.html({ id: "tx-source-table", value: (m.source && m.source.name) || "", options: tableSelectOptions(), placeholder: "Source table" }) +
         '<span class="mapper-arrow">&#8594;</span>' +
-        gsel.html({ id: "mapper-target-table", value: m.target_table || "", options: tableSelectOptions(), placeholder: "Target table" }) +
-        '<button id="mapper-auto-map" class="db-action-btn">Auto-map</button>' +
+        gsel.html({ id: "tx-target-table", value: (m.target && m.target.name) || "", options: tableSelectOptions(), placeholder: "Target table" }) +
+        '<button id="tx-auto-map" class="db-action-btn">Auto-map</button>' +
       '</div>' +
     '</div>';
 
@@ -1605,41 +1607,41 @@
         '<span class="mapper-h-const">CONSTANT</span>' +
         '<span class="mapper-h-rm"></span>' +
       '</div>' +
-      '<div id="mapper-fields">';
+      '<div id="tx-fields">';
     if (m.fields && m.fields.length > 0) {
-      m.fields.forEach(function(f) { html += mapperFieldRow(f); });
+      m.fields.forEach(function(f) { html += txFieldRow(f); });
     } else {
-      html += mapperFieldRow({});
+      html += txFieldRow({});
     }
     html += '</div>';
-    html += '<button id="mapper-add-field" class="db-action-btn" style="margin-top:6px">+ Field</button>';
+    html += '<button id="tx-add-field" class="db-action-btn" style="margin-top:6px">+ Field</button>';
     html += '</div>';
 
     html += '</div>';
-    mapperEditorEl.innerHTML = html;
-    initFormSelects(mapperEditorEl);
-    bindMapperFieldEvents();
+    txEditorEl.innerHTML = html;
+    initFormSelects(txEditorEl);
+    bindTxFieldEvents();
 
-    gsel.init(qs("#mapper-source-table"));
-    gsel.init(qs("#mapper-target-table"));
+    gsel.init(qs("#tx-source-table"));
+    gsel.init(qs("#tx-target-table"));
 
-    on(qs("#mapper-auto-map"), "click", autoMapFields);
+    on(qs("#tx-auto-map"), "click", autoMapFields);
 
-    on(qs("#mapper-add-field"), "click", function() {
-      var container = qs("#mapper-fields");
+    on(qs("#tx-add-field"), "click", function() {
+      var container = qs("#tx-fields");
       var div = document.createElement("div");
-      div.innerHTML = mapperFieldRow({});
+      div.innerHTML = txFieldRow({});
       var row = div.firstElementChild;
       container.appendChild(row);
       initFormSelects(row);
-      bindMapperFieldEvents();
+      bindTxFieldEvents();
       qs(".mapper-field-target", row).focus();
     });
   }
 
   async function autoMapFields() {
-    var sourceTable = gsel.val(qs("#mapper-source-table"));
-    var targetTable = gsel.val(qs("#mapper-target-table"));
+    var sourceTable = gsel.val(qs("#tx-source-table"));
+    var targetTable = gsel.val(qs("#tx-target-table"));
 
     if (!sourceTable || !targetTable) {
       toast("Select both source and target tables", "warning");
@@ -1688,24 +1690,24 @@
         }
       });
 
-      var container = qs("#mapper-fields");
+      var container = qs("#tx-fields");
       container.innerHTML = "";
       if (fields.length === 0) {
-        container.innerHTML = mapperFieldRow({});
+        container.innerHTML = txFieldRow({});
       } else {
         fields.forEach(function(f) {
-          container.innerHTML += mapperFieldRow(f);
+          container.innerHTML += txFieldRow(f);
         });
       }
       initFormSelects(container);
-      bindMapperFieldEvents();
+      bindTxFieldEvents();
       toast("Mapped " + fields.length + " fields", "info");
     } catch (err) {
       toast("Auto-map failed: " + err.message, true);
     }
   }
 
-  function mapperFieldRow(f) {
+  function txFieldRow(f) {
     var sources = (f.sources || []).join(", ");
     var args = (f.args || []).map(function(a) { return JSON.stringify(a); }).join(", ");
     var constant = f.constant !== undefined && f.constant !== null ? JSON.stringify(f.constant) : "";
@@ -1727,10 +1729,10 @@
     '</div>';
   }
 
-  function bindMapperFieldEvents() {
-    qsa(".mapper-field-remove", mapperEditorEl).forEach(function(btn) {
+  function bindTxFieldEvents() {
+    qsa(".mapper-field-remove", txEditorEl).forEach(function(btn) {
       btn.onclick = function() {
-        var container = qs("#mapper-fields");
+        var container = qs("#tx-fields");
         if (container && container.children.length > 1) {
           btn.closest(".mapper-field-row").remove();
         }
@@ -1738,11 +1740,11 @@
     });
   }
 
-  function collectMapperData() {
-    var name = (qs("#mapper-name").value || "").trim();
-    var description = (qs("#mapper-desc").value || "").trim();
+  function collectTxData() {
+    var name = (qs("#tx-name").value || "").trim();
+    var description = (qs("#tx-desc").value || "").trim();
     var fields = [];
-    qsa("#mapper-fields .mapper-field-row").forEach(function(row) {
+    qsa("#tx-fields .mapper-field-row").forEach(function(row) {
       var target = qs(".mapper-field-target", row).value.trim();
       if (!target) return;
 
@@ -1778,63 +1780,57 @@
 
     var sourceTable = "";
     var targetTable = "";
-    var srcEl = qs("#mapper-source-table");
-    var tgtEl = qs("#mapper-target-table");
+    var srcEl = qs("#tx-source-table");
+    var tgtEl = qs("#tx-target-table");
     if (srcEl) sourceTable = gsel.val(srcEl) || "";
     if (tgtEl) targetTable = gsel.val(tgtEl) || "";
 
-    return { name: name, description: description, source_table: sourceTable, target_table: targetTable, fields: fields };
+    return {
+      name: name,
+      description: description,
+      source: { type: "table", name: sourceTable },
+      target: { type: "table", name: targetTable },
+      fields: fields,
+    };
   }
 
-  async function saveMapper() {
-    var data = collectMapperData();
-    if (!data.name) { toast("Mapping name required", "warning"); return; }
+  async function saveTx() {
+    var data = collectTxData();
+    if (!data.name) { toast("Transformation name required", "warning"); return; }
     if (data.fields.length === 0) { toast("Add at least one field", "warning"); return; }
 
     try {
-      await mapperApi.save(data);
-      toast("Mapping " + data.name + " saved");
-      currentMapper = data.name;
-      await loadMappers(data.name);
+      await txApi.save(data);
+      toast("Transformation " + data.name + " saved");
+      currentTx = data.name;
+      await loadTxList(data.name);
     } catch (err) {
       toast("Save failed: " + err.message, true);
     }
   }
 
-  async function executeMapper() {
-    if (!currentMapper) { toast("Save the mapping first", "warning"); return; }
-
-    var sourceTable = gsel.val(qs("#mapper-source-table"));
-    var targetTable = gsel.val(qs("#mapper-target-table"));
-
-    if (!sourceTable || !targetTable) {
-      toast("Select both source and target tables", "warning");
-      return;
-    }
+  async function executeTx() {
+    if (!currentTx) { toast("Save the transformation first", "warning"); return; }
 
     var ok = await Goop.dialog.confirm(
-      'Execute mapping "' + currentMapper + '"?\n\nSource: ' + sourceTable + '\nTarget: ' + targetTable,
-      "Execute Mapping"
+      'Execute transformation "' + currentTx + '"?',
+      "Execute"
     );
     if (!ok) return;
 
     try {
-      var result = await mapperApi.execute({
-        name: currentMapper,
-        source_table: sourceTable,
-        target_table: targetTable,
-      });
-      toast("Inserted " + (result.inserted || 0) + " rows into " + targetTable);
+      var result = await txApi.execute({ name: currentTx });
+      toast("Executed: " + (result.inserted || 0) + " rows" + (result.target ? " → " + result.target : ""));
     } catch (err) {
       toast("Execute failed: " + err.message, true);
     }
   }
 
-  async function deleteMapper() {
-    if (!currentMapper) return;
-    var name = currentMapper;
+  async function deleteTx() {
+    if (!currentTx) return;
+    var name = currentTx;
     var answer = await Goop.dialog.confirmDanger({
-      title: "Delete Mapping",
+      title: "Delete Transformation",
       message: 'Delete mapping "' + name + '"?',
       match: name,
       placeholder: name,
@@ -1843,34 +1839,34 @@
     if (answer !== name) return;
 
     try {
-      await mapperApi.delete({ name: name });
-      toast("Mapping " + name + " deleted");
-      currentMapper = null;
-      mapperTitleEl.textContent = "Select a mapping";
-      setHidden(mapperActionsEl, true);
-      mapperEditorEl.innerHTML = '<p class="empty-state">Select a mapping from the sidebar to edit it.</p>';
-      await loadMappers();
+      await txApi.delete({ name: name });
+      toast("Transformation " + name + " deleted");
+      currentTx = null;
+      txTitleEl.textContent = "Select a transformation";
+      setHidden(txActionsEl, true);
+      txEditorEl.innerHTML = '<p class="empty-state">Select a transformation from the sidebar to edit it.</p>';
+      await loadTxList();
     } catch (err) {
       toast("Delete failed: " + err.message, true);
     }
   }
 
-  function showNewMapperForm() {
-    currentMapper = null;
-    mapperTitleEl.textContent = "New Mapping";
-    setHidden(mapperActionsEl, true);
-    highlightActiveMapper(null);
+  function showNewTxForm() {
+    currentTx = null;
+    txTitleEl.textContent = "New Transformation";
+    setHidden(txActionsEl, true);
+    highlightActiveTx(null);
 
-    renderMapperEditor({ name: "", description: "", fields: [{}] });
+    renderTxEditor({ name: "", description: "", fields: [{}] });
 
-    setHidden(mapperActionsEl, false);
-    qs("#mapper-name").focus();
+    setHidden(txActionsEl, false);
+    qs("#tx-name").focus();
   }
 
-  on(btnNewMapper, "click", showNewMapperForm);
-  on(btnSaveMapper, "click", saveMapper);
-  on(btnRunMapper, "click", executeMapper);
-  on(btnDeleteMapper, "click", deleteMapper);
+  on(btnNewTx, "click", showNewTxForm);
+  on(btnSaveTx, "click", saveTx);
+  on(btnRunTx, "click", executeTx);
+  on(btnDeleteTx, "click", deleteTx);
 
   // -------- Init --------
   loadTables();

@@ -827,96 +827,6 @@ definitions:
         example: installed
         type: string
     type: object
-  routes.mapperExecuteRequest:
-    properties:
-      args:
-        items: {}
-        type: array
-      limit:
-        example: 10000
-        type: integer
-      name:
-        example: order-to-invoice
-        type: string
-      source_table:
-        example: orders
-        type: string
-      target_table:
-        example: invoices
-        type: string
-      where:
-        type: string
-    type: object
-  routes.mapperExecuteResponse:
-    properties:
-      inserted:
-        example: 42
-        type: integer
-      status:
-        example: executed
-        type: string
-    type: object
-  routes.mapperFieldMapping:
-    properties:
-      args:
-        items: {}
-        type: array
-      constant: {}
-      sources:
-        example:
-        - order_id
-        items:
-          type: string
-        type: array
-      target:
-        example: invoice_number
-        type: string
-      transform:
-        example: prefix
-        type: string
-    type: object
-  routes.mapperListEntry:
-    properties:
-      description:
-        example: Convert paid orders to invoice records
-        type: string
-      field_count:
-        example: 5
-        type: integer
-      name:
-        example: order-to-invoice
-        type: string
-    type: object
-  routes.mapperNameRequest:
-    properties:
-      name:
-        example: order-to-invoice
-        type: string
-    type: object
-  routes.mapperPreviewRequest:
-    properties:
-      name:
-        example: order-to-invoice
-        type: string
-      rows:
-        items:
-          additionalProperties: {}
-          type: object
-        type: array
-    type: object
-  routes.mapperSaveRequest:
-    properties:
-      description:
-        example: Convert paid orders to invoice records
-        type: string
-      fields:
-        items:
-          $ref: '#/definitions/routes.mapperFieldMapping'
-        type: array
-      name:
-        example: order-to-invoice
-        type: string
-    type: object
   routes.mqAckRequest:
     properties:
       from_peer_id:
@@ -1344,6 +1254,115 @@ definitions:
         $ref: '#/definitions/routes.topologyNode'
       self:
         $ref: '#/definitions/routes.topologyNode'
+    type: object
+  routes.transformDataEndpoint:
+    properties:
+      name:
+        example: orders
+        type: string
+      path:
+        example: imports/data.csv
+        type: string
+      type:
+        example: table
+        type: string
+      url:
+        example: https://api.example.com/data
+        type: string
+    type: object
+  routes.transformExecuteRequest:
+    properties:
+      args:
+        items: {}
+        type: array
+      limit:
+        example: 10000
+        type: integer
+      name:
+        example: order-to-invoice
+        type: string
+      where:
+        type: string
+    type: object
+  routes.transformExecuteResponse:
+    properties:
+      inserted:
+        example: 42
+        type: integer
+      status:
+        example: executed
+        type: string
+    type: object
+  routes.transformField:
+    properties:
+      args:
+        items: {}
+        type: array
+      constant: {}
+      sources:
+        example:
+        - order_id
+        items:
+          type: string
+        type: array
+      target:
+        example: invoice_number
+        type: string
+      transform:
+        example: prefix
+        type: string
+    type: object
+  routes.transformListEntry:
+    properties:
+      description:
+        example: Convert paid orders to invoice records
+        type: string
+      field_count:
+        example: 5
+        type: integer
+      name:
+        example: order-to-invoice
+        type: string
+      source_type:
+        example: table
+        type: string
+      target_type:
+        example: table
+        type: string
+    type: object
+  routes.transformNameRequest:
+    properties:
+      name:
+        example: order-to-invoice
+        type: string
+    type: object
+  routes.transformPreviewRequest:
+    properties:
+      name:
+        example: order-to-invoice
+        type: string
+      rows:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+    type: object
+  routes.transformSaveRequest:
+    properties:
+      description:
+        example: Convert paid orders to invoice records
+        type: string
+      fields:
+        items:
+          $ref: '#/definitions/routes.transformField'
+        type: array
+      name:
+        example: order-to-invoice
+        type: string
+      source:
+        $ref: '#/definitions/routes.transformDataEndpoint'
+      target:
+        $ref: '#/definitions/routes.transformDataEndpoint'
     type: object
   storage.ChatMessage:
     properties:
@@ -2222,170 +2241,6 @@ paths:
       summary: List available Lua data functions
       tags:
       - data
-  /api/data/mappers:
-    get:
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/routes.mapperListEntry'
-            type: array
-      summary: List all stored mapping definitions
-      tags:
-      - mapper
-  /api/data/mappers/delete:
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Mapping name
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/routes.mapperNameRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/routes.statusOK'
-      summary: Delete a mapping definition
-      tags:
-      - mapper
-  /api/data/mappers/execute:
-    post:
-      consumes:
-      - application/json
-      description: Reads rows from source_table (with optional WHERE filter), applies
-        the named mapping, and inserts results into target_table. Both tables must
-        exist.
-      parameters:
-      - description: Execute request
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/routes.mapperExecuteRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/routes.mapperExecuteResponse'
-        "400":
-          description: validation/mapping error
-          schema:
-            type: string
-        "404":
-          description: mapping not found
-          schema:
-            type: string
-      summary: 'Execute a mapping: read from source table, transform, insert into
-        target table'
-      tags:
-      - mapper
-  /api/data/mappers/get:
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Mapping name
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/routes.mapperNameRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/routes.mapperSaveRequest'
-        "404":
-          description: mapping not found
-          schema:
-            type: string
-      summary: Get a mapping definition by name
-      tags:
-      - mapper
-  /api/data/mappers/preview:
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Mapping name and sample rows
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/routes.mapperPreviewRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              additionalProperties: true
-              type: object
-            type: array
-        "400":
-          description: mapping error
-          schema:
-            type: string
-        "404":
-          description: mapping not found
-          schema:
-            type: string
-      summary: Preview a mapping by applying it to sample rows (dry run)
-      tags:
-      - mapper
-  /api/data/mappers/save:
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Mapping definition
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/routes.mapperSaveRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/routes.statusOK'
-        "400":
-          description: validation error
-          schema:
-            type: string
-      summary: Create or update a mapping definition (saves as JSON file)
-      tags:
-      - mapper
-  /api/data/mappers/transforms:
-    get:
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              type: string
-            type: array
-      summary: List available transform functions for mapping fields
-      tags:
-      - mapper
   /api/data/query:
     post:
       consumes:
@@ -2738,6 +2593,170 @@ paths:
       summary: Set sharing policy for a table (private, group, public)
       tags:
       - data
+  /api/data/transformations:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/routes.transformListEntry'
+            type: array
+      summary: List all stored transformation definitions
+      tags:
+      - transformation
+  /api/data/transformations/delete:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Mapping name
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.transformNameRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+      summary: Delete a transformation definition
+      tags:
+      - transformation
+  /api/data/transformations/execute:
+    post:
+      consumes:
+      - application/json
+      description: Reads rows from source_table (with optional WHERE filter), applies
+        the named mapping, and inserts results into target_table. Both tables must
+        exist.
+      parameters:
+      - description: Execute request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.transformExecuteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.transformExecuteResponse'
+        "400":
+          description: validation/transformation error
+          schema:
+            type: string
+        "404":
+          description: transformation not found
+          schema:
+            type: string
+      summary: 'Execute a transformation: read from source table, transform, insert
+        into target table'
+      tags:
+      - transformation
+  /api/data/transformations/get:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Mapping name
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.transformNameRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.transformSaveRequest'
+        "404":
+          description: transformation not found
+          schema:
+            type: string
+      summary: Get a transformation definition by name
+      tags:
+      - transformation
+  /api/data/transformations/preview:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Mapping name and sample rows
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.transformPreviewRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+        "400":
+          description: transformation error
+          schema:
+            type: string
+        "404":
+          description: transformation not found
+          schema:
+            type: string
+      summary: Preview a transformation by applying it to sample rows (dry run)
+      tags:
+      - transformation
+  /api/data/transformations/save:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Transformation definition
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.transformSaveRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+        "400":
+          description: validation error
+          schema:
+            type: string
+      summary: Create or update a transformation definition (saves as JSON file)
+      tags:
+      - transformation
+  /api/data/transformations/transforms:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+      summary: List available transform functions for transformation fields
+      tags:
+      - transformation
   /api/data/update:
     post:
       consumes:

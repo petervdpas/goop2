@@ -10,11 +10,11 @@ import (
 	"github.com/petervdpas/goop2/internal/storage"
 )
 
-func RegisterMapper(mux *http.ServeMux, peerDir string, db *storage.DB) {
-	mappingsDir := filepath.Join(peerDir, "mappings")
+func RegisterTransformations(mux *http.ServeMux, peerDir string, db *storage.DB) {
+	txDir := filepath.Join(peerDir, "transformations")
 
-	handleGet(mux, "/api/data/mappers", func(w http.ResponseWriter, r *http.Request) {
-		mappings, err := mapper.LoadDir(mappingsDir)
+	handleGet(mux, "/api/data/transformations", func(w http.ResponseWriter, r *http.Request) {
+		items, err := mapper.LoadDir(txDir)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -23,56 +23,60 @@ func RegisterMapper(mux *http.ServeMux, peerDir string, db *storage.DB) {
 			Name        string `json:"name"`
 			Description string `json:"description"`
 			FieldCount  int    `json:"field_count"`
+			SourceType  string `json:"source_type"`
+			TargetType  string `json:"target_type"`
 		}
-		result := make([]entry, 0, len(mappings))
-		for _, m := range mappings {
+		result := make([]entry, 0, len(items))
+		for _, t := range items {
 			result = append(result, entry{
-				Name:        m.Name,
-				Description: m.Description,
-				FieldCount:  len(m.Fields),
+				Name:        t.Name,
+				Description: t.Description,
+				FieldCount:  len(t.Fields),
+				SourceType:  t.Source.Type,
+				TargetType:  t.Target.Type,
 			})
 		}
 		writeJSON(w, result)
 	})
 
-	handlePost(mux, "/api/data/mappers/get", func(w http.ResponseWriter, r *http.Request, req struct {
+	handlePost(mux, "/api/data/transformations/get", func(w http.ResponseWriter, r *http.Request, req struct {
 		Name string `json:"name"`
 	}) {
 		if req.Name == "" {
 			http.Error(w, "name required", http.StatusBadRequest)
 			return
 		}
-		m, err := mapper.Load(mappingsDir, req.Name)
+		t, err := mapper.Load(txDir, req.Name)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
-		writeJSON(w, m)
+		writeJSON(w, t)
 	})
 
-	handlePost(mux, "/api/data/mappers/save", func(w http.ResponseWriter, r *http.Request, req mapper.Mapping) {
-		if err := mapper.Save(mappingsDir, &req); err != nil {
+	handlePost(mux, "/api/data/transformations/save", func(w http.ResponseWriter, r *http.Request, req mapper.Transformation) {
+		if err := mapper.Save(txDir, &req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		writeJSON(w, map[string]string{"status": "saved", "name": req.Name})
 	})
 
-	handlePost(mux, "/api/data/mappers/delete", func(w http.ResponseWriter, r *http.Request, req struct {
+	handlePost(mux, "/api/data/transformations/delete", func(w http.ResponseWriter, r *http.Request, req struct {
 		Name string `json:"name"`
 	}) {
 		if req.Name == "" {
 			http.Error(w, "name required", http.StatusBadRequest)
 			return
 		}
-		if err := mapper.Delete(mappingsDir, req.Name); err != nil {
+		if err := mapper.Delete(txDir, req.Name); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		writeJSON(w, map[string]string{"status": "deleted"})
 	})
 
-	handlePost(mux, "/api/data/mappers/preview", func(w http.ResponseWriter, r *http.Request, req struct {
+	handlePost(mux, "/api/data/transformations/preview", func(w http.ResponseWriter, r *http.Request, req struct {
 		Name string       `json:"name"`
 		Rows []schema.Row `json:"rows"`
 	}) {
@@ -80,12 +84,12 @@ func RegisterMapper(mux *http.ServeMux, peerDir string, db *storage.DB) {
 			http.Error(w, "name required", http.StatusBadRequest)
 			return
 		}
-		m, err := mapper.Load(mappingsDir, req.Name)
+		t, err := mapper.Load(txDir, req.Name)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
-		results, err := m.ApplyMany(req.Rows)
+		results, err := t.ApplyMany(req.Rows)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -93,16 +97,14 @@ func RegisterMapper(mux *http.ServeMux, peerDir string, db *storage.DB) {
 		writeJSON(w, results)
 	})
 
-	handlePost(mux, "/api/data/mappers/execute", func(w http.ResponseWriter, r *http.Request, req struct {
-		Name        string `json:"name"`
-		SourceTable string `json:"source_table"`
-		TargetTable string `json:"target_table"`
-		Where       string `json:"where"`
-		Args        []any  `json:"args"`
-		Limit       int    `json:"limit"`
+	handlePost(mux, "/api/data/transformations/execute", func(w http.ResponseWriter, r *http.Request, req struct {
+		Name  string `json:"name"`
+		Where string `json:"where"`
+		Args  []any  `json:"args"`
+		Limit int    `json:"limit"`
 	}) {
-		if req.Name == "" || req.SourceTable == "" || req.TargetTable == "" {
-			http.Error(w, "name, source_table, and target_table required", http.StatusBadRequest)
+		if req.Name == "" {
+			http.Error(w, "name required", http.StatusBadRequest)
 			return
 		}
 		if db == nil {
@@ -110,9 +112,18 @@ func RegisterMapper(mux *http.ServeMux, peerDir string, db *storage.DB) {
 			return
 		}
 
-		m, err := mapper.Load(mappingsDir, req.Name)
+		t, err := mapper.Load(txDir, req.Name)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+
+		if t.Source.Type != "table" || t.Source.Name == "" {
+			http.Error(w, "execute requires source type 'table' with a name", http.StatusBadRequest)
+			return
+		}
+		if t.Target.Type != "table" || t.Target.Name == "" {
+			http.Error(w, "execute requires target type 'table' with a name", http.StatusBadRequest)
 			return
 		}
 
@@ -121,7 +132,7 @@ func RegisterMapper(mux *http.ServeMux, peerDir string, db *storage.DB) {
 			limit = 10000
 		}
 		sourceRows, err := db.SelectPaged(storage.SelectOpts{
-			Table: req.SourceTable,
+			Table: t.Source.Name,
 			Where: req.Where,
 			Args:  req.Args,
 			Limit: limit,
@@ -135,15 +146,15 @@ func RegisterMapper(mux *http.ServeMux, peerDir string, db *storage.DB) {
 		for i, r := range sourceRows {
 			schemaRows[i] = r
 		}
-		results, err := m.ApplyMany(schemaRows)
+		results, err := t.ApplyMany(schemaRows)
 		if err != nil {
-			http.Error(w, "mapping: "+err.Error(), http.StatusBadRequest)
+			http.Error(w, "transform: "+err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		inserted := 0
 		for _, row := range results {
-			if _, err := db.Insert(req.TargetTable, "", "", row); err != nil {
+			if _, err := db.Insert(t.Target.Name, "", "", row); err != nil {
 				http.Error(w, "insert: "+err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -152,11 +163,13 @@ func RegisterMapper(mux *http.ServeMux, peerDir string, db *storage.DB) {
 
 		writeJSON(w, map[string]any{
 			"status":   "executed",
+			"source":   t.Source.Name,
+			"target":   t.Target.Name,
 			"inserted": inserted,
 		})
 	})
 
-	handleGet(mux, "/api/data/mappers/transforms", func(w http.ResponseWriter, r *http.Request) {
+	handleGet(mux, "/api/data/transformations/transforms", func(w http.ResponseWriter, r *http.Request) {
 		names := mapper.TransformNames()
 		sort.Strings(names)
 		writeJSON(w, names)

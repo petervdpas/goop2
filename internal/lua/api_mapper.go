@@ -9,32 +9,32 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
-func mapperLoadFn(peerDir string) lua.LGFunction {
+func transformLoadFn(peerDir string) lua.LGFunction {
 	return func(L *lua.LState) int {
 		name := L.CheckString(1)
-		dir := filepath.Join(peerDir, "mappings")
+		dir := filepath.Join(peerDir, "transformations")
 
-		m, err := mapper.Load(dir, name)
+		t, err := mapper.Load(dir, name)
 		if err != nil {
 			L.Push(lua.LNil)
 			L.Push(lua.LString(err.Error()))
 			return 2
 		}
 
-		tbl := mappingToLua(L, m)
+		tbl := transformationToLua(L, t)
 		L.Push(tbl)
 		L.Push(lua.LNil)
 		return 2
 	}
 }
 
-func mapperApplyFn(peerDir string) lua.LGFunction {
+func transformApplyFn(peerDir string) lua.LGFunction {
 	return func(L *lua.LState) int {
 		name := L.CheckString(1)
 		rowTbl := L.CheckTable(2)
 
-		dir := filepath.Join(peerDir, "mappings")
-		m, err := mapper.Load(dir, name)
+		dir := filepath.Join(peerDir, "transformations")
+		t, err := mapper.Load(dir, name)
 		if err != nil {
 			L.Push(lua.LNil)
 			L.Push(lua.LString(err.Error()))
@@ -42,7 +42,7 @@ func mapperApplyFn(peerDir string) lua.LGFunction {
 		}
 
 		row := luaTableToSchemaRow(rowTbl)
-		result, err := m.Apply(row)
+		result, err := t.Apply(row)
 		if err != nil {
 			L.Push(lua.LNil)
 			L.Push(lua.LString(err.Error()))
@@ -55,13 +55,13 @@ func mapperApplyFn(peerDir string) lua.LGFunction {
 	}
 }
 
-func mapperApplyManyFn(peerDir string) lua.LGFunction {
+func transformApplyManyFn(peerDir string) lua.LGFunction {
 	return func(L *lua.LState) int {
 		name := L.CheckString(1)
 		rowsTbl := L.CheckTable(2)
 
-		dir := filepath.Join(peerDir, "mappings")
-		m, err := mapper.Load(dir, name)
+		dir := filepath.Join(peerDir, "transformations")
+		t, err := mapper.Load(dir, name)
 		if err != nil {
 			L.Push(lua.LNil)
 			L.Push(lua.LString(err.Error()))
@@ -75,7 +75,7 @@ func mapperApplyManyFn(peerDir string) lua.LGFunction {
 			}
 		})
 
-		results, err := m.ApplyMany(rows)
+		results, err := t.ApplyMany(rows)
 		if err != nil {
 			L.Push(lua.LNil)
 			L.Push(lua.LString(err.Error()))
@@ -92,10 +92,10 @@ func mapperApplyManyFn(peerDir string) lua.LGFunction {
 	}
 }
 
-func mapperListFn(peerDir string) lua.LGFunction {
+func transformListFn(peerDir string) lua.LGFunction {
 	return func(L *lua.LState) int {
-		dir := filepath.Join(peerDir, "mappings")
-		mappings, err := mapper.LoadDir(dir)
+		dir := filepath.Join(peerDir, "transformations")
+		items, err := mapper.LoadDir(dir)
 		if err != nil {
 			L.Push(lua.LNil)
 			L.Push(lua.LString(err.Error()))
@@ -103,11 +103,11 @@ func mapperListFn(peerDir string) lua.LGFunction {
 		}
 
 		tbl := L.NewTable()
-		for i, m := range mappings {
+		for i, t := range items {
 			entry := L.NewTable()
-			entry.RawSetString("name", lua.LString(m.Name))
-			entry.RawSetString("description", lua.LString(m.Description))
-			entry.RawSetString("field_count", lua.LNumber(float64(len(m.Fields))))
+			entry.RawSetString("name", lua.LString(t.Name))
+			entry.RawSetString("description", lua.LString(t.Description))
+			entry.RawSetString("field_count", lua.LNumber(float64(len(t.Fields))))
 			tbl.RawSetInt(i+1, entry)
 		}
 		L.Push(tbl)
@@ -116,7 +116,7 @@ func mapperListFn(peerDir string) lua.LGFunction {
 	}
 }
 
-func mapperTransformsFn(L *lua.LState) int {
+func transformNamesFn(L *lua.LState) int {
 	names := mapper.TransformNames()
 	tbl := L.NewTable()
 	for i, n := range names {
@@ -144,21 +144,35 @@ func schemaRowToLua(L *lua.LState, row schema.Row) *lua.LTable {
 	return tbl
 }
 
-func mappingToLua(L *lua.LState, m *mapper.Mapping) *lua.LTable {
+func transformationToLua(L *lua.LState, t *mapper.Transformation) *lua.LTable {
 	tbl := L.NewTable()
-	tbl.RawSetString("name", lua.LString(m.Name))
-	tbl.RawSetString("description", lua.LString(m.Description))
+	tbl.RawSetString("name", lua.LString(t.Name))
+	tbl.RawSetString("description", lua.LString(t.Description))
+
+	srcTbl := L.NewTable()
+	srcTbl.RawSetString("type", lua.LString(t.Source.Type))
+	srcTbl.RawSetString("name", lua.LString(t.Source.Name))
+	srcTbl.RawSetString("path", lua.LString(t.Source.Path))
+	srcTbl.RawSetString("url", lua.LString(t.Source.URL))
+	tbl.RawSetString("source", srcTbl)
+
+	tgtTbl := L.NewTable()
+	tgtTbl.RawSetString("type", lua.LString(t.Target.Type))
+	tgtTbl.RawSetString("name", lua.LString(t.Target.Name))
+	tgtTbl.RawSetString("path", lua.LString(t.Target.Path))
+	tgtTbl.RawSetString("url", lua.LString(t.Target.URL))
+	tbl.RawSetString("target", tgtTbl)
 
 	fieldsTbl := L.NewTable()
-	for i, f := range m.Fields {
+	for i, f := range t.Fields {
 		ft := L.NewTable()
 		ft.RawSetString("target", lua.LString(f.Target))
 		if len(f.Sources) > 0 {
-			srcTbl := L.NewTable()
+			sTbl := L.NewTable()
 			for j, s := range f.Sources {
-				srcTbl.RawSetInt(j+1, lua.LString(s))
+				sTbl.RawSetInt(j+1, lua.LString(s))
 			}
-			ft.RawSetString("sources", srcTbl)
+			ft.RawSetString("sources", sTbl)
 		}
 		if f.Transform != "" {
 			ft.RawSetString("transform", lua.LString(f.Transform))
