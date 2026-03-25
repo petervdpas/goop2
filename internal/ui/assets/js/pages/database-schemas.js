@@ -63,11 +63,28 @@ function renderSchemaList(schemas) {
     li.className = "sidebar-item";
     li.dataset.schema = s.name;
     var badge = s.has_key ? "owner" : "open";
-    li.innerHTML = '<span class="db-table-name">' + escapeHtml(s.name) + '</span>' +
+    var ctxClass = s.context ? "schema-ctx-on" : "schema-ctx-off";
+    var ctxTitle = s.context ? "In GraphQL context (click to remove)" : "Not in GraphQL context (click to add)";
+    li.innerHTML = '<span class="schema-ctx-toggle ' + ctxClass + '" title="' + ctxTitle + '"></span>' +
+      '<span class="db-table-name">' + escapeHtml(s.name) + '</span>' +
       '<span class="badge badge-' + badge + '">' + s.columns + ' cols</span>';
+    on(qs(".schema-ctx-toggle", li), "click", function(e) {
+      e.stopPropagation();
+      toggleContext(s.name, !s.context);
+    });
     on(li, "click", function() { selectSchemaItem(s.name); });
     schemaListEl.appendChild(li);
   });
+}
+
+async function toggleContext(name, enabled) {
+  try {
+    await schemaApi.setContext({ name: name, context: enabled });
+    toast(name + (enabled ? " added to" : " removed from") + " GraphQL context");
+    await loadSchemas(currentSchema);
+  } catch (err) {
+    toast("Failed: " + err.message, true);
+  }
 }
 
 function highlightActiveSchema(name) {

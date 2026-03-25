@@ -91,6 +91,22 @@ func (d *DB) IsORM(tableName string) bool {
 	return n > 0
 }
 
+// UpdateSchemaContext updates the context flag in the stored ORM schema.
+func (d *DB) UpdateSchemaContext(tableName string, context bool) {
+	tbl, err := d.GetSchema(tableName)
+	if err != nil || tbl == nil {
+		return
+	}
+	tbl.Context = context
+	schemaJSON, err := json.Marshal(tbl)
+	if err != nil {
+		return
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.db.Exec(`UPDATE _orm_schemas SET schema_json = ? WHERE table_name = ?`, string(schemaJSON), tableName)
+}
+
 // DeleteSchemaORM removes the stored schema when an ORM table is deleted.
 func (d *DB) DeleteSchemaORM(tableName string) {
 	d.mu.Lock()

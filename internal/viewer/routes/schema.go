@@ -28,6 +28,7 @@ func RegisterSchema(mux *http.ServeMux, peerDir string, db *storage.DB) {
 			Name    string `json:"name"`
 			Columns int    `json:"columns"`
 			HasKey  bool   `json:"has_key"`
+			Context bool   `json:"context"`
 		}
 		var result []entry
 		for _, e := range entries {
@@ -53,6 +54,7 @@ func RegisterSchema(mux *http.ServeMux, peerDir string, db *storage.DB) {
 				Name:    tbl.Name,
 				Columns: len(tbl.Columns),
 				HasKey:  hasKey,
+				Context: tbl.Context,
 			})
 		}
 		if result == nil {
@@ -158,5 +160,40 @@ func RegisterSchema(mux *http.ServeMux, peerDir string, db *storage.DB) {
 			return
 		}
 		writeJSON(w, map[string]string{"status": "created", "table": tbl.Name})
+	})
+
+	handlePost(mux, "/api/data/schemas/set-context", func(w http.ResponseWriter, r *http.Request, req struct {
+		Name    string `json:"name"`
+		Context bool   `json:"context"`
+	}) {
+		if req.Name == "" {
+			http.Error(w, "name required", http.StatusBadRequest)
+			return
+		}
+		path := filepath.Join(schemasDir, req.Name+".json")
+		data, err := os.ReadFile(path)
+		if err != nil {
+			http.Error(w, "schema not found", http.StatusNotFound)
+			return
+		}
+		var tbl schema.Table
+		if err := json.Unmarshal(data, &tbl); err != nil {
+			http.Error(w, "invalid schema: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		tbl.Context = req.Context
+		out, err := json.MarshalIndent(tbl, "", "  ")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := os.WriteFile(path, append(out, '\n'), 0644); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if db != nil {
+			db.UpdateSchemaContext(tbl.Name, req.Context)
+		}
+		writeJSON(w, map[string]any{"status": "updated", "context": req.Context})
 	})
 }

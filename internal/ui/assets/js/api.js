@@ -211,12 +211,28 @@
 
     // ── Schema ──────────────────────────────────────────────────────────────
     schema: {
-      list:   function ()  { return _get('/api/data/schemas'); },
-      get:    function (p) { return _post('/api/data/schemas/get', p); },
-      save:   function (p) { return _post('/api/data/schemas/save', p); },
-      delete: function (p) { return _post('/api/data/schemas/delete', p); },
-      ddl:    function (p) { return _post('/api/data/schemas/ddl', p); },
-      apply:  function (p) { return _post('/api/data/schemas/apply', p); },
+      list:       function ()  { return _get('/api/data/schemas'); },
+      get:        function (p) { return _post('/api/data/schemas/get', p); },
+      save:       function (p) { return _post('/api/data/schemas/save', p); },
+      delete:     function (p) { return _post('/api/data/schemas/delete', p); },
+      ddl:        function (p) { return _post('/api/data/schemas/ddl', p); },
+      apply:      function (p) { return _post('/api/data/schemas/apply', p); },
+      setContext: function (p) { return _post('/api/data/schemas/set-context', p); },
+    },
+
+    // ── GraphQL ───────────────────────────────────────────────────────────
+    graphql: {
+      query:   function (q, vars) { return _post('/api/graphql', { query: q, variables: vars || {} }); },
+      rebuild: function ()        { return _post('/api/graphql/rebuild', {}); },
+      status:  function ()        { return _get('/api/graphql/status'); },
+    },
+
+    // ── Data Federation ──────────────────────────────────────────────────
+    datafed: {
+      groups:        function ()  { return _get('/api/datafed/groups'); },
+      offer:         function (p) { return _post('/api/datafed/offer', p); },
+      withdraw:      function (p) { return _post('/api/datafed/withdraw', p); },
+      contributions: function (p) { return _post('/api/datafed/contributions', p); },
     },
 
     // ── Transformations ────────────────────────────────────────────────────

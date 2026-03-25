@@ -18,6 +18,8 @@ import (
 	goopCrypto "github.com/petervdpas/goop2/internal/crypto"
 	"github.com/petervdpas/goop2/internal/group"
 	clusterType "github.com/petervdpas/goop2/internal/group_types/cluster"
+	"github.com/petervdpas/goop2/internal/group_types/datafed"
+	"github.com/petervdpas/goop2/internal/orm/gql"
 	filesType "github.com/petervdpas/goop2/internal/group_types/files"
 	"github.com/petervdpas/goop2/internal/group_types/listen"
 	luapkg "github.com/petervdpas/goop2/internal/lua"
@@ -461,6 +463,12 @@ func RunPeer(p PeerParams) error {
 		log.Printf("📄 File sharing enabled: /goop/docs/1.0.0")
 	}
 
+	// ── Data federation (GraphQL over P2P)
+	gqlEngine := gql.New(db, node.ID(), selfEmail)
+	_ = gqlEngine.Rebuild()
+	dataFedMgr := datafed.New(mqMgr, grpMgr, node.ID(), gqlEngine.ContextTables)
+	log.Printf("🔗 Data federation enabled (GraphQL)")
+
 	publish := func(pctx context.Context, typ string) {
 		node.Publish(pctx, typ)
 		addrs := node.WanAddrs()
@@ -548,6 +556,8 @@ func RunPeer(p PeerParams) error {
 			EnsureLua:   ensureLua,
 			Call:        callMgr,
 			Cluster:     clusterMgr,
+			GQL:         gqlEngine,
+			DataFed:     dataFedMgr,
 		})
 	}
 

@@ -15,6 +15,7 @@ type Row map[string]any
 type Table struct {
 	Name    string   `json:"name"`
 	Columns []Column `json:"columns"`
+	Context bool     `json:"context,omitempty"`
 }
 
 // Column describes a single column in a table.

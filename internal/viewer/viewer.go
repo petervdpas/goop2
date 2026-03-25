@@ -8,6 +8,8 @@ import (
 	"github.com/petervdpas/goop2/internal/chat"
 	"github.com/petervdpas/goop2/internal/group_types/cluster"
 	"github.com/petervdpas/goop2/internal/config"
+	"github.com/petervdpas/goop2/internal/group_types/datafed"
+	"github.com/petervdpas/goop2/internal/orm/gql"
 	"github.com/petervdpas/goop2/internal/content"
 	"github.com/petervdpas/goop2/internal/group"
 	"github.com/petervdpas/goop2/internal/group_types/files"
@@ -64,6 +66,12 @@ type Viewer struct {
 
 	// Cluster compute manager (nil when cluster not configured).
 	Cluster *cluster.Manager
+
+	// GraphQL engine for data federation (nil when DB not available).
+	GQL *gql.Engine
+
+	// Data federation manager (nil when not available).
+	DataFed *datafed.Manager
 }
 
 func Start(addr string, v Viewer) error {
@@ -122,6 +130,7 @@ func Start(addr string, v Viewer) error {
 	// Register data/storage endpoints if DB is available
 	if v.DB != nil {
 		routes.RegisterData(mux, v.DB, v.Node.ID(), v.SelfEmail)
+		routes.RegisterGraphQL(mux, v.GQL)
 	}
 
 	// Register transformation + schema endpoints (file-based, in peerDir)
@@ -202,6 +211,9 @@ func Start(addr string, v Viewer) error {
 	if v.Node != nil {
 		routes.RegisterDataProxy(mux, v.Node)
 	}
+
+	// Register data federation endpoints
+	routes.RegisterDataFed(mux, v.DataFed)
 
 	return http.ListenAndServe(addr, mux)
 }

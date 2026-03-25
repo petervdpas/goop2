@@ -699,3 +699,22 @@
     flex-wrap: wrap;
   }
 }
+
+/* GraphQL context toggle */
+.schema-ctx-toggle{
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+  flex-shrink: 0;
+  cursor: pointer;
+  border: 1px solid var(--border);
+}
+.schema-ctx-on{
+  background: var(--green, #22c55e);
+  border-color: var(--green, #22c55e);
+}
+.schema-ctx-off{
+  background: transparent;
+}
