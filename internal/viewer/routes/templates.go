@@ -17,6 +17,7 @@ import (
 	"log"
 
 	"github.com/petervdpas/goop2/internal/config"
+	ormschema "github.com/petervdpas/goop2/internal/orm/schema"
 	"github.com/petervdpas/goop2/internal/rendezvous"
 	"github.com/petervdpas/goop2/internal/sitetemplates"
 	"github.com/petervdpas/goop2/internal/storage"
@@ -440,6 +441,30 @@ func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePol
 		}
 	}
 
+	// 5b. Apply ORM schemas from bundle (schemas/*.json).
+	//     Tables created this way carry their Access policy in the schema JSON.
+	if d.DB != nil {
+		for rel, data := range files {
+			if !strings.HasPrefix(rel, "schemas/") || !strings.HasSuffix(rel, ".json") {
+				continue
+			}
+			var tbl ormschema.Table
+			if err := json.Unmarshal(data, &tbl); err != nil {
+				log.Printf("template: skip invalid schema %s: %v", rel, err)
+				continue
+			}
+			if err := tbl.Validate(); err != nil {
+				log.Printf("template: skip invalid schema %s: %v", rel, err)
+				continue
+			}
+			if err := d.DB.CreateTableORM(&tbl); err != nil {
+				log.Printf("template: failed to create ORM table %s: %v", tbl.Name, err)
+				continue
+			}
+			log.Printf("template: created ORM table %s from %s", tbl.Name, rel)
+		}
+	}
+
 	// 6. If the template includes Lua data functions, ensure the Lua engine
 	//    is running and immediately rescan so scripts are available without
 	//    waiting for the async fsnotify watcher.
@@ -464,11 +489,24 @@ func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePol
 		}
 
 		// If the new template uses "group" policy, create a fresh co-author group.
+		// Check both legacy insert_policy map and ORM schema Access fields.
 		hasGroupPolicy := false
 		for _, policy := range tablePolicies {
 			if policy == "group" {
 				hasGroupPolicy = true
 				break
+			}
+		}
+		if !hasGroupPolicy {
+			for rel, data := range files {
+				if !strings.HasPrefix(rel, "schemas/") || !strings.HasSuffix(rel, ".json") {
+					continue
+				}
+				var tbl ormschema.Table
+				if json.Unmarshal(data, &tbl) == nil && tbl.Access != nil && tbl.Access.Insert == "group" {
+					hasGroupPolicy = true
+					break
+				}
 			}
 		}
 		if hasGroupPolicy {

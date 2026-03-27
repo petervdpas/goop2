@@ -11,11 +11,60 @@ import (
 // Row is the dynamic entity type — Go's equivalent of ExpandoObject.
 type Row map[string]any
 
+// Access describes per-operation access policy for a table.
+type Access struct {
+	Read   string `json:"read,omitempty"`   // "local", "owner", "group", "open"
+	Insert string `json:"insert,omitempty"` // "local", "owner", "email", "group", "open"
+	Update string `json:"update,omitempty"` // "local", "owner"
+	Delete string `json:"delete,omitempty"` // "local", "owner"
+}
+
+// DefaultAccess returns the default access policy (matches legacy "owner" insert_policy).
+func DefaultAccess() Access {
+	return Access{Read: "open", Insert: "owner", Update: "owner", Delete: "owner"}
+}
+
+// AccessFromInsertPolicy synthesizes an Access struct from a legacy insert_policy string.
+func AccessFromInsertPolicy(policy string) Access {
+	switch policy {
+	case "email":
+		return Access{Read: "owner", Insert: "email", Update: "owner", Delete: "owner"}
+	case "open", "public":
+		return Access{Read: "open", Insert: "open", Update: "owner", Delete: "owner"}
+	case "group":
+		return Access{Read: "open", Insert: "group", Update: "owner", Delete: "owner"}
+	default:
+		return DefaultAccess()
+	}
+}
+
+var validReadPolicies = map[string]bool{"local": true, "owner": true, "group": true, "open": true}
+var validInsertPolicies = map[string]bool{"local": true, "owner": true, "email": true, "group": true, "open": true}
+var validUpdatePolicies = map[string]bool{"local": true, "owner": true}
+var validDeletePolicies = map[string]bool{"local": true, "owner": true}
+
+func (a *Access) Validate() error {
+	if a.Read != "" && !validReadPolicies[a.Read] {
+		return fmt.Errorf("schema: invalid read policy %q", a.Read)
+	}
+	if a.Insert != "" && !validInsertPolicies[a.Insert] {
+		return fmt.Errorf("schema: invalid insert policy %q", a.Insert)
+	}
+	if a.Update != "" && !validUpdatePolicies[a.Update] {
+		return fmt.Errorf("schema: invalid update policy %q", a.Update)
+	}
+	if a.Delete != "" && !validDeletePolicies[a.Delete] {
+		return fmt.Errorf("schema: invalid delete policy %q", a.Delete)
+	}
+	return nil
+}
+
 // Table describes a database table schema in a portable JSON format.
 type Table struct {
 	Name    string   `json:"name"`
 	Columns []Column `json:"columns"`
 	Context bool     `json:"context,omitempty"`
+	Access  *Access  `json:"access,omitempty"`
 }
 
 // Column describes a single column in a table.
@@ -82,6 +131,11 @@ func (t *Table) Validate() error {
 	}
 	if !hasKey {
 		return fmt.Errorf("schema: table %q has no key column", t.Name)
+	}
+	if t.Access != nil {
+		if err := t.Access.Validate(); err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -632,3 +632,119 @@ func TestNowTime_Format(t *testing.T) {
 		t.Errorf("NowTime format invalid: %v", s)
 	}
 }
+
+// ── Access policy tests ──
+
+func TestAccessFromInsertPolicy(t *testing.T) {
+	tests := []struct {
+		policy string
+		want   Access
+	}{
+		{"owner", Access{Read: "open", Insert: "owner", Update: "owner", Delete: "owner"}},
+		{"email", Access{Read: "owner", Insert: "email", Update: "owner", Delete: "owner"}},
+		{"open", Access{Read: "open", Insert: "open", Update: "owner", Delete: "owner"}},
+		{"public", Access{Read: "open", Insert: "open", Update: "owner", Delete: "owner"}},
+		{"group", Access{Read: "open", Insert: "group", Update: "owner", Delete: "owner"}},
+		{"unknown", Access{Read: "open", Insert: "owner", Update: "owner", Delete: "owner"}},
+		{"", Access{Read: "open", Insert: "owner", Update: "owner", Delete: "owner"}},
+	}
+	for _, tt := range tests {
+		got := AccessFromInsertPolicy(tt.policy)
+		if got != tt.want {
+			t.Errorf("AccessFromInsertPolicy(%q) = %+v, want %+v", tt.policy, got, tt.want)
+		}
+	}
+}
+
+func TestDefaultAccess(t *testing.T) {
+	a := DefaultAccess()
+	if a.Read != "open" || a.Insert != "owner" || a.Update != "owner" || a.Delete != "owner" {
+		t.Errorf("DefaultAccess() = %+v", a)
+	}
+}
+
+func TestAccess_Validate(t *testing.T) {
+	valid := []Access{
+		{Read: "local", Insert: "local", Update: "local", Delete: "local"},
+		{Read: "owner", Insert: "owner", Update: "owner", Delete: "owner"},
+		{Read: "group", Insert: "group"},
+		{Read: "open", Insert: "open"},
+		{Insert: "email"},
+		{},
+	}
+	for _, a := range valid {
+		if err := a.Validate(); err != nil {
+			t.Errorf("expected valid for %+v, got %v", a, err)
+		}
+	}
+
+	invalid := []struct {
+		access Access
+		field  string
+	}{
+		{Access{Read: "email"}, "read"},
+		{Access{Insert: "bogus"}, "insert"},
+		{Access{Update: "open"}, "update"},
+		{Access{Delete: "group"}, "delete"},
+	}
+	for _, tt := range invalid {
+		err := tt.access.Validate()
+		if err == nil {
+			t.Errorf("expected error for %+v", tt.access)
+		} else if !contains(err.Error(), tt.field) {
+			t.Errorf("error %q should mention %q", err, tt.field)
+		}
+	}
+}
+
+func TestTable_ValidateAccess(t *testing.T) {
+	tbl := &Table{
+		Name:    "t",
+		Columns: []Column{{Name: "id", Type: "integer", Key: true}},
+		Access:  &Access{Read: "bogus"},
+	}
+	if err := tbl.Validate(); err == nil {
+		t.Fatal("expected validation error for bad access policy")
+	}
+}
+
+func TestAccess_JSON_RoundTrip(t *testing.T) {
+	tbl := &Table{
+		Name:    "t",
+		Columns: []Column{{Name: "id", Type: "integer", Key: true}},
+		Access:  &Access{Read: "local", Insert: "group", Update: "owner", Delete: "local"},
+	}
+	data, _ := tbl.JSON()
+	parsed, err := ParseTable(data)
+	if err != nil {
+		t.Fatalf("ParseTable: %v", err)
+	}
+	if parsed.Access == nil {
+		t.Fatal("Access should survive round-trip")
+	}
+	if *parsed.Access != *tbl.Access {
+		t.Errorf("Access mismatch: got %+v, want %+v", *parsed.Access, *tbl.Access)
+	}
+}
+
+func TestAccess_JSON_NilOmitted(t *testing.T) {
+	tbl := &Table{
+		Name:    "t",
+		Columns: []Column{{Name: "id", Type: "integer", Key: true}},
+	}
+	data, _ := tbl.JSON()
+	if contains(string(data), "access") {
+		t.Errorf("nil Access should be omitted from JSON: %s", data)
+	}
+}
+
+func TestAccess_JSON_BackwardCompat(t *testing.T) {
+	old := []byte(`{"name":"t","columns":[{"name":"id","type":"integer","key":true}]}`)
+	tbl, err := ParseTable(old)
+	if err != nil {
+		t.Fatalf("ParseTable: %v", err)
+	}
+	if tbl.Access != nil {
+		t.Error("Access should be nil for old schema JSON without access field")
+	}
+}

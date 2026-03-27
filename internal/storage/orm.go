@@ -107,6 +107,34 @@ func (d *DB) UpdateSchemaContext(tableName string, context bool) {
 	d.db.Exec(`UPDATE _orm_schemas SET schema_json = ? WHERE table_name = ?`, string(schemaJSON), tableName)
 }
 
+// GetAccess returns the resolved access policy for a table.
+// For ORM tables with an explicit Access field, returns that.
+// Otherwise synthesizes from the legacy insert_policy.
+func (d *DB) GetAccess(tableName string) schema.Access {
+	tbl, err := d.GetSchema(tableName)
+	if err == nil && tbl != nil && tbl.Access != nil {
+		return *tbl.Access
+	}
+	policy, _ := d.GetTableInsertPolicy(tableName)
+	return schema.AccessFromInsertPolicy(policy)
+}
+
+// UpdateSchemaAccess updates the access policy in the stored ORM schema.
+func (d *DB) UpdateSchemaAccess(tableName string, access *schema.Access) {
+	tbl, err := d.GetSchema(tableName)
+	if err != nil || tbl == nil {
+		return
+	}
+	tbl.Access = access
+	schemaJSON, err := json.Marshal(tbl)
+	if err != nil {
+		return
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.db.Exec(`UPDATE _orm_schemas SET schema_json = ? WHERE table_name = ?`, string(schemaJSON), tableName)
+}
+
 // DeleteSchemaORM removes the stored schema when an ORM table is deleted.
 func (d *DB) DeleteSchemaORM(tableName string) {
 	d.mu.Lock()

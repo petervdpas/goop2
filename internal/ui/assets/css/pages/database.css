@@ -721,6 +721,30 @@
   color: var(--text-muted, #aaa);
 }
 
+/* Access policy grid */
+.schema-access-group{
+  margin-bottom: 12px !important;
+}
+.schema-access-group > label{
+  margin-bottom: 6px;
+}
+.schema-access-grid{
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.schema-access-field{
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.schema-access-label{
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted, #aaa);
+}
+
 /* Schema view panes (DDL / GraphQL full-panel views) */
 .schema-view-pane{
   flex: 1 1 0;

@@ -191,12 +191,35 @@ Lua data functions bypass access checks. This is correct:
 | `internal/ui/assets/js/pages/database-schemas.js` | Access dropdowns in editor |
 | `internal/viewer/routes/templates.go` | ORM schema path in template apply |
 
-## Verification
+## Implementation status
 
-1. **Unit tests**: Access validation, `AccessFromInsertPolicy` mapping, JSON round-trip
+All 7 phases implemented. Full test suite passes (`go test ./...`).
+
+### Done
+- [x] Phase 1: `Access` struct, validation, mapping, 8 unit tests in `schema_test.go`
+- [x] Phase 2: `GetAccess()` / `UpdateSchemaAccess()` in storage
+- [x] Phase 3: P2P enforcement refactored to use `Access` in `data.go`
+- [x] Phase 4: Federation filter for `Access.Read == "local"`
+- [x] Phase 5: `POST /api/data/schemas/set-access` endpoint + `api.js`
+- [x] Phase 6: Schema editor UI with 4 access dropdowns + CSS
+- [x] Phase 7: Template apply handles `schemas/*.json` + group detection from `Access.Insert`
+
+### TODO: enforcement tests
+
+The `p2p/data.go` enforcement paths have no automated tests yet. The existing test infrastructure doesn't cover `dispatchDataOp` — `Node` is heavy and has no test constructor. Options:
+
+1. **Extract enforcement to a testable function**: pull the access-check logic into a standalone function that takes `(callerID, selfID string, access Access, groupChecker GroupChecker)` and returns `(allowed bool, scopeOwner bool)`. Test that function directly.
+2. **Storage-level test**: create `storage_test.go` with in-memory SQLite to test `GetAccess()` two-tier resolution (ORM schema Access → insert_policy fallback).
+3. **Integration test**: two-node P2P test that creates a table with `Access.Read="local"`, has the remote peer query it, and verifies rejection.
+
+Recommended: option 1 (cheapest, tests the security logic directly) + option 2 (tests the resolution).
+
+### Verification checklist (manual)
+
+1. **Unit tests**: Access validation, `AccessFromInsertPolicy` mapping, JSON round-trip — **DONE**
 2. **P2P enforcement**: ORM table with `Access.Read="local"` → remote peer rejected
 3. **Backward compat**: Classic table with `insert_policy="group"` works identically
 4. **Federation**: `Context=true` + `Access.Read="local"` → not offered in `schema-offer`
 5. **UI**: Set access policies in schema editor → persist across save/reload
 6. **Template apply**: `schema.sql` path (old) still works; `schemas/*.json` path (new) applies Access
-7. **Full test suite**: `go test ./...` for both goop2 and goop2-services
+7. **Full test suite**: `go test ./...` for both goop2 and goop2-services — **DONE**

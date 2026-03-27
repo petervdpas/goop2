@@ -9,6 +9,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/petervdpas/goop2/internal/orm/schema"
 	"github.com/petervdpas/goop2/internal/proto"
 	"github.com/petervdpas/goop2/internal/storage"
 
@@ -153,6 +154,10 @@ func (n *Node) dispatchDataOp(callerID string, req DataRequest) DataResponse {
 	}
 }
 
+func (n *Node) getAccess(table string) schema.Access {
+	return n.db.GetAccess(table)
+}
+
 func (n *Node) dataOpTables() DataResponse {
 	tables, err := n.db.ListTables()
 	if err != nil {
@@ -241,21 +246,31 @@ func (n *Node) dispatchSchemaOp(req DataRequest) DataResponse {
 	}
 }
 
-// dataOpQuery handles remote read queries. For "owner" and "public" policy
-// tables the data is publicly readable, so no _owner scoping is applied.
-// For other policies each caller sees only their own rows.
+// dataOpQuery handles remote read queries, enforcing the table's read access policy.
 func (n *Node) dataOpQuery(callerID string, req DataRequest) DataResponse {
 	if req.Table == "" {
 		return DataResponse{Error: "table name required"}
 	}
 
+	access := n.getAccess(req.Table)
+
+	switch access.Read {
+	case "local":
+		return DataResponse{Error: "query not allowed: table is local-only"}
+	case "group":
+		if n.groupChecker == nil || !n.groupChecker.IsTemplateMember(callerID) {
+			return DataResponse{Error: "query not allowed: not a group member"}
+		}
+	case "open":
+		// no restriction
+	default:
+		// "owner" or unrecognized — scope to caller's own rows
+	}
+
 	where := req.Where
 	args := req.Args
 
-	// Owner-only, public, and group tables have public reads — skip _owner scoping.
-	policy, _ := n.db.GetTableInsertPolicy(req.Table)
-	if policy != "owner" && policy != "public" && policy != "group" {
-		// Scope query to caller's own rows: inject _owner = ? condition
+	if access.Read == "owner" || access.Read == "" {
 		if where != "" {
 			where = "(" + where + ") AND _owner = ?"
 			args = append(args, callerID)
@@ -286,18 +301,20 @@ func (n *Node) dataOpInsert(callerID string, req DataRequest) DataResponse {
 
 	isLocal := callerID == n.ID()
 
-	// _owner is the caller's peer ID (cryptographically authenticated by libp2p)
 	ownerEmail := ""
 	if isLocal && n.selfEmail != nil {
-		// Local peer: use own email from config
 		ownerEmail = n.selfEmail()
 	} else if sp, ok := n.peers.Get(callerID); ok {
 		ownerEmail = sp.Email
 	}
 
-	// Enforce per-table insert policy
-	policy, _ := n.db.GetTableInsertPolicy(req.Table)
-	switch policy {
+	access := n.getAccess(req.Table)
+
+	switch access.Insert {
+	case "local":
+		if !isLocal {
+			return DataResponse{Error: "insert not allowed: table is local-only"}
+		}
 	case "owner":
 		if !isLocal {
 			return DataResponse{Error: "insert not allowed: this table only accepts data from the site owner"}
@@ -306,22 +323,21 @@ func (n *Node) dataOpInsert(callerID string, req DataRequest) DataResponse {
 		if !isLocal && ownerEmail == "" {
 			return DataResponse{Error: "insert not allowed: your peer must have an email address configured"}
 		}
-	case "open", "public":
-		// anyone can insert
 	case "group":
 		if !isLocal {
 			if n.groupChecker == nil || !n.groupChecker.IsTemplateMember(callerID) {
 				return DataResponse{Error: "insert not allowed: not a template group co-author"}
 			}
 		}
+	case "open":
+		// anyone can insert
 	default:
-		// unknown policy — default to owner-only for safety
 		if !isLocal {
 			return DataResponse{Error: "insert not allowed: unknown table policy"}
 		}
 	}
 
-	log.Printf("[data] insert into %s by %s (%s) [policy=%s]", req.Table, callerID, ownerEmail, policy)
+	log.Printf("[data] insert into %s by %s (%s) [policy=%s]", req.Table, callerID, ownerEmail, access.Insert)
 
 	id, err := n.db.Insert(req.Table, callerID, ownerEmail, req.Data)
 	if err != nil {
@@ -340,7 +356,10 @@ func (n *Node) dataOpUpdate(callerID string, req DataRequest) DataResponse {
 	if req.ID <= 0 {
 		return DataResponse{Error: "valid row id required"}
 	}
-	// Only allow updating rows owned by the caller
+	access := n.getAccess(req.Table)
+	if access.Update == "local" {
+		return DataResponse{Error: "update not allowed: table is local-only"}
+	}
 	if err := n.db.UpdateRowOwner(req.Table, req.ID, callerID, req.Data); err != nil {
 		return DataResponse{Error: err.Error()}
 	}
@@ -354,7 +373,10 @@ func (n *Node) dataOpDelete(callerID string, req DataRequest) DataResponse {
 	if req.ID <= 0 {
 		return DataResponse{Error: "valid row id required"}
 	}
-	// Only allow deleting rows owned by the caller
+	access := n.getAccess(req.Table)
+	if access.Delete == "local" {
+		return DataResponse{Error: "delete not allowed: table is local-only"}
+	}
 	if err := n.db.DeleteRowOwner(req.Table, req.ID, callerID); err != nil {
 		return DataResponse{Error: err.Error()}
 	}

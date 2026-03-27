@@ -126,6 +126,40 @@ function renderSchemaEditor(s) {
     toggle.html({ id: "schema-context", label: "Include in GraphQL context", checked: !!s.context }) +
   '</div>';
 
+  var acc = s.access || {};
+  html += '<div class="form-group schema-access-group">' +
+    '<label>Access Policy</label>' +
+    '<div class="schema-access-grid">' +
+      '<div class="schema-access-field">' +
+        '<span class="schema-access-label">Read</span>' +
+        gsel.html({ id: "schema-access-read", value: acc.read || "open", options: [
+          { value: "local", label: "local" }, { value: "owner", label: "owner" },
+          { value: "group", label: "group" }, { value: "open", label: "open" },
+        ]}) +
+      '</div>' +
+      '<div class="schema-access-field">' +
+        '<span class="schema-access-label">Insert</span>' +
+        gsel.html({ id: "schema-access-insert", value: acc.insert || "owner", options: [
+          { value: "local", label: "local" }, { value: "owner", label: "owner" },
+          { value: "email", label: "email" }, { value: "group", label: "group" },
+          { value: "open", label: "open" },
+        ]}) +
+      '</div>' +
+      '<div class="schema-access-field">' +
+        '<span class="schema-access-label">Update</span>' +
+        gsel.html({ id: "schema-access-update", value: acc.update || "owner", options: [
+          { value: "local", label: "local" }, { value: "owner", label: "owner" },
+        ]}) +
+      '</div>' +
+      '<div class="schema-access-field">' +
+        '<span class="schema-access-label">Delete</span>' +
+        gsel.html({ id: "schema-access-delete", value: acc.delete || "owner", options: [
+          { value: "local", label: "local" }, { value: "owner", label: "owner" },
+        ]}) +
+      '</div>' +
+    '</div>' +
+  '</div>';
+
   html += '<div class="form-group">' +
     '<label>Columns</label>' +
     '<div class="schema-col-header">' +
@@ -160,6 +194,25 @@ function renderSchemaEditor(s) {
       loadSchemas(currentSchema);
       updateGqlPreview(name, enabled);
     }).catch(function(err) { toast("Failed: " + err.message, true); });
+  });
+
+  function saveAccess() {
+    var name = (qs("#schema-name").value || "").trim();
+    if (!name) return;
+    var access = {
+      read:   gsel.val(qs("#schema-access-read")) || "open",
+      insert: gsel.val(qs("#schema-access-insert")) || "owner",
+      update: gsel.val(qs("#schema-access-update")) || "owner",
+      delete: gsel.val(qs("#schema-access-delete")) || "owner",
+    };
+    schemaApi.setAccess({ name: name, access: access }).then(function() {
+      toast("Access policy updated");
+      loadSchemas(currentSchema);
+    }).catch(function(err) { toast("Failed: " + err.message, true); });
+  }
+  ["schema-access-read", "schema-access-insert", "schema-access-update", "schema-access-delete"].forEach(function(id) {
+    var el = qs("#" + id);
+    if (el) gsel.init(el, saveAccess);
   });
 
   on(qs("#schema-add-col"), "click", function() {
@@ -332,6 +385,15 @@ function collectSchemaData() {
   });
   var data = { name: name, columns: cols };
   if (toggle.val("schema-context")) data.context = true;
+  var readEl = qs("#schema-access-read");
+  if (readEl) {
+    data.access = {
+      read:   gsel.val(qs("#schema-access-read")) || "open",
+      insert: gsel.val(qs("#schema-access-insert")) || "owner",
+      update: gsel.val(qs("#schema-access-update")) || "owner",
+      delete: gsel.val(qs("#schema-access-delete")) || "owner",
+    };
+  }
   return data;
 }
 

@@ -271,9 +271,12 @@ func (m *Manager) publishSync(groupID string) {
 
 func (m *Manager) contextTables() []schema.Table {
 	ptrs := m.schemas()
-	tables := make([]schema.Table, len(ptrs))
-	for i, t := range ptrs {
-		tables[i] = *t
+	tables := make([]schema.Table, 0, len(ptrs))
+	for _, t := range ptrs {
+		if t.Access != nil && t.Access.Read == "local" {
+			continue
+		}
+		tables = append(tables, *t)
 	}
 	return tables
 }
