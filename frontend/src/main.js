@@ -447,11 +447,21 @@ async function renderLauncher(host) {
 // Boot
 // ----------------------
 
+function waitForWails() {
+  return new Promise((resolve) => {
+    if (window.go && window.go.main) { resolve(); return; }
+    const check = setInterval(() => {
+      if (window.go && window.go.main) { clearInterval(check); resolve(); }
+    }, 10);
+  });
+}
+
 async function boot() {
   const brandIcon = document.querySelector(".brand-icon");
   if (brandIcon) brandIcon.src = iconUrl;
 
   await wireThemeToggle();
+  await waitForWails();
 
   // If a peer is already started, immediately replace with viewer.
   const st = await window.go.main.App.GetStatus();
