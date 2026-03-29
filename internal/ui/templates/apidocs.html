@@ -1,15 +1,21 @@
 {{define "page.apidocs"}}
 {{template "create.tabs" .}}
 
-<div class="page-tabs" style="margin-top:0;">
-  <a class="page-tab active" data-tab="sdk">SDK</a>
-  <a class="page-tab" data-tab="lua">Lua</a>
-  <a class="page-tab" data-tab="api">API Reference</a>
-  <a class="page-tab" data-tab="executor">Executor Protocol</a>
-</div>
+<div class="docs-split split-layout" data-split-key="docs" data-split-min="140" data-split-max="30%">
+  <div class="docs-sidebar panel split-left">
+    <ul class="docs-nav scroll-pane">
+      <li class="sidebar-item active" data-tab="sdk">SDK</li>
+      <li class="sidebar-item" data-tab="lua">Lua</li>
+      <li class="sidebar-item" data-tab="api">API Reference</li>
+      <li class="sidebar-item" data-tab="executor">Executor Protocol</li>
+    </ul>
+  </div>
 
-<div id="sdk-panel" class="docs-panel" style="height:calc(100vh - 160px);overflow:auto;background:var(--panel);border-radius:8px;padding:36px 48px;line-height:1.75;">{{.SDKDoc}}</div>
-<div id="lua-panel" class="docs-panel" style="display:none;height:calc(100vh - 160px);overflow:auto;background:var(--panel);border-radius:8px;padding:36px 48px;line-height:1.75;">{{.LuaDoc}}</div>
-<div id="swagger-panel" style="display:none;height:calc(100vh - 160px);overflow:auto;background:var(--bg-raised);border-radius:8px;"></div>
-<div id="redoc-panel" style="display:none;height:calc(100vh - 160px);overflow:auto;background:var(--bg-raised);border-radius:8px;"></div>
+  <div class="docs-content split-right">
+    <div id="sdk-panel" class="docs-panel scroll-pane">{{.SDKDoc}}</div>
+    <div id="lua-panel" class="docs-panel scroll-pane" style="display:none;">{{.LuaDoc}}</div>
+    <div id="swagger-panel" style="display:none;overflow:auto;background:var(--bg-raised);border-radius:8px;flex:1 1 0;min-height:0;"></div>
+    <div id="redoc-panel" style="display:none;overflow:auto;background:var(--bg-raised);border-radius:8px;flex:1 1 0;min-height:0;"></div>
+  </div>
+</div>
 {{end}}

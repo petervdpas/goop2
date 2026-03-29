@@ -140,9 +140,9 @@
   };
   var inits = { api: initSwaggerUI, executor: initRedoc };
 
-  document.querySelectorAll('[data-tab]').forEach(function(btn) {
+  document.querySelectorAll('.docs-nav [data-tab]').forEach(function(btn) {
     btn.addEventListener('click', function() {
-      document.querySelectorAll('[data-tab]').forEach(function(b) { b.classList.remove('active'); });
+      document.querySelectorAll('.docs-nav [data-tab]').forEach(function(b) { b.classList.remove('active'); });
       btn.classList.add('active');
       var tab = btn.dataset.tab;
       Object.keys(panels).forEach(function(k) {
