@@ -302,7 +302,7 @@
 
         var resultRow = "";
         if (j.status === "completed" && j.result) {
-          resultRow = '<tr class="cl-result-row' + (expanded ? '' : ' hidden') + '" data-result-for="' + escapeHtml(id) + '"><td colspan="8"><pre class="cl-result-pre">' +
+          resultRow = '<tr class="cl-result-row' + (expanded ? '' : ' hidden') + '" data-result-for="' + escapeHtml(id) + '"><td colspan="8"><pre class="cl-result-pre scroll-bounded">' +
             escapeHtml(JSON.stringify(j.result, null, 2)) + '</pre></td></tr>';
         }
         if (j.status === "failed" && j.error) {

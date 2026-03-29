@@ -92,15 +92,6 @@
   min-height: 0;
 }
 
-.groups-create-right{
-  overflow-y: auto;
-}
-
-.groups-create-right .groups-list{
-  flex: 1 1 auto;
-  overflow-y: auto;
-}
-
 /* -----------------------------
    Create form
 ------------------------------ */
@@ -113,8 +104,7 @@
    Events log
 ------------------------------ */
 .groups-events{
-  max-height: 300px;
-  overflow-y: auto;
+  --scroll-max: 300px;
   font-size: 13px;
 }
 
@@ -148,8 +138,7 @@
 .groups-invite-popup{
   position: fixed;
   min-width: 220px;
-  max-height: 280px;
-  overflow-y: auto;
+  --scroll-max: 280px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -269,8 +258,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;
-  max-height: 180px;
-  overflow-y: auto;
+  --scroll-max: 180px;
 }
 
 .glisten-queue-item{

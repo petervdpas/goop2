@@ -181,8 +181,7 @@
   color: var(--accent);
   white-space: pre-wrap;
   word-break: break-all;
-  max-height: 160px;
-  overflow-y: auto;
+  --scroll-max: 160px;
 }
 
 .cl-submit-opts {
@@ -283,8 +282,7 @@
   color: #4ade80;
   white-space: pre-wrap;
   word-break: break-all;
-  max-height: 200px;
-  overflow-y: auto;
+  --scroll-max: 200px;
 }
 
 .cl-result-error {

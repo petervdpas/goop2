@@ -199,8 +199,7 @@
 }
 
 .fp-list {
-  max-height: 400px;
-  overflow-y: auto;
+  --scroll-max: 400px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--bg);

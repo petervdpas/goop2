@@ -1,5 +1,5 @@
 {{define "page.groups_hosted"}}
-<div class="page page-groups">
+<div class="page page-groups scroll-pane">
   {{template "groups.tabs" .}}
 
   <div class="groups-create-layout">
@@ -37,12 +37,12 @@
       </div>
     </div>
 
-    <div class="groups-create-right panel">
+    <div class="groups-create-right panel scroll-pane">
       <div class="section-head">
         <span class="section-title">Hosted Groups</span>
         <button id="groups-refresh" class="groups-action-btn">Refresh</button>
       </div>
-      <div id="cg-hosted-list" class="groups-list">
+      <div id="cg-hosted-list" class="groups-list scroll-pane">
         <p class="empty-state">Loading...</p>
       </div>
     </div>

@@ -66,7 +66,7 @@
     if (existing) existing.remove();
 
     var popup = document.createElement('div');
-    popup.className = 'groups-invite-popup';
+    popup.className = 'groups-invite-popup scroll-bounded';
     popup.innerHTML = '<div class="groups-invite-loading">Loading peers...</div>';
 
     var rect = btnEl.getBoundingClientRect();

@@ -1,5 +1,5 @@
 {{define "page.editor"}}
-<div class="page page-editor">
+<div class="page page-editor scroll-pane">
   {{template "create.tabs" .}}
 
   {{if .Error}}
@@ -37,7 +37,7 @@
         </div>
       </div>
 
-      <div class="ed-treewrap">
+      <div class="ed-treewrap scroll-pane">
         <div
           id="ed"
           data-csrf="{{.CSRF}}"
@@ -97,7 +97,7 @@
           </div>
         </div>
       </div>
-      <div class="ed-img-preview">
+      <div class="ed-img-preview scroll-pane">
         <img src="/p/{{.SelfID}}/{{.Path}}" alt="{{.Path}}">
       </div>
       {{else}}

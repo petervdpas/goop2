@@ -85,7 +85,8 @@
     tabs.className = 'emoji-tabs';
     var categories = Object.keys(emojis);
     var grid = document.createElement('div');
-    grid.className = 'emoji-grid';
+    grid.className = 'emoji-grid scroll-bounded';
+    grid.style.setProperty('--scroll-max', '180px');
 
     categories.forEach(function(cat, idx) {
       var tab = document.createElement('button');

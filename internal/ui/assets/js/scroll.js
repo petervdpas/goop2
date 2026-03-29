@@ -1,37 +1,41 @@
-// Unified scroll pane component.
-// Exposes Goop.scroll = { init }
+// Unified scroll pane utility.
+// Exposes Goop.scroll = { init, toBottom, savePos, restorePos }
 //
-// Marks elements with class "scroll-pane" as scrollable flex children.
-// Apply the class in HTML or add it dynamically, then call init() to
-// ensure the element participates in flex layout correctly.
+// CSS classes (defined in components.css):
+//   .scroll-pane    — flex child that fills space and scrolls vertically
+//   .scroll-bounded — constrained scroll with --scroll-max (default 40%)
 //
-// Usage:
-//   <div class="scroll-pane">...long content...</div>
-//
-//   // After dynamically adding scroll-pane elements:
-//   Goop.scroll.init(container)
+// JS helpers for DOM manipulation:
+//   init(el)          — add scroll-pane class to element
+//   toBottom(el)      — scroll element to bottom
+//   savePos(el, key)  — save scroll position to sessionStorage
+//   restorePos(el, key) — restore saved scroll position
 //
 (() => {
   window.Goop = window.Goop || {};
 
-  var STYLE_ID = "goop-scroll-style";
-
-  function injectStyle() {
-    if (document.getElementById(STYLE_ID)) return;
-    var style = document.createElement("style");
-    style.id = STYLE_ID;
-    style.textContent =
-      ".scroll-pane{flex:1 1 0;min-height:0;overflow-y:auto}" +
-      ".scroll-bounded{overflow-y:auto;max-height:var(--scroll-max,40%)}";
-    document.head.appendChild(style);
+  function init(el) {
+    if (!el) return;
+    el.classList.add("scroll-pane");
   }
 
-  function init(container) {
-    if (!container) container = document;
-    injectStyle();
+  function toBottom(el) {
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
   }
 
-  injectStyle();
+  function savePos(el, key) {
+    if (!el || !key) return;
+    try { sessionStorage.setItem("scroll:" + key, el.scrollTop); } catch (e) {}
+  }
 
-  Goop.scroll = { init: init };
+  function restorePos(el, key) {
+    if (!el || !key) return;
+    try {
+      var pos = sessionStorage.getItem("scroll:" + key);
+      if (pos !== null) el.scrollTop = parseInt(pos, 10) || 0;
+    } catch (e) {}
+  }
+
+  Goop.scroll = { init: init, toBottom: toBottom, savePos: savePos, restorePos: restorePos };
 })();

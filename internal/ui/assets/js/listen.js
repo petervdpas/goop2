@@ -216,7 +216,7 @@
     html += '</div>';
 
     if (g && g.queue_total > 0 && g.queue && g.queue.length > 0) {
-      html += '<div class="glisten-queue">';
+      html += '<div class="glisten-queue scroll-bounded">';
       g.queue.forEach(function(name, i) {
         var isCurrent = i === g.queue_index;
         var typeIcon = (g.queue_types && g.queue_types[i] === 'stream') ? '📡 ' : '';

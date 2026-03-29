@@ -1,5 +1,5 @@
 {{define "page.self"}}
-<div class="page page-self" data-csrf="{{.CSRF}}" data-bridge-url="{{.BridgeURL}}">
+<div class="page page-self scroll-pane" data-csrf="{{.CSRF}}" data-bridge-url="{{.BridgeURL}}">
   {{if not .RendezvousOnly}}
   {{end}}
 
@@ -63,7 +63,7 @@
       <div class="section-head">
         <span class="section-title">Settings</span>
       </div>
-      <ul class="settings-nav">
+      <ul class="settings-nav scroll-pane">
         <li class="sidebar-item active" data-section="viewer">Viewer</li>
         <li class="sidebar-item" data-section="splash">Splash</li>
         <li class="sidebar-item" data-section="calls">Calls</li>
@@ -86,7 +86,7 @@
     </div>
 
     <!-- ── Main area ── -->
-    <div class="settings-main panel">
+    <div class="settings-main panel scroll-pane">
       <form method="post" action="/settings/save" data-saveable>
         <input type="hidden" name="csrf" value="{{.CSRF}}">
 

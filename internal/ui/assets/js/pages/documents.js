@@ -387,7 +387,7 @@
             // Check if this is a markdown file
             if (/\.md$/i.test(name)) {
               try {
-                wrap.className = "docs-preview-markdown-wrap";
+                wrap.className = "docs-preview-markdown-wrap scroll-pane";
                 var mdDiv = document.createElement("div");
                 mdDiv.className = "docs-preview-markdown";
 
@@ -425,7 +425,7 @@
                 throw new Error("Markdown render error: " + e.message);
               }
             } else {
-              wrap.className = "docs-preview-text-wrap";
+              wrap.className = "docs-preview-text-wrap scroll-pane";
               var pre = document.createElement("pre");
               pre.className = "docs-preview-text";
               pre.textContent = text;

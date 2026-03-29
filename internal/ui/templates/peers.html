@@ -1,7 +1,7 @@
 {{define "page.peers"}}
 <div class="peers-page" data-self-id="{{.SelfID}}" data-self-name="{{.SelfName}}" data-self-video-disabled="{{.SelfVideoDisabled}}" data-hide-unverified="{{.HideUnverified}}" data-base-url="{{.BaseURL}}">
   <div class="panel-col">
-    <div class="panel-col-content">
+    <div class="panel-col-content scroll-pane">
     <div class="peers-section">
       <h1 class="peers-header">
         <span>Peers <span class="peer-count muted" id="peer-count">({{len .Peers}})</span></span>
@@ -25,7 +25,7 @@
         <input type="text" id="peer-search" class="peer-search" placeholder="Search peers..." autocomplete="off">
       </div>
 
-      <div id="peers-list" class="peers-list-scroll">
+      <div id="peers-list" class="peers-list-scroll scroll-pane">
       {{if not .Peers}}
         <p class="muted"><i>No peers yet</i></p>
       {{else}}
@@ -83,7 +83,7 @@
       <h2>📢 Broadcast Chat</h2>
 
       <div class="chat-container">
-        <div class="chat-messages" id="broadcast-messages">
+        <div class="chat-messages scroll-pane" id="broadcast-messages">
           <p class="muted"><i>Loading messages...</i></p>
         </div>
         <form class="chat-input" id="broadcast-form">

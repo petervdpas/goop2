@@ -169,7 +169,7 @@
           '<div class="ed-dlg-head"><div class="ed-dlg-title"></div></div>' +
           '<div class="ed-dlg-body">' +
             '<div class="fp-path muted small"></div>' +
-            '<div class="fp-list"></div>' +
+            '<div class="fp-list scroll-bounded"></div>' +
           '</div>' +
           '<div class="ed-dlg-foot">' +
             '<button type="button" class="ed-dlg-btn cancel">Cancel</button>' +
@@ -258,7 +258,7 @@
           '<div class="ed-dlg-head"><div class="ed-dlg-title"></div></div>' +
           '<div class="ed-dlg-body">' +
             '<div class="fp-path muted small"></div>' +
-            '<div class="fp-list"></div>' +
+            '<div class="fp-list scroll-bounded"></div>' +
           '</div>' +
           '<div class="ed-dlg-foot">' +
             '<button type="button" class="ed-dlg-btn cancel">Cancel</button>' +

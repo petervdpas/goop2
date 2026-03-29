@@ -32,8 +32,6 @@
   list-style:none;
   padding:0;
   margin:0;
-  flex: 1 1 auto;
-  overflow-y:auto;
   padding-right: 6px;
 }
 
@@ -339,8 +337,7 @@
   top: calc(100% + 6px);
   right: 0;
   min-width: 180px;
-  max-height: 280px;
-  overflow-y: auto;
+  --scroll-max: 280px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -616,8 +613,7 @@
   white-space: pre-wrap;
   word-break: break-word;
   margin: 0;
-  max-height: 160px;
-  overflow-y: auto;
+  --scroll-max: 160px;
 }
 
 /* -----------------------------

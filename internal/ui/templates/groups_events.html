@@ -1,5 +1,5 @@
 {{define "page.groups_events"}}
-<div class="page page-groups">
+<div class="page page-groups scroll-pane">
   {{template "groups.tabs" .}}
 
   <div id="groups-events-page" class="groups-page">
@@ -8,7 +8,7 @@
         <span class="section-title">Live Events</span>
         <button id="groups-clear-events" class="groups-action-btn">Clear</button>
       </div>
-      <div id="groups-events" class="groups-events">
+      <div id="groups-events" class="groups-events scroll-bounded">
         <p class="empty-state">Waiting for events...</p>
       </div>
     </div>

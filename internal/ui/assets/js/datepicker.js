@@ -213,7 +213,7 @@
 
     var html = '<div class="gtp-header">Select Time</div>';
     html += '<div class="gtp-selectors">';
-    html += '<div class="gtp-col"><span class="gtp-label">Hour</span><div class="gtp-scroll" id="gtp-hours">';
+    html += '<div class="gtp-col"><span class="gtp-label">Hour</span><div class="gtp-scroll scroll-bounded" id="gtp-hours">';
     for (var h = 0; h < 24; h++) {
       var hStr = pad(h);
       var cls = h === hour ? "gtp-item gtp-selected" : "gtp-item";
@@ -221,7 +221,7 @@
     }
     html += '</div></div>';
     html += '<span class="gtp-sep">:</span>';
-    html += '<div class="gtp-col"><span class="gtp-label">Min</span><div class="gtp-scroll" id="gtp-minutes">';
+    html += '<div class="gtp-col"><span class="gtp-label">Min</span><div class="gtp-scroll scroll-bounded" id="gtp-minutes">';
     for (var m = 0; m < 60; m += 5) {
       var mStr = pad(m);
       var cls2 = m === (minute - minute % 5) ? "gtp-item gtp-selected" : "gtp-item";

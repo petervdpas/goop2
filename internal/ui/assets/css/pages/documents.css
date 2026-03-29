@@ -14,8 +14,6 @@
 /* Left browser column — scrolls internally */
 .docs-browser {
   min-width: 0;
-  min-height: 0;
-  overflow-y: auto;
 }
 
 /* Right preview panel — stretches to full grid height */
@@ -332,10 +330,7 @@
 
 /* Text — scrollable within the body */
 .docs-preview-text-wrap {
-  flex: 1;
-  min-height: 0;
   width: 100%;
-  overflow: auto;
   border: 1px solid var(--line);
   border-radius: 4px;
   background: color-mix(in srgb, var(--chip) 60%, transparent);
@@ -404,10 +399,7 @@
 /* ---- Markdown Preview (GitHub-style) ---- */
 
 .docs-preview-markdown-wrap {
-  flex: 1;
-  min-height: 0;
   width: 100%;
-  overflow: auto;
   border: 1px solid var(--line);
   border-radius: 4px;
   background: var(--bg);

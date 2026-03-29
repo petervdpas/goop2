@@ -1,5 +1,5 @@
 {{define "page.lua"}}
-<div class="page page-lua" data-csrf="{{.CSRF}}">
+<div class="page page-lua scroll-pane" data-csrf="{{.CSRF}}">
   {{template "create.tabs" .}}
 
   {{if not .LuaEnabled}}
@@ -32,7 +32,7 @@
             New&hellip;
           </button>
         </div>
-        <div class="lua-panel-section-body">
+        <div class="lua-panel-section-body scroll-pane">
           <div class="lua-script-list">
             {{range .Scripts}}
             <a href="/lua?edit={{.Name}}" class="lua-script-row{{if and (eq $.EditName .Name) (not $.EditIsFunc)}} selected{{end}}">
@@ -58,7 +58,7 @@
             New&hellip;
           </button>
         </div>
-        <div class="lua-panel-section-body">
+        <div class="lua-panel-section-body scroll-pane">
           <div class="lua-script-list">
             {{range .Functions}}
             <a href="/lua?edit={{.Name}}&func=1" class="lua-script-row{{if and (eq $.EditName .Name) $.EditIsFunc}} selected{{end}}">
@@ -78,7 +78,7 @@
         <div class="lua-panel-section-head">
           <div class="ed-left-title">Prefabs</div>
         </div>
-        <div class="lua-panel-section-body">
+        <div class="lua-panel-section-body scroll-pane">
           {{range .Prefabs}}
           {{$dir := .Dir}}
           <div style="margin-bottom: 10px;">
