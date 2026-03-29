@@ -1,8 +1,12 @@
 (() => {
   const G = window.Goop || (window.Goop = {});
-  const STORAGE_PREFIX = 'goop:split:';
   const DEFAULT_MIN = 150;
   const DEFAULT_MAX_PCT = 50;
+
+  let prefs = {};
+  try {
+    prefs = JSON.parse(document.body.dataset.splitPrefs || '{}');
+  } catch (_) {}
 
   function parse(el) {
     const key = el.dataset.splitKey || '';
@@ -26,17 +30,26 @@
     return Math.max(cfg.min, Math.min(w, maxPx(cfg, containerW)));
   }
 
-  function save(key, w) {
+  let saveTimer = null;
+
+  function save(key, pct) {
     if (!key) return;
-    try { localStorage.setItem(STORAGE_PREFIX + key, w); } catch (_) {}
+    prefs[key] = pct;
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      fetch('/api/split-prefs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: key, value: pct })
+      }).catch(() => {});
+    }, 400);
   }
 
-  function load(key) {
-    if (!key) return null;
-    try {
-      const v = localStorage.getItem(STORAGE_PREFIX + key);
-      return v != null ? parseInt(v, 10) : null;
-    } catch (_) { return null; }
+  function load(key, containerW) {
+    if (!key || !containerW) return null;
+    const pct = prefs[key];
+    if (pct == null) return null;
+    return pct * containerW / 100;
   }
 
   function initOne(el) {
@@ -64,7 +77,8 @@
       left.style.width = clamped + 'px';
     }
 
-    const saved = load(cfg.key);
+    const cw0 = el.offsetWidth;
+    const saved = load(cfg.key, cw0);
     if (saved != null) apply(saved);
 
     let startX, startW, overlay;
@@ -80,7 +94,8 @@
       document.body.style.userSelect = '';
       document.body.style.cursor = '';
       if (overlay) { overlay.remove(); overlay = null; }
-      save(cfg.key, left.offsetWidth);
+      const cw = el.offsetWidth;
+      if (cw > 0) save(cfg.key, +(left.offsetWidth / cw * 100).toFixed(2));
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       document.removeEventListener('touchmove', onMove);
@@ -108,7 +123,8 @@
 
     handle.addEventListener('dblclick', () => {
       apply(defaultW);
-      save(cfg.key, defaultW);
+      const cw = el.offsetWidth;
+      if (cw > 0) save(cfg.key, +(defaultW / cw * 100).toFixed(2));
     });
   }
 

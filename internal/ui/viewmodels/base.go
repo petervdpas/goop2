@@ -28,4 +28,7 @@ type BaseVM struct {
 
 	// Server startup ID — used by JS to clear stale sessionStorage on restart
 	AppRunID string
+
+	// Split pane positions — JSON string hydrated into data attribute
+	SplitPrefs string
 }

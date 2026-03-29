@@ -107,6 +107,7 @@ func Register(mux *http.ServeMux, d Deps) {
 	registerLuaRoutes(mux, d, csrf)
 	registerDocsRoutes(mux, d)
 	registerAvatarRoutes(mux, d)
+	registerSplitPrefsRoutes(mux, d)
 }
 
 // RegisterMinimal registers only the routes that work without a p2p node.
