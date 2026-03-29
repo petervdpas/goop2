@@ -21,9 +21,11 @@ const insertFormEl  = qs("#db-insert-form");
 const gridEl        = qs("#db-grid");
 const btnNew        = qs("#db-btn-new-table");
 const btnInsert     = qs("#db-btn-insert");
-const btnAlter      = qs("#db-btn-alter");
 const btnRefresh    = qs("#db-btn-refresh");
 const btnDrop       = qs("#db-btn-delete-table");
+const tableSubtabs  = qs("#db-table-subtabs");
+const alterPane     = qs("#db-table-alter-pane");
+const dataPane      = qs("#db-table-data-pane");
 const searchBarEl    = qs("#db-search-bar");
 const searchColEl    = qs("#db-search-col");
 const searchInputEl  = qs("#db-search-input");
@@ -65,6 +67,23 @@ function visibleCols() {
   return columns.filter(function(c) { return !hiddenCols.has(c.name); });
 }
 
+// -------- Sub-tab switching --------
+function switchTableView(view) {
+  qsa(".sub-tab", tableSubtabs).forEach(function(t) {
+    t.classList.toggle("active", t.dataset.tableView === view);
+  });
+  setHidden(alterPane, view !== "alter");
+  setHidden(dataPane, view !== "data");
+  setHidden(btnInsert, view !== "data");
+  setHidden(btnRefresh, view !== "data");
+}
+
+qsa(".sub-tab", tableSubtabs).forEach(function(tab) {
+  on(tab, "click", function() {
+    switchTableView(tab.dataset.tableView);
+  });
+});
+
 // -------- Table list --------
 async function loadTables(selectName) {
   try {
@@ -75,9 +94,9 @@ async function loadTables(selectName) {
     renderTableList(tables);
     // Auto-select
     if (selectName) {
-      selectTable(selectName);
+      selectTable(selectName).then(function() { switchTableView("alter"); });
     } else if (tables.length > 0 && !currentTable) {
-      selectTable(tables[0].name);
+      selectTable(tables[0].name).then(function() { switchTableView("alter"); });
     } else if (currentTable) {
       // Re-highlight current
       highlightActive(currentTable);
@@ -106,7 +125,7 @@ function renderTableList(tables) {
     var badgeTitle = mode === "orm" ? "ORM table (typed schema)" : "Insert policy: " + policy;
     li.innerHTML = '<span class="db-table-name">' + escapeHtml(t.name) + '</span>' +
       '<span class="badge ' + badgeClass + '" title="' + badgeTitle + '">' + badgeText + '</span>';
-    on(li, "click", function() { selectTable(t.name); });
+    on(li, "click", function() { selectTable(t.name).then(function() { switchTableView("alter"); }); });
     tableListEl.appendChild(li);
   });
 }
@@ -128,6 +147,7 @@ async function selectTable(name) {
   setHidden(actionsEl, false);
   setHidden(createFormEl, true);
   setHidden(insertFormEl, true);
+  setHidden(tableSubtabs, false);
 
   try {
     // Fetch schema and first page in parallel
@@ -141,6 +161,7 @@ async function selectTable(name) {
     populateSearchBar();
     renderColPicker();
     renderDataGrid(rows || [], false);
+    showAlterForm();
   } catch (err) {
     gridEl.innerHTML = '<p class="empty-state">Error loading table: ' + escapeHtml(err.message) + '</p>';
   }
@@ -874,8 +895,6 @@ function showAlterForm() {
   if (!currentTable || columns.length === 0) return;
 
   setHidden(alterFormEl, false);
-  setHidden(createFormEl, true);
-  setHidden(insertFormEl, true);
 
   var userCols = columns.filter(function(c) { return systemCols.indexOf(c.name) === -1; });
 
@@ -923,10 +942,6 @@ function showAlterForm() {
       gsel.html({ id: "db-addcol-type", className: "db-col-type", value: "TEXT", options: colTypeOptions() }) +
       '<button id="db-addcol-btn" class="db-action-btn">Add</button>' +
     '</div>' +
-  '</div>';
-
-  html += '<div class="form-actions">' +
-    '<button id="db-alter-close" class="db-action-btn">Close</button>' +
   '</div>';
 
   alterFormEl.innerHTML = html;
@@ -985,7 +1000,6 @@ function showAlterForm() {
         await api.dropColumn({ table: currentTable, column: colName });
         toast("Column " + colName + " dropped");
         await selectTable(currentTable);
-        showAlterForm(); // Re-render alter form with updated schema
       } catch (err) {
         toast("Drop column failed: " + err.message, true);
       }
@@ -1008,23 +1022,24 @@ function showAlterForm() {
       });
       toast("Column " + colName + " added");
       await selectTable(currentTable);
-      showAlterForm(); // Re-render with updated schema
     } catch (err) {
       toast("Add column failed: " + err.message, true);
     }
   });
 
-  // Bind close
-  on(qs("#db-alter-close"), "click", function() { setHidden(alterFormEl, true); });
 }
 
 // -------- Event bindings --------
 on(btnNew, "click", showCreateForm);
-on(btnInsert, "click", showInsertForm);
-on(btnAlter, "click", showAlterForm);
+on(btnInsert, "click", function() {
+  switchTableView("data");
+  showInsertForm();
+});
 on(btnRefresh, "click", function() {
-  setHidden(alterFormEl, true);
-  if (currentTable) selectTable(currentTable);
+  if (currentTable) {
+    switchTableView("data");
+    selectTable(currentTable);
+  }
 });
 on(btnDrop, "click", dropTable);
 

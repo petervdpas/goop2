@@ -25,9 +25,8 @@
       <div class="section-head">
         <span id="db-table-title" class="section-title">Select a table</span>
         <div id="db-content-actions" class="db-content-actions hidden">
-          <button id="db-btn-insert" class="db-action-btn">+ Row</button>
-          <button id="db-btn-refresh" class="db-action-btn">Refresh</button>
-          <button id="db-btn-alter" class="db-action-btn db-btn-warning">Alter Table</button>
+          <button id="db-btn-insert" class="db-action-btn hidden">+ Row</button>
+          <button id="db-btn-refresh" class="db-action-btn hidden">Refresh</button>
           <button id="db-btn-delete-table" class="db-action-btn db-btn-danger">Drop Table</button>
         </div>
       </div>
@@ -35,32 +34,38 @@
       <!-- Create table form (hidden, populated by JS) -->
       <div id="db-create-form" class="db-create-form hidden"></div>
 
-      <!-- Alter table form (hidden, populated by JS) -->
-      <div id="db-alter-form" class="db-create-form hidden"></div>
-
-      <!-- Insert row form (hidden, populated by JS) -->
-      <div id="db-insert-form" class="db-insert-form hidden"></div>
-
-      <!-- Search bar (hidden until table selected) -->
-      <div id="db-search-bar" class="db-search-bar hidden">
-        <div id="db-search-col" class="gsel" data-value="*" data-placeholder="All columns">
-          <button type="button" class="gsel-trigger">
-            <span class="gsel-text">All columns</span>
-            <span class="gsel-arrow">&#9662;</span>
-          </button>
-          <div class="gsel-dropdown"></div>
-        </div>
-        <input type="text" id="db-search-input" placeholder="Search..." />
-        <button id="db-search-clear" class="db-action-btn">Clear</button>
-        <div class="db-col-picker-wrap">
-          <button id="db-btn-columns" class="db-action-btn">Columns</button>
-          <div id="db-col-picker" class="db-col-picker hidden"></div>
-        </div>
+      <!-- Sub-tabs (hidden until table selected) -->
+      <div id="db-table-subtabs" class="sub-tabs hidden">
+        <div class="sub-tab active" data-table-view="alter">Alter</div>
+        <div class="sub-tab" data-table-view="data">Data</div>
       </div>
 
-      <!-- Data grid -->
-      <div id="db-grid" class="db-grid">
-        <p class="empty-state">Select a table from the sidebar to view its data.</p>
+      <!-- Alter pane -->
+      <div id="db-table-alter-pane" class="db-tab-pane">
+        <div id="db-alter-form" class="db-create-form hidden"></div>
+      </div>
+
+      <!-- Data pane -->
+      <div id="db-table-data-pane" class="db-tab-pane hidden">
+        <div id="db-insert-form" class="db-insert-form hidden"></div>
+        <div id="db-search-bar" class="db-search-bar hidden">
+          <div id="db-search-col" class="gsel" data-value="*" data-placeholder="All columns">
+            <button type="button" class="gsel-trigger">
+              <span class="gsel-text">All columns</span>
+              <span class="gsel-arrow">&#9662;</span>
+            </button>
+            <div class="gsel-dropdown"></div>
+          </div>
+          <input type="text" id="db-search-input" placeholder="Search..." />
+          <button id="db-search-clear" class="db-action-btn">Clear</button>
+          <div class="db-col-picker-wrap">
+            <button id="db-btn-columns" class="db-action-btn">Columns</button>
+            <div id="db-col-picker" class="db-col-picker hidden"></div>
+          </div>
+        </div>
+        <div id="db-grid" class="db-grid">
+          <p class="empty-state">Select a table from the sidebar to view its data.</p>
+        </div>
       </div>
     </div>
   </div>
@@ -100,17 +105,17 @@
       </div>
 
       <!-- Edit view -->
-      <div id="db-schema-editor" class="db-tx-editor">
+      <div id="db-schema-editor" class="db-tx-editor db-tab-pane">
         <p class="empty-state">Select a schema from the sidebar to edit it.</p>
       </div>
 
       <!-- DDL view -->
-      <div id="db-schema-ddl" class="schema-view-pane hidden">
+      <div id="db-schema-ddl" class="schema-view-pane db-tab-pane hidden">
         <div id="db-schema-ddl-code" class="schema-code-wrap"></div>
       </div>
 
       <!-- GraphQL view -->
-      <div id="db-schema-gql" class="schema-view-pane hidden">
+      <div id="db-schema-gql" class="schema-view-pane db-tab-pane hidden">
         <div id="db-schema-gql-code" class="schema-code-wrap"></div>
       </div>
     </div>
@@ -143,9 +148,22 @@
         </div>
       </div>
 
-      <!-- Mapper editor form -->
-      <div id="db-tx-editor" class="db-tx-editor">
-        <p class="empty-state">Select a transformation from the sidebar to edit it.</p>
+      <!-- Sub-tabs (hidden until transformation selected) -->
+      <div id="db-tx-subtabs" class="sub-tabs hidden">
+        <div class="sub-tab active" data-tx-view="config">Config</div>
+        <div class="sub-tab" data-tx-view="mappings">Mappings</div>
+      </div>
+
+      <!-- Config pane -->
+      <div id="db-tx-config-pane" class="db-tab-pane">
+        <div id="db-tx-editor" class="db-tx-editor">
+          <p class="empty-state">Select a transformation from the sidebar to edit it.</p>
+        </div>
+      </div>
+
+      <!-- Mappings pane -->
+      <div id="db-tx-mappings-pane" class="db-tab-pane hidden">
+        <div id="db-tx-mappings" class="db-tx-editor"></div>
       </div>
     </div>
   </div>

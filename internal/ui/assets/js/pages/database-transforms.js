@@ -17,14 +17,32 @@
     container.querySelectorAll(".gsel").forEach(function(el) { gsel.init(el); });
   }
 
-  var txListEl    = qs("#db-tx-list");
-  var txTitleEl   = qs("#db-tx-title");
-  var txActionsEl = qs("#db-tx-actions");
-  var txEditorEl  = qs("#db-tx-editor");
+  var txListEl      = qs("#db-tx-list");
+  var txTitleEl     = qs("#db-tx-title");
+  var txActionsEl   = qs("#db-tx-actions");
+  var txEditorEl    = qs("#db-tx-editor");
+  var txMappingsEl  = qs("#db-tx-mappings");
+  var txSubtabs     = qs("#db-tx-subtabs");
+  var txConfigPane  = qs("#db-tx-config-pane");
+  var txMappingsPane = qs("#db-tx-mappings-pane");
   var btnNewTx    = qs("#db-btn-new-tx");
   var btnSaveTx   = qs("#db-btn-save-tx");
   var btnRunTx    = qs("#db-btn-run-tx");
   var btnDeleteTx = qs("#db-btn-delete-tx");
+
+  function switchTxView(view) {
+    qsa(".sub-tab", txSubtabs).forEach(function(t) {
+      t.classList.toggle("active", t.dataset.txView === view);
+    });
+    setHidden(txConfigPane, view !== "config");
+    setHidden(txMappingsPane, view !== "mappings");
+  }
+
+  qsa(".sub-tab", txSubtabs).forEach(function(tab) {
+    on(tab, "click", function() {
+      switchTxView(tab.dataset.txView);
+    });
+  });
 
   var currentTx = null;
   var availableTransforms = [];
@@ -75,6 +93,7 @@
     currentTx = name;
     highlightActiveTx(name);
     setHidden(txActionsEl, false);
+    setHidden(txSubtabs, false);
 
     try {
       var m = await txApi.get({ name: name });
@@ -235,9 +254,17 @@
       endpointInput("tx-tgt", m.target) +
     '</div>';
 
-    html += '<div style="margin-bottom:12px"><button id="tx-auto-map" class="db-action-btn">Auto-map fields</button></div>';
+    html += '</div>';
+    txEditorEl.innerHTML = html;
+    initFormSelects(txEditorEl);
 
-    html += '<div class="form-group">' +
+    bindEndpointTypeChange("tx-src");
+    bindEndpointTypeChange("tx-tgt");
+
+    var mhtml = '<div class="db-tx-form">';
+    mhtml += '<div style="margin-bottom:12px"><button id="tx-auto-map" class="db-action-btn">Auto-map fields</button></div>';
+
+    mhtml += '<div class="form-group">' +
       '<label>Field Mappings</label>' +
       '<div class="tx-field-header">' +
         '<span class="tx-h-src">SOURCE</span>' +
@@ -249,21 +276,18 @@
       '</div>' +
       '<div id="tx-fields">';
     if (m.fields && m.fields.length > 0) {
-      m.fields.forEach(function(f) { html += txFieldRow(f); });
+      m.fields.forEach(function(f) { mhtml += txFieldRow(f); });
     } else {
-      html += txFieldRow({});
+      mhtml += txFieldRow({});
     }
-    html += '</div>';
-    html += '<button id="tx-add-field" class="db-action-btn" style="margin-top:6px">+ Field</button>';
-    html += '</div>';
+    mhtml += '</div>';
+    mhtml += '<button id="tx-add-field" class="db-action-btn" style="margin-top:6px">+ Field</button>';
+    mhtml += '</div>';
 
-    html += '</div>';
-    txEditorEl.innerHTML = html;
-    initFormSelects(txEditorEl);
+    mhtml += '</div>';
+    txMappingsEl.innerHTML = mhtml;
+    initFormSelects(txMappingsEl);
     bindTxFieldEvents();
-
-    bindEndpointTypeChange("tx-src");
-    bindEndpointTypeChange("tx-tgt");
 
     on(qs("#tx-auto-map"), "click", autoMapFields);
 
@@ -277,6 +301,8 @@
       bindTxFieldEvents();
       qs(".tx-field-target", row).focus();
     });
+
+    switchTxView("config");
   }
 
   async function autoMapFields() {
@@ -376,7 +402,7 @@
   }
 
   function bindTxFieldEvents() {
-    qsa(".tx-field-remove", txEditorEl).forEach(function(btn) {
+    qsa(".tx-field-remove", txMappingsEl).forEach(function(btn) {
       btn.onclick = function() {
         var container = qs("#tx-fields");
         if (container && container.children.length > 1) {
@@ -493,7 +519,9 @@
       currentTx = null;
       txTitleEl.textContent = "Select a transformation";
       setHidden(txActionsEl, true);
+      setHidden(txSubtabs, true);
       txEditorEl.innerHTML = '<p class="empty-state">Select a transformation from the sidebar to edit it.</p>';
+      txMappingsEl.innerHTML = '';
       await loadTxList();
     } catch (err) {
       toast("Delete failed: " + err.message, true);
@@ -505,6 +533,7 @@
     txTitleEl.textContent = "New Transformation";
     highlightActiveTx(null);
     setHidden(txActionsEl, false);
+    setHidden(txSubtabs, false);
     renderTxEditor({ name: "", description: "", source: { type: "table" }, target: { type: "table" }, fields: [{}] });
     qs("#tx-name").focus();
   }
