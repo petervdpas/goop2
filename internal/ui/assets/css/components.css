@@ -34,6 +34,18 @@
   min-width: 0;
   overflow: hidden;
 }
+/* Sticky header pattern: pin top content, scroll the rest.
+   Any container with a .pin-top child becomes a flex column;
+   the first scroll-pane after .pin-top scrolls. */
+:has(> .pin-top) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.pin-top {
+  flex: 0 0 auto;
+  padding-bottom: 12px;
+}
 .split-handle {
   flex: 0 0 9px;
   cursor: col-resize;

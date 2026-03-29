@@ -2,14 +2,32 @@
 /* -----------------------------
    Cluster page layout
 ------------------------------ */
-.cluster-page {}
+.content:has(.cluster-page) {
+  overflow: hidden;
+}
+
+.page:has(.cluster-page) {
+  overflow: hidden;
+}
+
+.cluster-page {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 
 .cl-layout {
   min-height: 0;
 }
 .cl-sidebar{ width: 300px; }
-.cl-dashboard{ min-width: 0; }
+.cl-dashboard{
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
 
+.cl-section { flex: 1 1 0; min-height: 0; }
 .cl-section.hidden { display: none; }
 
 /* -----------------------------
@@ -82,6 +100,7 @@
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  margin-bottom: 10px;
 }
 
 .cl-header-info {

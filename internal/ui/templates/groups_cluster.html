@@ -42,15 +42,16 @@
 
         <!-- Host view -->
         <div id="cl-host" class="cl-section hidden">
-          <div class="cl-header">
-            <div class="cl-header-info">
-              <h3 id="cl-host-title">Cluster</h3>
-              <span class="badge badge-host">HOST</span>
-              <span id="cl-host-group-id" class="muted small"></span>
+          <div class="pin-top">
+            <div class="cl-header">
+              <div class="cl-header-info">
+                <h3 id="cl-host-title">Cluster</h3>
+                <span class="badge badge-host">HOST</span>
+                <span id="cl-host-group-id" class="muted small"></span>
+              </div>
             </div>
-          </div>
 
-          <div class="cl-stats panel">
+            <div class="cl-stats panel">
             <div class="cl-stat">
               <span class="cl-stat-val" id="cl-stat-workers">0</span>
               <span class="cl-stat-label">Workers</span>
@@ -78,7 +79,9 @@
               <button id="cl-leave-host-btn" class="btn btn-danger btn-small">Close</button>
             </div>
           </div>
+          </div>
 
+          <div class="scroll-pane">
           <div class="panel cl-submit">
             <div class="panel-head">
               <h4>Submit Job</h4>
@@ -110,7 +113,7 @@
               </div>
               <div class="cl-submit-row">
                 <label>Payload <span id="cl-payload-info" class="panel-info-inline hidden">i<span class="panel-info-text"></span></span></label>
-                <textarea id="cl-job-payload" class="form-input cl-textarea" rows="6"></textarea>
+                <textarea id="cl-job-payload" class="form-input cl-textarea" rows="3"></textarea>
               </div>
               <div class="cl-submit-row cl-submit-opts">
                 <div>
@@ -148,6 +151,7 @@
             <div id="cl-jobs-list" class="cl-table-wrap">
               <p class="muted small">No jobs submitted.</p>
             </div>
+          </div>
           </div>
         </div>
 
