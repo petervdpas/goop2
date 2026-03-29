@@ -8,9 +8,9 @@
 <!-- Tables view -->
 <div id="db-view-tables" class="db-view active">
   <p class="muted small">Manage your local SQLite database tables and data.</p>
-  <div id="db-page" class="db-page">
+  <div id="db-page" class="db-page split-layout" data-split-key="db-tables" data-split-min="180" data-split-max="40%">
     <!-- Sidebar: table list -->
-    <div class="db-sidebar panel">
+    <div class="db-sidebar panel split-left">
       <div class="section-head">
         <span class="section-title">Tables</span>
         <button id="db-btn-new-table" class="db-sidebar-btn">+ New</button>
@@ -21,7 +21,7 @@
     </div>
 
     <!-- Main content area -->
-    <div class="db-content panel">
+    <div class="db-content panel split-right">
       <div class="section-head">
         <span id="db-table-title" class="section-title">Select a table</span>
         <div id="db-content-actions" class="db-content-actions hidden">
@@ -74,9 +74,9 @@
 <!-- Schemas view -->
 <div id="db-view-schemas" class="db-view">
   <p class="muted small">Design typed table schemas and apply them to create ORM tables.</p>
-  <div class="db-page">
+  <div class="db-page split-layout" data-split-key="db-schemas" data-split-min="180" data-split-max="40%">
     <!-- Sidebar: schema list -->
-    <div class="db-sidebar panel">
+    <div class="db-sidebar panel split-left">
       <div class="section-head">
         <span class="section-title">Schemas</span>
         <button id="db-btn-new-schema" class="db-sidebar-btn">+ New</button>
@@ -87,7 +87,7 @@
     </div>
 
     <!-- Main content area -->
-    <div class="db-content panel">
+    <div class="db-content panel split-right">
       <div class="section-head">
         <span id="db-schema-title" class="section-title">Select a schema</span>
         <div id="db-schema-actions" class="db-content-actions hidden">
@@ -125,9 +125,9 @@
 <!-- Transformations view -->
 <div id="db-view-transforms" class="db-view">
   <p class="muted small">Define reusable data transformations between tables.</p>
-  <div class="db-page">
+  <div class="db-page split-layout" data-split-key="db-transforms" data-split-min="180" data-split-max="40%">
     <!-- Sidebar: transformation list -->
-    <div class="db-sidebar panel">
+    <div class="db-sidebar panel split-left">
       <div class="section-head">
         <span class="section-title">Transformations</span>
         <button id="db-btn-new-tx" class="db-sidebar-btn">+ New</button>
@@ -138,7 +138,7 @@
     </div>
 
     <!-- Main content area -->
-    <div class="db-content panel">
+    <div class="db-content panel split-right">
       <div class="section-head">
         <span id="db-tx-title" class="section-title">Select a transformation</span>
         <div id="db-tx-actions" class="db-content-actions hidden">

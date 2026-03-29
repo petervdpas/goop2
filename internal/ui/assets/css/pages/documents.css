@@ -3,12 +3,8 @@
    Documents page — fills .content to footer
 ------------------------------ */
 .docs-page {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
-  flex: 1;           /* fill remaining height inside .content */
-  min-height: 0;     /* allow shrinking below content size */
-  align-items: stretch;
+  flex: 1;
+  min-height: 0;
 }
 
 /* Left browser column — scrolls internally */
@@ -27,10 +23,11 @@
 /* Responsive: stack vertically, let page scroll normally */
 @media (max-width: 860px) {
   .docs-page {
-    grid-template-columns: 1fr;
+    flex-direction: column;
     flex: none;
     min-height: auto;
   }
+  .docs-browser { width: auto; }
   .docs-browser {
     overflow-y: visible;
     min-height: auto;

@@ -2,8 +2,8 @@
 <div class="page page-groups scroll-pane">
   {{template "groups.tabs" .}}
 
-  <div class="groups-create-layout">
-    <div class="groups-create-left panel">
+  <div class="groups-create-layout split-layout" data-split-key="groups-hosted" data-split-min="240" data-split-max="50%">
+    <div class="groups-create-left panel split-left">
       <h3 class="section-title">Create a Group</h3>
       <p class="muted small" style="margin-bottom:14px">Create a new group that you will host. Other peers can join via the group protocol.</p>
 
@@ -37,7 +37,7 @@
       </div>
     </div>
 
-    <div class="groups-create-right panel scroll-pane">
+    <div class="groups-create-right panel scroll-pane split-right">
       <div class="section-head">
         <span class="section-title">Hosted Groups</span>
         <button id="groups-refresh" class="groups-action-btn">Refresh</button>

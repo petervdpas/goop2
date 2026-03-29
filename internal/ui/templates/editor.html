@@ -10,8 +10,8 @@
     <div class="banner ok">Saved.</div>
   {{end}}
 
-  <div class="ed">
-    <div class="ed-left-col">
+  <div class="ed split-layout" data-split-key="editor" data-split-min="200" data-split-max="50%">
+    <div class="ed-left-col split-left">
     <aside class="ed-left panel">
       <div class="ed-left-head">
         <div class="ed-left-head-row">
@@ -88,7 +88,7 @@
     </div>
     </div>
 
-    <section class="ed-right panel">
+    <section class="ed-right panel split-right">
       {{if .IsImage}}
       <div class="ed-savebar ed-savebar-compact" style="margin-bottom:12px;">
         <div class="ed-savebar-row">

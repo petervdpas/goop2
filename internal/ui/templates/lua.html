@@ -18,9 +18,9 @@
     <div class="banner ok">Saved.</div>
   {{end}}
 
-  <div class="ed">
+  <div class="ed split-layout" data-split-key="lua" data-split-min="200" data-split-max="50%">
     <!-- Left panel: script list + prefabs -->
-    <aside class="ed-left panel">
+    <aside class="ed-left panel split-left">
       <!-- Chat scripts section -->
       <div class="lua-panel-section">
         <div class="lua-panel-section-head">
@@ -116,7 +116,7 @@
     </aside>
 
     <!-- Right panel: editor -->
-    <section class="ed-right panel">
+    <section class="ed-right panel split-right">
       {{if .EditName}}
       <div class="ed-fileops">
         <form method="POST" action="/lua/save" class="ed-save" id="lua-save-form" data-saveable>

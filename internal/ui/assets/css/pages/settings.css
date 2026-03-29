@@ -15,14 +15,11 @@
    Settings page layout
 ------------------------------ */
 .settings-page{
-  flex: 1 1 auto;
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: 18px;
-  align-items: stretch;
+  flex: 1 1 0;
   min-height: 0;
   min-width: 0;
 }
+.settings-sidebar{ width: 220px; }
 
 /* -----------------------------
    Sidebar

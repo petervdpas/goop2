@@ -4,18 +4,15 @@
 ------------------------------ */
 
 .page-editor .ed{
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
 }
 
 .ed{
-  display:grid;
-  grid-template-columns: 360px minmax(0, 1fr);
-  gap: 18px;
-  align-items: stretch;
   min-height: 0;
   min-width: 0;
 }
+.ed-left-col{ width: 360px; }
 
 .ed-left-col{
   display:flex;
@@ -34,7 +31,6 @@
 
 .ed-left.panel{
   min-height: 0;
-  flex: 1 1 auto;
 }
 
 .ed-right.panel{

@@ -1,10 +1,11 @@
 /* Lua page layout — match editor page sizing */
 .page-lua .ed{
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
 }
 
 .page-lua .ed-left{
+  width: 360px;
   display: flex;
   flex-direction: column;
   gap: 0;

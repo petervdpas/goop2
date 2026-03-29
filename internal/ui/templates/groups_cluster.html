@@ -3,10 +3,10 @@
   {{template "groups.tabs" .}}
 
   <div id="cluster-page" class="cluster-page">
-    <div class="cl-layout">
+    <div class="cl-layout split-layout" data-split-key="cluster" data-split-min="220" data-split-max="45%">
 
       <!-- Left: cluster groups + create -->
-      <div class="cl-sidebar">
+      <div class="cl-sidebar split-left">
         <div class="panel cl-create-panel">
           <h4>New Cluster</h4>
           <div class="cl-create-form">
@@ -31,7 +31,7 @@
       </div>
 
       <!-- Right: active cluster dashboard -->
-      <div class="cl-dashboard">
+      <div class="cl-dashboard split-right">
 
         <!-- No active cluster -->
         <div id="cl-idle" class="cl-section">

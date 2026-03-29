@@ -5,19 +5,10 @@
 .cluster-page {}
 
 .cl-layout {
-  display: flex;
-  gap: 18px;
   min-height: 0;
 }
-
-.cl-sidebar {
-  flex: 0 0 300px;
-}
-
-.cl-dashboard {
-  flex: 1;
-  min-width: 0;
-}
+.cl-sidebar{ width: 300px; }
+.cl-dashboard{ min-width: 0; }
 
 .cl-section.hidden { display: none; }
 

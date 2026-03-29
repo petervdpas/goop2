@@ -2,8 +2,8 @@
 <div class="page page-groups scroll-pane">
   {{template "groups.tabs" .}}
 
-  <div id="docs-page" class="docs-page">
-    <div class="docs-browser scroll-pane">
+  <div id="docs-page" class="docs-page split-layout" data-split-key="groups-files" data-split-min="200" data-split-max="60%">
+    <div class="docs-browser scroll-pane split-left">
       <p class="muted small">Share files with group members. Each peer owns their files; content is fetched on demand.</p>
       <div class="docs-group-bar panel">
         <label class="docs-group-label">Group:</label>
@@ -51,7 +51,7 @@
       </div>
     </div>
 
-    <div id="docs-preview" class="docs-preview panel">
+    <div id="docs-preview" class="docs-preview panel split-right">
       <div id="docs-preview-empty" class="docs-preview-empty">
         <div class="docs-preview-icon">&#128196;</div>
         <p>Select a file to preview</p>

@@ -33,6 +33,7 @@
         viewTransforms.classList.add("active");
         if (Goop.database.loadTransforms) Goop.database.loadTransforms();
       }
+      if (Goop.splitPane) Goop.splitPane.init();
     });
   });
 

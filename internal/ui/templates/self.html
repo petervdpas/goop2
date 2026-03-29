@@ -57,9 +57,9 @@
     <div class="banner err">{{.Error}}</div>
   {{end}}
 
-  <div class="settings-page">
+  <div class="settings-page split-layout" data-split-key="settings" data-split-min="180" data-split-max="40%">
     <!-- ── Sidebar ── -->
-    <div class="settings-sidebar panel">
+    <div class="settings-sidebar panel split-left">
       <div class="section-head">
         <span class="section-title">Settings</span>
       </div>
@@ -86,7 +86,7 @@
     </div>
 
     <!-- ── Main area ── -->
-    <div class="settings-main panel scroll-pane">
+    <div class="settings-main panel scroll-pane split-right">
       <form method="post" action="/settings/save" data-saveable>
         <input type="hidden" name="csrf" value="{{.CSRF}}">
 

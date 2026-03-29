@@ -23,6 +23,7 @@
     "/assets/js/toast.js",
     "/assets/js/groups.js",
     "/assets/js/scroll.js",
+    "/assets/js/split-pane.js",
     "/assets/js/forms.js",
   ];
 
