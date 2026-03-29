@@ -32,7 +32,7 @@
       </div>
 
       <!-- Create table form (hidden, populated by JS) -->
-      <div id="db-create-form" class="db-create-form hidden"></div>
+      <div id="db-create-form" class="db-create-form scroll-bounded hidden"></div>
 
       <!-- Sub-tabs (hidden until table selected) -->
       <div id="db-table-subtabs" class="sub-tabs hidden">
@@ -41,13 +41,13 @@
       </div>
 
       <!-- Alter pane -->
-      <div id="db-table-alter-pane" class="db-tab-pane">
+      <div id="db-table-alter-pane" class="scroll-pane">
         <div id="db-alter-form" class="db-create-form hidden"></div>
       </div>
 
       <!-- Data pane -->
-      <div id="db-table-data-pane" class="db-tab-pane hidden">
-        <div id="db-insert-form" class="db-insert-form hidden"></div>
+      <div id="db-table-data-pane" class="scroll-pane hidden">
+        <div id="db-insert-form" class="db-insert-form scroll-bounded hidden"></div>
         <div id="db-search-bar" class="db-search-bar hidden">
           <div id="db-search-col" class="gsel" data-value="*" data-placeholder="All columns">
             <button type="button" class="gsel-trigger">
@@ -105,17 +105,17 @@
       </div>
 
       <!-- Edit view -->
-      <div id="db-schema-editor" class="db-tx-editor db-tab-pane">
+      <div id="db-schema-editor" class="db-tx-editor scroll-pane">
         <p class="empty-state">Select a schema from the sidebar to edit it.</p>
       </div>
 
       <!-- DDL view -->
-      <div id="db-schema-ddl" class="schema-view-pane db-tab-pane hidden">
+      <div id="db-schema-ddl" class="schema-view-pane scroll-pane hidden">
         <div id="db-schema-ddl-code" class="schema-code-wrap"></div>
       </div>
 
       <!-- GraphQL view -->
-      <div id="db-schema-gql" class="schema-view-pane db-tab-pane hidden">
+      <div id="db-schema-gql" class="schema-view-pane scroll-pane hidden">
         <div id="db-schema-gql-code" class="schema-code-wrap"></div>
       </div>
     </div>
@@ -155,14 +155,14 @@
       </div>
 
       <!-- Config pane -->
-      <div id="db-tx-config-pane" class="db-tab-pane">
+      <div id="db-tx-config-pane" class="scroll-pane">
         <div id="db-tx-editor" class="db-tx-editor">
           <p class="empty-state">Select a transformation from the sidebar to edit it.</p>
         </div>
       </div>
 
       <!-- Mappings pane -->
-      <div id="db-tx-mappings-pane" class="db-tab-pane hidden">
+      <div id="db-tx-mappings-pane" class="scroll-pane hidden">
         <div id="db-tx-mappings" class="db-tx-editor"></div>
       </div>
     </div>

@@ -22,6 +22,7 @@
     "/assets/js/filepicker.js",
     "/assets/js/toast.js",
     "/assets/js/groups.js",
+    "/assets/js/scroll.js",
     "/assets/js/forms.js",
   ];
 

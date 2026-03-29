@@ -96,15 +96,8 @@
   padding: 16px;
   margin-bottom: 12px;
   flex: 0 1 auto;
-  max-height: 40%;
-  overflow-y: auto;
 }
-.db-tab-pane{
-  flex: 1 1 0;
-  min-height: 0;
-  overflow-y: auto;
-}
-.db-tab-pane .db-create-form{
+.scroll-pane .db-create-form{
   max-height: none;
 }
 
@@ -170,8 +163,6 @@
   padding: 14px;
   margin-bottom: 12px;
   flex: 0 1 auto;
-  max-height: 40%;
-  overflow-y: auto;
 }
 
 .db-insert-form h4{
@@ -453,8 +444,6 @@
 ------------------------------ */
 .db-tx-editor{
   flex: 1 1 auto;
-  overflow-y: auto;
-  min-height: 0;
 }
 
 .db-tx-form{
