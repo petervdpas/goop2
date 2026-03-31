@@ -1,0 +1,19 @@
+{
+  "name": "games",
+  "system_key": true,
+  "columns": [
+    {"name": "challenger", "type": "text", "required": true, "default": ""},
+    {"name": "challenger_label", "type": "text", "default": ""},
+    {"name": "board", "type": "text", "required": true, "default": "---------"},
+    {"name": "turn", "type": "text", "required": true, "default": "X"},
+    {"name": "status", "type": "text", "required": true, "default": "waiting"},
+    {"name": "winner", "type": "text", "default": ""},
+    {"name": "mode", "type": "text", "required": true, "default": "pvp"}
+  ],
+  "access": {
+    "read": "open",
+    "insert": "open",
+    "update": "owner",
+    "delete": "owner"
+  }
+}
