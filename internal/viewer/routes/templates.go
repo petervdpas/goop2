@@ -143,7 +143,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		}
 
-		if err := applyTemplateFiles(d, files, schema, tablePolicies, meta.Name); err != nil {
+		if err := applyTemplateFiles(d, files, schema, tablePolicies, meta.Name, meta.Schemas); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -254,7 +254,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		}
 
-		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies, manifest.Name); err != nil {
+		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies, manifest.Name, manifest.Schemas); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -361,7 +361,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		}
 
-		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies, manifest.Name); err != nil {
+		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies, manifest.Name, manifest.Schemas); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -393,7 +393,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 // 6. Ensure Lua engine rescans if Lua files are present
 // 6b. Call seed function if present
 // 7. Auto-create a "template" group if any table uses "group" access policy
-func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePolicies map[string]string, templateName string) error {
+func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePolicies map[string]string, templateName string, schemaNames []string) error {
 	// 1. Drop previous template's tables and schema files (not user-created tables).
 	if d.DB != nil {
 		if err := dropTemplateTables(d.DB, d.PeerDir); err != nil {
@@ -471,6 +471,7 @@ func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePol
 				log.Printf("template: skip invalid schema %s: %v", rel, err)
 				continue
 			}
+			d.DB.DeleteTable(tbl.Name)
 			if err := d.DB.CreateTableORM(&tbl); err != nil {
 				log.Printf("template: failed to create ORM table %s: %v", tbl.Name, err)
 				continue
@@ -481,19 +482,20 @@ func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePol
 
 	// 5c. Record which tables belong to this template so the next apply
 	//     only drops template-owned tables, not user-created ones.
+	//     Prefers the manifest's schemas list; falls back to scanning bundle files.
 	if d.DB != nil {
-		var templateTables []string
-		// Collect from ORM schemas
-		for rel, data := range files {
-			if !strings.HasPrefix(rel, "schemas/") || !strings.HasSuffix(rel, ".json") {
-				continue
-			}
-			var tbl ormschema.Table
-			if json.Unmarshal(data, &tbl) == nil && tbl.Name != "" {
-				templateTables = append(templateTables, tbl.Name)
+		templateTables := append([]string{}, schemaNames...)
+		if len(templateTables) == 0 {
+			for rel, data := range files {
+				if !strings.HasPrefix(rel, "schemas/") || !strings.HasSuffix(rel, ".json") {
+					continue
+				}
+				var tbl ormschema.Table
+				if json.Unmarshal(data, &tbl) == nil && tbl.Name != "" {
+					templateTables = append(templateTables, tbl.Name)
+				}
 			}
 		}
-		// Collect from legacy schema.sql
 		if schema != "" {
 			templateTables = append(templateTables, parseTableNames(schema)...)
 		}

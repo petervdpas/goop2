@@ -40,7 +40,7 @@ func TestApplyBuiltinBlog(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := applyTemplateFiles(d, files, "", nil, "Blog"); err != nil {
+	if err := applyTemplateFiles(d, files, "", nil, "Blog", []string{"posts", "blog_config"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -89,7 +89,7 @@ func TestApplyBuiltinEnquete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := applyTemplateFiles(d, files, "", nil, "Enquete"); err != nil {
+	if err := applyTemplateFiles(d, files, "", nil, "Enquete", []string{"responses"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -114,7 +114,7 @@ func TestApplyBuiltinTictactoe(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := applyTemplateFiles(d, files, "", nil, "Tic-Tac-Toe"); err != nil {
+	if err := applyTemplateFiles(d, files, "", nil, "Tic-Tac-Toe", []string{"games"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -136,7 +136,7 @@ func TestApplyBuiltinClubhouse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := applyTemplateFiles(d, files, "", nil, "Clubhouse"); err != nil {
+	if err := applyTemplateFiles(d, files, "", nil, "Clubhouse", []string{"rooms"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -154,7 +154,7 @@ func TestApplyReplacesExistingTables(t *testing.T) {
 	d, _ := testDeps(t)
 
 	blogFiles, _ := sitetemplates.SiteFiles("blog")
-	if err := applyTemplateFiles(d, blogFiles, "", nil, "Blog"); err != nil {
+	if err := applyTemplateFiles(d, blogFiles, "", nil, "Blog", []string{"posts", "blog_config"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -163,7 +163,7 @@ func TestApplyReplacesExistingTables(t *testing.T) {
 	}
 
 	tttFiles, _ := sitetemplates.SiteFiles("tictactoe")
-	if err := applyTemplateFiles(d, tttFiles, "", nil, "Tic-Tac-Toe"); err != nil {
+	if err := applyTemplateFiles(d, tttFiles, "", nil, "Tic-Tac-Toe", []string{"games"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -179,7 +179,7 @@ func TestApplyWritesSiteFiles(t *testing.T) {
 	d, dir := testDeps(t)
 
 	files, _ := sitetemplates.SiteFiles("blog")
-	if err := applyTemplateFiles(d, files, "", nil, "Blog"); err != nil {
+	if err := applyTemplateFiles(d, files, "", nil, "Blog", []string{"posts", "blog_config"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -314,7 +314,7 @@ func TestSeedFunctionCalled(t *testing.T) {
 		"lua/functions/seed.lua":  []byte("function call(req) return 'seeded' end"),
 	}
 
-	if err := applyTemplateFiles(d, files, "", nil, "Test"); err != nil {
+	if err := applyTemplateFiles(d, files, "", nil, "Test", []string{"items"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -347,7 +347,7 @@ func TestSeedNotCalledWithoutSeedFile(t *testing.T) {
 		"lua/functions/other.lua":     []byte("function call(req) return 'ok' end"),
 	}
 
-	if err := applyTemplateFiles(d, files, "", nil, "Test"); err != nil {
+	if err := applyTemplateFiles(d, files, "", nil, "Test", []string{"items"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -369,7 +369,7 @@ func TestLegacySchemaSQLStillWorks(t *testing.T) {
 
 	policies := map[string]string{"legacy": "open"}
 
-	if err := applyTemplateFiles(d, nil, sqlSchema, policies, "Legacy"); err != nil {
+	if err := applyTemplateFiles(d, nil, sqlSchema, policies, "Legacy", nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -397,7 +397,7 @@ func TestUserTablesSurviveTemplateApply(t *testing.T) {
 
 	// Apply blog template first
 	blogFiles, _ := sitetemplates.SiteFiles("blog")
-	if err := applyTemplateFiles(d, blogFiles, "", nil, "Blog"); err != nil {
+	if err := applyTemplateFiles(d, blogFiles, "", nil, "Blog", []string{"posts", "blog_config"}); err != nil {
 		t.Fatal(err)
 	}
 	if !d.DB.IsORM("posts") {
@@ -417,7 +417,7 @@ func TestUserTablesSurviveTemplateApply(t *testing.T) {
 
 	// Apply tictactoe — should drop blog tables but keep user table
 	tttFiles, _ := sitetemplates.SiteFiles("tictactoe")
-	if err := applyTemplateFiles(d, tttFiles, "", nil, "Tic-Tac-Toe"); err != nil {
+	if err := applyTemplateFiles(d, tttFiles, "", nil, "Tic-Tac-Toe", []string{"games"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -448,7 +448,7 @@ func TestTemplateSwitchCleansOldSchemaFiles(t *testing.T) {
 	d, dir := testDeps(t)
 
 	blogFiles, _ := sitetemplates.SiteFiles("blog")
-	if err := applyTemplateFiles(d, blogFiles, "", nil, "Blog"); err != nil {
+	if err := applyTemplateFiles(d, blogFiles, "", nil, "Blog", []string{"posts", "blog_config"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -462,7 +462,7 @@ func TestTemplateSwitchCleansOldSchemaFiles(t *testing.T) {
 	}
 
 	tttFiles, _ := sitetemplates.SiteFiles("tictactoe")
-	if err := applyTemplateFiles(d, tttFiles, "", nil, "Tic-Tac-Toe"); err != nil {
+	if err := applyTemplateFiles(d, tttFiles, "", nil, "Tic-Tac-Toe", []string{"games"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -513,7 +513,7 @@ func TestTemplateSwitchWithMockTemplates(t *testing.T) {
 	}
 
 	// Apply Alpha
-	if err := applyTemplateFiles(d, templateAlpha, "", nil, "Alpha"); err != nil {
+	if err := applyTemplateFiles(d, templateAlpha, "", nil, "Alpha", []string{"posts", "config"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -536,7 +536,7 @@ func TestTemplateSwitchWithMockTemplates(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "schemas", "my_stuff.json"), userSchemaJSON, 0o644)
 
 	// Apply Beta — should drop Alpha tables+files, keep user table+file
-	if err := applyTemplateFiles(d, templateBeta, "", nil, "Beta"); err != nil {
+	if err := applyTemplateFiles(d, templateBeta, "", nil, "Beta", []string{"games"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -575,11 +575,158 @@ func TestTemplateSwitchWithMockTemplates(t *testing.T) {
 	}
 }
 
+func TestTemplateAtoB_backToA(t *testing.T) {
+	d, dir := testDeps(t)
+
+	schemaA := ormschema.Table{
+		Name: "alpha_data", SystemKey: true,
+		Columns: []ormschema.Column{{Name: "val", Type: "text"}},
+		Access:  &ormschema.Access{Read: "open", Insert: "owner", Update: "owner", Delete: "owner"},
+	}
+	schemaB := ormschema.Table{
+		Name: "beta_data", SystemKey: true,
+		Columns: []ormschema.Column{{Name: "val", Type: "text"}},
+		Access:  &ormschema.Access{Read: "open", Insert: "open", Update: "owner", Delete: "owner"},
+	}
+	aJSON, _ := json.Marshal(schemaA)
+	bJSON, _ := json.Marshal(schemaB)
+
+	tplA := map[string][]byte{
+		"index.html":              []byte("<h1>A</h1>"),
+		"schemas/alpha_data.json": aJSON,
+	}
+	tplB := map[string][]byte{
+		"index.html":             []byte("<h1>B</h1>"),
+		"schemas/beta_data.json": bJSON,
+	}
+
+	schemasDir := filepath.Join(dir, "schemas")
+
+	// 1. Apply A
+	if err := applyTemplateFiles(d, tplA, "", nil, "A", []string{"alpha_data"}); err != nil {
+		t.Fatal(err)
+	}
+	if !d.DB.IsORM("alpha_data") {
+		t.Fatal("alpha_data should exist after A")
+	}
+	if _, err := os.Stat(filepath.Join(schemasDir, "alpha_data.json")); os.IsNotExist(err) {
+		t.Fatal("alpha_data.json should be on disk after A")
+	}
+
+	// 2. Apply B — A's table and schema file should be gone
+	if err := applyTemplateFiles(d, tplB, "", nil, "B", []string{"beta_data"}); err != nil {
+		t.Fatal(err)
+	}
+	if d.DB.IsORM("alpha_data") {
+		t.Fatal("alpha_data should be gone after B")
+	}
+	if _, err := os.Stat(filepath.Join(schemasDir, "alpha_data.json")); !os.IsNotExist(err) {
+		t.Fatal("alpha_data.json should be removed after B")
+	}
+	if !d.DB.IsORM("beta_data") {
+		t.Fatal("beta_data should exist after B")
+	}
+	if _, err := os.Stat(filepath.Join(schemasDir, "beta_data.json")); os.IsNotExist(err) {
+		t.Fatal("beta_data.json should be on disk after B")
+	}
+
+	// 3. Apply A again — B's table and schema file should be gone, A's restored
+	if err := applyTemplateFiles(d, tplA, "", nil, "A", []string{"alpha_data"}); err != nil {
+		t.Fatal(err)
+	}
+	if d.DB.IsORM("beta_data") {
+		t.Fatal("beta_data should be gone after re-apply A")
+	}
+	if _, err := os.Stat(filepath.Join(schemasDir, "beta_data.json")); !os.IsNotExist(err) {
+		t.Fatal("beta_data.json should be removed after re-apply A")
+	}
+	if !d.DB.IsORM("alpha_data") {
+		t.Fatal("alpha_data should exist after re-apply A")
+	}
+	if _, err := os.Stat(filepath.Join(schemasDir, "alpha_data.json")); os.IsNotExist(err) {
+		t.Fatal("alpha_data.json should be on disk after re-apply A")
+	}
+}
+
+func TestTemplateFailoverSharedTableName(t *testing.T) {
+	d, dir := testDeps(t)
+
+	shared := ormschema.Table{
+		Name: "data", SystemKey: true,
+		Columns: []ormschema.Column{{Name: "val", Type: "text"}},
+		Access:  &ormschema.Access{Read: "open", Insert: "owner", Update: "owner", Delete: "owner"},
+	}
+	onlyA := ormschema.Table{
+		Name: "a_only", SystemKey: true,
+		Columns: []ormschema.Column{{Name: "x", Type: "text"}},
+		Access:  &ormschema.Access{Read: "open", Insert: "owner", Update: "owner", Delete: "owner"},
+	}
+	onlyB := ormschema.Table{
+		Name: "b_only", SystemKey: true,
+		Columns: []ormschema.Column{{Name: "y", Type: "text"}},
+		Access:  &ormschema.Access{Read: "open", Insert: "open", Update: "owner", Delete: "owner"},
+	}
+	sharedJSON, _ := json.Marshal(shared)
+	aJSON, _ := json.Marshal(onlyA)
+	bJSON, _ := json.Marshal(onlyB)
+
+	tplA := map[string][]byte{
+		"index.html":          []byte("<h1>A</h1>"),
+		"schemas/data.json":   sharedJSON,
+		"schemas/a_only.json": aJSON,
+	}
+	tplB := map[string][]byte{
+		"index.html":          []byte("<h1>B</h1>"),
+		"schemas/data.json":   sharedJSON,
+		"schemas/b_only.json": bJSON,
+	}
+
+	schemasDir := filepath.Join(dir, "schemas")
+
+	// Apply A
+	if err := applyTemplateFiles(d, tplA, "", nil, "A", []string{"data", "a_only"}); err != nil {
+		t.Fatal(err)
+	}
+	d.DB.OrmInsert("data", "me", "", map[string]any{"val": "from_A"})
+
+	// Apply B — both share "data", B should get a fresh "data" table
+	if err := applyTemplateFiles(d, tplB, "", nil, "B", []string{"data", "b_only"}); err != nil {
+		t.Fatal(err)
+	}
+	if d.DB.IsORM("a_only") {
+		t.Fatal("a_only should be gone after B")
+	}
+	if !d.DB.IsORM("b_only") {
+		t.Fatal("b_only should exist after B")
+	}
+	rows, _ := d.DB.OrmList("data", 0)
+	if len(rows) != 0 {
+		t.Fatal("shared 'data' table should be fresh (empty) after B, not carry A's rows")
+	}
+
+	// Apply A again — should work even though "data" exists from B
+	if err := applyTemplateFiles(d, tplA, "", nil, "A", []string{"data", "a_only"}); err != nil {
+		t.Fatalf("re-apply A should not fail: %v", err)
+	}
+	if !d.DB.IsORM("data") {
+		t.Fatal("data should exist after re-apply A")
+	}
+	if !d.DB.IsORM("a_only") {
+		t.Fatal("a_only should exist after re-apply A")
+	}
+	if d.DB.IsORM("b_only") {
+		t.Fatal("b_only should be gone after re-apply A")
+	}
+	if _, err := os.Stat(filepath.Join(schemasDir, "b_only.json")); !os.IsNotExist(err) {
+		t.Fatal("b_only.json should be removed from disk")
+	}
+}
+
 func TestTemplateTablesMetaTracking(t *testing.T) {
 	d, _ := testDeps(t)
 
 	blogFiles, _ := sitetemplates.SiteFiles("blog")
-	if err := applyTemplateFiles(d, blogFiles, "", nil, "Blog"); err != nil {
+	if err := applyTemplateFiles(d, blogFiles, "", nil, "Blog", []string{"posts", "blog_config"}); err != nil {
 		t.Fatal(err)
 	}
 

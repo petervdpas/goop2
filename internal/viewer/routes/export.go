@@ -23,6 +23,7 @@ type ExportManifest struct {
 	ExportedAt string                       `json:"exported_at"`
 	LuaEnabled bool                         `json:"lua_enabled"`
 	Tables     map[string]TablePolicyExport `json:"tables,omitempty"`
+	Schemas    []string                     `json:"schemas,omitempty"`
 }
 
 // TablePolicyExport holds per-table policy in the export manifest.
@@ -74,6 +75,7 @@ func registerExportRoutes(mux *http.ServeMux, d Deps, csrf string) {
 					if d.DB.IsORM(t.Name) {
 						access := d.DB.GetAccess(t.Name)
 						policy = access.Insert
+						manifest.Schemas = append(manifest.Schemas, t.Name)
 					}
 					manifest.Tables[t.Name] = TablePolicyExport{InsertPolicy: policy}
 				}
@@ -234,6 +236,8 @@ func registerExportRoutes(mux *http.ServeMux, d Deps, csrf string) {
 				json.Unmarshal(content, &manifest)
 			case rel == "schema.sql":
 				schema = string(content)
+			case strings.HasPrefix(rel, "schemas/"):
+				siteFiles[rel] = content
 			case strings.HasPrefix(rel, "site/"):
 				siteFiles[strings.TrimPrefix(rel, "site/")] = content
 			case strings.HasPrefix(rel, "lua/"):
@@ -253,7 +257,7 @@ func registerExportRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 
 		// Reuse the existing template apply flow for site files + schema + policies
-		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies, manifest.Label); err != nil {
+		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies, manifest.Label, manifest.Schemas); err != nil {
 			http.Error(w, "failed to apply import: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
