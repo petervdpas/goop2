@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/petervdpas/goop2/internal/avatar"
@@ -60,6 +61,9 @@ type Viewer struct {
 	// EnsureLua starts the Lua engine if needed and rescans functions.
 	EnsureLua func()
 
+	// LuaCall invokes a named Lua data function as the local peer.
+	LuaCall func(ctx context.Context, function string, params map[string]any) (any, error)
+
 	// Call manager for native Go/Pion WebRTC (nil = use browser WebRTC).
 	// Set automatically on Linux; nil on all other platforms.
 	Call *call.Manager
@@ -114,6 +118,7 @@ func Start(addr string, v Viewer) error {
 		DocsStore:    v.Docs,
 		GroupManager: v.Groups,
 		EnsureLua:    v.EnsureLua,
+		LuaCall:      v.LuaCall,
 	}
 	routes.Register(mux, deps)
 

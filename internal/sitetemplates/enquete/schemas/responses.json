@@ -1,0 +1,15 @@
+{
+  "name": "responses",
+  "system_key": true,
+  "columns": [
+    {"name": "q1", "type": "text", "default": ""},
+    {"name": "q2", "type": "text", "default": ""},
+    {"name": "q3", "type": "text", "default": ""}
+  ],
+  "access": {
+    "read": "owner",
+    "insert": "email",
+    "update": "owner",
+    "delete": "owner"
+  }
+}

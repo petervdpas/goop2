@@ -387,15 +387,17 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 // 1. Drop all user tables
 // 2. Clear site files (preserve lua/)
 // 3. Write template site files
-// 4. Execute schema.sql
-// 5. Apply table insert policies
+// 4. Execute schema.sql (legacy — skipped when empty)
+// 5. Apply table insert policies (legacy — skipped when empty)
+// 5b. Create ORM tables from schemas/*.json (primary path)
 // 6. Ensure Lua engine rescans if Lua files are present
-// 7. Auto-create a "template" group if any table uses "group" insert policy
+// 6b. Call seed function if present
+// 7. Auto-create a "template" group if any table uses "group" access policy
 func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePolicies map[string]string, templateName string) error {
-	// 1. Drop all user database tables
+	// 1. Drop previous template's tables and schema files (not user-created tables).
 	if d.DB != nil {
-		if err := dropAllTables(d.DB); err != nil {
-			return fmt.Errorf("failed to clear database: %w", err)
+		if err := dropTemplateTables(d.DB, d.PeerDir); err != nil {
+			return fmt.Errorf("failed to clear template tables: %w", err)
 		}
 	}
 
@@ -410,10 +412,22 @@ func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePol
 		}
 	}
 
-	// 3. Write template site files
+	// 3. Write template site files (schemas go to peer dir, not site dir)
 	if d.Content != nil {
 		root := d.Content.RootAbs()
 		for rel, data := range files {
+			if strings.HasPrefix(rel, "schemas/") {
+				if d.PeerDir != "" {
+					abs := filepath.Join(d.PeerDir, rel)
+					if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+						return fmt.Errorf("failed to create schema dir: %w", err)
+					}
+					if err := os.WriteFile(abs, data, 0o644); err != nil {
+						return fmt.Errorf("failed to write schema file: %w", err)
+					}
+				}
+				continue
+			}
 			abs := filepath.Join(root, rel)
 			if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
 				return fmt.Errorf("failed to create dir: %w", err)
@@ -465,6 +479,27 @@ func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePol
 		}
 	}
 
+	// 5c. Record which tables belong to this template so the next apply
+	//     only drops template-owned tables, not user-created ones.
+	if d.DB != nil {
+		var templateTables []string
+		// Collect from ORM schemas
+		for rel, data := range files {
+			if !strings.HasPrefix(rel, "schemas/") || !strings.HasSuffix(rel, ".json") {
+				continue
+			}
+			var tbl ormschema.Table
+			if json.Unmarshal(data, &tbl) == nil && tbl.Name != "" {
+				templateTables = append(templateTables, tbl.Name)
+			}
+		}
+		// Collect from legacy schema.sql
+		if schema != "" {
+			templateTables = append(templateTables, parseTableNames(schema)...)
+		}
+		d.DB.SetMeta("template_tables", strings.Join(templateTables, ","))
+	}
+
 	// 6. If the template includes Lua data functions, ensure the Lua engine
 	//    is running and immediately rescan so scripts are available without
 	//    waiting for the async fsnotify watcher.
@@ -473,6 +508,17 @@ func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePol
 			if strings.HasPrefix(rel, "lua/functions/") && strings.HasSuffix(rel, ".lua") {
 				d.EnsureLua()
 				break
+			}
+		}
+	}
+
+	// 6b. If the template includes a seed function, call it to populate initial data.
+	if d.LuaCall != nil {
+		if _, hasSeed := files["lua/functions/seed.lua"]; hasSeed {
+			if _, err := d.LuaCall(context.Background(), "seed", nil); err != nil {
+				log.Printf("template: seed function failed: %v", err)
+			} else {
+				log.Printf("template: seed function executed")
 			}
 		}
 	}
@@ -489,21 +535,21 @@ func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePol
 		}
 
 		// If the new template uses "group" policy, create a fresh co-author group.
-		// Check both legacy insert_policy map and ORM schema Access fields.
+		// Check ORM schema Access fields and legacy insert_policy map.
 		hasGroupPolicy := false
-		for _, policy := range tablePolicies {
-			if policy == "group" {
+		for rel, data := range files {
+			if !strings.HasPrefix(rel, "schemas/") || !strings.HasSuffix(rel, ".json") {
+				continue
+			}
+			var tbl ormschema.Table
+			if json.Unmarshal(data, &tbl) == nil && tbl.Access != nil && tbl.Access.Insert == "group" {
 				hasGroupPolicy = true
 				break
 			}
 		}
 		if !hasGroupPolicy {
-			for rel, data := range files {
-				if !strings.HasPrefix(rel, "schemas/") || !strings.HasSuffix(rel, ".json") {
-					continue
-				}
-				var tbl ormschema.Table
-				if json.Unmarshal(data, &tbl) == nil && tbl.Access != nil && tbl.Access.Insert == "group" {
+			for _, policy := range tablePolicies {
+				if policy == "group" {
 					hasGroupPolicy = true
 					break
 				}
@@ -685,15 +731,23 @@ func clearSitePreserveLua(root string) error {
 	return nil
 }
 
-func dropAllTables(db *storage.DB) error {
-	tables, err := db.ListTables()
-	if err != nil {
-		return err
+func dropTemplateTables(db *storage.DB, peerDir string) error {
+	prev := db.GetMeta("template_tables")
+	if prev == "" {
+		return nil
 	}
-	for _, t := range tables {
-		if err := db.DeleteTable(t.Name); err != nil {
-			return err
+	for _, name := range strings.Split(prev, ",") {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		if err := db.DeleteTable(name); err != nil {
+			log.Printf("template: failed to drop previous table %s: %v", name, err)
+		}
+		if peerDir != "" {
+			os.Remove(filepath.Join(peerDir, "schemas", name+".json"))
 		}
 	}
+	db.SetMeta("template_tables", "")
 	return nil
 }

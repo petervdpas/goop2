@@ -801,6 +801,60 @@ func schemaFindOneFn(db *storage.DB) lua.LGFunction {
 	}
 }
 
+// schemaCountFn implements goop.schema.count(table) — returns row count.
+func schemaCountFn(db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		tableName := L.CheckString(1)
+		var n int64
+		if err := db.QueryRow("SELECT COUNT(*) FROM "+tableName).Scan(&n); err != nil {
+			L.Push(lua.LNumber(0))
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+		L.Push(lua.LNumber(n))
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
+// schemaSeedFn implements goop.schema.seed(table, rows) — inserts rows only if the table is empty.
+// rows is a Lua array of {col=val, ...} tables. Returns the number of rows inserted.
+func schemaSeedFn(inv *invocationCtx, db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		tableName := L.CheckString(1)
+		rowsTbl := L.CheckTable(2)
+
+		var n int64
+		if err := db.QueryRow("SELECT COUNT(*) FROM "+tableName).Scan(&n); err != nil {
+			L.Push(lua.LNumber(0))
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+		if n > 0 {
+			L.Push(lua.LNumber(0))
+			L.Push(lua.LNil)
+			return 2
+		}
+
+		var inserted int
+		rowsTbl.ForEach(func(_, val lua.LValue) {
+			rowTbl, ok := val.(*lua.LTable)
+			if !ok {
+				return
+			}
+			data := luaTableToMap(rowTbl)
+			if _, err := db.OrmInsert(tableName, inv.peerID, "", data); err != nil {
+				return
+			}
+			inserted++
+		})
+
+		L.Push(lua.LNumber(inserted))
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
 func luaTableToMap(tbl *lua.LTable) map[string]any {
 	data := make(map[string]any)
 	tbl.ForEach(func(key, val lua.LValue) {

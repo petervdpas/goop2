@@ -5,22 +5,6 @@ import (
 	"net/http"
 )
 
-// StoreMeta holds metadata for a store template.
-type StoreMeta struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Category    string                 `json:"category"`
-	Icon        string                 `json:"icon"`
-	Dir         string                 `json:"dir"`
-	Source      string                 `json:"source"`
-	Tables      map[string]TablePolicy `json:"tables,omitempty"`
-}
-
-// TablePolicy holds per-table configuration from a template manifest.
-type TablePolicy struct {
-	InsertPolicy string `json:"insert_policy"`
-}
-
 // StorePageData holds HTML fragments injected by the credit module into
 // the template store page.
 type StorePageData struct {

@@ -70,7 +70,12 @@ func registerExportRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			if err == nil && len(tables) > 0 {
 				manifest.Tables = make(map[string]TablePolicyExport)
 				for _, t := range tables {
-					manifest.Tables[t.Name] = TablePolicyExport{InsertPolicy: t.InsertPolicy}
+					policy := t.InsertPolicy
+					if d.DB.IsORM(t.Name) {
+						access := d.DB.GetAccess(t.Name)
+						policy = access.Insert
+					}
+					manifest.Tables[t.Name] = TablePolicyExport{InsertPolicy: policy}
 				}
 			}
 		}
@@ -131,6 +136,24 @@ func registerExportRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		// schema.sql
 		if fw, err := zw.Create("schema.sql"); err == nil {
 			fw.Write([]byte(schemaSQL))
+		}
+
+		// schemas/*.json — export ORM table schemas
+		if d.DB != nil {
+			tables, _ := d.DB.ListTables()
+			for _, t := range tables {
+				tbl, err := d.DB.ExportSchema(r.Context(), t.Name)
+				if err != nil || tbl == nil {
+					continue
+				}
+				schemaJSON, err := json.MarshalIndent(tbl, "", "  ")
+				if err != nil {
+					continue
+				}
+				if fw, err := zw.Create("schemas/" + t.Name + ".json"); err == nil {
+					fw.Write(schemaJSON)
+				}
+			}
 		}
 
 		// site/ files

@@ -597,7 +597,24 @@ func (d *DB) DeleteTable(table string) error {
 	if _, err := d.db.Exec("DELETE FROM _tables WHERE name = ?", table); err != nil {
 		return fmt.Errorf("unregister table: %w", err)
 	}
+	d.db.Exec("DELETE FROM _orm_schemas WHERE table_name = ?", table)
 	return nil
+}
+
+// SetMeta stores a key-value pair in the _meta table.
+func (d *DB) SetMeta(key, value string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.db.Exec(`INSERT OR REPLACE INTO _meta (key, value) VALUES (?, ?)`, key, value)
+}
+
+// GetMeta retrieves a value from the _meta table. Returns empty string if not found.
+func (d *DB) GetMeta(key string) string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	var val string
+	d.db.QueryRow(`SELECT value FROM _meta WHERE key = ?`, key).Scan(&val)
+	return val
 }
 
 // SelectOpts holds optional query parameters for Select

@@ -23,8 +23,9 @@ type TemplateMeta struct {
 	Description string                 `json:"description"`
 	Category    string                 `json:"category"`
 	Icon        string                 `json:"icon"`
-	Dir         string                 `json:"dir"`    // directory name (e.g. "corkboard")
-	Tables      map[string]TablePolicy `json:"tables"` // table name → policy
+	Dir         string                 `json:"dir"`     // directory name (e.g. "corkboard")
+	Tables      map[string]TablePolicy `json:"tables"`  // legacy: table name → policy
+	Schemas     []string               `json:"schemas"` // ORM table names owned by this template
 }
 
 // List returns metadata for all available templates.

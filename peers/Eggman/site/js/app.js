@@ -1,20 +1,37 @@
-// Blog app.js
+// Clubhouse app.js — real-time group chat rooms
 (async function () {
   var db = Goop.data;
-  var site = Goop.site;
-  var postsEl = document.getElementById("posts");
-  var btnNew = document.getElementById("btn-new");
-  var btnCustomize = document.getElementById("btn-customize");
-  var designerPanel = document.getElementById("designer-panel");
-  var overlay = document.getElementById("editor-overlay");
 
+  // ── DOM refs ──
+  var lobby = document.getElementById("lobby");
+  var roomsEl = document.getElementById("rooms");
+  var btnNewRoom = document.getElementById("btn-new-room");
+
+  var chatView = document.getElementById("chat-view");
+  var chatRoomName = document.getElementById("chat-room-name");
+  var chatRoomDesc = document.getElementById("chat-room-desc");
+  var btnBack = document.getElementById("btn-back");
+  var btnCloseRoom = document.getElementById("btn-close-room");
+  var membersListEl = document.getElementById("members-list");
+  var messagesEl = document.getElementById("messages");
+  var msgInput = document.getElementById("msg-input");
+  var btnSend = document.getElementById("btn-send");
+
+  var createOverlay = document.getElementById("create-overlay");
+  var fName = document.getElementById("f-name");
+  var fDesc = document.getElementById("f-desc");
+  var fMax = document.getElementById("f-max");
+  var btnCreateCancel = document.getElementById("btn-create-cancel");
+  var btnCreateSave = document.getElementById("btn-create-save");
+
+  // ── State ──
   var isOwner = false;
-  var isCoAuthor = false;
-  var myId = null;
-  var currentLayout = "list";
-  var configMap = {}; // key -> { id: number, value: string }
-  var editingId = null;
-  var editingImage = null; // filename of current post's image when editing
+  var myId = "";
+  var myLabel = "";
+  var hostPeerId = "";
+  var currentRoom = null;     // room row from DB
+  var members = [];           // current member peer IDs
+  var labelMap = {};          // peerId → display label
 
   function esc(s) {
     var d = document.createElement("div");
@@ -22,388 +39,401 @@
     return d.innerHTML;
   }
 
-  // ── Owner / co-author detection ──
-  try {
-    myId = await Goop.identity.id();
-    var match = window.location.pathname.match(/\/p\/([^/]+)/);
-    var ownerPeerId = match ? match[1] : null;
-    if (ownerPeerId && ownerPeerId === myId) {
-      isOwner = true;
-    } else if (ownerPeerId && Goop.group) {
-      var subs = await Goop.group.subscriptions();
-      var list = (subs && subs.subscriptions) || [];
-      isCoAuthor = list.some(function (s) {
-        return s.host_peer_id === ownerPeerId && s.app_type === "template";
+  function shortId(id) {
+    return id ? id.slice(-6) : "???";
+  }
+
+  function displayName(peerId) {
+    if (peerId === myId) return "You";
+    if (labelMap[peerId]) return labelMap[peerId];
+    return shortId(peerId);
+  }
+
+  // Fetch known peer labels from the local peer store
+  function fetchPeerLabels() {
+    fetch("/api/peers").then(function (r) {
+      if (!r.ok) return;
+      return r.json();
+    }).then(function (peers) {
+      if (!Array.isArray(peers)) return;
+      var changed = false;
+      peers.forEach(function (p) {
+        if (p.ID && p.Content && !labelMap[p.ID]) {
+          labelMap[p.ID] = p.Content;
+          changed = true;
+        }
       });
+      if (changed) renderMembers();
+    }).catch(function () {});
+  }
+
+  // ── Owner detection ──
+  try {
+    var me = await Goop.identity.get();
+    myId = me.id;
+    myLabel = me.label || shortId(myId);
+    var match = window.location.pathname.match(/\/p\/([^/]+)/);
+    if (match) {
+      hostPeerId = match[1];
+      if (match[1] === myId) {
+        isOwner = true;
+        btnNewRoom.classList.remove("hidden");
+      }
     }
   } catch (_) {}
 
-  if (isOwner || isCoAuthor) {
-    btnNew.classList.remove("hidden");
-  }
-  if (isOwner) {
-    document.getElementById("editor-image-section").classList.remove("hidden");
-  }
-
-  // ── Config helpers ──
-
-  // Map hex → accent class index (avoids inline style / CSP issues)
-  var accentToIdx = {
-    "#b44d2d": "1", "#2d6a9f": "2", "#4a8f46": "3",
-    "#7c4a9f": "4", "#c0882c": "5", "#2d7a6a": "6",
-  };
-
-  function applyConfigKey(key, value) {
-    var html = document.documentElement;
-    switch (key) {
-      case "layout":
-        currentLayout = value || "list";
-        document.querySelector(".blog").className = "blog layout-" + currentLayout;
-        document.querySelectorAll(".layout-btn").forEach(function (btn) {
-          btn.classList.toggle("active", btn.dataset.layout === currentLayout);
-        });
-        break;
-      case "blog_title":
-        document.querySelector(".blog-title").textContent = value || "My Blog";
-        break;
-      case "blog_subtitle":
-        document.getElementById("blog-subtitle").textContent =
-          value || "Thoughts, stories & notes";
-        break;
-      case "accent":
-        if (value) {
-          html.className = html.className.replace(/\baccent-\d+\b/g, "").trim();
-          var idx = accentToIdx[value] || "1";
-          html.classList.add("accent-" + idx);
-          document.querySelectorAll(".swatch").forEach(function (sw) {
-            sw.classList.toggle("active", sw.dataset.color === value);
-          });
-        }
-        break;
-      case "font":
-        html.className = html.className.replace(/\bfont-\w+\b/g, "").trim();
-        html.classList.add("font-" + (value || "serif"));
-        document.querySelectorAll(".font-btn").forEach(function (btn) {
-          btn.classList.toggle("active", btn.dataset.font === (value || "serif"));
-        });
-        break;
-      case "theme":
-        html.className = html.className.replace(/\btheme-\w+\b/g, "").trim();
-        html.classList.add("theme-" + (value || "light"));
-        document.querySelectorAll(".theme-btn").forEach(function (btn) {
-          btn.classList.toggle("active", btn.dataset.theme === (value || "light"));
-        });
-        break;
-    }
-  }
-
-  async function saveConfig(key, value) {
-    if (configMap[key] && configMap[key].id) {
-      await db.update("blog_config", configMap[key].id, { value: value });
-      configMap[key].value = value;
-    } else {
-      await db.insert("blog_config", { key: key, value: value });
-      try {
-        var rows = await db.query("blog_config", { where: "key = ?", args: [key], limit: 1 });
-        if (rows && rows.length > 0) {
-          configMap[key] = { id: rows[0]._id, value: value };
-        }
-      } catch (_) {}
-    }
-  }
-
-  // ── Design panel setup (host only) ──
-  async function setupDesigner() {
+  // ── Room listing ──
+  async function loadRooms() {
     try {
-      var rows = await db.query("blog_config", { limit: 100 });
-      (rows || []).forEach(function (r) {
-        configMap[r.key] = { id: r._id, value: r.value };
-      });
-    } catch (_) {}
-
-    var loaded = {
-      layout:        (configMap.layout        || {}).value,
-      blog_title:    (configMap.blog_title    || {}).value,
-      blog_subtitle: (configMap.blog_subtitle || {}).value,
-      accent:        (configMap.accent        || {}).value,
-      font:          (configMap.font          || {}).value,
-      theme:         (configMap.theme         || {}).value,
-    };
-    applyConfigKey("layout",        loaded.layout);
-    applyConfigKey("blog_title",    loaded.blog_title);
-    applyConfigKey("blog_subtitle", loaded.blog_subtitle);
-    applyConfigKey("accent",        loaded.accent);
-    applyConfigKey("font",          loaded.font);
-    applyConfigKey("theme",         loaded.theme);
-
-    if (!isOwner) return;
-
-    var defaults = {
-      layout:        "list",
-      blog_title:    "My Blog",
-      blog_subtitle: "Thoughts, stories & notes",
-      accent:        "#b44d2d",
-      font:          "serif",
-      theme:         "light",
-    };
-    for (var k in defaults) {
-      if (!configMap[k]) {
-        await saveConfig(k, defaults[k]);
-        applyConfigKey(k, defaults[k]);
-      }
-    }
-
-    document.getElementById("d-title").value =
-      (configMap.blog_title || {}).value || "My Blog";
-    document.getElementById("d-subtitle").value =
-      (configMap.blog_subtitle || {}).value || "";
-
-    btnCustomize.classList.remove("hidden");
-
-    document.querySelectorAll(".layout-btn").forEach(function (btn) {
-      btn.addEventListener("click", async function () {
-        applyConfigKey("layout", btn.dataset.layout);
-        await saveConfig("layout", btn.dataset.layout);
-      });
-    });
-
-    document.querySelectorAll(".swatch").forEach(function (sw) {
-      sw.addEventListener("click", async function () {
-        applyConfigKey("accent", sw.dataset.color);
-        await saveConfig("accent", sw.dataset.color);
-      });
-    });
-
-    document.querySelectorAll(".font-btn").forEach(function (btn) {
-      btn.addEventListener("click", async function () {
-        applyConfigKey("font", btn.dataset.font);
-        await saveConfig("font", btn.dataset.font);
-      });
-    });
-
-    document.querySelectorAll(".theme-btn").forEach(function (btn) {
-      btn.addEventListener("click", async function () {
-        applyConfigKey("theme", btn.dataset.theme);
-        await saveConfig("theme", btn.dataset.theme);
-      });
-    });
-
-    var titleInput = document.getElementById("d-title");
-    titleInput.addEventListener("input", function () {
-      applyConfigKey("blog_title", titleInput.value || "My Blog");
-    });
-    titleInput.addEventListener("blur", async function () {
-      var val = titleInput.value.trim() || "My Blog";
-      titleInput.value = val;
-      await saveConfig("blog_title", val);
-    });
-
-    var subtitleInput = document.getElementById("d-subtitle");
-    subtitleInput.addEventListener("input", function () {
-      applyConfigKey("blog_subtitle", subtitleInput.value);
-    });
-    subtitleInput.addEventListener("blur", async function () {
-      await saveConfig("blog_subtitle", subtitleInput.value.trim());
-    });
-
-    btnCustomize.addEventListener("click", function () {
-      designerPanel.classList.toggle("hidden");
-    });
-    document.getElementById("btn-designer-close").addEventListener("click", function () {
-      designerPanel.classList.add("hidden");
-    });
-  }
-
-  // ── Seed sample posts on first run ──
-  async function seed() {
-    var tables = await db.tables();
-    if (tables && tables.length > 0) return;
-
-    await db.createTable("posts", [
-      { name: "title",       type: "TEXT",    not_null: true },
-      { name: "body",        type: "TEXT",    not_null: true },
-      { name: "author_name", type: "TEXT",    default: "" },
-      { name: "slug",        type: "TEXT" },
-      { name: "published",   type: "INTEGER", default: "1" },
-    ]);
-
-    var myLabel = "";
-    try { myLabel = await Goop.identity.label(); } catch (_) {}
-
-    await db.insert("posts", {
-      title: "Hello, World!",
-      body: "Welcome to my blog. This is my first post on the ephemeral web.\n\nI'm running a peer-to-peer site using Goop\u00b2. Everything here is local-first and distributed \u2014 no central servers involved.\n\nFeel free to look around!",
-      slug: "hello-world",
-      author_name: myLabel,
-    });
-
-    await db.insert("posts", {
-      title: "How This Works",
-      body: "Each peer runs their own site. You're reading this through the p2p network right now.\n\nI write posts from my local editor, and they get served to anyone who connects. No accounts, no passwords, no cloud \u2014 just peers talking to peers.",
-      slug: "how-this-works",
-      author_name: myLabel,
-    });
-  }
-
-  // ── Load & render posts ──
-  async function loadPosts() {
-    try {
-      var rows = await db.query("posts", { where: "published = 1", limit: 50 });
-      renderPosts(rows || []);
+      var rows = await db.query("rooms", { where: "status = 'open'", limit: 50 });
+      renderRooms(rows || []);
     } catch (err) {
-      postsEl.innerHTML =
-        '<div class="empty-msg"><p>Could not load posts.</p><p class="loading">' +
-        esc(err.message) + "</p></div>";
+      roomsEl.innerHTML = '<div class="empty-msg"><p>Could not load rooms.</p></div>';
     }
   }
 
-  function renderPosts(posts) {
-    if (posts.length === 0) {
-      postsEl.innerHTML =
-        '<div class="empty-msg"><p>No posts yet.</p>' +
-        ((isOwner || isCoAuthor)
-          ? '<p class="loading">Click "+ New Post" to write your first one.</p>'
-          : "") +
-        "</div>";
+  function renderRooms(rooms) {
+    if (rooms.length === 0) {
+      roomsEl.innerHTML = '<div class="empty-msg"><div class="empty-icon">&#128172;</div><p>No rooms yet.</p>' +
+        (isOwner ? '<p>Create one with the button above!</p>' : '') + '</div>';
       return;
     }
 
-    posts.sort(function (a, b) { return b._id - a._id; });
-
-    postsEl.innerHTML = posts.map(function (p) {
-      var date = p._created_at
-        ? new Date(String(p._created_at).replace(" ", "T") + "Z")
-            .toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })
-        : "";
-      var slug = p.slug || p._id;
-      var postUrl = 'post.html?slug=' + encodeURIComponent(slug);
-      var html = '<article class="post">';
-      if (p.image) {
-        html += '<a href="' + postUrl + '"><img class="post-image" src="images/' + esc(p.image) + '" alt=""></a>';
-      }
-      html += '<h2 class="post-title"><a class="post-title-link" href="' + postUrl + '">' + esc(p.title) + "</a></h2>";
-      html += '<div class="post-meta">' + esc(date) + "</div>";
-      if (p.author_name) {
-        html += '<div class="post-byline">by ' + esc(p.author_name) + "</div>";
-      }
-      html += '<div class="post-body">' + esc(p.body) + "</div>";
-      html += '<a class="post-read-more" href="' + postUrl + '">Read more</a>';
-      var canEdit = isOwner || (isCoAuthor && p._owner === myId);
-      if (canEdit) {
-        html += '<div class="post-actions">';
-        html += '<button data-action="edit" data-id="' + p._id + '">Edit</button>';
-        html += '<button data-action="delete" data-id="' + p._id + '" data-image="' + esc(p.image || "") + '">Delete</button>';
-        html += "</div>";
-      }
-      html += "</article>";
+    roomsEl.innerHTML = rooms.map(function (r) {
+      var html = '<div class="room-card" data-room-id="' + r._id + '">';
+      html += '<h3 class="room-card-name">' + esc(r.name) + '</h3>';
+      html += '<p class="room-card-desc">' + esc(r.description || "No description") + '</p>';
+      html += '<div class="room-card-footer">';
+      html += '<span class="room-card-status"><span class="status-dot"></span> ' + esc(r.status) + '</span>';
+      html += '<button class="btn-join" data-room-id="' + r._id + '">Join</button>';
+      html += '</div></div>';
       return html;
     }).join("");
 
-    if (isOwner || isCoAuthor) wireActions();
-  }
-
-  function wireActions() {
-    postsEl.querySelectorAll("[data-action=edit]").forEach(function (btn) {
+    roomsEl.querySelectorAll(".btn-join").forEach(function (btn) {
       btn.addEventListener("click", function () {
-        openEditor(parseInt(btn.getAttribute("data-id"), 10));
-      });
-    });
-    postsEl.querySelectorAll("[data-action=delete]").forEach(function (btn) {
-      btn.addEventListener("click", async function () {
-        var id = parseInt(btn.getAttribute("data-id"), 10);
-        var imgFile = btn.getAttribute("data-image") || "";
-        var ok = true;
-        if (Goop.ui) ok = await Goop.ui.confirm("Delete this post?");
-        if (!ok) return;
-        await db.remove("posts", id);
-        if (imgFile && isOwner && site) {
-          try { await site.remove("images/" + imgFile); } catch (_) {}
-        }
-        loadPosts();
+        var id = parseInt(btn.getAttribute("data-room-id"), 10);
+        var room = rooms.find(function (r) { return r._id === id; });
+        if (room) enterRoom(room);
       });
     });
   }
 
-  // ── Editor ──
-  async function openEditor(id) {
-    editingId = id || null;
-    editingImage = null;
-    document.getElementById("f-title").value = "";
-    document.getElementById("f-body").value = "";
-    document.getElementById("editor-heading").textContent = id ? "Edit Post" : "New Post";
-    document.getElementById("btn-save").textContent = id ? "Update" : "Publish";
+  // ── Create room (owner only) ──
+  btnNewRoom.addEventListener("click", function () {
+    fName.value = "";
+    fDesc.value = "";
+    fMax.value = "0";
+    createOverlay.classList.remove("hidden");
+    fName.focus();
+  });
 
-    var fImage = document.getElementById("f-image");
-    var fPreview = document.getElementById("f-image-preview");
-    if (fImage) fImage.value = "";
-    if (fPreview) { fPreview.src = ""; fPreview.classList.add("hidden"); }
+  btnCreateCancel.addEventListener("click", function () {
+    createOverlay.classList.add("hidden");
+  });
 
-    if (id) {
-      try {
-        var rows = await db.query("posts", { where: "_id = ?", args: [id], limit: 1 });
-        if (rows && rows.length > 0) {
-          document.getElementById("f-title").value = rows[0].title;
-          document.getElementById("f-body").value = rows[0].body;
-          if (rows[0].image && fPreview) {
-            editingImage = rows[0].image;
-            fPreview.src = "images/" + editingImage;
-            fPreview.classList.remove("hidden");
+  createOverlay.addEventListener("mousedown", function (e) {
+    if (e.target === createOverlay) createOverlay.classList.add("hidden");
+  });
+
+  btnCreateSave.addEventListener("click", async function () {
+    var name = fName.value.trim();
+    if (!name) return;
+    var desc = fDesc.value.trim();
+    var max = parseInt(fMax.value, 10) || 0;
+
+    try {
+      var group = await Goop.group.create(name, "clubhouse", max);
+      await db.insert("rooms", {
+        name: name,
+        description: desc,
+        group_id: group.id,
+        max_members: max,
+        status: "open"
+      });
+      createOverlay.classList.add("hidden");
+      Goop.ui.toast("Room created!");
+      loadRooms();
+    } catch (err) {
+      Goop.ui.toast({ title: "Error", message: err.message });
+    }
+  });
+
+  // ── Enter room ──
+  async function enterRoom(room) {
+    currentRoom = room;
+    members = [];
+    labelMap = {};
+    messagesEl.innerHTML = "";
+    chatRoomName.textContent = room.name;
+    chatRoomDesc.textContent = room.description || "";
+
+    if (isOwner) {
+      btnCloseRoom.classList.remove("hidden");
+    } else {
+      btnCloseRoom.classList.add("hidden");
+    }
+
+    lobby.classList.add("hidden");
+    chatView.classList.remove("hidden");
+
+    // Clean up any stale connection from a previous session
+    try { await Goop.group.leave(); } catch (_) {}
+
+    // Subscribe to SSE first
+    Goop.group.subscribe(handleGroupEvent);
+
+    try {
+      if (isOwner) {
+        await Goop.group.joinOwn(room.group_id);
+        labelMap[myId] = myLabel;
+        // Announce label to members already in the room
+        Goop.group.send({ type: "presence", label: myLabel }, room.group_id).catch(function () {});
+      } else {
+        await Goop.group.join(hostPeerId, room.group_id);
+        // Announce our label so other members see a friendly name
+        Goop.group.send({ type: "presence", label: myLabel }).catch(function () {});
+      }
+      appendSystem("You joined the room.");
+      startLabelRefresh();
+    } catch (err) {
+      appendSystem("Failed to join: " + err.message);
+    }
+
+    msgInput.focus();
+  }
+
+  // ── Leave room ──
+  async function leaveRoom() {
+    if (!currentRoom) return;
+
+    try {
+      if (isOwner) {
+        await Goop.group.leaveOwn(currentRoom.group_id);
+      } else {
+        await Goop.group.leave();
+      }
+    } catch (_) {}
+
+    Goop.group.unsubscribe();
+    stopLabelRefresh();
+    currentRoom = null;
+    members = [];
+
+    chatView.classList.add("hidden");
+    lobby.classList.remove("hidden");
+    loadRooms();
+  }
+
+  btnBack.addEventListener("click", leaveRoom);
+
+  // ── Close room (owner only) ──
+  btnCloseRoom.addEventListener("click", async function () {
+    if (!currentRoom) return;
+    var ok = await Goop.ui.confirm("Close this room? All members will be disconnected.");
+    if (!ok) return;
+
+    try {
+      await Goop.group.close(currentRoom.group_id);
+      await db.update("rooms", currentRoom._id, { status: "closed" });
+      Goop.ui.toast("Room closed.");
+    } catch (err) {
+      Goop.ui.toast({ title: "Error", message: err.message });
+    }
+
+    Goop.group.unsubscribe();
+    stopLabelRefresh();
+    currentRoom = null;
+    members = [];
+    chatView.classList.add("hidden");
+    lobby.classList.remove("hidden");
+    loadRooms();
+  });
+
+  // ── Send message ──
+  function sendMessage() {
+    var text = msgInput.value.trim();
+    if (!text || !currentRoom) return;
+    msgInput.value = "";
+
+    var payload = { type: "chat", text: text, label: myLabel };
+
+    if (isOwner) {
+      // Owner: message comes back via SSE, displayed by event handler
+      Goop.group.send(payload, currentRoom.group_id).catch(function (err) {
+        appendSystem("Send failed: " + err.message);
+      });
+    } else {
+      // Visitor: message NOT echoed back — append locally first
+      appendChat(myId, myLabel, text, true);
+      Goop.group.send(payload).catch(function (err) {
+        appendSystem("Send failed: " + err.message);
+      });
+    }
+  }
+
+  btnSend.addEventListener("click", sendMessage);
+
+  msgInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  // ── SSE event handler ──
+  // Server sends: {type, group, from, payload}
+  // welcome payload: {group_name, members: [{peer_id, joined_at}]}
+  // members payload: {members: [{peer_id, joined_at}]}
+  // msg payload: the raw message object from the sender
+
+  function extractMemberIds(payload) {
+    var list = payload && payload.members;
+    if (!Array.isArray(list)) return [];
+    return list.map(function (m) {
+      return typeof m === "string" ? m : m.peer_id;
+    });
+  }
+
+  function handleGroupEvent(evt) {
+    switch (evt.type) {
+      case "welcome":
+        if (evt.payload) {
+          members = extractMemberIds(evt.payload);
+          renderMembers();
+          fetchPeerLabels();
+        }
+        break;
+
+      case "members":
+        if (evt.payload) {
+          var oldCount = members.length;
+          members = extractMemberIds(evt.payload);
+          renderMembers();
+          fetchPeerLabels();
+          if (members.length > oldCount) {
+            appendSystem("A new member joined.");
+          } else if (members.length < oldCount) {
+            appendSystem("A member left.");
           }
         }
-      } catch (_) {}
+        break;
+
+      case "msg":
+        if (!evt.payload) break;
+
+        // Track labels from any message that carries one
+        if (evt.from && evt.payload.label) {
+          labelMap[evt.from] = evt.payload.label;
+          renderMembers();
+        }
+
+        if (evt.payload.type === "presence") {
+          // Presence is label-only, no visible message
+          break;
+        }
+
+        if (evt.payload.type === "chat") {
+          var isSelf = evt.from === myId;
+          // Visitors already appended their own messages locally
+          if (!isOwner && isSelf) break;
+          appendChat(evt.from, evt.payload.label, evt.payload.text, isSelf);
+        }
+        break;
+
+      case "close":
+        appendSystem("Room was closed by the host.");
+        setTimeout(function () {
+          Goop.group.unsubscribe();
+          stopLabelRefresh();
+          currentRoom = null;
+          members = [];
+          chatView.classList.add("hidden");
+          lobby.classList.remove("hidden");
+          loadRooms();
+        }, 2000);
+        break;
+
+      case "leave":
+        // A member left — members event will follow
+        break;
+
+      case "error":
+        appendSystem("Error: " + (evt.payload && evt.payload.message || evt.message || "unknown"));
+        break;
     }
-    overlay.classList.remove("hidden");
-    document.getElementById("f-title").focus();
   }
 
-  btnNew.addEventListener("click", function () { openEditor(null); });
+  // ── Render helpers ──
+  function renderMembers() {
+    membersListEl.innerHTML = members.map(function (peerId) {
+      var name = displayName(peerId);
+      var cls = peerId === myId ? ' class="member-you"' : '';
+      var avatarUrl = '/api/avatar/peer/' + encodeURIComponent(peerId);
+      return '<li><img class="avatar avatar-xs" src="' + esc(avatarUrl) + '" alt="" style="border-radius:50%;width:24px;height:24px;vertical-align:middle;margin-right:6px;"><span class="member-dot"></span><span' + cls + '>' + esc(name) + '</span></li>';
+    }).join("");
+  }
 
-  document.getElementById("btn-cancel").addEventListener("click", function () {
-    overlay.classList.add("hidden");
-  });
+  function timeStr() {
+    var d = new Date();
+    var h = d.getHours(); var m = d.getMinutes();
+    return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
+  }
 
-  overlay.addEventListener("mousedown", function (e) {
-    if (e.target === overlay) overlay.classList.add("hidden");
-  });
+  function appendChat(fromId, label, text, isSelf) {
+    var div = document.createElement("div");
+    div.className = "msg " + (isSelf ? "msg-self" : "msg-other");
 
-  document.getElementById("btn-save").addEventListener("click", async function () {
-    var title = document.getElementById("f-title").value.trim();
-    var body = document.getElementById("f-body").value.trim();
-    if (!title || !body) return;
+    var labelText = isSelf ? "You" : esc(label || shortId(fromId));
+    div.innerHTML = '<div class="msg-label">' + labelText + '</div>' +
+                    '<div class="msg-text">' + esc(text) + '</div>' +
+                    '<div class="msg-time">' + timeStr() + '</div>';
 
-    var slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
 
-    var imageName = editingId ? editingImage : "";
-    var fImage = document.getElementById("f-image");
-    var imageFile = fImage && fImage.files && fImage.files[0];
-    if (imageFile && isOwner && site) {
-      var ext = (imageFile.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
-      var safeName = Date.now() + "-" +
-        imageFile.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 60) +
-        "." + ext;
-      try {
-        await site.upload("images/" + safeName, imageFile);
-        if (editingImage) {
-          try { await site.remove("images/" + editingImage); } catch (_) {}
-        }
-        imageName = safeName;
-      } catch (_) {}
-    }
+  function appendSystem(text) {
+    var div = document.createElement("div");
+    div.className = "msg-system";
+    div.textContent = text;
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
 
-    if (editingId) {
-      await db.update("posts", editingId, { title: title, body: body, slug: slug, image: imageName || "" });
+  // ── Periodic peer label refresh ──
+  var labelInterval = null;
+  function startLabelRefresh() {
+    stopLabelRefresh();
+    labelInterval = setInterval(fetchPeerLabels, 5000);
+  }
+  function stopLabelRefresh() {
+    if (labelInterval) { clearInterval(labelInterval); labelInterval = null; }
+  }
+
+  // ── Clean leave on page/tab close ──
+  function doQuickLeave() {
+    if (!currentRoom) return;
+    var url = isOwner
+      ? "/api/groups/leave-own"
+      : "/api/groups/leave";
+    var body = isOwner
+      ? JSON.stringify({ group_id: currentRoom.group_id })
+      : "{}";
+    // Use sendBeacon for reliability during unload
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(url, new Blob([body], { type: "application/json" }));
     } else {
-      var myLabel = "";
-      try { myLabel = await Goop.identity.label(); } catch (_) {}
-      await db.insert("posts", { title: title, body: body, slug: slug, author_name: myLabel, image: imageName || "" });
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", url, false); // sync
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.send(body);
     }
+  }
 
-    overlay.classList.add("hidden");
-    loadPosts();
-  });
+  window.addEventListener("beforeunload", doQuickLeave);
+  window.addEventListener("pagehide", doQuickLeave);
 
   // ── Init ──
-  await setupDesigner();
-  await seed();
-  loadPosts();
+  loadRooms();
 })();

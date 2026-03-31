@@ -265,11 +265,12 @@ type dataTableCreateResponse struct {
 }
 
 // dataTableListEntry describes one table in the GET /api/data/tables response.
+// For ORM tables, insert_policy is derived from the schema Access.Insert field.
 type dataTableListEntry struct {
 	Name         string `json:"name"          example:"my_table"`
-	InsertPolicy string `json:"insert_policy" example:"owner"`
+	InsertPolicy string `json:"insert_policy" example:"owner"` // owner, email, open, group, local
 	CreatedAt    string `json:"created_at"    example:"2026-03-21 00:00:00"`
-	Mode         string `json:"mode"          example:"classic"` // "orm" or "classic"
+	Mode         string `json:"mode"          example:"orm"` // "orm" or "classic"
 }
 
 // dataDescribeResponse is the body for POST /api/data/tables/describe.
@@ -329,9 +330,10 @@ type dataColumnRequest struct {
 }
 
 // dataPolicyRequest is the body for POST /api/data/tables/set-policy.
+// For ORM tables, updates the schema Access.Insert field directly.
 type dataPolicyRequest struct {
 	Table  string `json:"table"  example:"my_table"`
-	Policy string `json:"policy" example:"group"`
+	Policy string `json:"policy" example:"group"` // owner, email, open, group, local
 }
 
 // dataRenameRequest is the body for POST /api/data/tables/rename.
@@ -1588,7 +1590,7 @@ func swagDataTablesDropColumn() {}
 
 // swagDataTablesSetPolicy is a documentation stub for POST /api/data/tables/set-policy.
 //
-//	@Summary	Set sharing policy for a table (private, group, public)
+//	@Summary	Set insert policy for a table (owner, email, open, group, local)
 //	@Tags		data
 //	@Accept		json
 //	@Produce	json

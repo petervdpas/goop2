@@ -61,10 +61,11 @@ func (a *Access) Validate() error {
 
 // Table describes a database table schema in a portable JSON format.
 type Table struct {
-	Name    string   `json:"name"`
-	Columns []Column `json:"columns"`
-	Context bool     `json:"context,omitempty"`
-	Access  *Access  `json:"access,omitempty"`
+	Name      string   `json:"name"`
+	Columns   []Column `json:"columns"`
+	Context   bool     `json:"context,omitempty"`
+	Access    *Access  `json:"access,omitempty"`
+	SystemKey bool     `json:"system_key,omitempty"` // true = _id is the key (no user key needed)
 }
 
 // Column describes a single column in a table.
@@ -129,7 +130,7 @@ func (t *Table) Validate() error {
 			hasKey = true
 		}
 	}
-	if !hasKey {
+	if !hasKey && !t.SystemKey {
 		return fmt.Errorf("schema: table %q has no key column", t.Name)
 	}
 	if t.Access != nil {

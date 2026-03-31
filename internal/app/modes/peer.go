@@ -566,7 +566,13 @@ func RunPeer(p PeerParams) error {
 			BridgeURL:   o.BridgeURL,
 			Chat:        chatMgr,
 			EnsureLua:   ensureLua,
-			Call:        callMgr,
+			LuaCall: func(ctx context.Context, function string, params map[string]any) (any, error) {
+				if luaEngine == nil {
+					return nil, fmt.Errorf("lua engine not running")
+				}
+				return luaEngine.CallFunction(ctx, node.ID(), function, params)
+			},
+			Call: callMgr,
 			Cluster:     clusterMgr,
 			GQL:         gqlEngine,
 			DataFed:     dataFedMgr,

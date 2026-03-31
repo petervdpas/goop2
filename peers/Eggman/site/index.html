@@ -2,93 +2,66 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Blog</title>
+  <title>Clubhouse</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="css/style.css">
   <script src="/sdk/goop-data.js"></script>
-  <script src="/sdk/goop-site.js"></script>
   <script src="/sdk/goop-identity.js"></script>
   <script src="/sdk/goop-group.js"></script>
   <script src="/sdk/goop-ui.js"></script>
 </head>
 <body>
-  <div class="blog">
-    <header class="blog-header">
-      <h1 class="blog-title">My Blog</h1>
-      <p class="blog-subtitle" id="blog-subtitle">Thoughts, stories &amp; notes</p>
-      <button id="btn-new" class="btn-new hidden">+ New Post</button>
-      <button id="btn-customize" class="btn-customize hidden" title="Customize blog">⚙ Design</button>
+
+  <!-- Lobby view -->
+  <div id="lobby">
+    <header class="lobby-header">
+      <h1 class="lobby-title"><span class="lobby-icon">&#127979;</span>Clubhouse</h1>
+      <p class="lobby-subtitle">Real-time chat rooms &mdash; jump in and say hi</p>
+      <button id="btn-new-room" class="btn-new hidden">+ New Room</button>
     </header>
 
-    <main id="posts" class="posts">
-      <p class="loading">Loading posts&hellip;</p>
+    <main id="rooms" class="rooms-grid">
+      <p class="loading">Loading rooms&hellip;</p>
     </main>
   </div>
 
-  <!-- write / edit overlay -->
-  <div id="editor-overlay" class="editor-overlay hidden">
-    <div class="editor-card">
-      <h2 id="editor-heading">New Post</h2>
-      <label>Title <input type="text" id="f-title" required></label>
-      <label>Body <textarea id="f-body" rows="10"></textarea></label>
-      <div id="editor-image-section" class="editor-image-section hidden">
-        <label>Cover image (optional)
-          <input type="file" id="f-image" accept="image/*">
-        </label>
-        <img id="f-image-preview" class="editor-image-preview hidden" src="" alt="">
+  <!-- Chat view -->
+  <div id="chat-view" class="hidden">
+    <header class="chat-header">
+      <button id="btn-back" class="btn-back">&larr; Back</button>
+      <div class="chat-header-info">
+        <h2 id="chat-room-name" class="chat-room-name"></h2>
+        <span id="chat-room-desc" class="chat-room-desc"></span>
       </div>
-      <div class="editor-btns">
-        <button id="btn-cancel" class="btn-cancel">Cancel</button>
-        <button id="btn-save" class="btn-save">Publish</button>
+      <button id="btn-close-room" class="btn-close-room hidden">Close Room</button>
+    </header>
+
+    <div class="chat-body">
+      <aside id="members-panel" class="members-panel">
+        <h3 class="members-title">Members</h3>
+        <ul id="members-list" class="members-list"></ul>
+      </aside>
+
+      <div class="chat-main">
+        <div id="messages" class="messages"></div>
+        <div class="input-bar">
+          <input type="text" id="msg-input" class="msg-input" placeholder="Type a message&hellip;" autocomplete="off">
+          <button id="btn-send" class="btn-send">Send</button>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- host-only design panel -->
-  <div id="designer-panel" class="designer-panel hidden">
-    <div class="designer-header">
-      <span>Design</span>
-      <button id="btn-designer-close" class="designer-close">&times;</button>
-    </div>
-    <div class="designer-body">
-      <label class="designer-field">
-        Blog Title
-        <input type="text" id="d-title" placeholder="My Blog">
-      </label>
-      <label class="designer-field">
-        Subtitle
-        <input type="text" id="d-subtitle" placeholder="Thoughts, stories &amp; notes">
-      </label>
-
-      <div class="designer-section">Layout</div>
-      <div class="layout-picker">
-        <button class="layout-btn active" data-layout="list">☰ List</button>
-        <button class="layout-btn" data-layout="grid">⊞ Grid</button>
-        <button class="layout-btn" data-layout="magazine">▤ Magazine</button>
-      </div>
-
-      <div class="designer-section">Font</div>
-      <div class="option-picker">
-        <button class="layout-btn font-btn active" data-font="serif">Aa Serif</button>
-        <button class="layout-btn font-btn" data-font="sans">Aa Sans</button>
-        <button class="layout-btn font-btn" data-font="mono">Aa Mono</button>
-      </div>
-
-      <div class="designer-section">Theme</div>
-      <div class="option-picker">
-        <button class="layout-btn theme-btn active" data-theme="light">Light</button>
-        <button class="layout-btn theme-btn" data-theme="sepia">Sepia</button>
-        <button class="layout-btn theme-btn" data-theme="dark">Dark</button>
-      </div>
-
-      <div class="designer-section">Accent Color</div>
-      <div class="color-swatches">
-        <button class="swatch active" data-color="#b44d2d" title="Terracotta"></button>
-        <button class="swatch" data-color="#2d6a9f" title="Blue"></button>
-        <button class="swatch" data-color="#4a8f46" title="Green"></button>
-        <button class="swatch" data-color="#7c4a9f" title="Purple"></button>
-        <button class="swatch" data-color="#c0882c" title="Amber"></button>
-        <button class="swatch" data-color="#2d7a6a" title="Teal"></button>
+  <!-- Create room overlay -->
+  <div id="create-overlay" class="create-overlay hidden">
+    <div class="create-card">
+      <h2>New Room</h2>
+      <label>Room Name <input type="text" id="f-name" required></label>
+      <label>Description <input type="text" id="f-desc"></label>
+      <label>Max Members <input type="number" id="f-max" min="0" value="0" placeholder="0 = unlimited"></label>
+      <div class="create-btns">
+        <button id="btn-create-cancel" class="btn-cancel">Cancel</button>
+        <button id="btn-create-save" class="btn-save">Create</button>
       </div>
     </div>
   </div>

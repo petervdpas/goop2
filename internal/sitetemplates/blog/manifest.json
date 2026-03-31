@@ -3,8 +3,5 @@
   "description": "A personal blog. You and invited co-authors can write posts — visitors see a read-only feed.",
   "category": "content",
   "icon": "📝",
-  "tables": {
-    "posts":       { "insert_policy": "group" },
-    "blog_config": { "insert_policy": "owner" }
-  }
+  "schemas": ["posts", "blog_config"]
 }

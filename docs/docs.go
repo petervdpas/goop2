@@ -1855,7 +1855,7 @@ const docTemplate = `{
                 "tags": [
                     "data"
                 ],
-                "summary": "Set sharing policy for a table (private, group, public)",
+                "summary": "Set insert policy for a table (owner, email, open, group, local)",
                 "parameters": [
                     {
                         "description": "Policy request",
@@ -4928,6 +4928,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "policy": {
+                    "description": "owner, email, open, group, local",
                     "type": "string",
                     "example": "group"
                 },
@@ -5006,13 +5007,14 @@ const docTemplate = `{
                     "example": "2026-03-21 00:00:00"
                 },
                 "insert_policy": {
+                    "description": "owner, email, open, group, local",
                     "type": "string",
                     "example": "owner"
                 },
                 "mode": {
                     "description": "\"orm\" or \"classic\"",
                     "type": "string",
-                    "example": "classic"
+                    "example": "orm"
                 },
                 "name": {
                     "type": "string",

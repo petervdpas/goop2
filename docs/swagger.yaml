@@ -397,6 +397,7 @@ definitions:
   routes.dataPolicyRequest:
     properties:
       policy:
+        description: owner, email, open, group, local
         example: group
         type: string
       table:
@@ -452,11 +453,12 @@ definitions:
         example: "2026-03-21 00:00:00"
         type: string
       insert_policy:
+        description: owner, email, open, group, local
         example: owner
         type: string
       mode:
         description: '"orm" or "classic"'
-        example: classic
+        example: orm
         type: string
       name:
         example: my_table
@@ -2716,7 +2718,7 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/routes.statusOK'
-      summary: Set sharing policy for a table (private, group, public)
+      summary: Set insert policy for a table (owner, email, open, group, local)
       tags:
       - data
   /api/data/transformations:

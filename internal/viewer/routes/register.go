@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -57,6 +58,10 @@ type Deps struct {
 	// It starts the Lua engine (if not already running) and rescans the
 	// functions directory so scripts are available immediately.
 	EnsureLua func()
+
+	// LuaCall invokes a named Lua data function (e.g. "seed") as the local peer.
+	// Set after the Lua engine is available; nil when Lua is not wired.
+	LuaCall func(ctx context.Context, function string, params map[string]any) (any, error)
 }
 
 func Register(mux *http.ServeMux, d Deps) {

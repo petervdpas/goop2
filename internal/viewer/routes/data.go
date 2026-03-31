@@ -41,9 +41,14 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			if db.IsORM(t.Name) {
 				mode = "orm"
 			}
+			policy := t.InsertPolicy
+			if mode == "orm" {
+				access := db.GetAccess(t.Name)
+				policy = access.Insert
+			}
 			result[i] = tableEntry{
 				Name:         t.Name,
-				InsertPolicy: t.InsertPolicy,
+				InsertPolicy: policy,
 				CreatedAt:    t.CreatedAt,
 				Mode:         mode,
 			}
@@ -295,15 +300,21 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			return
 		}
 		switch req.Policy {
-		case "owner", "email", "open":
+		case "owner", "email", "open", "group", "local":
 			// valid
 		default:
-			http.Error(w, "policy must be owner, email, or open", http.StatusBadRequest)
+			http.Error(w, "policy must be owner, email, open, group, or local", http.StatusBadRequest)
 			return
 		}
-		if err := db.SetTableInsertPolicy(req.Table, req.Policy); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+		if db.IsORM(req.Table) {
+			access := db.GetAccess(req.Table)
+			access.Insert = req.Policy
+			db.UpdateSchemaAccess(req.Table, &access)
+		} else {
+			if err := db.SetTableInsertPolicy(req.Table, req.Policy); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 		writeJSON(w, map[string]string{
 			"status": "updated",
