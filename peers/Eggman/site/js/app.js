@@ -1,426 +1,272 @@
-// Tic-Tac-Toe app.js — PvP and PvE with server-side validation via Lua
+// Quiz app.js — Full-stack quiz with server-side scoring via Lua
 (async function () {
   var db = Goop.data;
-  var root = document.getElementById("ttt-root");
-  var subtitle = document.getElementById("subtitle");
+  var root = document.getElementById("quiz-root");
   var isOwner = false;
-  var myId = await Goop.identity.id();
-  var myLabel = await Goop.identity.label();
-  var pollTimer = null;
-  var currentGameId = null;
 
-  // Detect owner vs visitor
+  // Detect owner
+  var myId = await Goop.identity.id();
   var match = window.location.pathname.match(/\/p\/([^/]+)/);
   if (!match || match[1] === myId) {
     isOwner = true;
   }
 
-  subtitle.textContent = isOwner
-    ? "Challenge visitors or play against the computer."
-    : "Challenge the host or play against the computer.";
+  // Seed sample questions on first run (owner only)
+  if (isOwner) {
+    await seed();
+  }
 
-  showLobby();
+  if (isOwner) {
+    renderOwner();
+  } else {
+    renderQuiz();
+  }
 
-  // ── Polling ──
+  // ── Seed ──
 
-  function startPolling(gameId) {
-    stopPolling();
-    pollTimer = setInterval(async function () {
-      try {
-        var state = await db.call("ttt", { action: "state", game_id: gameId });
-        renderBoard(state);
-        if (state.status !== "playing" && state.status !== "waiting") {
-          stopPolling();
-        }
-      } catch (e) {
-        // ignore transient errors
+  async function seed() {
+    var tables = await db.tables();
+    var hasQuestions = tables && tables.some(function (t) { return t.name === "questions"; });
+    if (hasQuestions) {
+      var existing = await db.query("questions", { limit: 1 });
+      if (existing && existing.length > 0) return;
+    }
+
+    // Insert sample questions
+    await db.insert("questions", {
+      question: "What does HTML stand for?",
+      option_a: "Hyper Text Markup Language",
+      option_b: "High Tech Modern Language",
+      option_c: "Home Tool Markup Language",
+      option_d: "Hyperlink and Text Markup Language",
+      correct: "a"
+    });
+    await db.insert("questions", {
+      question: "Which protocol does the web primarily use?",
+      option_a: "FTP",
+      option_b: "SMTP",
+      option_c: "HTTP",
+      option_d: "SSH",
+      correct: "c"
+    });
+    await db.insert("questions", {
+      question: "What does CSS stand for?",
+      option_a: "Computer Style Sheets",
+      option_b: "Cascading Style Sheets",
+      option_c: "Creative Style System",
+      option_d: "Colorful Style Sheets",
+      correct: "b"
+    });
+  }
+
+  // ── Owner view ──
+
+  async function renderOwner() {
+    var questions = await db.query("questions") || [];
+    var scores = await db.query("scores", { limit: 50 }) || [];
+
+    var html = '<div class="qz-manage">';
+    html += '<h2>Manage Questions</h2>';
+
+    if (questions.length === 0) {
+      html += '<p class="qz-empty">No questions yet.</p>';
+    } else {
+      html += '<table><thead><tr><th>#</th><th>Question</th><th>Answer</th><th></th></tr></thead><tbody>';
+      for (var i = 0; i < questions.length; i++) {
+        var q = questions[i];
+        html += '<tr>';
+        html += '<td>' + (i + 1) + '</td>';
+        html += '<td>' + esc(q.question) + '</td>';
+        html += '<td>' + esc(q.correct).toUpperCase() + '</td>';
+        html += '<td><button class="btn-sm" data-del="' + q._id + '">Delete</button></td>';
+        html += '</tr>';
       }
-    }, 2000);
-  }
-
-  function stopPolling() {
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
-  }
-
-  // ── Lobby ──
-
-  async function showLobby() {
-    stopPolling();
-    currentGameId = null;
-
-    var lobby;
-    try {
-      // Single call returns both games list and stats
-      lobby = await db.call("ttt", { action: "lobby" });
-    } catch (e) {
-      console.error("lobby error:", e);
-      root.innerHTML = '<p class="ttt-empty">Could not load lobby.</p>'
-        + '<p class="ttt-empty" style="font-size:11px;color:#999;">' + esc(e.message || String(e)) + '</p>';
-      return;
+      html += '</tbody></table>';
     }
 
-    var games = lobby.games || [];
-    var stats = lobby.stats || {};
+    html += '<button class="qz-add-btn" id="add-q">+ Add Question</button>';
+    html += '</div>';
 
-    // Check if I have an active game — render directly from lobby data
-    for (var i = 0; i < games.length; i++) {
-      var g = games[i];
-      // Skip waiting PvP games for the owner — they see these as pending challenges
-      if (isOwner && g.status === "waiting" && g.mode === "pvp") continue;
-      if ((g.status === "playing" || g.status === "waiting") &&
-          (g._owner === myId || g.challenger === myId)) {
-        showGame(g._id);
+    // Scores
+    html += '<div class="qz-manage qz-scores">';
+    html += '<h2>Scores</h2>';
+    if (scores.length === 0) {
+      html += '<p class="qz-empty">No submissions yet.</p>';
+    } else {
+      html += '<table><thead><tr><th>Peer</th><th>Score</th><th>Date</th></tr></thead><tbody>';
+      for (var j = 0; j < scores.length; j++) {
+        var s = scores[j];
+        html += '<tr>';
+        html += '<td>' + esc(s.peer_label || s._owner.substring(0, 12) + '...') + '</td>';
+        html += '<td>' + s.score + '/' + s.total + '</td>';
+        html += '<td>' + esc(s._created_at || '') + '</td>';
+        html += '</tr>';
+      }
+      html += '</tbody></table>';
+    }
+    html += '</div>';
+
+    root.innerHTML = html;
+
+    // Delete handlers
+    root.querySelectorAll("[data-del]").forEach(function (btn) {
+      btn.onclick = async function () {
+        await db.remove("questions", parseInt(btn.getAttribute("data-del")));
+        renderOwner();
+      };
+    });
+
+    // Add handler
+    document.getElementById("add-q").onclick = function () { showAddForm(); };
+  }
+
+  function showAddForm() {
+    var form = document.createElement("div");
+    form.className = "qz-card qz-add-form";
+    form.innerHTML =
+      '<h3>New Question</h3>' +
+      '<div class="qz-field">' +
+        '<label for="nq">Question</label>' +
+        '<textarea id="nq" class="qz-input qz-textarea" placeholder="Type your question here..." rows="2"></textarea>' +
+      '</div>' +
+      '<div class="qz-options-grid">' +
+        '<div class="qz-option-field">' +
+          '<label for="na"><span class="qz-option-letter">A</span></label>' +
+          '<input id="na" class="qz-input" placeholder="Option A">' +
+          '<input type="radio" name="ncorrect" value="a" class="qz-correct-radio" checked title="Mark as correct">' +
+        '</div>' +
+        '<div class="qz-option-field">' +
+          '<label for="nb"><span class="qz-option-letter">B</span></label>' +
+          '<input id="nb" class="qz-input" placeholder="Option B">' +
+          '<input type="radio" name="ncorrect" value="b" class="qz-correct-radio" title="Mark as correct">' +
+        '</div>' +
+        '<div class="qz-option-field">' +
+          '<label for="nc"><span class="qz-option-letter">C</span></label>' +
+          '<input id="nc" class="qz-input" placeholder="Option C">' +
+          '<input type="radio" name="ncorrect" value="c" class="qz-correct-radio" title="Mark as correct">' +
+        '</div>' +
+        '<div class="qz-option-field">' +
+          '<label for="nd"><span class="qz-option-letter">D</span></label>' +
+          '<input id="nd" class="qz-input" placeholder="Option D">' +
+          '<input type="radio" name="ncorrect" value="d" class="qz-correct-radio" title="Mark as correct">' +
+        '</div>' +
+      '</div>' +
+      '<div class="qz-form-hint">Select the radio button next to the correct answer.</div>' +
+      '<div class="qz-form-actions">' +
+        '<button class="qz-submit" id="save-q">Save Question</button>' +
+        '<button class="qz-cancel" id="cancel-q">Cancel</button>' +
+      '</div>';
+    root.insertBefore(form, root.firstChild);
+
+    document.getElementById("cancel-q").onclick = function () {
+      form.remove();
+    };
+
+    document.getElementById("save-q").onclick = async function () {
+      var q = document.getElementById("nq").value.trim();
+      if (!q) { document.getElementById("nq").focus(); return; }
+      var correct = root.querySelector('input[name="ncorrect"]:checked');
+      await db.insert("questions", {
+        question: q,
+        option_a: document.getElementById("na").value.trim() || "Option A",
+        option_b: document.getElementById("nb").value.trim() || "Option B",
+        option_c: document.getElementById("nc").value.trim() || "Option C",
+        option_d: document.getElementById("nd").value.trim() || "Option D",
+        correct: correct ? correct.value : "a"
+      });
+      renderOwner();
+    };
+  }
+
+  // ── Visitor view: take quiz ──
+
+  async function renderQuiz() {
+    // Check if this peer already submitted
+    var scores = await db.query("scores") || [];
+    for (var s = 0; s < scores.length; s++) {
+      if (scores[s]._owner === myId) {
+        showResult(scores[s], true);
         return;
       }
     }
 
-    var html = '<div class="ttt-lobby">';
-
-    // Action buttons
-    html += '<div class="ttt-actions">';
-    if (!isOwner) {
-      html += '<button class="btn btn-primary" id="btn-challenge">Challenge Host</button>';
-    }
-    html += '<button class="btn ' + (isOwner ? 'btn-primary' : 'btn-secondary') + '" id="btn-pve">Play vs Computer</button>';
-    html += '</div>';
-
-    // Stats
-    html += '<div class="ttt-stats">';
-    html += '<span><span class="stat-val">' + (stats.wins || 0) + '</span> wins</span>';
-    html += '<span><span class="stat-val">' + (stats.losses || 0) + '</span> losses</span>';
-    html += '<span><span class="stat-val">' + (stats.draws || 0) + '</span> draws</span>';
-    html += '</div>';
-
-    // Pending challenges (owner only)
-    if (isOwner) {
-      var pending = [];
-      for (var j = 0; j < games.length; j++) {
-        if (games[j].status === "waiting" && games[j].mode === "pvp") {
-          pending.push(games[j]);
-        }
-      }
-      if (pending.length > 0) {
-        html += '<div class="ttt-panel">';
-        html += '<h2>Pending Challenges</h2>';
-        html += '<ul class="ttt-challenges">';
-        for (var k = 0; k < pending.length; k++) {
-          var pg = pending[k];
-          var label = esc(pg.challenger_label || pg.challenger.substring(0, 12) + '...');
-          html += '<li class="ttt-challenge-item">';
-          html += '<span><span class="name">' + label + '</span>';
-          html += '<span class="time">' + timeAgo(pg._created_at) + '</span></span>';
-          html += '<button class="btn-sm" data-accept="' + pg._id + '">Play</button>';
-          html += '</li>';
-        }
-        html += '</ul></div>';
-      }
-    }
-
-    // Recent games
-    var finished = [];
-    for (var m = 0; m < games.length; m++) {
-      var fg = games[m];
-      if (fg.status !== "waiting" && fg.status !== "playing") {
-        finished.push(fg);
-      }
-    }
-
-    if (finished.length > 0) {
-      html += '<div class="ttt-panel">';
-      html += '<h2>Recent Games</h2>';
-      html += '<table class="ttt-history"><thead><tr>';
-      html += '<th>Opponent</th><th>Result</th><th>Mode</th><th></th>';
-      html += '</tr></thead><tbody>';
-      for (var n = 0; n < finished.length && n < 10; n++) {
-        var hg = finished[n];
-        var opponent = hg.mode === "pve" ? "Computer"
-          : esc(hg.challenger_label || hg.challenger.substring(0, 12) + '...');
-        var resultCls = "", resultTxt = "";
-        if (hg.status === "draw" || hg.status === "cancelled") {
-          resultCls = "result-draw";
-          resultTxt = hg.status === "cancelled" ? "cancelled" : "draw";
-        } else if (hg.winner === myId) {
-          resultCls = "result-win";
-          resultTxt = "won";
-        } else {
-          resultCls = "result-loss";
-          resultTxt = "lost";
-        }
-        html += '<tr>';
-        html += '<td>' + opponent + '</td>';
-        html += '<td class="' + resultCls + '">' + resultTxt + '</td>';
-        html += '<td>' + (hg.mode === "pve" ? "vs AI" : "PvP") + '</td>';
-        html += '<td>' + timeAgo(hg._created_at) + '</td>';
-        html += '</tr>';
-      }
-      html += '</tbody></table></div>';
-    } else {
-      html += '<div class="ttt-panel"><p class="ttt-empty">No games played yet.</p></div>';
-    }
-
-    html += '</div>';
-    root.innerHTML = html;
-
-    // Button handlers
-    var btnPve = document.getElementById("btn-pve");
-    if (btnPve) {
-      btnPve.onclick = async function () {
-        btnPve.disabled = true;
-        try {
-          var result = await db.call("ttt", { action: "new_pve" });
-          if (result.error) {
-            Goop.ui.toast(result.error);
-            btnPve.disabled = false;
-          } else {
-            // Render directly from the new_pve response — no extra game_state call
-            currentGameId = result.game_id;
-            renderBoard(result);
-          }
-        } catch (e) {
-          Goop.ui.toast(e.message || "Error starting game.");
-          btnPve.disabled = false;
-        }
-      };
-    }
-
-    var btnChallenge = document.getElementById("btn-challenge");
-    if (btnChallenge) {
-      btnChallenge.onclick = async function () {
-        btnChallenge.disabled = true;
-        try {
-          var result = await db.call("ttt", { action: "new" });
-          if (result.error) {
-            Goop.ui.toast(result.error);
-            if (result.game_id) {
-              showGame(result.game_id);
-              return;
-            }
-            btnChallenge.disabled = false;
-          } else {
-            // For PvP, we need to poll for the host's acceptance
-            showGame(result.game_id);
-          }
-        } catch (e) {
-          Goop.ui.toast(e.message || "Error creating challenge.");
-          btnChallenge.disabled = false;
-        }
-      };
-    }
-
-    // Accept handlers — transition game from "waiting" to "playing", then show board
-    root.querySelectorAll("[data-accept]").forEach(function (btn) {
-      btn.onclick = async function () {
-        var gid = parseInt(btn.getAttribute("data-accept"));
-        btn.disabled = true;
-        try {
-          await db.call("ttt", { action: "accept", game_id: gid });
-        } catch (e) { /* showGame will handle current state */ }
-        showGame(gid);
-      };
-    });
+    renderQuizForm();
   }
 
-  // ── Game view ──
+  async function renderQuizForm() {
+    var questions = await db.query("questions") || [];
 
-  async function showGame(gameId) {
-    stopPolling();
-    currentGameId = gameId;
-
-    try {
-      var state = await db.call("ttt", { action: "state", game_id: gameId });
-      renderBoard(state);
-
-      // Poll for PvP games in progress or waiting
-      if (state.mode === "pvp" && (state.status === "playing" || state.status === "waiting")) {
-        startPolling(gameId);
-      }
-    } catch (e) {
-      console.error("game error:", e);
-      root.innerHTML = '<p class="ttt-empty">Could not load game.</p>'
-        + '<p class="ttt-empty" style="font-size:11px;color:#999;">' + esc(e.message || String(e)) + '</p>';
-    }
-  }
-
-  function renderBoard(state) {
-    var board = state.board || "---------";
-    var yourSymbol = state.your_symbol;
-    var isYourTurn = (state.status === "playing" && state.turn === yourSymbol);
-    var gameOver = (state.status !== "playing" && state.status !== "waiting");
-    var winCells = {};
-
-    if (state.win_line) {
-      for (var w = 0; w < state.win_line.length; w++) {
-        winCells[state.win_line[w]] = true;
-      }
-    }
-
-    var html = '<div class="ttt-game">';
-
-    // Waiting state — visitor sees spinner until host accepts
-    if (state.status === "waiting") {
-      html += '<div class="ttt-waiting">';
-      html += '<div class="spinner"></div>';
-      html += '<p>Waiting for host to accept&hellip;</p>';
-      html += '<button class="btn btn-secondary btn-sm" id="btn-cancel">Cancel</button>';
-      html += '</div>';
-      root.innerHTML = html;
-      var btnCancel = document.getElementById("btn-cancel");
-      if (btnCancel) {
-        btnCancel.onclick = async function () {
-          await db.call("ttt", { action: "cancel", game_id: state.game_id });
-          showLobby();
-        };
-      }
+    if (questions.length === 0) {
+      root.innerHTML = '<p class="qz-empty">No questions available yet.</p>';
       return;
     }
 
-    // Result banner
-    if (gameOver) {
-      var resultCls = "draw";
-      var resultMsg = "Draw!";
-      if (state.status === "cancelled") {
-        resultMsg = "Cancelled";
-      } else if (state.winner === myId) {
-        resultCls = "win";
-        resultMsg = "You won!";
-      } else if (state.winner && state.winner !== myId) {
-        resultCls = "loss";
-        var opponentName = (state.mode === "pve") ? "Computer" : "Opponent";
-        resultMsg = opponentName + " won!";
+    var html = '';
+    for (var i = 0; i < questions.length; i++) {
+      var q = questions[i];
+      html += '<div class="qz-card">';
+      html += '<h3><span class="qz-num">' + (i + 1) + '.</span> ' + esc(q.question) + '</h3>';
+      html += '<div class="qz-options">';
+      var opts = ["a", "b", "c", "d"];
+      for (var j = 0; j < opts.length; j++) {
+        var key = opts[j];
+        var text = q["option_" + key];
+        html += '<div class="qz-option">';
+        html += '<input type="radio" name="q' + q._id + '" id="q' + q._id + key + '" value="' + key + '">';
+        html += '<label for="q' + q._id + key + '">' + esc(text) + '</label>';
+        html += '</div>';
       }
-      html += '<div class="ttt-result ' + resultCls + '">' + resultMsg + '</div>';
-    } else {
-      // Turn indicator
-      var opLabel = (state.mode === "pve") ? "Computer" : "Opponent";
-      var turnLabel = isYourTurn ? "Your turn" : opLabel + "'s turn";
-      html += '<div class="ttt-status">';
-      html += 'You: <span class="' + (yourSymbol === "X" ? "symbol-x" : "symbol-o") + '">' + symbolChar(yourSymbol) + '</span>';
-      html += ' &mdash; ' + turnLabel;
-      html += '</div>';
+      html += '</div></div>';
     }
 
-    // Board
-    html += '<div class="ttt-board">';
-    for (var i = 0; i < 9; i++) {
-      var ch = board.charAt(i);
-      var cls = "ttt-cell";
-      var content = "";
-
-      if (ch === "X") {
-        cls += " taken x";
-        content = symbolChar("X");
-      } else if (ch === "O") {
-        cls += " taken o";
-        content = symbolChar("O");
-      }
-
-      if (winCells[i]) {
-        cls += " win-cell";
-      }
-
-      if (gameOver || !isYourTurn || ch !== "-") {
-        cls += " disabled";
-      }
-
-      html += '<div class="' + cls + '" data-pos="' + i + '">' + content + '</div>';
-    }
-    html += '</div>';
-
-    // Actions
-    if (gameOver) {
-      html += '<div class="ttt-game-actions">';
-      if (state.mode === "pve") {
-        html += '<button class="btn btn-primary" id="btn-rematch-pve">Play Again</button>';
-      }
-      html += '<button class="btn btn-secondary" id="btn-back">Back to Lobby</button>';
-      html += '</div>';
-    }
-
-    html += '</div>';
+    html += '<button class="qz-submit" id="submit-quiz">Submit Answers</button>';
     root.innerHTML = html;
 
-    // Click handlers for cells
-    if (!gameOver && isYourTurn) {
-      root.querySelectorAll(".ttt-cell:not(.taken):not(.disabled)").forEach(function (cell) {
-        cell.onclick = async function () {
-          var pos = parseInt(cell.getAttribute("data-pos"));
-          cell.classList.add("disabled");
+    document.getElementById("submit-quiz").onclick = async function () {
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = "Scoring...";
 
-          try {
-            var gameId = state.game_id || currentGameId;
-            var result = await db.call("move", {
-              game_id: gameId,
-              position: pos
-            });
-            if (result.error) {
-              Goop.ui.toast(result.error);
-              renderBoard(state); // re-render previous state
-              return;
-            }
-            if (!result.game_id) result.game_id = gameId;
-            if (!result.challenger_label) result.challenger_label = state.challenger_label;
-            renderBoard(result);
-
-            // Start polling for opponent's move in PvP
-            if (result.mode === "pvp" && result.status === "playing") {
-              startPolling(result.game_id);
-            }
-          } catch (e) {
-            Goop.ui.toast(e.message || "Error making move.");
-            renderBoard(state);
-          }
-        };
-      });
-    }
-
-    // Game-over button handlers
-    var btnRematchPve = document.getElementById("btn-rematch-pve");
-    if (btnRematchPve) {
-      btnRematchPve.onclick = async function () {
-        btnRematchPve.disabled = true;
-        try {
-          var result = await db.call("ttt", { action: "new_pve" });
-          if (result.error) {
-            Goop.ui.toast(result.error);
-            btnRematchPve.disabled = false;
-          } else {
-            // Render directly — no extra game_state call needed
-            currentGameId = result.game_id;
-            renderBoard(result);
-          }
-        } catch (e) {
-          Goop.ui.toast(e.message || "Error starting game.");
-          btnRematchPve.disabled = false;
+      // Collect answers
+      var answers = {};
+      for (var i = 0; i < questions.length; i++) {
+        var sel = root.querySelector('input[name="q' + questions[i]._id + '"]:checked');
+        if (sel) {
+          answers[String(questions[i]._id)] = sel.value;
         }
+      }
+
+      try {
+        // Call server-side scoring function
+        var result = await db.call("score", { answers: answers });
+        showResult(result, true);
+      } catch (err) {
+        root.innerHTML = '<div class="qz-result"><p class="msg">Error: ' + esc(err.message || String(err)) + '</p></div>';
+      }
+    };
+  }
+
+  function showResult(r, allowRetake) {
+    var pct = r.total > 0 ? Math.round((r.score / r.total) * 100) : 0;
+    var passed = r.passed !== undefined ? r.passed : r.score >= Math.ceil(r.total * 0.7);
+    var cls = passed ? "pass" : "fail";
+    var emoji = passed ? "🎉" : "😔";
+    var msg = r.message || (r.score + " out of " + r.total + " correct");
+
+    var html =
+      '<div class="qz-result">' +
+        '<div class="score ' + cls + '">' + r.score + ' / ' + r.total + '</div>' +
+        '<div class="label">' + pct + '% correct</div>' +
+        '<div class="msg">' + emoji + ' ' + esc(msg) + '</div>' +
+        (allowRetake ? '<button class="qz-submit" id="retake-quiz" style="margin-top:1.5rem;">Retake Quiz</button>' : '') +
+      '</div>';
+    root.innerHTML = html;
+
+    if (allowRetake) {
+      document.getElementById("retake-quiz").onclick = function () {
+        renderQuizForm();
       };
     }
-
-    var btnBack = document.getElementById("btn-back");
-    if (btnBack) {
-      btnBack.onclick = function () { showLobby(); };
-    }
-  }
-
-  // ── Helpers ──
-
-  function symbolChar(s) {
-    if (s === "X") return "\u2715";
-    if (s === "O") return "\u25CB";
-    return "";
-  }
-
-  function timeAgo(ts) {
-    if (!ts) return "";
-    var now = new Date();
-    var then = new Date(ts.replace(" ", "T") + "Z");
-    var diff = Math.floor((now - then) / 1000);
-    if (diff < 60) return "just now";
-    if (diff < 3600) return Math.floor(diff / 60) + "m ago";
-    if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
-    return Math.floor(diff / 86400) + "d ago";
   }
 
   function esc(s) {

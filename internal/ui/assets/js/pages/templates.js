@@ -75,13 +75,14 @@
   // ── Local Template ──
   var tplLocal = document.getElementById('tpl-local');
   if (tplLocal && window.Goop.pathpicker) {
+    var localPath = '';
     var preview   = document.getElementById('local-tpl-preview');
 
     var tplPicker = window.Goop.pathpicker.init(
       tplLocal.querySelector('.pathpicker'),
       {
         title: 'Choose template folder',
-        onChange: function(path) { if (path) validateLocal(path); },
+        onChange: function(path) { if (path) { localPath = path; validateLocal(path); } },
       }
     );
 

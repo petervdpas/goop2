@@ -279,6 +279,12 @@ func luaToGo(lv lua.LValue) interface{} {
 			}
 			return arr
 		}
+		// Check if the table has any keys at all
+		hasKeys := false
+		v.ForEach(func(_, _ lua.LValue) { hasKeys = true })
+		if !hasKeys {
+			return []interface{}{}
+		}
 		// Otherwise treat as map
 		m := make(map[string]interface{})
 		v.ForEach(func(key, val lua.LValue) {
