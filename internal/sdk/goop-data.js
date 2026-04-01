@@ -371,6 +371,81 @@
       return handle;
     },
 
+    // ── Config helper ──
+
+    config: async function(table, defaults) {
+      defaults = defaults || {};
+      var info = await this.describe(table);
+      var s = (info && info.schema) || {};
+      var cols = s.columns || [];
+      var self = this;
+
+      var isKV = cols.some(function(c) { return c.name === "key"; }) &&
+                 cols.some(function(c) { return c.name === "value"; });
+
+      var values = {};
+      for (var k in defaults) values[k] = defaults[k];
+
+      if (isKV) {
+        try {
+          var rows = await self.find(table);
+          (rows || []).forEach(function(r) {
+            if (r.key) values[r.key] = r.value;
+          });
+        } catch (_) {}
+      } else {
+        try {
+          var rows = await self.find(table, { order: "_id DESC", limit: 1 });
+          if (rows && rows.length > 0) {
+            var row = rows[0];
+            for (var c = 0; c < cols.length; c++) {
+              var cn = cols[c].name;
+              if (row[cn] != null) values[cn] = row[cn];
+            }
+          }
+        } catch (_) {}
+      }
+
+      var cfg = {
+        _table: table,
+        _isKV: isKV,
+        _db: self,
+
+        get: function(key) { return values[key]; },
+
+        set: async function(key, value) {
+          values[key] = value;
+          if (isKV) {
+            await self.upsert(table, "key", { key: key, value: value });
+          } else {
+            try {
+              var rows = await self.find(table, { order: "_id DESC", limit: 1, fields: ["_id"] });
+              if (rows && rows.length > 0) {
+                var data = {}; data[key] = value;
+                await self.update(table, rows[0]._id, data);
+              } else {
+                var data = {}; data[key] = value;
+                await self.insert(table, data);
+              }
+            } catch (_) {}
+          }
+        },
+      };
+
+      for (var k in values) {
+        if (k !== "get" && k !== "set" && k !== "_table" && k !== "_isKV" && k !== "_db") {
+          (function(key) {
+            Object.defineProperty(cfg, key, {
+              get: function() { return values[key]; },
+              enumerable: true,
+            });
+          })(k);
+        }
+      }
+
+      return cfg;
+    },
+
     // ── Legacy (kept for backward compat) ──
 
     query(table, opts) {

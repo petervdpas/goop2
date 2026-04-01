@@ -1174,3 +1174,4 @@ end
 		t.Fatalf("expected 1 after delete, got %v", m["final_count"])
 	}
 }
+

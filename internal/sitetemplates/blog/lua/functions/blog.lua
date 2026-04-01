@@ -2,11 +2,15 @@
 --- @rate_limit 0
 
 local posts = nil
-local config = nil
+local cfg = nil
 
 function call(request)
     if not posts then posts = goop.orm("posts") end
-    if not config then config = goop.orm("blog_config") end
+    if not cfg then cfg = goop.config("blog_config", {
+        layout = "list", blog_title = "My Blog",
+        blog_subtitle = "Thoughts, stories & notes",
+        accent = "#b44d2d", font = "serif", theme = "light",
+    }) end
 
     local action = request.params.action
 
@@ -76,21 +80,19 @@ function list_posts()
 end
 
 function get_config()
-    local rows = config:find({
-        fields = { "key", "value" },
-    })
-    local result = {}
-    if rows then
-        for _, r in ipairs(rows) do
-            result[r.key] = r.value
-        end
-    end
-    return result
+    return {
+        layout = cfg.layout,
+        blog_title = cfg.blog_title,
+        blog_subtitle = cfg.blog_subtitle,
+        accent = cfg.accent,
+        font = cfg.font,
+        theme = cfg.theme,
+    }
 end
 
 function save_config(key, value)
     if not key or key == "" then error("key required") end
-    config:upsert("key", { key = key, value = value or "" })
+    cfg:set(key, value or "")
     return { ok = true }
 end
 

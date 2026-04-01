@@ -148,6 +148,7 @@ func newSandboxedDataVM(inv *invocationCtx, kv *kvStore, engine *Engine, db *sto
 			goopTbl.RawSetString("db", dbTbl)
 
 			goopTbl.RawSetString("orm", L.NewFunction(ormFn(inv, db)))
+			goopTbl.RawSetString("config", L.NewFunction(configFn(inv, db)))
 
 			if engine.content != nil {
 				siteTbl := L.NewTable()

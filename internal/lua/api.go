@@ -709,6 +709,156 @@ func ormFn(inv *invocationCtx, db *storage.DB) lua.LGFunction {
 	}
 }
 
+// configFn implements goop.config(table, defaults) — config helper.
+// Auto-detects key-value mode (table has "key"+"value" columns) vs single-row mode.
+// Returns a table with __index for reads and a :set(k,v) method for writes.
+func configFn(inv *invocationCtx, db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		tableName := L.CheckString(1)
+		defaultsTbl := L.OptTable(2, L.NewTable())
+
+		tbl, err := db.GetSchema(tableName)
+		if err != nil {
+			L.Push(lua.LNil)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+		if tbl == nil {
+			L.Push(lua.LNil)
+			L.Push(lua.LString("not an ORM table: " + tableName))
+			return 2
+		}
+
+		isKV := false
+		hasKey := false
+		hasValue := false
+		for _, c := range tbl.Columns {
+			if c.Name == "key" {
+				hasKey = true
+			}
+			if c.Name == "value" {
+				hasValue = true
+			}
+		}
+		if hasKey && hasValue {
+			isKV = true
+		}
+
+		values := L.NewTable()
+
+		defaultsTbl.ForEach(func(k, v lua.LValue) {
+			if ks, ok := k.(lua.LString); ok {
+				values.RawSetString(string(ks), v)
+			}
+		})
+
+		if isKV {
+			rows, qErr := db.Select(tableName, []string{"key", "value"}, "")
+			if qErr == nil {
+				for _, row := range rows {
+					k, _ := row["key"].(string)
+					v, _ := row["value"].(string)
+					if k != "" {
+						values.RawSetString(k, lua.LString(v))
+					}
+				}
+			}
+		} else {
+			rows, qErr := db.SelectPaged(storage.SelectOpts{Table: tableName, Limit: 1, Order: "_id DESC"})
+			if qErr == nil && len(rows) > 0 {
+				for col, val := range rows[0] {
+					if col == "_id" || col == "_owner" || col == "_owner_email" || col == "_created_at" || col == "_updated_at" {
+						continue
+					}
+					values.RawSetString(col, goToLua(L, val))
+				}
+			}
+		}
+
+		handle := L.NewTable()
+
+		data := L.NewTable()
+		values.ForEach(func(k, v lua.LValue) {
+			data.RawSet(k, v)
+		})
+
+		meta := L.NewTable()
+		meta.RawSetString("__index", data)
+		L.SetMetatable(handle, meta)
+
+		if isKV {
+			handle.RawSetString("set", L.NewFunction(func(L *lua.LState) int {
+				key := L.CheckString(2)
+				val := L.Get(3)
+				valStr := ""
+				if val != lua.LNil {
+					valStr = val.String()
+				}
+				_, uErr := db.Upsert(tableName, "key", inv.peerID, "", map[string]any{"key": key, "value": valStr})
+				if uErr != nil {
+					L.Push(lua.LNil)
+					L.Push(lua.LString(uErr.Error()))
+					return 2
+				}
+				data.RawSetString(key, lua.LString(valStr))
+				L.Push(lua.LTrue)
+				return 1
+			}))
+		} else {
+			getRowID := func() int64 {
+				rows, err := db.SelectPaged(storage.SelectOpts{Table: tableName, Columns: []string{"_id"}, Limit: 1, Order: "_id DESC"})
+				if err != nil || len(rows) == 0 {
+					return 0
+				}
+				id, _ := rows[0]["_id"].(int64)
+				return id
+			}
+
+			handle.RawSetString("set", L.NewFunction(func(L *lua.LState) int {
+				key := L.CheckString(2)
+				val := L.Get(3)
+				goVal := luaToGo(val)
+
+				id := getRowID()
+				if id > 0 {
+					db.UpdateRow(tableName, id, map[string]any{key: goVal})
+				} else {
+					db.Insert(tableName, inv.peerID, "", map[string]any{key: goVal})
+				}
+
+				data.RawSetString(key, val)
+				L.Push(lua.LTrue)
+				return 1
+			}))
+
+			handle.RawSetString("save", L.NewFunction(func(L *lua.LState) int {
+				updateTbl := L.CheckTable(2)
+				updateData := make(map[string]any)
+				updateTbl.ForEach(func(k, v lua.LValue) {
+					if ks, ok := k.(lua.LString); ok {
+						updateData[string(ks)] = luaToGo(v)
+						data.RawSetString(string(ks), v)
+					}
+				})
+
+				id := getRowID()
+				if id > 0 {
+					db.UpdateRow(tableName, id, updateData)
+				} else {
+					db.Insert(tableName, inv.peerID, "", updateData)
+				}
+
+				L.Push(lua.LTrue)
+				return 1
+			}))
+		}
+
+		L.Push(handle)
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
 // schemaValidateFn validates data against ORM schema types.
 func schemaValidateFn(db *storage.DB) lua.LGFunction {
 	return func(L *lua.LState) int {
