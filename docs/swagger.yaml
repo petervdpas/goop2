@@ -1039,33 +1039,66 @@ definitions:
         example: true
         type: boolean
     type: object
+  routes.ormAccess:
+    properties:
+      delete:
+        example: owner
+        type: string
+      insert:
+        example: group
+        type: string
+      read:
+        example: open
+        type: string
+      update:
+        example: owner
+        type: string
+    type: object
+  routes.ormEnumValue:
+    properties:
+      key:
+        example: active
+        type: string
+      label:
+        example: Active
+        type: string
+    type: object
   routes.ormSchema:
     properties:
+      access:
+        $ref: '#/definitions/routes.ormAccess'
       columns:
         items:
           $ref: '#/definitions/routes.ormSchemaColumn'
         type: array
+      context:
+        type: boolean
       name:
         example: tasks
         type: string
+      system_key:
+        example: true
+        type: boolean
     type: object
   routes.ormSchemaColumn:
     properties:
-      default:
-        description: default value
+      auto:
+        type: boolean
+      default: {}
       key:
-        description: part of primary key
         type: boolean
       name:
         example: id
         type: string
       required:
-        description: NOT NULL (non-key columns)
         type: boolean
       type:
-        description: text, integer, real, blob
         example: integer
         type: string
+      values:
+        items:
+          $ref: '#/definitions/routes.ormEnumValue'
+        type: array
     type: object
   routes.peerContentResponse:
     properties:

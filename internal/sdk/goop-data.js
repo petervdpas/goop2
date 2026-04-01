@@ -59,6 +59,13 @@
     return _escEl.innerHTML;
   };
 
+  window.Goop.date = function(ts, opts) {
+    if (!ts) return "";
+    var d = new Date(String(ts).replace(" ", "T") + "Z");
+    if (isNaN(d)) return String(ts);
+    return d.toLocaleDateString(undefined, opts || { year: "numeric", month: "long", day: "numeric" });
+  };
+
   // Lazy peer context — resolves identity + group membership once.
   var _peerCtx = null;
   window.Goop.peer = async function() {
@@ -79,6 +86,129 @@
     } catch (_) {}
     return _peerCtx;
   };
+
+  // ── Schema-driven UI helpers (used by orm handle) ──
+
+  var SYS = { _id: 1, _owner: 1, _owner_email: 1, _created_at: 1, _updated_at: 1 };
+
+  function ormForm(el, cols, opts) {
+    opts = opts || {};
+    var esc = window.Goop.esc;
+    var exclude = {};
+    (opts.exclude || []).forEach(function(n) { exclude[n] = 1; });
+    var values = opts.values || {};
+    var html = '<div class="orm-form">';
+    for (var i = 0; i < cols.length; i++) {
+      var c = cols[i];
+      if (SYS[c.name] || exclude[c.name] || c.auto) continue;
+      var id = "orm-f-" + c.name;
+      var val = values[c.name] != null ? values[c.name] : (c["default"] != null ? c["default"] : "");
+      var req = c.required ? " required" : "";
+      html += '<div class="orm-field">';
+      html += '<label for="' + esc(id) + '">' + esc(opts.labels && opts.labels[c.name] || c.name) + '</label>';
+      if (c.values && c.values.length) {
+        html += '<select id="' + esc(id) + '" data-col="' + esc(c.name) + '"' + req + '>';
+        html += '<option value="">— select —</option>';
+        for (var j = 0; j < c.values.length; j++) {
+          var v = c.values[j];
+          var sel = String(val) === v.key ? " selected" : "";
+          html += '<option value="' + esc(v.key) + '"' + sel + '>' + esc(v.label) + '</option>';
+        }
+        html += '</select>';
+      } else if (c.type === "integer" || c.type === "real") {
+        html += '<input id="' + esc(id) + '" data-col="' + esc(c.name) + '" type="number" value="' + esc(val) + '"' + req + '>';
+      } else {
+        html += '<input id="' + esc(id) + '" data-col="' + esc(c.name) + '" type="text" value="' + esc(val) + '"' + req + '>';
+      }
+      html += '</div>';
+    }
+    if (opts.submitLabel !== false) {
+      html += '<div class="orm-btns"><button class="orm-submit">' + esc(opts.submitLabel || "Save") + '</button></div>';
+    }
+    html += '</div>';
+    el.innerHTML = html;
+
+    if (opts.onSave) {
+      var btn = el.querySelector(".orm-submit");
+      if (btn) btn.addEventListener("click", function() {
+        var data = {};
+        el.querySelectorAll("[data-col]").forEach(function(inp) {
+          data[inp.getAttribute("data-col")] = inp.value;
+        });
+        opts.onSave(data);
+      });
+    }
+  }
+
+  function ormTable(el, cols, rows, opts) {
+    opts = opts || {};
+    var esc = window.Goop.esc;
+    var exclude = {};
+    (opts.exclude || []).forEach(function(n) { exclude[n] = 1; });
+    var showCols = [];
+    for (var i = 0; i < cols.length; i++) {
+      if (!SYS[cols[i].name] && !exclude[cols[i].name]) showCols.push(cols[i]);
+    }
+    if (opts.showId) showCols.unshift({ name: "_id", type: "integer" });
+
+    var html = '<table class="orm-table"><thead><tr>';
+    for (var i = 0; i < showCols.length; i++) {
+      html += '<th>' + esc(opts.labels && opts.labels[showCols[i].name] || showCols[i].name) + '</th>';
+    }
+    if (opts.actions) html += '<th></th>';
+    html += '</tr></thead><tbody>';
+
+    for (var r = 0; r < rows.length; r++) {
+      var row = rows[r];
+      html += '<tr data-id="' + (row._id || "") + '">';
+      for (var c = 0; c < showCols.length; c++) {
+        html += '<td>' + esc(row[showCols[c].name]) + '</td>';
+      }
+      if (opts.actions) {
+        html += '<td class="orm-actions">';
+        if (opts.actions.edit) html += '<button data-action="edit" data-id="' + row._id + '">Edit</button>';
+        if (opts.actions.remove) html += '<button data-action="remove" data-id="' + row._id + '">Delete</button>';
+        html += '</td>';
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    el.innerHTML = html;
+
+    if (opts.actions) {
+      if (opts.actions.edit) {
+        el.querySelectorAll('[data-action="edit"]').forEach(function(btn) {
+          btn.addEventListener("click", function() { opts.actions.edit(parseInt(btn.dataset.id, 10), rows.find(function(r) { return r._id == btn.dataset.id; })); });
+        });
+      }
+      if (opts.actions.remove) {
+        el.querySelectorAll('[data-action="remove"]').forEach(function(btn) {
+          btn.addEventListener("click", function() { opts.actions.remove(parseInt(btn.dataset.id, 10), rows.find(function(r) { return r._id == btn.dataset.id; })); });
+        });
+      }
+    }
+    if (opts.onRow) {
+      el.querySelectorAll("tbody tr").forEach(function(tr) {
+        tr.style.cursor = "pointer";
+        tr.addEventListener("click", function(e) {
+          if (e.target.tagName === "BUTTON") return;
+          var id = parseInt(tr.dataset.id, 10);
+          opts.onRow(id, rows.find(function(r) { return r._id == tr.dataset.id; }));
+        });
+      });
+    }
+  }
+
+  function resolveAccess(policy, peerCtx) {
+    if (!policy) return false;
+    switch (policy) {
+      case "open": return true;
+      case "owner": return peerCtx.isOwner;
+      case "group": return peerCtx.isOwner || peerCtx.isGroup;
+      case "local": return !hostId;
+      default: return false;
+    }
+  }
 
   async function request(url, opts) {
     var res = await fetch(url, opts);
@@ -191,13 +321,18 @@
       var cols = s.columns || [];
       var acc = s.access || {};
       var self = this;
+      var peerCtx = await window.Goop.peer();
 
-      return {
+      var handle = {
         name: s.name || table,
         columns: cols,
         access: acc,
         system_key: s.system_key || false,
         context: s.context || false,
+
+        canInsert: resolveAccess(acc.insert, peerCtx),
+        canUpdate: resolveAccess(acc.update, peerCtx),
+        canDelete: resolveAccess(acc.delete, peerCtx),
 
         validate: function(data) {
           var errors = [];
@@ -212,6 +347,9 @@
           }
           return { valid: errors.length === 0, errors: errors };
         },
+
+        form: function(el, opts) { ormForm(el, cols, opts); },
+        table: function(el, rows, opts) { ormTable(el, cols, rows, opts); },
 
         find: function(opts) { return self.find(table, opts); },
         findOne: function(opts) { return self.findOne(table, opts); },
@@ -230,6 +368,7 @@
         deleteWhere: function(opts) { return self.deleteWhere(table, opts); },
         upsert: function(keyCol, data) { return self.upsert(table, keyCol, data); },
       };
+      return handle;
     },
 
     // ── Legacy (kept for backward compat) ──

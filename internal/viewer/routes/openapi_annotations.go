@@ -284,17 +284,36 @@ type dataDescribeResponse struct {
 
 // ormSchema is a portable typed table schema (JSON import/export).
 type ormSchema struct {
-	Name    string          `json:"name"    example:"tasks"`
-	Columns []ormSchemaColumn `json:"columns"`
+	Name      string            `json:"name"                 example:"tasks"`
+	Columns   []ormSchemaColumn `json:"columns"`
+	Access    *ormAccess        `json:"access,omitempty"`
+	SystemKey bool              `json:"system_key,omitempty" example:"true"`
+	Context   bool              `json:"context,omitempty"`
+}
+
+// ormAccess describes per-operation access policy.
+type ormAccess struct {
+	Read   string `json:"read,omitempty"   example:"open"`
+	Insert string `json:"insert,omitempty" example:"group"`
+	Update string `json:"update,omitempty" example:"owner"`
+	Delete string `json:"delete,omitempty" example:"owner"`
 }
 
 // ormSchemaColumn describes one typed column in an ORM schema.
 type ormSchemaColumn struct {
-	Name     string `json:"name"              example:"id"`
-	Type     string `json:"type"              example:"integer"` // text, integer, real, blob
-	Key      bool   `json:"key,omitempty"`                       // part of primary key
-	Required bool   `json:"required,omitempty"`                  // NOT NULL (non-key columns)
-	Default  any    `json:"default,omitempty"`                   // default value
+	Name     string         `json:"name"              example:"id"`
+	Type     string         `json:"type"              example:"integer"`
+	Key      bool           `json:"key,omitempty"`
+	Required bool           `json:"required,omitempty"`
+	Auto     bool           `json:"auto,omitempty"`
+	Default  any            `json:"default,omitempty"`
+	Values   []ormEnumValue `json:"values,omitempty"`
+}
+
+// ormEnumValue is a key/label pair for enum columns.
+type ormEnumValue struct {
+	Key   string `json:"key"   example:"active"`
+	Label string `json:"label" example:"Active"`
 }
 
 // dataInsertRequest is the body for POST /api/data/insert.

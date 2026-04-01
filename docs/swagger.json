@@ -6251,29 +6251,73 @@
                 }
             }
         },
+        "routes.ormAccess": {
+            "type": "object",
+            "properties": {
+                "delete": {
+                    "type": "string",
+                    "example": "owner"
+                },
+                "insert": {
+                    "type": "string",
+                    "example": "group"
+                },
+                "read": {
+                    "type": "string",
+                    "example": "open"
+                },
+                "update": {
+                    "type": "string",
+                    "example": "owner"
+                }
+            }
+        },
+        "routes.ormEnumValue": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string",
+                    "example": "active"
+                },
+                "label": {
+                    "type": "string",
+                    "example": "Active"
+                }
+            }
+        },
         "routes.ormSchema": {
             "type": "object",
             "properties": {
+                "access": {
+                    "$ref": "#/definitions/routes.ormAccess"
+                },
                 "columns": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/routes.ormSchemaColumn"
                     }
                 },
+                "context": {
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string",
                     "example": "tasks"
+                },
+                "system_key": {
+                    "type": "boolean",
+                    "example": true
                 }
             }
         },
         "routes.ormSchemaColumn": {
             "type": "object",
             "properties": {
-                "default": {
-                    "description": "default value"
+                "auto": {
+                    "type": "boolean"
                 },
+                "default": {},
                 "key": {
-                    "description": "part of primary key",
                     "type": "boolean"
                 },
                 "name": {
@@ -6281,13 +6325,17 @@
                     "example": "id"
                 },
                 "required": {
-                    "description": "NOT NULL (non-key columns)",
                     "type": "boolean"
                 },
                 "type": {
-                    "description": "text, integer, real, blob",
                     "type": "string",
                     "example": "integer"
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/routes.ormEnumValue"
+                    }
                 }
             }
         },
