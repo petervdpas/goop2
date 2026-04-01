@@ -1621,7 +1621,220 @@ func swagDataTablesRename() {}
 //	@Router		/api/data/tables/export-schema [post]
 func swagDataTablesExportSchema() {}
 
+// ── ORM query/mutation endpoints ──
+
+// swagDataFind is a documentation stub for POST /api/data/find.
+//
+//	@Summary	Find rows with filtering, ordering, and pagination
+//	@Tags		data
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		dataFindRequest	true	"Find parameters"
+//	@Success	200		{array}		map[string]interface{}
+//	@Router		/api/data/find [post]
+func swagDataFind() {}
+
+// swagDataFindOne is a documentation stub for POST /api/data/find-one.
+//
+//	@Summary	Find a single row matching criteria
+//	@Tags		data
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		dataFindRequest	true	"Find parameters"
+//	@Success	200		{object}	map[string]interface{}
+//	@Router		/api/data/find-one [post]
+func swagDataFindOne() {}
+
+// swagDataGetBy is a documentation stub for POST /api/data/get-by.
+//
+//	@Summary	Get a single row by any column value
+//	@Tags		data
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		dataGetByRequest	true	"Column lookup"
+//	@Success	200		{object}	map[string]interface{}
+//	@Router		/api/data/get-by [post]
+func swagDataGetBy() {}
+
+// swagDataExists is a documentation stub for POST /api/data/exists.
+//
+//	@Summary	Check if any rows match criteria
+//	@Tags		data
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		dataWhereRequest	true	"Where clause"
+//	@Success	200		{object}	dataExistsResponse
+//	@Router		/api/data/exists [post]
+func swagDataExists() {}
+
+// swagDataCount is a documentation stub for POST /api/data/count.
+//
+//	@Summary	Count rows matching criteria
+//	@Tags		data
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		dataWhereRequest	true	"Where clause"
+//	@Success	200		{object}	dataCountResponse
+//	@Router		/api/data/count [post]
+func swagDataCount() {}
+
+// swagDataPluck is a documentation stub for POST /api/data/pluck.
+//
+//	@Summary	Get flat array of a single column's values
+//	@Tags		data
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		dataPluckRequest	true	"Column to pluck"
+//	@Success	200		{array}		interface{}
+//	@Router		/api/data/pluck [post]
+func swagDataPluck() {}
+
+// swagDataDistinct is a documentation stub for POST /api/data/distinct.
+//
+//	@Summary	Get unique values for a column
+//	@Tags		data
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		dataDistinctRequest	true	"Column"
+//	@Success	200		{array}		interface{}
+//	@Router		/api/data/distinct [post]
+func swagDataDistinct() {}
+
+// swagDataAggregate is a documentation stub for POST /api/data/aggregate.
+//
+//	@Summary	Run aggregate query (COUNT, SUM, MAX, MIN, AVG) with optional GROUP BY
+//	@Tags		data
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		dataAggregateRequest	true	"Aggregate expression"
+//	@Success	200		{array}		map[string]interface{}
+//	@Router		/api/data/aggregate [post]
+func swagDataAggregate() {}
+
+// swagDataUpdateWhere is a documentation stub for POST /api/data/update-where.
+//
+//	@Summary	Update rows matching a WHERE clause
+//	@Tags		data
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		dataUpdateWhereRequest	true	"Update parameters"
+//	@Success	200		{object}	dataAffectedResponse
+//	@Router		/api/data/update-where [post]
+func swagDataUpdateWhere() {}
+
+// swagDataDeleteWhere is a documentation stub for POST /api/data/delete-where.
+//
+//	@Summary	Delete rows matching a WHERE clause
+//	@Tags		data
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		dataDeleteWhereRequest	true	"Delete parameters"
+//	@Success	200		{object}	dataAffectedResponse
+//	@Router		/api/data/delete-where [post]
+func swagDataDeleteWhere() {}
+
+// swagDataUpsert is a documentation stub for POST /api/data/upsert.
+//
+//	@Summary	Insert or update a row by key column
+//	@Tags		data
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		dataUpsertRequest	true	"Upsert parameters"
+//	@Success	200		{object}	statusOK
+//	@Router		/api/data/upsert [post]
+func swagDataUpsert() {}
+
+// dataFindRequest is the body for POST /api/data/find and /api/data/find-one.
+type dataFindRequest struct {
+	Table  string   `json:"table"  example:"posts"`
+	Where  string   `json:"where"  example:"published = ?"`
+	Args   []any    `json:"args"   example:"[1]"`
+	Fields []string `json:"fields" example:"[\"title\",\"slug\"]"`
+	Order  string   `json:"order"  example:"_id DESC"`
+	Limit  int      `json:"limit"  example:"50"`
+	Offset int      `json:"offset" example:"0"`
+}
+
+// dataGetByRequest is the body for POST /api/data/get-by.
+type dataGetByRequest struct {
+	Table  string `json:"table"  example:"posts"`
+	Column string `json:"column" example:"slug"`
+	Value  any    `json:"value"  example:"hello-world"`
+}
+
+// dataWhereRequest is the body for exists and count endpoints.
+type dataWhereRequest struct {
+	Table string `json:"table" example:"posts"`
+	Where string `json:"where" example:"published = ?"`
+	Args  []any  `json:"args"  example:"[1]"`
+}
+
+// dataPluckRequest is the body for POST /api/data/pluck.
+type dataPluckRequest struct {
+	Table  string `json:"table"  example:"posts"`
+	Column string `json:"column" example:"title"`
+	Where  string `json:"where"  example:"published = 1"`
+	Order  string `json:"order"  example:"_id DESC"`
+	Limit  int    `json:"limit"  example:"100"`
+}
+
+// dataDistinctRequest is the body for POST /api/data/distinct.
+type dataDistinctRequest struct {
+	Table  string `json:"table"  example:"notes"`
+	Column string `json:"column" example:"category"`
+	Where  string `json:"where"`
+}
+
+// dataAggregateRequest is the body for POST /api/data/aggregate.
+type dataAggregateRequest struct {
+	Table   string `json:"table"    example:"scores"`
+	Expr    string `json:"expr"     example:"SUM(score) as total, COUNT(*) as n"`
+	Where   string `json:"where"`
+	GroupBy string `json:"group_by" example:"player"`
+}
+
+// dataUpdateWhereRequest is the body for POST /api/data/update-where.
+type dataUpdateWhereRequest struct {
+	Table string         `json:"table" example:"cards"`
+	Data  map[string]any `json:"data"`
+	Where string         `json:"where" example:"column_id = ?"`
+	Args  []any          `json:"args"  example:"[3]"`
+}
+
+// dataDeleteWhereRequest is the body for POST /api/data/delete-where.
+type dataDeleteWhereRequest struct {
+	Table string `json:"table" example:"cards"`
+	Where string `json:"where" example:"column_id = ?"`
+	Args  []any  `json:"args"  example:"[3]"`
+}
+
+// dataUpsertRequest is the body for POST /api/data/upsert.
+type dataUpsertRequest struct {
+	Table  string         `json:"table"   example:"config"`
+	KeyCol string         `json:"key_col" example:"key"`
+	Data   map[string]any `json:"data"`
+}
+
+// dataExistsResponse is the response for POST /api/data/exists.
+type dataExistsResponse struct {
+	Exists bool `json:"exists" example:"true"`
+}
+
+// dataCountResponse is the response for POST /api/data/count.
+type dataCountResponse struct {
+	Count int64 `json:"count" example:"42"`
+}
+
+// dataAffectedResponse is the response for update-where and delete-where.
+type dataAffectedResponse struct {
+	Affected int64 `json:"affected" example:"3"`
+}
+
 // swagDataLuaCall is a documentation stub for POST /api/data/lua/call.
+// Lua data functions have access to the goop.schema ORM API:
+//   Reads:  get, get_by, find, find_one, list, pluck, exists, count, distinct, aggregate
+//   Writes: insert, update, delete, update_where, delete_where, upsert, seed
+//   Schema: create, describe, validate, is_orm
 //
 //	@Summary	Call a Lua data function
 //	@Description	Invokes a server-side Lua function by name with parameters. Used by the virtual REST API (Goop.api) and custom data functions.

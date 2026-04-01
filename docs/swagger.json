@@ -1153,6 +1153,76 @@
                 }
             }
         },
+        "/api/data/aggregate": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "data"
+                ],
+                "summary": "Run aggregate query (COUNT, SUM, MAX, MIN, AVG) with optional GROUP BY",
+                "parameters": [
+                    {
+                        "description": "Aggregate expression",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.dataAggregateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": true
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/count": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "data"
+                ],
+                "summary": "Count rows matching criteria",
+                "parameters": [
+                    {
+                        "description": "Where clause",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.dataWhereRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.dataCountResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/data/delete": {
             "post": {
                 "consumes": [
@@ -1181,6 +1251,211 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/routes.statusOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/delete-where": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "data"
+                ],
+                "summary": "Delete rows matching a WHERE clause",
+                "parameters": [
+                    {
+                        "description": "Delete parameters",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.dataDeleteWhereRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.dataAffectedResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/distinct": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "data"
+                ],
+                "summary": "Get unique values for a column",
+                "parameters": [
+                    {
+                        "description": "Column",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.dataDistinctRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {}
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/exists": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "data"
+                ],
+                "summary": "Check if any rows match criteria",
+                "parameters": [
+                    {
+                        "description": "Where clause",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.dataWhereRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.dataExistsResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/find": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "data"
+                ],
+                "summary": "Find rows with filtering, ordering, and pagination",
+                "parameters": [
+                    {
+                        "description": "Find parameters",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.dataFindRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": true
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/find-one": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "data"
+                ],
+                "summary": "Find a single row matching criteria",
+                "parameters": [
+                    {
+                        "description": "Find parameters",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.dataFindRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/get-by": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "data"
+                ],
+                "summary": "Get a single row by any column value",
+                "parameters": [
+                    {
+                        "description": "Column lookup",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.dataGetByRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 }
@@ -1286,6 +1561,40 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/routes.dataLuaListResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/pluck": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "data"
+                ],
+                "summary": "Get flat array of a single column's values",
+                "parameters": [
+                    {
+                        "description": "Column to pluck",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.dataPluckRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {}
                         }
                     }
                 }
@@ -2143,6 +2452,72 @@
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/routes.dataUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/update-where": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "data"
+                ],
+                "summary": "Update rows matching a WHERE clause",
+                "parameters": [
+                    {
+                        "description": "Update parameters",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.dataUpdateWhereRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.dataAffectedResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/upsert": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "data"
+                ],
+                "summary": "Insert or update a row by key column",
+                "parameters": [
+                    {
+                        "description": "Upsert parameters",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.dataUpsertRequest"
                         }
                     }
                 ],
@@ -4819,6 +5194,35 @@
                 }
             }
         },
+        "routes.dataAffectedResponse": {
+            "type": "object",
+            "properties": {
+                "affected": {
+                    "type": "integer",
+                    "example": 3
+                }
+            }
+        },
+        "routes.dataAggregateRequest": {
+            "type": "object",
+            "properties": {
+                "expr": {
+                    "type": "string",
+                    "example": "SUM(score) as total, COUNT(*) as n"
+                },
+                "group_by": {
+                    "type": "string",
+                    "example": "player"
+                },
+                "table": {
+                    "type": "string",
+                    "example": "scores"
+                },
+                "where": {
+                    "type": "string"
+                }
+            }
+        },
         "routes.dataColumnRequest": {
             "type": "object",
             "properties": {
@@ -4826,6 +5230,15 @@
                 "table": {
                     "type": "string",
                     "example": "my_table"
+                }
+            }
+        },
+        "routes.dataCountResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer",
+                    "example": 42
                 }
             }
         },
@@ -4842,6 +5255,9 @@
                 }
             }
         },
+        "routes.dataDeleteWhereRequest": {
+            "type": "object"
+        },
         "routes.dataDescribeResponse": {
             "type": "object",
             "properties": {
@@ -4856,6 +5272,37 @@
                     "description": "ORM: ormSchema object"
                 }
             }
+        },
+        "routes.dataDistinctRequest": {
+            "type": "object",
+            "properties": {
+                "column": {
+                    "type": "string",
+                    "example": "category"
+                },
+                "table": {
+                    "type": "string",
+                    "example": "notes"
+                },
+                "where": {
+                    "type": "string"
+                }
+            }
+        },
+        "routes.dataExistsResponse": {
+            "type": "object",
+            "properties": {
+                "exists": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "routes.dataFindRequest": {
+            "type": "object"
+        },
+        "routes.dataGetByRequest": {
+            "type": "object"
         },
         "routes.dataInsertRequest": {
             "type": "object",
@@ -4917,6 +5364,31 @@
                     "items": {
                         "$ref": "#/definitions/routes.dataLuaFunctionInfo"
                     }
+                }
+            }
+        },
+        "routes.dataPluckRequest": {
+            "type": "object",
+            "properties": {
+                "column": {
+                    "type": "string",
+                    "example": "title"
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 100
+                },
+                "order": {
+                    "type": "string",
+                    "example": "_id DESC"
+                },
+                "table": {
+                    "type": "string",
+                    "example": "posts"
+                },
+                "where": {
+                    "type": "string",
+                    "example": "published = 1"
                 }
             }
         },
@@ -5043,6 +5515,29 @@
                     "example": "my_table"
                 }
             }
+        },
+        "routes.dataUpdateWhereRequest": {
+            "type": "object"
+        },
+        "routes.dataUpsertRequest": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "key_col": {
+                    "type": "string",
+                    "example": "key"
+                },
+                "table": {
+                    "type": "string",
+                    "example": "config"
+                }
+            }
+        },
+        "routes.dataWhereRequest": {
+            "type": "object"
         },
         "routes.datafedGroupIDRequest": {
             "type": "object",

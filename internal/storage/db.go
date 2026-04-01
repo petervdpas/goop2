@@ -713,6 +713,220 @@ func (d *DB) SelectPaged(opts SelectOpts) ([]map[string]any, error) {
 	return results, rows.Err()
 }
 
+// Aggregate runs a SELECT with aggregate functions (COUNT, SUM, MAX, MIN, AVG).
+// expr is the full SELECT expression, e.g. "COUNT(*)" or "SUM(score), COUNT(*)".
+func (d *DB) Aggregate(table, expr, where string, args ...any) ([]map[string]any, error) {
+	if !validIdent(table) {
+		return nil, fmt.Errorf("invalid table name: %s", table)
+	}
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	query := fmt.Sprintf("SELECT %s FROM %s", expr, table)
+	if where != "" {
+		query += " WHERE " + where
+	}
+
+	rows, err := d.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	colNames, _ := rows.Columns()
+	var results []map[string]any
+	for rows.Next() {
+		values := make([]any, len(colNames))
+		ptrs := make([]any, len(colNames))
+		for i := range values {
+			ptrs[i] = &values[i]
+		}
+		if err := rows.Scan(ptrs...); err != nil {
+			return nil, err
+		}
+		row := make(map[string]any, len(colNames))
+		for i, col := range colNames {
+			row[col] = values[i]
+		}
+		results = append(results, row)
+	}
+	return results, rows.Err()
+}
+
+// AggregateGroupBy runs a SELECT with GROUP BY.
+func (d *DB) AggregateGroupBy(table, expr, groupBy, where string, args ...any) ([]map[string]any, error) {
+	if !validIdent(table) {
+		return nil, fmt.Errorf("invalid table name: %s", table)
+	}
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	query := fmt.Sprintf("SELECT %s FROM %s", expr, table)
+	if where != "" {
+		query += " WHERE " + where
+	}
+	if groupBy != "" {
+		query += " GROUP BY " + groupBy
+	}
+
+	rows, err := d.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	colNames, _ := rows.Columns()
+	var results []map[string]any
+	for rows.Next() {
+		values := make([]any, len(colNames))
+		ptrs := make([]any, len(colNames))
+		for i := range values {
+			ptrs[i] = &values[i]
+		}
+		if err := rows.Scan(ptrs...); err != nil {
+			return nil, err
+		}
+		row := make(map[string]any, len(colNames))
+		for i, col := range colNames {
+			row[col] = values[i]
+		}
+		results = append(results, row)
+	}
+	return results, rows.Err()
+}
+
+// UpdateWhere updates rows matching a WHERE clause.
+func (d *DB) UpdateWhere(table string, data map[string]any, where string, args ...any) (int64, error) {
+	if !validIdent(table) {
+		return 0, fmt.Errorf("invalid table name: %s", table)
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	setClauses := "_updated_at = CURRENT_TIMESTAMP"
+	setArgs := []any{}
+	for col, val := range data {
+		if !validIdent(col) {
+			return 0, fmt.Errorf("invalid column name: %s", col)
+		}
+		setClauses += fmt.Sprintf(", %s = ?", col)
+		setArgs = append(setArgs, val)
+	}
+	allArgs := append(setArgs, args...)
+
+	query := fmt.Sprintf("UPDATE %s SET %s WHERE %s", table, setClauses, where)
+	res, err := d.db.Exec(query, allArgs...)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// DeleteWhere deletes rows matching a WHERE clause.
+func (d *DB) DeleteWhere(table, where string, args ...any) (int64, error) {
+	if !validIdent(table) {
+		return 0, fmt.Errorf("invalid table name: %s", table)
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	query := fmt.Sprintf("DELETE FROM %s WHERE %s", table, where)
+	res, err := d.db.Exec(query, args...)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// Upsert inserts a row or updates the existing one matched by keyCol value.
+// Uses SELECT + INSERT/UPDATE so it works with system-key ORM tables.
+func (d *DB) Upsert(table, keyCol string, ownerID, ownerEmail string, data map[string]any) (int64, error) {
+	if !validIdent(table) || !validIdent(keyCol) {
+		return 0, fmt.Errorf("invalid identifier")
+	}
+	keyVal, ok := data[keyCol]
+	if !ok {
+		return 0, fmt.Errorf("upsert: data must contain key column %q", keyCol)
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	var existingID int64
+	err := d.db.QueryRow(
+		fmt.Sprintf("SELECT _id FROM %s WHERE %s = ?", table, keyCol), keyVal,
+	).Scan(&existingID)
+
+	if err == nil {
+		setClauses := "_updated_at = CURRENT_TIMESTAMP"
+		args := []any{}
+		for col, val := range data {
+			if col == keyCol {
+				continue
+			}
+			if !validIdent(col) {
+				return 0, fmt.Errorf("invalid column name: %s", col)
+			}
+			setClauses += fmt.Sprintf(", %s = ?", col)
+			args = append(args, val)
+		}
+		args = append(args, existingID)
+		d.db.Exec(fmt.Sprintf("UPDATE %s SET %s WHERE _id = ?", table, setClauses), args...)
+		return existingID, nil
+	}
+
+	cols := []string{"_owner", "_owner_email"}
+	vals := []any{ownerID, ownerEmail}
+	placeholders := []string{"?", "?"}
+	for col, val := range data {
+		if !validIdent(col) {
+			return 0, fmt.Errorf("invalid column name: %s", col)
+		}
+		cols = append(cols, col)
+		vals = append(vals, val)
+		placeholders = append(placeholders, "?")
+	}
+
+	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
+		table, strings.Join(cols, ", "), strings.Join(placeholders, ", "))
+	res, err := d.db.Exec(query, vals...)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+// Distinct returns unique values for a column.
+func (d *DB) Distinct(table, column, where string, args ...any) ([]any, error) {
+	if !validIdent(table) || !validIdent(column) {
+		return nil, fmt.Errorf("invalid identifier")
+	}
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	query := fmt.Sprintf("SELECT DISTINCT %s FROM %s", column, table)
+	if where != "" {
+		query += " WHERE " + where
+	}
+	query += " ORDER BY " + column
+
+	rows, err := d.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []any
+	for rows.Next() {
+		var val any
+		if err := rows.Scan(&val); err != nil {
+			return nil, err
+		}
+		results = append(results, val)
+	}
+	return results, rows.Err()
+}
+
 // ColumnDef defines a table column
 type ColumnDef struct {
 	Name    string `json:"name"`

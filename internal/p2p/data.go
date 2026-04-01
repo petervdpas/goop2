@@ -43,6 +43,11 @@ type DataRequest struct {
 	NewName    string              `json:"new_name,omitempty"`
 	Function   string              `json:"function,omitempty"` // for lua-call
 	Params     map[string]any      `json:"params,omitempty"`  // for lua-call
+	Order      string              `json:"order,omitempty"`
+	Fields     []string            `json:"fields,omitempty"`
+	Expr       string              `json:"expr,omitempty"`    // for aggregate
+	GroupBy    string              `json:"group_by,omitempty"`
+	KeyCol     string              `json:"key_col,omitempty"` // for upsert
 }
 
 // DataResponse is the wire format for a data operation response.
@@ -145,6 +150,51 @@ func (n *Node) dispatchDataOp(callerID string, req DataRequest) DataResponse {
 			return DataResponse{Error: "schema operations not allowed for remote peers"}
 		}
 		return n.dispatchSchemaOp(req)
+	case "query-one":
+		if isLocal {
+			return n.dataOpQueryOneLocal(req)
+		}
+		return DataResponse{Error: "query-one not available for remote peers yet"}
+	case "exists":
+		if isLocal {
+			return n.dataOpExistsLocal(req)
+		}
+		return DataResponse{Error: "exists not available for remote peers yet"}
+	case "count":
+		if isLocal {
+			return n.dataOpCountLocal(req)
+		}
+		return DataResponse{Error: "count not available for remote peers yet"}
+	case "pluck":
+		if isLocal {
+			return n.dataOpPluckLocal(req)
+		}
+		return DataResponse{Error: "pluck not available for remote peers yet"}
+	case "distinct":
+		if isLocal {
+			return n.dataOpDistinctLocal(req)
+		}
+		return DataResponse{Error: "distinct not available for remote peers yet"}
+	case "aggregate":
+		if isLocal {
+			return n.dataOpAggregateLocal(req)
+		}
+		return DataResponse{Error: "aggregate not available for remote peers yet"}
+	case "update-where":
+		if !isLocal {
+			return DataResponse{Error: "update-where not allowed for remote peers"}
+		}
+		return n.dataOpUpdateWhereLocal(req)
+	case "delete-where":
+		if !isLocal {
+			return DataResponse{Error: "delete-where not allowed for remote peers"}
+		}
+		return n.dataOpDeleteWhereLocal(req)
+	case "upsert":
+		if !isLocal {
+			return DataResponse{Error: "upsert not allowed for remote peers"}
+		}
+		return n.dataOpUpsertLocal(callerID, req)
 	case "lua-call":
 		return n.dataOpLuaCall(callerID, req)
 	case "lua-list":
@@ -186,11 +236,16 @@ func (n *Node) dataOpQueryLocal(req DataRequest) DataResponse {
 	if req.Table == "" {
 		return DataResponse{Error: "table name required"}
 	}
+	cols := req.Columns
+	if len(cols) == 0 {
+		cols = req.Fields
+	}
 	rows, err := n.db.SelectPaged(storage.SelectOpts{
 		Table:   req.Table,
-		Columns: req.Columns,
+		Columns: cols,
 		Where:   req.Where,
 		Args:    req.Args,
+		Order:   req.Order,
 		Limit:   req.Limit,
 		Offset:  req.Offset,
 	})
@@ -198,6 +253,168 @@ func (n *Node) dataOpQueryLocal(req DataRequest) DataResponse {
 		return DataResponse{Error: err.Error()}
 	}
 	return DataResponse{OK: true, Data: rows}
+}
+
+func (n *Node) dataOpQueryOneLocal(req DataRequest) DataResponse {
+	if req.Table == "" {
+		return DataResponse{Error: "table name required"}
+	}
+	cols := req.Columns
+	if len(cols) == 0 {
+		cols = req.Fields
+	}
+	rows, err := n.db.SelectPaged(storage.SelectOpts{
+		Table:   req.Table,
+		Columns: cols,
+		Where:   req.Where,
+		Args:    req.Args,
+		Limit:   1,
+	})
+	if err != nil {
+		return DataResponse{Error: err.Error()}
+	}
+	if len(rows) == 0 {
+		return DataResponse{OK: true, Data: nil}
+	}
+	return DataResponse{OK: true, Data: rows[0]}
+}
+
+func (n *Node) dataOpExistsLocal(req DataRequest) DataResponse {
+	if req.Table == "" {
+		return DataResponse{Error: "table name required"}
+	}
+	rows, err := n.db.SelectPaged(storage.SelectOpts{
+		Table:   req.Table,
+		Columns: []string{"1"},
+		Where:   req.Where,
+		Args:    req.Args,
+		Limit:   1,
+	})
+	if err != nil {
+		return DataResponse{Error: err.Error()}
+	}
+	return DataResponse{OK: true, Data: map[string]bool{"exists": len(rows) > 0}}
+}
+
+func (n *Node) dataOpCountLocal(req DataRequest) DataResponse {
+	if req.Table == "" {
+		return DataResponse{Error: "table name required"}
+	}
+	rows, err := n.db.Aggregate(req.Table, "COUNT(*) as n", req.Where, req.Args...)
+	if err != nil {
+		return DataResponse{Error: err.Error()}
+	}
+	n64 := int64(0)
+	if len(rows) > 0 {
+		if v, ok := rows[0]["n"].(int64); ok {
+			n64 = v
+		}
+	}
+	return DataResponse{OK: true, Data: map[string]int64{"count": n64}}
+}
+
+func (n *Node) dataOpPluckLocal(req DataRequest) DataResponse {
+	if req.Table == "" || req.KeyCol == "" && len(req.Fields) == 0 {
+		return DataResponse{Error: "table and column required"}
+	}
+	col := req.KeyCol
+	if col == "" && len(req.Fields) > 0 {
+		col = req.Fields[0]
+	}
+	rows, err := n.db.SelectPaged(storage.SelectOpts{
+		Table:   req.Table,
+		Columns: []string{col},
+		Where:   req.Where,
+		Args:    req.Args,
+		Order:   req.Order,
+		Limit:   req.Limit,
+	})
+	if err != nil {
+		return DataResponse{Error: err.Error()}
+	}
+	vals := make([]any, len(rows))
+	for i, row := range rows {
+		vals[i] = row[col]
+	}
+	return DataResponse{OK: true, Data: vals}
+}
+
+func (n *Node) dataOpDistinctLocal(req DataRequest) DataResponse {
+	if req.Table == "" {
+		return DataResponse{Error: "table name required"}
+	}
+	col := req.KeyCol
+	if col == "" && len(req.Fields) > 0 {
+		col = req.Fields[0]
+	}
+	if col == "" {
+		return DataResponse{Error: "column required"}
+	}
+	vals, err := n.db.Distinct(req.Table, col, req.Where, req.Args...)
+	if err != nil {
+		return DataResponse{Error: err.Error()}
+	}
+	if vals == nil {
+		vals = []any{}
+	}
+	return DataResponse{OK: true, Data: vals}
+}
+
+func (n *Node) dataOpAggregateLocal(req DataRequest) DataResponse {
+	if req.Table == "" || req.Expr == "" {
+		return DataResponse{Error: "table and expr required"}
+	}
+	var rows []map[string]any
+	var err error
+	if req.GroupBy != "" {
+		rows, err = n.db.AggregateGroupBy(req.Table, req.Expr, req.GroupBy, req.Where, req.Args...)
+	} else {
+		rows, err = n.db.Aggregate(req.Table, req.Expr, req.Where, req.Args...)
+	}
+	if err != nil {
+		return DataResponse{Error: err.Error()}
+	}
+	if rows == nil {
+		rows = []map[string]any{}
+	}
+	return DataResponse{OK: true, Data: rows}
+}
+
+func (n *Node) dataOpUpdateWhereLocal(req DataRequest) DataResponse {
+	if req.Table == "" || req.Where == "" {
+		return DataResponse{Error: "table and where clause required"}
+	}
+	affected, err := n.db.UpdateWhere(req.Table, req.Data, req.Where, req.Args...)
+	if err != nil {
+		return DataResponse{Error: err.Error()}
+	}
+	return DataResponse{OK: true, Data: map[string]int64{"affected": affected}}
+}
+
+func (n *Node) dataOpDeleteWhereLocal(req DataRequest) DataResponse {
+	if req.Table == "" || req.Where == "" {
+		return DataResponse{Error: "table and where clause required"}
+	}
+	affected, err := n.db.DeleteWhere(req.Table, req.Where, req.Args...)
+	if err != nil {
+		return DataResponse{Error: err.Error()}
+	}
+	return DataResponse{OK: true, Data: map[string]int64{"affected": affected}}
+}
+
+func (n *Node) dataOpUpsertLocal(callerID string, req DataRequest) DataResponse {
+	if req.Table == "" || req.KeyCol == "" {
+		return DataResponse{Error: "table and key_col required"}
+	}
+	email := ""
+	if callerID == n.ID() {
+		email = n.selfEmail()
+	}
+	id, err := n.db.Upsert(req.Table, req.KeyCol, callerID, email, req.Data)
+	if err != nil {
+		return DataResponse{Error: err.Error()}
+	}
+	return DataResponse{OK: true, Data: map[string]any{"status": "ok", "id": id}}
 }
 
 // dataOpUpdateLocal is the unrestricted local variant — no _owner check.

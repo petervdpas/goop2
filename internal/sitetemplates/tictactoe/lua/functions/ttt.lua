@@ -1,4 +1,4 @@
---- Tic-tac-toe game management
+--- Tic-tac-toe game management — ORM queries via goop.schema
 --- @rate_limit 0
 function call(request)
     local action = request.params.action
@@ -23,39 +23,33 @@ function call(request)
 end
 
 function new_game()
-    -- Visitor challenges the host
-    local existing = goop.db.query(
-        "SELECT _id FROM games WHERE challenger = ? AND status IN ('waiting', 'playing') AND mode = 'pvp'",
-        goop.peer.id
-    )
-    if existing and #existing > 0 then
-        return { error = "you already have an active game", game_id = existing[1]._id }
+    local existing = goop.schema.find_one("games", {
+        where = "challenger = ? AND status IN ('waiting', 'playing') AND mode = 'pvp'",
+        args = { goop.peer.id },
+        fields = { "_id" },
+    })
+    if existing then
+        return { error = "you already have an active game", game_id = existing._id }
     end
 
-    goop.db.exec(
-        "INSERT INTO games (_owner, challenger, challenger_label, mode, status) VALUES (?, ?, ?, 'pvp', 'waiting')",
-        goop.self.id, goop.peer.id, goop.peer.label
-    )
-
-    local id = goop.db.scalar(
-        "SELECT MAX(_id) FROM games WHERE challenger = ? AND mode = 'pvp'",
-        goop.peer.id
-    )
+    local id = goop.schema.insert("games", {
+        challenger = goop.peer.id,
+        challenger_label = goop.peer.label,
+        mode = "pvp",
+        status = "waiting",
+    })
 
     return { game_id = id, your_symbol = "O", status = "waiting" }
 end
 
 function new_pve_game()
-    -- Anyone can start a game against the computer
-    goop.db.exec(
-        "INSERT INTO games (_owner, challenger, challenger_label, mode, status, turn) VALUES (?, '__computer__', 'Computer', 'pve', 'playing', 'X')",
-        goop.peer.id
-    )
-
-    local id = goop.db.scalar(
-        "SELECT MAX(_id) FROM games WHERE _owner = ? AND mode = 'pve'",
-        goop.peer.id
-    )
+    local id = goop.schema.insert("games", {
+        challenger = "__computer__",
+        challenger_label = "Computer",
+        mode = "pve",
+        status = "playing",
+        turn = "X",
+    })
 
     return {
         game_id = id,
@@ -65,7 +59,7 @@ function new_pve_game()
         turn = "X",
         mode = "pve",
         winner = "",
-        challenger_label = "Computer"
+        challenger_label = "Computer",
     }
 end
 
@@ -74,14 +68,10 @@ function game_state(game_id)
         error("game_id required")
     end
 
-    local rows = goop.db.query(
-        "SELECT _id, _owner, challenger, challenger_label, board, turn, status, winner, mode, _created_at, _updated_at FROM games WHERE _id = ?",
-        game_id
-    )
-    if not rows or #rows == 0 then
+    local g = goop.schema.get("games", game_id)
+    if not g then
         error("game not found")
     end
-    local g = rows[1]
 
     local your_symbol = ""
     if g.mode == "pve" then
@@ -96,7 +86,6 @@ function game_state(game_id)
         end
     end
 
-    -- Compute win line if game is over
     local win_line = nil
     if g.status == "won_x" or g.status == "won_o" then
         win_line = get_win_line(g.board)
@@ -111,7 +100,7 @@ function game_state(game_id)
         your_symbol = your_symbol,
         challenger_label = g.challenger_label,
         mode = g.mode,
-        created_at = g._created_at
+        created_at = g._created_at,
     }
     if win_line then
         result.win_line = win_line
@@ -119,11 +108,10 @@ function game_state(game_id)
     return result
 end
 
--- Reuse win-line detection from move.lua
 local lines = {
     {1,2,3}, {4,5,6}, {7,8,9},
     {1,4,7}, {2,5,8}, {3,6,9},
-    {1,5,9}, {3,5,7}
+    {1,5,9}, {3,5,7},
 }
 
 function get_win_line(b)
@@ -139,26 +127,30 @@ function get_win_line(b)
 end
 
 function lobby()
-    local games = goop.db.query(
-        "SELECT _id, _owner, challenger, challenger_label, board, turn, status, winner, mode, _created_at FROM games ORDER BY _id DESC LIMIT 20"
-    )
+    local games = goop.schema.find("games", {
+        order = "_id DESC",
+        limit = 20,
+    })
 
-    -- Include stats in lobby response to save a round-trip
-    local wins = goop.db.scalar(
-        "SELECT COUNT(*) FROM games WHERE winner = ? AND status LIKE 'won_%'",
-        goop.self.id
-    ) or 0
-    local losses = goop.db.scalar(
-        "SELECT COUNT(*) FROM games WHERE winner != '' AND winner != ? AND status LIKE 'won_%'",
-        goop.self.id
-    ) or 0
-    local draws = goop.db.scalar(
-        "SELECT COUNT(*) FROM games WHERE status = 'draw'"
-    ) or 0
+    local win_rows = goop.schema.aggregate("games", "COUNT(*) as n", {
+        where = "winner = ? AND status LIKE 'won_%'",
+        args = { goop.self.id },
+    })
+    local loss_rows = goop.schema.aggregate("games", "COUNT(*) as n", {
+        where = "winner != '' AND winner != ? AND status LIKE 'won_%'",
+        args = { goop.self.id },
+    })
+    local draw_rows = goop.schema.aggregate("games", "COUNT(*) as n", {
+        where = "status = 'draw'",
+    })
 
     return {
         games = games or {},
-        stats = { wins = wins, losses = losses, draws = draws }
+        stats = {
+            wins = (win_rows and #win_rows > 0) and win_rows[1].n or 0,
+            losses = (loss_rows and #loss_rows > 0) and loss_rows[1].n or 0,
+            draws = (draw_rows and #draw_rows > 0) and draw_rows[1].n or 0,
+        },
     }
 end
 
@@ -167,15 +159,14 @@ function accept_game(game_id)
         error("game_id required")
     end
 
-    local rows = goop.db.query(
-        "SELECT _id, _owner, status, mode FROM games WHERE _id = ?",
-        game_id
-    )
-    if not rows or #rows == 0 then
+    local g = goop.schema.find_one("games", {
+        where = "_id = ?",
+        args = { game_id },
+        fields = { "_id", "_owner", "status", "mode" },
+    })
+    if not g then
         error("game not found")
     end
-    local g = rows[1]
-
     if g.status ~= "waiting" then
         return { error = "game is not waiting" }
     end
@@ -186,10 +177,7 @@ function accept_game(game_id)
         return { error = "only the host can accept a challenge" }
     end
 
-    goop.db.exec(
-        "UPDATE games SET status = 'playing', _updated_at = CURRENT_TIMESTAMP WHERE _id = ?",
-        game_id
-    )
+    goop.schema.update("games", game_id, { status = "playing" })
 
     return game_state(game_id)
 end
@@ -199,15 +187,14 @@ function cancel_game(game_id)
         error("game_id required")
     end
 
-    local rows = goop.db.query(
-        "SELECT _id, _owner, challenger, status FROM games WHERE _id = ?",
-        game_id
-    )
-    if not rows or #rows == 0 then
+    local g = goop.schema.find_one("games", {
+        where = "_id = ?",
+        args = { game_id },
+        fields = { "_id", "_owner", "challenger", "status" },
+    })
+    if not g then
         error("game not found")
     end
-    local g = rows[1]
-
     if goop.peer.id ~= g._owner and goop.peer.id ~= g.challenger then
         return { error = "you are not a player in this game" }
     end
@@ -215,28 +202,29 @@ function cancel_game(game_id)
         return { error = "game is already finished" }
     end
 
-    goop.db.exec(
-        "UPDATE games SET status = 'cancelled', _updated_at = CURRENT_TIMESTAMP WHERE _id = ?",
-        game_id
-    )
+    goop.schema.update("games", game_id, { status = "cancelled" })
 
     return { status = "cancelled" }
 end
 
 function stats()
-    local wins = goop.db.scalar(
-        "SELECT COUNT(*) FROM games WHERE winner = ? AND status LIKE 'won_%'",
-        goop.self.id
-    ) or 0
-    local losses = goop.db.scalar(
-        "SELECT COUNT(*) FROM games WHERE winner != '' AND winner != ? AND status LIKE 'won_%'",
-        goop.self.id
-    ) or 0
-    local draws = goop.db.scalar(
-        "SELECT COUNT(*) FROM games WHERE status = 'draw'"
-    ) or 0
+    local win_rows = goop.schema.aggregate("games", "COUNT(*) as n", {
+        where = "winner = ? AND status LIKE 'won_%'",
+        args = { goop.self.id },
+    })
+    local loss_rows = goop.schema.aggregate("games", "COUNT(*) as n", {
+        where = "winner != '' AND winner != ? AND status LIKE 'won_%'",
+        args = { goop.self.id },
+    })
+    local draw_rows = goop.schema.aggregate("games", "COUNT(*) as n", {
+        where = "status = 'draw'",
+    })
 
-    return { wins = wins, losses = losses, draws = draws }
+    return {
+        wins = (win_rows and #win_rows > 0) and win_rows[1].n or 0,
+        losses = (loss_rows and #loss_rows > 0) and loss_rows[1].n or 0,
+        draws = (draw_rows and #draw_rows > 0) and draw_rows[1].n or 0,
+    }
 end
 
 function handle(args)

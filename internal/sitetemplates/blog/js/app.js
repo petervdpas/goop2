@@ -98,24 +98,14 @@
   }
 
   async function saveConfig(key, value) {
-    if (configMap[key] && configMap[key].id) {
-      await db.update("blog_config", configMap[key].id, { value: value });
-      configMap[key].value = value;
-    } else {
-      await db.insert("blog_config", { key: key, value: value });
-      try {
-        var rows = await db.query("blog_config", { where: "key = ?", args: [key], limit: 1 });
-        if (rows && rows.length > 0) {
-          configMap[key] = { id: rows[0]._id, value: value };
-        }
-      } catch (_) {}
-    }
+    var result = await db.upsert("blog_config", "key", { key: key, value: value });
+    configMap[key] = { id: result.id, value: value };
   }
 
   // ── Design panel setup (host only) ──
   async function setupDesigner() {
     try {
-      var rows = await db.query("blog_config", { limit: 100 });
+      var rows = await db.find("blog_config");
       (rows || []).forEach(function (r) {
         configMap[r.key] = { id: r._id, value: r.value };
       });
@@ -214,41 +204,13 @@
     });
   }
 
-  // ── Seed sample posts on first run ──
-  async function seed() {
-    var tables = await db.tables();
-    if (tables && tables.length > 0) return;
-
-    await db.createTable("posts", [
-      { name: "title",       type: "TEXT",    not_null: true },
-      { name: "body",        type: "TEXT",    not_null: true },
-      { name: "author_name", type: "TEXT",    default: "" },
-      { name: "slug",        type: "TEXT" },
-      { name: "published",   type: "INTEGER", default: "1" },
-    ]);
-
-    var myLabel = "";
-    try { myLabel = await Goop.identity.label(); } catch (_) {}
-
-    await db.insert("posts", {
-      title: "Hello, World!",
-      body: "Welcome to my blog. This is my first post on the ephemeral web.\n\nI'm running a peer-to-peer site using Goop\u00b2. Everything here is local-first and distributed \u2014 no central servers involved.\n\nFeel free to look around!",
-      slug: "hello-world",
-      author_name: myLabel,
-    });
-
-    await db.insert("posts", {
-      title: "How This Works",
-      body: "Each peer runs their own site. You're reading this through the p2p network right now.\n\nI write posts from my local editor, and they get served to anyone who connects. No accounts, no passwords, no cloud \u2014 just peers talking to peers.",
-      slug: "how-this-works",
-      author_name: myLabel,
-    });
-  }
+  // Tables are created by the ORM schema on template apply.
+  async function seed() {}
 
   // ── Load & render posts ──
   async function loadPosts() {
     try {
-      var rows = await db.query("posts", { where: "published = 1", limit: 50 });
+      var rows = await db.find("posts", { where: "published = 1", order: "_id DESC", limit: 50 });
       renderPosts(rows || []);
     } catch (err) {
       postsEl.innerHTML =
@@ -267,8 +229,6 @@
         "</div>";
       return;
     }
-
-    posts.sort(function (a, b) { return b._id - a._id; });
 
     postsEl.innerHTML = posts.map(function (p) {
       var date = p._created_at
@@ -340,7 +300,7 @@
 
     if (id) {
       try {
-        var rows = await db.query("posts", { where: "_id = ?", args: [id], limit: 1 });
+        var rows = await db.find("posts", { where: "_id = ?", args: [id], limit: 1 });
         if (rows && rows.length > 0) {
           document.getElementById("f-title").value = rows[0].title;
           document.getElementById("f-body").value = rows[0].body;

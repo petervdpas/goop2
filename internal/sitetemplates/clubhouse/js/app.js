@@ -85,7 +85,7 @@
   // ── Room listing ──
   async function loadRooms() {
     try {
-      var rows = await db.query("rooms", { where: "status = 'open'", limit: 50 });
+      var rows = await db.find("rooms", { where: "status = 'open'", limit: 50 });
       renderRooms(rows || []);
     } catch (err) {
       roomsEl.innerHTML = '<div class="empty-msg"><p>Could not load rooms.</p></div>';

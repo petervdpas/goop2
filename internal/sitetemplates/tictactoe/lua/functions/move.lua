@@ -1,4 +1,4 @@
---- Make a move in a tic-tac-toe game
+--- Make a move in a tic-tac-toe game — ORM queries via goop.schema
 --- @rate_limit 0
 function call(request)
     local p = request.params
@@ -12,17 +12,11 @@ function call(request)
         error("position must be 0-8")
     end
 
-    -- Load the game
-    local rows = goop.db.query(
-        "SELECT _id, _owner, challenger, board, turn, status, mode FROM games WHERE _id = ?",
-        game_id
-    )
-    if not rows or #rows == 0 then
+    local game = goop.schema.get("games", game_id)
+    if not game then
         error("game not found")
     end
-    local game = rows[1]
 
-    -- Auto-start: host's first move begins a waiting PvP game
     if game.status == "waiting" then
         if goop.peer.id == game._owner then
             game.status = "playing"
@@ -35,7 +29,6 @@ function call(request)
         return { error = "game is not in progress", status = game.status }
     end
 
-    -- Determine caller's symbol
     local symbol
     if game.mode == "pve" then
         if goop.peer.id == game._owner then
@@ -53,24 +46,20 @@ function call(request)
         end
     end
 
-    -- Check turn
     if game.turn ~= symbol then
         return { error = "not your turn" }
     end
 
-    -- Check cell is empty
     local idx = pos + 1
     local current = string.sub(game.board, idx, idx)
     if current ~= "-" then
         return { error = "cell is already occupied" }
     end
 
-    -- Place the move
     local new_board = string.sub(game.board, 1, idx - 1)
                    .. symbol
                    .. string.sub(game.board, idx + 1)
 
-    -- Check for winner
     local winner = check_winner(new_board)
     local new_status = "playing"
     local new_turn = (symbol == "X") and "O" or "X"
@@ -95,7 +84,6 @@ function call(request)
         new_turn = ""
     end
 
-    -- If PvE and game is still playing, computer moves immediately
     if game.mode == "pve" and new_status == "playing" then
         local ai_pos = pick_ai_move(new_board)
         if ai_pos then
@@ -104,7 +92,6 @@ function call(request)
                      .. "O"
                      .. string.sub(new_board, ai_idx + 1)
 
-            -- Re-check after AI move
             winner = check_winner(new_board)
             if winner then
                 new_status = "won_" .. string.lower(winner)
@@ -124,11 +111,12 @@ function call(request)
         end
     end
 
-    -- Persist
-    goop.db.exec(
-        "UPDATE games SET board = ?, turn = ?, status = ?, winner = ?, _updated_at = CURRENT_TIMESTAMP WHERE _id = ?",
-        new_board, new_turn, new_status, winner_id, game_id
-    )
+    goop.schema.update("games", game_id, {
+        board = new_board,
+        turn = new_turn,
+        status = new_status,
+        winner = winner_id,
+    })
 
     local result = {
         game_id = game._id,
@@ -137,7 +125,7 @@ function call(request)
         status = new_status,
         winner = winner_id,
         your_symbol = symbol,
-        mode = game.mode
+        mode = game.mode,
     }
     if win_line then
         result.win_line = win_line
@@ -145,11 +133,10 @@ function call(request)
     return result
 end
 
--- All winning lines (1-indexed for Lua string.sub)
 local lines = {
-    {1,2,3}, {4,5,6}, {7,8,9},  -- rows
-    {1,4,7}, {2,5,8}, {3,6,9},  -- cols
-    {1,5,9}, {3,5,7}            -- diags
+    {1,2,3}, {4,5,6}, {7,8,9},
+    {1,4,7}, {2,5,8}, {3,6,9},
+    {1,5,9}, {3,5,7},
 }
 
 function check_winner(b)
@@ -170,27 +157,21 @@ function get_win_line(b)
         local b2 = string.sub(b, line[2], line[2])
         local c = string.sub(b, line[3], line[3])
         if a ~= "-" and a == b2 and b2 == c then
-            -- Return 0-indexed positions
             return {line[1] - 1, line[2] - 1, line[3] - 1}
         end
     end
     return nil
 end
 
--- AI: pick the best move for O
 function pick_ai_move(board)
-    -- 1. Win if possible
     local win = find_winning_move(board, "O")
     if win then return win end
 
-    -- 2. Block opponent's win
     local block = find_winning_move(board, "X")
     if block then return block end
 
-    -- 3. Take center
     if cell(board, 4) == "-" then return 4 end
 
-    -- 4. Take a corner (prefer opposite of opponent's corner)
     local corners = {0, 2, 6, 8}
     local opposite = {[0]=8, [2]=6, [6]=2, [8]=0}
     for _, c in ipairs(corners) do
@@ -202,7 +183,6 @@ function pick_ai_move(board)
         if cell(board, c) == "-" then return c end
     end
 
-    -- 5. Take any edge
     local edges = {1, 3, 5, 7}
     for _, e in ipairs(edges) do
         if cell(board, e) == "-" then return e end

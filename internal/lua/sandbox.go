@@ -161,6 +161,14 @@ func newSandboxedDataVM(inv *invocationCtx, kv *kvStore, engine *Engine, db *sto
 			schemaTbl.RawSetString("find_one", L.NewFunction(schemaFindOneFn(db)))
 			schemaTbl.RawSetString("count", L.NewFunction(schemaCountFn(db)))
 			schemaTbl.RawSetString("seed", L.NewFunction(schemaSeedFn(inv, db)))
+			schemaTbl.RawSetString("get_by", L.NewFunction(schemaGetByFn(db)))
+			schemaTbl.RawSetString("exists", L.NewFunction(schemaExistsFn(db)))
+			schemaTbl.RawSetString("pluck", L.NewFunction(schemaPluckFn(db)))
+			schemaTbl.RawSetString("aggregate", L.NewFunction(schemaAggregateFn(db)))
+			schemaTbl.RawSetString("distinct", L.NewFunction(schemaDistinctFn(db)))
+			schemaTbl.RawSetString("update_where", L.NewFunction(schemaUpdateWhereFn(db)))
+			schemaTbl.RawSetString("delete_where", L.NewFunction(schemaDeleteWhereFn(db)))
+			schemaTbl.RawSetString("upsert", L.NewFunction(schemaUpsertFn(inv, db)))
 			goopTbl.RawSetString("schema", schemaTbl)
 
 			if engine.content != nil {

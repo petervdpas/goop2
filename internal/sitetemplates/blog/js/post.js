@@ -19,7 +19,7 @@
 
   // ── Load blog config for theming ──
   try {
-    var configRows = await db.query("blog_config", { limit: 100 });
+    var configRows = await db.find("blog_config");
     var html = document.documentElement;
     var accentToIdx = {
       "#b44d2d": "1", "#2d6a9f": "2", "#4a8f46": "3",
@@ -56,15 +56,11 @@
   }
 
   try {
-    var rows = await db.query("posts", {
-      where: "slug = ? AND published = 1", args: [slug], limit: 1
-    });
-    if (!rows || rows.length === 0) {
-      rows = await db.query("posts", {
-        where: "_id = ? AND published = 1", args: [slug], limit: 1
-      });
+    var p = await db.findOne("posts", { where: "slug = ? AND published = 1", args: [slug] });
+    if (!p) {
+      p = await db.findOne("posts", { where: "_id = ? AND published = 1", args: [slug] });
     }
-    if (!rows || rows.length === 0) {
+    if (!p) {
       articleEl.innerHTML =
         '<a class="article-back" href="index.html">Back</a>' +
         '<div class="empty-msg">' +
@@ -75,7 +71,6 @@
       return;
     }
 
-    var p = rows[0];
     var date = p._created_at
       ? new Date(String(p._created_at).replace(" ", "T") + "Z")
           .toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })

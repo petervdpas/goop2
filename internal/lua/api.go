@@ -861,6 +861,302 @@ func schemaSeedFn(inv *invocationCtx, db *storage.DB) lua.LGFunction {
 	}
 }
 
+// schemaGetByFn implements goop.schema.get_by(table, column, value) — get single row by any column.
+func schemaGetByFn(db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		tableName := L.CheckString(1)
+		column := L.CheckString(2)
+		value := luaToGo(L.Get(3))
+
+		rows, err := db.SelectPaged(storage.SelectOpts{
+			Table: tableName,
+			Where: column + " = ?",
+			Args:  []any{value},
+			Limit: 1,
+		})
+		if err != nil {
+			L.Push(lua.LNil)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+		if len(rows) == 0 {
+			L.Push(lua.LNil)
+			L.Push(lua.LNil)
+			return 2
+		}
+
+		tbl := L.NewTable()
+		for k, v := range rows[0] {
+			tbl.RawSetString(k, goToLua(L, v))
+		}
+		L.Push(tbl)
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
+// schemaExistsFn implements goop.schema.exists(table, opts?) — check if any row matches.
+func schemaExistsFn(db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		tableName := L.CheckString(1)
+		optsTbl := L.OptTable(2, nil)
+
+		var where string
+		var args []any
+		if optsTbl != nil {
+			if v := optsTbl.RawGetString("where"); v != lua.LNil {
+				where = v.String()
+			}
+			if v, ok := optsTbl.RawGetString("args").(*lua.LTable); ok {
+				v.ForEach(func(_, val lua.LValue) {
+					args = append(args, luaToGo(val))
+				})
+			}
+		}
+
+		query := fmt.Sprintf("SELECT 1 FROM %s", tableName)
+		if where != "" {
+			query += " WHERE " + where
+		}
+		query += " LIMIT 1"
+
+		var dummy int
+		err := db.QueryRow(query, args...).Scan(&dummy)
+		if err != nil {
+			L.Push(lua.LFalse)
+		} else {
+			L.Push(lua.LTrue)
+		}
+		return 1
+	}
+}
+
+// schemaPluckFn implements goop.schema.pluck(table, column, opts?) — returns flat array of one column's values.
+func schemaPluckFn(db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		tableName := L.CheckString(1)
+		column := L.CheckString(2)
+		optsTbl := L.OptTable(3, nil)
+
+		opts := storage.SelectOpts{
+			Table:   tableName,
+			Columns: []string{column},
+		}
+		if optsTbl != nil {
+			if v := optsTbl.RawGetString("where"); v != lua.LNil {
+				opts.Where = v.String()
+			}
+			if v, ok := optsTbl.RawGetString("args").(*lua.LTable); ok {
+				v.ForEach(func(_, val lua.LValue) {
+					opts.Args = append(opts.Args, luaToGo(val))
+				})
+			}
+			if v := optsTbl.RawGetString("order"); v != lua.LNil {
+				opts.Order = v.String()
+			}
+			if v, ok := optsTbl.RawGetString("limit").(lua.LNumber); ok {
+				opts.Limit = int(v)
+			}
+		}
+
+		rows, err := db.SelectPaged(opts)
+		if err != nil {
+			L.Push(lua.LNil)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+
+		tbl := L.NewTable()
+		for i, row := range rows {
+			tbl.RawSetInt(i+1, goToLua(L, row[column]))
+		}
+		L.Push(tbl)
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
+// schemaAggregateFn implements goop.schema.aggregate(table, expr, opts?) — aggregate queries.
+// expr: "COUNT(*)" or "SUM(score), COUNT(*)" etc.
+// opts: {where, args, group_by}
+func schemaAggregateFn(db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		tableName := L.CheckString(1)
+		expr := L.CheckString(2)
+		optsTbl := L.OptTable(3, nil)
+
+		var where, groupBy string
+		var args []any
+		if optsTbl != nil {
+			if v := optsTbl.RawGetString("where"); v != lua.LNil {
+				where = v.String()
+			}
+			if v, ok := optsTbl.RawGetString("args").(*lua.LTable); ok {
+				v.ForEach(func(_, val lua.LValue) {
+					args = append(args, luaToGo(val))
+				})
+			}
+			if v := optsTbl.RawGetString("group_by"); v != lua.LNil {
+				groupBy = v.String()
+			}
+		}
+
+		var rows []map[string]any
+		var err error
+		if groupBy != "" {
+			rows, err = db.AggregateGroupBy(tableName, expr, groupBy, where, args...)
+		} else {
+			rows, err = db.Aggregate(tableName, expr, where, args...)
+		}
+		if err != nil {
+			L.Push(lua.LNil)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+
+		tbl := L.NewTable()
+		for i, row := range rows {
+			rowTbl := L.NewTable()
+			for k, v := range row {
+				rowTbl.RawSetString(k, goToLua(L, v))
+			}
+			tbl.RawSetInt(i+1, rowTbl)
+		}
+		L.Push(tbl)
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
+// schemaDistinctFn implements goop.schema.distinct(table, column, opts?) — unique values.
+func schemaDistinctFn(db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		tableName := L.CheckString(1)
+		column := L.CheckString(2)
+		optsTbl := L.OptTable(3, nil)
+
+		var where string
+		var args []any
+		if optsTbl != nil {
+			if v := optsTbl.RawGetString("where"); v != lua.LNil {
+				where = v.String()
+			}
+			if v, ok := optsTbl.RawGetString("args").(*lua.LTable); ok {
+				v.ForEach(func(_, val lua.LValue) {
+					args = append(args, luaToGo(val))
+				})
+			}
+		}
+
+		vals, err := db.Distinct(tableName, column, where, args...)
+		if err != nil {
+			L.Push(lua.LNil)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+
+		tbl := L.NewTable()
+		for i, v := range vals {
+			tbl.RawSetInt(i+1, goToLua(L, v))
+		}
+		L.Push(tbl)
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
+// schemaUpdateWhereFn implements goop.schema.update_where(table, data, opts) — bulk update.
+// opts: {where, args}
+func schemaUpdateWhereFn(db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		tableName := L.CheckString(1)
+		dataTbl := L.CheckTable(2)
+		optsTbl := L.CheckTable(3)
+
+		data := luaTableToMap(dataTbl)
+		where := ""
+		var args []any
+		if v := optsTbl.RawGetString("where"); v != lua.LNil {
+			where = v.String()
+		}
+		if v, ok := optsTbl.RawGetString("args").(*lua.LTable); ok {
+			v.ForEach(func(_, val lua.LValue) {
+				args = append(args, luaToGo(val))
+			})
+		}
+		if where == "" {
+			L.Push(lua.LNumber(0))
+			L.Push(lua.LString("update_where requires a where clause"))
+			return 2
+		}
+
+		n, err := db.UpdateWhere(tableName, data, where, args...)
+		if err != nil {
+			L.Push(lua.LNumber(0))
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+		L.Push(lua.LNumber(n))
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
+// schemaDeleteWhereFn implements goop.schema.delete_where(table, opts) — bulk delete.
+// opts: {where, args}
+func schemaDeleteWhereFn(db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		tableName := L.CheckString(1)
+		optsTbl := L.CheckTable(2)
+
+		where := ""
+		var args []any
+		if v := optsTbl.RawGetString("where"); v != lua.LNil {
+			where = v.String()
+		}
+		if v, ok := optsTbl.RawGetString("args").(*lua.LTable); ok {
+			v.ForEach(func(_, val lua.LValue) {
+				args = append(args, luaToGo(val))
+			})
+		}
+		if where == "" {
+			L.Push(lua.LNumber(0))
+			L.Push(lua.LString("delete_where requires a where clause"))
+			return 2
+		}
+
+		n, err := db.DeleteWhere(tableName, where, args...)
+		if err != nil {
+			L.Push(lua.LNumber(0))
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+		L.Push(lua.LNumber(n))
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
+// schemaUpsertFn implements goop.schema.upsert(table, key_col, data) — insert or update on conflict.
+func schemaUpsertFn(inv *invocationCtx, db *storage.DB) lua.LGFunction {
+	return func(L *lua.LState) int {
+		tableName := L.CheckString(1)
+		keyCol := L.CheckString(2)
+		dataTbl := L.CheckTable(3)
+
+		data := luaTableToMap(dataTbl)
+		id, err := db.Upsert(tableName, keyCol, inv.peerID, "", data)
+		if err != nil {
+			L.Push(lua.LNil)
+			L.Push(lua.LString(err.Error()))
+			return 2
+		}
+		L.Push(lua.LNumber(id))
+		L.Push(lua.LNil)
+		return 2
+	}
+}
+
 func luaTableToMap(tbl *lua.LTable) map[string]any {
 	data := make(map[string]any)
 	tbl.ForEach(func(key, val lua.LValue) {

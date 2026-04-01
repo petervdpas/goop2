@@ -91,6 +91,28 @@ func mapSuffixToOp(suffix string) string {
 		return "lua-call"
 	case "lua/list":
 		return "lua-list"
+	case "find":
+		return "query"
+	case "find-one":
+		return "query-one"
+	case "get-by":
+		return "query-one"
+	case "exists":
+		return "exists"
+	case "count":
+		return "count"
+	case "pluck":
+		return "pluck"
+	case "distinct":
+		return "distinct"
+	case "aggregate":
+		return "aggregate"
+	case "update-where":
+		return "update-where"
+	case "delete-where":
+		return "delete-where"
+	case "upsert":
+		return "upsert"
 	}
 	return ""
 }
@@ -119,6 +141,13 @@ func buildDataRequest(op string, r *http.Request) (p2p.DataRequest, error) {
 		NewName  string             `json:"new_name"`
 		Function string             `json:"function"`
 		Params   map[string]any     `json:"params"`
+		Order    string             `json:"order"`
+		Fields   []string           `json:"fields"`
+		Expr     string             `json:"expr"`
+		GroupBy  string             `json:"group_by"`
+		KeyCol   string             `json:"key_col"`
+		ColName  string             `json:"column_name"`
+		Value    any                `json:"value"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -138,6 +167,23 @@ func buildDataRequest(op string, r *http.Request) (p2p.DataRequest, error) {
 	req.NewName = body.NewName
 	req.Function = body.Function
 	req.Params = body.Params
+	req.Order = body.Order
+	req.Fields = body.Fields
+	req.Expr = body.Expr
+	req.GroupBy = body.GroupBy
+	req.KeyCol = body.KeyCol
+	if body.ColName != "" {
+		req.KeyCol = body.ColName
+		if len(req.Fields) == 0 {
+			req.Fields = []string{body.ColName}
+		}
+	}
+	if body.Value != nil {
+		if req.Where == "" {
+			req.Where = body.ColName + " = ?"
+			req.Args = []any{body.Value}
+		}
+	}
 
 	// "columns" can be either []string (for query) or []ColumnDef (for create-table)
 	if body.Columns != nil {

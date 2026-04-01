@@ -1,5 +1,5 @@
 //
-// Simple data API client for peer site pages.
+// Data SDK for peer site pages — ORM-first API.
 // Usage (in any site page):
 //
 //   <script src="/sdk/goop-data.js"></script>
@@ -9,29 +9,37 @@
 //
 //   const db = Goop.data;
 //
-//   // list tables
-//   const tables = await db.tables();
+//   // ── Reads ──
+//   const rows = await db.find("posts", { where: "published = ?", args: [1], order: "_id DESC", limit: 10 });
+//   const post = await db.findOne("posts", { where: "slug = ?", args: ["hello"] });
+//   const post = await db.getBy("posts", "slug", "hello");
+//   const row  = await db.get("posts", 42);
+//   const all  = await db.list("posts", 50);
+//   const titles = await db.pluck("posts", "title", { where: "published = 1" });
+//   const cats = await db.distinct("notes", "category");
+//   const yes  = await db.exists("posts", { where: "slug = ?", args: ["hello"] });
+//   const n    = await db.count("posts", { where: "published = 1" });
+//   const stats = await db.aggregate("scores", "SUM(score) as total, COUNT(*) as n");
+//   const grouped = await db.aggregate("scores", "player, SUM(score) as total", { group_by: "player" });
 //
-//   // query rows
-//   const rows = await db.query("posts");
-//   const recent = await db.query("posts", { limit: 10, where: "title LIKE ?", args: ["%hello%"] });
-//
-//   // insert
-//   await db.insert("posts", { title: "Hello", body: "World" });
-//
-//   // update
+//   // ── Writes ──
+//   const {id} = await db.insert("posts", { title: "Hello", body: "World" });
 //   await db.update("posts", 1, { title: "Updated" });
-//
-//   // delete
 //   await db.remove("posts", 1);
+//   await db.updateWhere("cards", { position: 0 }, { where: "column_id = ?", args: [3] });
+//   await db.deleteWhere("cards", { where: "column_id = ?", args: [3] });
+//   await db.upsert("config", "key", { key: "title", value: "My Blog" });
 //
-//   // describe table schema
-//   const cols = await db.describe("posts");
+//   // ── Schema ──
+//   const tables = await db.tables();
+//   const schema = await db.describe("posts");
+//
+//   // ── Lua functions ──
+//   const result = await db.call("api", { action: "list", resource: "posts" });
 //
 (() => {
   window.Goop = window.Goop || {};
 
-  // Detect remote peer context from URL path: /p/<peerID>/...
   var apiBase = "/api/data";
   var m = window.location.pathname.match(/^\/p\/([^/]+)\//);
   if (m) {
@@ -39,9 +47,9 @@
   }
 
   async function request(url, opts) {
-    const res = await fetch(url, opts);
+    var res = await fetch(url, opts);
     if (!res.ok) {
-      const text = await res.text();
+      var text = await res.text();
       throw new Error(text || res.statusText);
     }
     return res.json();
@@ -56,60 +64,114 @@
   }
 
   window.Goop.data = {
-    /** List all tables. Returns [{name, created_at}] */
+
+    // ── Reads ──
+
+    find(table, opts) {
+      return post(apiBase + "/find", Object.assign({ table: table }, opts || {}));
+    },
+
+    findOne(table, opts) {
+      return post(apiBase + "/find-one", Object.assign({ table: table }, opts || {}));
+    },
+
+    getBy(table, column, value) {
+      return post(apiBase + "/get-by", { table: table, column: column, value: value });
+    },
+
+    get(table, id) {
+      return post(apiBase + "/find-one", { table: table, where: "_id = ?", args: [id] });
+    },
+
+    list(table, limit) {
+      return post(apiBase + "/find", { table: table, limit: limit || 0 });
+    },
+
+    pluck(table, column, opts) {
+      return post(apiBase + "/pluck", Object.assign({ table: table, column: column }, opts || {}));
+    },
+
+    distinct(table, column, opts) {
+      return post(apiBase + "/distinct", Object.assign({ table: table, column: column }, opts || {}));
+    },
+
+    exists(table, opts) {
+      return post(apiBase + "/exists", Object.assign({ table: table }, opts || {}))
+        .then(function(r) { return r.exists; });
+    },
+
+    count(table, opts) {
+      return post(apiBase + "/count", Object.assign({ table: table }, opts || {}))
+        .then(function(r) { return r.count; });
+    },
+
+    aggregate(table, expr, opts) {
+      return post(apiBase + "/aggregate", Object.assign({ table: table, expr: expr }, opts || {}));
+    },
+
+    // ── Writes ──
+
+    insert(table, data) {
+      return post(apiBase + "/insert", { table: table, data: data });
+    },
+
+    update(table, id, data) {
+      return post(apiBase + "/update", { table: table, id: id, data: data });
+    },
+
+    remove(table, id) {
+      return post(apiBase + "/delete", { table: table, id: id });
+    },
+
+    updateWhere(table, data, opts) {
+      return post(apiBase + "/update-where", Object.assign({ table: table, data: data }, opts || {}));
+    },
+
+    deleteWhere(table, opts) {
+      return post(apiBase + "/delete-where", Object.assign({ table: table }, opts || {}));
+    },
+
+    upsert(table, keyCol, data) {
+      return post(apiBase + "/upsert", { table: table, key_col: keyCol, data: data });
+    },
+
+    // ── Schema ──
+
     tables() {
       return request(apiBase + "/tables");
     },
 
-    /** Describe a table's columns. Returns [{cid, name, type, not_null, default, pk}] */
     describe(table) {
-      return post(apiBase + "/tables/describe", { table });
+      return post(apiBase + "/tables/describe", { table: table });
     },
 
-    /** Query rows from a table. Options: {columns, where, args, limit, offset} */
+    // ── Legacy (kept for backward compat) ──
+
     query(table, opts) {
-      return post(apiBase + "/query", Object.assign({ table }, opts || {}));
+      return post(apiBase + "/query", Object.assign({ table: table }, opts || {}));
     },
 
-    /** Insert a row. data is {col: value, ...}. Returns {status, id} */
-    insert(table, data) {
-      return post(apiBase + "/insert", { table, data });
-    },
-
-    /** Update a row by _id. data is {col: value, ...}. Returns {status} */
-    update(table, id, data) {
-      return post(apiBase + "/update", { table, id, data });
-    },
-
-    /** Delete a row by _id. Returns {status} */
-    remove(table, id) {
-      return post(apiBase + "/delete", { table, id });
-    },
-
-    /** Create a new table. columns is [{name, type, not_null, default}] */
     createTable(name, columns) {
-      return post(apiBase + "/tables/create", { name, columns });
+      return post(apiBase + "/tables/create", { name: name, columns: columns });
     },
 
-    /** Drop a table entirely */
     dropTable(table) {
-      return post(apiBase + "/tables/delete", { table });
+      return post(apiBase + "/tables/delete", { table: table });
     },
 
-    /** Add a column to an existing table */
     addColumn(table, column) {
-      return post(apiBase + "/tables/add-column", { table, column });
+      return post(apiBase + "/tables/add-column", { table: table, column: column });
     },
 
-    /** Call a Lua data function. Returns the function's result. */
-    async call(fn, params) {
+    // ── Lua ──
+
+    call(fn, params) {
       return post(apiBase + "/lua/call", { "function": fn, params: params || {} });
     },
 
-    /** List available Lua data functions. Returns [{name, description}] */
-    async functions() {
-      var resp = await request(apiBase + "/lua/list");
-      return resp ? (resp.functions || []) : [];
+    functions() {
+      return request(apiBase + "/lua/list")
+        .then(function(r) { return r ? (r.functions || []) : []; });
     },
   };
 })();

@@ -325,12 +325,38 @@ definitions:
         example: 12D3KooWXxx...
         type: string
     type: object
+  routes.dataAffectedResponse:
+    properties:
+      affected:
+        example: 3
+        type: integer
+    type: object
+  routes.dataAggregateRequest:
+    properties:
+      expr:
+        example: SUM(score) as total, COUNT(*) as n
+        type: string
+      group_by:
+        example: player
+        type: string
+      table:
+        example: scores
+        type: string
+      where:
+        type: string
+    type: object
   routes.dataColumnRequest:
     properties:
       column: {}
       table:
         example: my_table
         type: string
+    type: object
+  routes.dataCountResponse:
+    properties:
+      count:
+        example: 42
+        type: integer
     type: object
   routes.dataDeleteRequest:
     properties:
@@ -341,6 +367,8 @@ definitions:
         example: my_table
         type: string
     type: object
+  routes.dataDeleteWhereRequest:
+    type: object
   routes.dataDescribeResponse:
     properties:
       columns:
@@ -350,6 +378,27 @@ definitions:
         type: string
       schema:
         description: 'ORM: ormSchema object'
+    type: object
+  routes.dataDistinctRequest:
+    properties:
+      column:
+        example: category
+        type: string
+      table:
+        example: notes
+        type: string
+      where:
+        type: string
+    type: object
+  routes.dataExistsResponse:
+    properties:
+      exists:
+        example: true
+        type: boolean
+    type: object
+  routes.dataFindRequest:
+    type: object
+  routes.dataGetByRequest:
     type: object
   routes.dataInsertRequest:
     properties:
@@ -393,6 +442,24 @@ definitions:
         items:
           $ref: '#/definitions/routes.dataLuaFunctionInfo'
         type: array
+    type: object
+  routes.dataPluckRequest:
+    properties:
+      column:
+        example: title
+        type: string
+      limit:
+        example: 100
+        type: integer
+      order:
+        example: _id DESC
+        type: string
+      table:
+        example: posts
+        type: string
+      where:
+        example: published = 1
+        type: string
     type: object
   routes.dataPolicyRequest:
     properties:
@@ -481,6 +548,22 @@ definitions:
       table:
         example: my_table
         type: string
+    type: object
+  routes.dataUpdateWhereRequest:
+    type: object
+  routes.dataUpsertRequest:
+    properties:
+      data:
+        additionalProperties: {}
+        type: object
+      key_col:
+        example: key
+        type: string
+      table:
+        example: config
+        type: string
+    type: object
+  routes.dataWhereRequest:
     type: object
   routes.datafedGroupIDRequest:
     properties:
@@ -2252,6 +2335,52 @@ paths:
       summary: List all workers (host only)
       tags:
       - cluster
+  /api/data/aggregate:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Aggregate expression
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.dataAggregateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      summary: Run aggregate query (COUNT, SUM, MAX, MIN, AVG) with optional GROUP
+        BY
+      tags:
+      - data
+  /api/data/count:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Where clause
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.dataWhereRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.dataCountResponse'
+      summary: Count rows matching criteria
+      tags:
+      - data
   /api/data/delete:
     post:
       consumes:
@@ -2271,6 +2400,138 @@ paths:
           schema:
             $ref: '#/definitions/routes.statusOK'
       summary: Delete rows from a table
+      tags:
+      - data
+  /api/data/delete-where:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Delete parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.dataDeleteWhereRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.dataAffectedResponse'
+      summary: Delete rows matching a WHERE clause
+      tags:
+      - data
+  /api/data/distinct:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Column
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.dataDistinctRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items: {}
+            type: array
+      summary: Get unique values for a column
+      tags:
+      - data
+  /api/data/exists:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Where clause
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.dataWhereRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.dataExistsResponse'
+      summary: Check if any rows match criteria
+      tags:
+      - data
+  /api/data/find:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Find parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.dataFindRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      summary: Find rows with filtering, ordering, and pagination
+      tags:
+      - data
+  /api/data/find-one:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Find parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.dataFindRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Find a single row matching criteria
+      tags:
+      - data
+  /api/data/get-by:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Column lookup
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.dataGetByRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get a single row by any column value
       tags:
       - data
   /api/data/insert:
@@ -2340,6 +2601,28 @@ paths:
           schema:
             $ref: '#/definitions/routes.dataLuaListResponse'
       summary: List available Lua data functions
+      tags:
+      - data
+  /api/data/pluck:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Column to pluck
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.dataPluckRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items: {}
+            type: array
+      summary: Get flat array of a single column's values
       tags:
       - data
   /api/data/query:
@@ -2904,6 +3187,48 @@ paths:
           schema:
             $ref: '#/definitions/routes.statusOK'
       summary: Update rows in a table
+      tags:
+      - data
+  /api/data/update-where:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Update parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.dataUpdateWhereRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.dataAffectedResponse'
+      summary: Update rows matching a WHERE clause
+      tags:
+      - data
+  /api/data/upsert:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Upsert parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.dataUpsertRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+      summary: Insert or update a row by key column
       tags:
       - data
   /api/datafed/contributions:
