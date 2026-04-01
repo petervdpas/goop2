@@ -197,9 +197,10 @@
     }
 
     // Table exists — check for missing columns
-    var schema = await db.describe(table);
+    var info = await db.describe(table);
+    var cols = (info && info.schema && info.schema.columns) || (info && info.columns) || [];
     var have = new Set();
-    schema.forEach(function (c) { have.add(c.name); });
+    cols.forEach(function (c) { have.add(c.name); });
 
     for (var i = 0; i < fields.length; i++) {
       if (!have.has(fields[i].name)) {

@@ -56,10 +56,11 @@
     if (!db) { el.innerHTML = '<p style="color:#f87171">goop-data.js required</p>'; return; }
 
     async function refresh() {
-      const [cols, rows] = await Promise.all([
+      const [info, rows] = await Promise.all([
         db.describe(table),
         db.query(table, { limit: 200 }),
       ]);
+      const cols = (info && info.schema && info.schema.columns) || (info && info.columns) || [];
 
       const userCols = cols.filter((c) => !SKIP.has(c.name));
       let html = "<h3>" + esc(table) + "</h3>";
@@ -130,7 +131,8 @@
     const db = window.Goop.data;
     if (!db) { el.innerHTML = '<p style="color:#f87171">goop-data.js required</p>'; return; }
 
-    const cols = await db.describe(table);
+    const info = await db.describe(table);
+    const cols = (info && info.schema && info.schema.columns) || (info && info.columns) || [];
     const userCols = cols.filter((c) => !SKIP.has(c.name));
 
     let html = '<div class="gf-form">';

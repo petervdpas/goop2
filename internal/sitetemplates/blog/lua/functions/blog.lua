@@ -1,6 +1,13 @@
---- Blog data service — ORM queries via goop.schema
+--- Blog data service — ORM DSL via goop.orm
 --- @rate_limit 0
+
+local posts = nil
+local config = nil
+
 function call(request)
+    if not posts then posts = goop.orm("posts") end
+    if not config then config = goop.orm("blog_config") end
+
     local action = request.params.action
 
     if action == "get_post" then
@@ -19,13 +26,13 @@ function get_post(slug)
         return { found = false }
     end
 
-    local row = goop.schema.find_one("posts", {
+    local row = posts:find_one({
         where = "slug = ? AND published = 1",
         args = { slug },
         fields = { "_id", "_owner", "title", "body", "author_name", "image", "slug", "_created_at" },
     })
     if not row then
-        row = goop.schema.find_one("posts", {
+        row = posts:find_one({
             where = "_id = ? AND published = 1",
             args = { slug },
             fields = { "_id", "_owner", "title", "body", "author_name", "image", "slug", "_created_at" },
@@ -39,7 +46,7 @@ function get_post(slug)
 end
 
 function list_posts()
-    local rows = goop.schema.find("posts", {
+    local rows = posts:find({
         where = "published = 1",
         fields = { "_id", "_owner", "title", "body", "author_name", "image", "slug", "published", "_created_at" },
         order = "_id DESC",
@@ -49,16 +56,16 @@ function list_posts()
 end
 
 function get_config()
-    local rows = goop.schema.find("blog_config", {
+    local rows = config:find({
         fields = { "key", "value" },
     })
-    local config = {}
+    local result = {}
     if rows then
         for _, r in ipairs(rows) do
-            config[r.key] = r.value
+            result[r.key] = r.value
         end
     end
-    return config
+    return result
 end
 
 function handle(args)

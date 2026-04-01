@@ -1,6 +1,11 @@
---- Make a move in a tic-tac-toe game — ORM queries via goop.schema
+--- Make a move in a tic-tac-toe game — ORM DSL via goop.orm
 --- @rate_limit 0
+
+local games = nil
+
 function call(request)
+    if not games then games = goop.orm("games") end
+
     local p = request.params
     local game_id = p.game_id
     local pos = tonumber(p.position)
@@ -12,7 +17,7 @@ function call(request)
         error("position must be 0-8")
     end
 
-    local game = goop.schema.get("games", game_id)
+    local game = games:get(game_id)
     if not game then
         error("game not found")
     end
@@ -111,7 +116,7 @@ function call(request)
         end
     end
 
-    goop.schema.update("games", game_id, {
+    games:update(game_id, {
         board = new_board,
         turn = new_turn,
         status = new_status,

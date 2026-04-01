@@ -126,6 +126,8 @@ func (n *Node) dispatchDataOp(callerID string, req DataRequest) DataResponse {
 	switch req.Op {
 	case "tables":
 		return n.dataOpTables()
+	case "orm-schema":
+		return n.dataOpOrmSchema()
 	case "describe":
 		return n.dataOpDescribe(req)
 	case "query":
@@ -216,6 +218,14 @@ func (n *Node) dataOpTables() DataResponse {
 	return DataResponse{OK: true, Data: tables}
 }
 
+func (n *Node) dataOpOrmSchema() DataResponse {
+	schemas, err := n.db.GetAllSchemas()
+	if err != nil {
+		return DataResponse{Error: err.Error()}
+	}
+	return DataResponse{OK: true, Data: schemas}
+}
+
 func (n *Node) dataOpDescribe(req DataRequest) DataResponse {
 	table := req.Table
 	if table == "" {
@@ -224,11 +234,24 @@ func (n *Node) dataOpDescribe(req DataRequest) DataResponse {
 	if table == "" {
 		return DataResponse{Error: "table name required"}
 	}
+	tbl, err := n.db.GetSchema(table)
+	if err != nil {
+		return DataResponse{Error: err.Error()}
+	}
+	if tbl != nil {
+		return DataResponse{OK: true, Data: map[string]any{
+			"mode":   "orm",
+			"schema": tbl,
+		}}
+	}
 	cols, err := n.db.DescribeTable(table)
 	if err != nil {
 		return DataResponse{Error: err.Error()}
 	}
-	return DataResponse{OK: true, Data: cols}
+	return DataResponse{OK: true, Data: map[string]any{
+		"mode":    "classic",
+		"columns": cols,
+	}}
 }
 
 // dataOpQueryLocal is the unrestricted local variant — no _owner scoping.

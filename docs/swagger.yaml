@@ -2603,6 +2603,20 @@ paths:
       summary: List available Lua data functions
       tags:
       - data
+  /api/data/orm-schema:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              $ref: '#/definitions/routes.ormSchema'
+            type: object
+      summary: Get all ORM schemas with full column info and access policies
+      tags:
+      - data
   /api/data/pluck:
     post:
       consumes:

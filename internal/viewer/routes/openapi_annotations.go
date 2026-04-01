@@ -1555,6 +1555,15 @@ func swagDataDelete() {}
 //	@Router		/api/data/tables/describe [post]
 func swagDataTablesDescribe() {}
 
+// swagDataOrmSchema is a documentation stub for GET /api/data/orm-schema.
+//
+//	@Summary	Get all ORM schemas with full column info and access policies
+//	@Tags		data
+//	@Produce	json
+//	@Success	200	{object}	map[string]ormSchema
+//	@Router		/api/data/orm-schema [get]
+func swagDataOrmSchema() {}
+
 // swagDataTablesDelete is a documentation stub for POST /api/data/tables/delete.
 //
 //	@Summary	Drop a table

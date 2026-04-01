@@ -1570,6 +1570,28 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/data/orm-schema": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "data"
+                ],
+                "summary": "Get all ORM schemas with full column info and access policies",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "$ref": "#/definitions/routes.ormSchema"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/data/pluck": {
             "post": {
                 "consumes": [

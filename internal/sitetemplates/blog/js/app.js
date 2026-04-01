@@ -1,53 +1,30 @@
-// Blog app.js
+// Blog app.js — ORM DSL
 (async function () {
   var db = Goop.data;
   var site = Goop.site;
+  var esc = Goop.esc;
+  var ctx = await Goop.peer();
+
+  var posts = await db.orm("posts");
+  var config = await db.orm("blog_config");
+
   var postsEl = document.getElementById("posts");
   var btnNew = document.getElementById("btn-new");
   var btnCustomize = document.getElementById("btn-customize");
   var designerPanel = document.getElementById("designer-panel");
   var overlay = document.getElementById("editor-overlay");
 
-  var isOwner = false;
-  var isCoAuthor = false;
-  var myId = null;
   var currentLayout = "list";
-  var configMap = {}; // key -> { id: number, value: string }
+  var configMap = {};
   var editingId = null;
-  var editingImage = null; // filename of current post's image when editing
+  var editingImage = null;
 
-  function esc(s) {
-    var d = document.createElement("div");
-    d.textContent = s == null ? "" : String(s);
-    return d.innerHTML;
-  }
-
-  // ── Owner / co-author detection ──
-  try {
-    myId = await Goop.identity.id();
-    var match = window.location.pathname.match(/\/p\/([^/]+)/);
-    var ownerPeerId = match ? match[1] : null;
-    if (ownerPeerId && ownerPeerId === myId) {
-      isOwner = true;
-    } else if (ownerPeerId && Goop.group) {
-      var subs = await Goop.group.subscriptions();
-      var list = (subs && subs.subscriptions) || [];
-      isCoAuthor = list.some(function (s) {
-        return s.host_peer_id === ownerPeerId && s.app_type === "template";
-      });
-    }
-  } catch (_) {}
-
-  if (isOwner || isCoAuthor) {
-    btnNew.classList.remove("hidden");
-  }
-  if (isOwner) {
-    document.getElementById("editor-image-section").classList.remove("hidden");
-  }
+  var canWrite = ctx.isOwner || ctx.isGroup;
+  if (canWrite) btnNew.classList.remove("hidden");
+  if (ctx.isOwner) document.getElementById("editor-image-section").classList.remove("hidden");
 
   // ── Config helpers ──
 
-  // Map hex → accent class index (avoids inline style / CSP issues)
   var accentToIdx = {
     "#b44d2d": "1", "#2d6a9f": "2", "#4a8f46": "3",
     "#7c4a9f": "4", "#c0882c": "5", "#2d7a6a": "6",
@@ -98,14 +75,14 @@
   }
 
   async function saveConfig(key, value) {
-    var result = await db.upsert("blog_config", "key", { key: key, value: value });
+    var result = await config.upsert("key", { key: key, value: value });
     configMap[key] = { id: result.id, value: value };
   }
 
   // ── Design panel setup (host only) ──
   async function setupDesigner() {
     try {
-      var rows = await db.find("blog_config");
+      var rows = await config.find();
       (rows || []).forEach(function (r) {
         configMap[r.key] = { id: r._id, value: r.value };
       });
@@ -126,7 +103,7 @@
     applyConfigKey("font",          loaded.font);
     applyConfigKey("theme",         loaded.theme);
 
-    if (!isOwner) return;
+    if (!ctx.isOwner) return;
 
     var defaults = {
       layout:        "list",
@@ -204,13 +181,10 @@
     });
   }
 
-  // Tables are created by the ORM schema on template apply.
-  async function seed() {}
-
   // ── Load & render posts ──
   async function loadPosts() {
     try {
-      var rows = await db.find("posts", { where: "published = 1", order: "_id DESC", limit: 50 });
+      var rows = await posts.find({ where: "published = 1", order: "_id DESC", limit: 50 });
       renderPosts(rows || []);
     } catch (err) {
       postsEl.innerHTML =
@@ -219,18 +193,18 @@
     }
   }
 
-  function renderPosts(posts) {
-    if (posts.length === 0) {
+  function renderPosts(rows) {
+    if (rows.length === 0) {
       postsEl.innerHTML =
         '<div class="empty-msg"><p>No posts yet.</p>' +
-        ((isOwner || isCoAuthor)
+        (canWrite
           ? '<p class="loading">Click "+ New Post" to write your first one.</p>'
           : "") +
         "</div>";
       return;
     }
 
-    postsEl.innerHTML = posts.map(function (p) {
+    postsEl.innerHTML = rows.map(function (p) {
       var date = p._created_at
         ? new Date(String(p._created_at).replace(" ", "T") + "Z")
             .toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })
@@ -248,7 +222,7 @@
       }
       html += '<div class="post-body">' + esc(p.body) + "</div>";
       html += '<a class="post-read-more" href="' + postUrl + '">Read more</a>';
-      var canEdit = isOwner || (isCoAuthor && p._owner === myId);
+      var canEdit = ctx.isOwner || (ctx.isGroup && p._owner === ctx.myId);
       if (canEdit) {
         html += '<div class="post-actions">';
         html += '<button data-action="edit" data-id="' + p._id + '">Edit</button>';
@@ -259,7 +233,7 @@
       return html;
     }).join("");
 
-    if (isOwner || isCoAuthor) wireActions();
+    if (canWrite) wireActions();
   }
 
   function wireActions() {
@@ -275,8 +249,8 @@
         var ok = true;
         if (Goop.ui) ok = await Goop.ui.confirm("Delete this post?");
         if (!ok) return;
-        await db.remove("posts", id);
-        if (imgFile && isOwner && site) {
+        await posts.remove(id);
+        if (imgFile && ctx.isOwner && site) {
           try { await site.remove("images/" + imgFile); } catch (_) {}
         }
         loadPosts();
@@ -300,12 +274,12 @@
 
     if (id) {
       try {
-        var rows = await db.find("posts", { where: "_id = ?", args: [id], limit: 1 });
-        if (rows && rows.length > 0) {
-          document.getElementById("f-title").value = rows[0].title;
-          document.getElementById("f-body").value = rows[0].body;
-          if (rows[0].image && fPreview) {
-            editingImage = rows[0].image;
+        var row = await posts.findOne({ where: "_id = ?", args: [id] });
+        if (row) {
+          document.getElementById("f-title").value = row.title;
+          document.getElementById("f-body").value = row.body;
+          if (row.image && fPreview) {
+            editingImage = row.image;
             fPreview.src = "images/" + editingImage;
             fPreview.classList.remove("hidden");
           }
@@ -336,7 +310,7 @@
     var imageName = editingId ? editingImage : "";
     var fImage = document.getElementById("f-image");
     var imageFile = fImage && fImage.files && fImage.files[0];
-    if (imageFile && isOwner && site) {
+    if (imageFile && ctx.isOwner && site) {
       var ext = (imageFile.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
       var safeName = Date.now() + "-" +
         imageFile.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 60) +
@@ -351,11 +325,9 @@
     }
 
     if (editingId) {
-      await db.update("posts", editingId, { title: title, body: body, slug: slug, image: imageName || "" });
+      await posts.update(editingId, { title: title, body: body, slug: slug, image: imageName || "" });
     } else {
-      var myLabel = "";
-      try { myLabel = await Goop.identity.label(); } catch (_) {}
-      await db.insert("posts", { title: title, body: body, slug: slug, author_name: myLabel, image: imageName || "" });
+      await posts.insert({ title: title, body: body, slug: slug, author_name: ctx.label, image: imageName || "" });
     }
 
     overlay.classList.add("hidden");
@@ -364,6 +336,5 @@
 
   // ── Init ──
   await setupDesigner();
-  await seed();
   loadPosts();
 })();

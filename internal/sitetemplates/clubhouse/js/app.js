@@ -1,6 +1,8 @@
-// Clubhouse app.js — real-time group chat rooms
+// Clubhouse app.js — real-time group chat rooms, ORM DSL
 (async function () {
-  var db = Goop.data;
+  var esc = Goop.esc;
+  var ctx = await Goop.peer();
+  var rooms = await Goop.data.orm("rooms");
 
   // ── DOM refs ──
   var lobby = document.getElementById("lobby");
@@ -25,19 +27,15 @@
   var btnCreateSave = document.getElementById("btn-create-save");
 
   // ── State ──
-  var isOwner = false;
-  var myId = "";
-  var myLabel = "";
-  var hostPeerId = "";
-  var currentRoom = null;     // room row from DB
-  var members = [];           // current member peer IDs
-  var labelMap = {};          // peerId → display label
+  var myId = ctx.myId;
+  var myLabel = ctx.label || (myId ? myId.slice(-6) : "???");
+  var hostPeerId = ctx.hostId;
+  var isOwner = ctx.isOwner;
+  var currentRoom = null;
+  var members = [];
+  var labelMap = {};
 
-  function esc(s) {
-    var d = document.createElement("div");
-    d.textContent = s == null ? "" : String(s);
-    return d.innerHTML;
-  }
+  if (isOwner) btnNewRoom.classList.remove("hidden");
 
   function shortId(id) {
     return id ? id.slice(-6) : "???";
@@ -49,7 +47,6 @@
     return shortId(peerId);
   }
 
-  // Fetch known peer labels from the local peer store
   function fetchPeerLabels() {
     fetch("/api/peers").then(function (r) {
       if (!r.ok) return;
@@ -67,25 +64,10 @@
     }).catch(function () {});
   }
 
-  // ── Owner detection ──
-  try {
-    var me = await Goop.identity.get();
-    myId = me.id;
-    myLabel = me.label || shortId(myId);
-    var match = window.location.pathname.match(/\/p\/([^/]+)/);
-    if (match) {
-      hostPeerId = match[1];
-      if (match[1] === myId) {
-        isOwner = true;
-        btnNewRoom.classList.remove("hidden");
-      }
-    }
-  } catch (_) {}
-
   // ── Room listing ──
   async function loadRooms() {
     try {
-      var rows = await db.find("rooms", { where: "status = 'open'", limit: 50 });
+      var rows = await rooms.find({ where: "status = 'open'", limit: 50 });
       renderRooms(rows || []);
     } catch (err) {
       roomsEl.innerHTML = '<div class="empty-msg"><p>Could not load rooms.</p></div>';
@@ -144,7 +126,7 @@
 
     try {
       var group = await Goop.group.create(name, "clubhouse", max);
-      await db.insert("rooms", {
+      await rooms.insert({
         name: name,
         description: desc,
         group_id: group.id,
@@ -235,7 +217,7 @@
 
     try {
       await Goop.group.close(currentRoom.group_id);
-      await db.update("rooms", currentRoom._id, { status: "closed" });
+      await rooms.update(currentRoom._id, { status: "closed" });
       Goop.ui.toast("Room closed.");
     } catch (err) {
       Goop.ui.toast({ title: "Error", message: err.message });

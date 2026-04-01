@@ -79,6 +79,32 @@ func (d *DB) GetSchema(tableName string) (*schema.Table, error) {
 	return &tbl, nil
 }
 
+// GetAllSchemas returns all stored ORM schemas keyed by table name.
+func (d *DB) GetAllSchemas() (map[string]*schema.Table, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	rows, err := d.db.Query(`SELECT table_name, schema_json FROM _orm_schemas`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]*schema.Table)
+	for rows.Next() {
+		var name, schemaJSON string
+		if err := rows.Scan(&name, &schemaJSON); err != nil {
+			return nil, err
+		}
+		var tbl schema.Table
+		if err := json.Unmarshal([]byte(schemaJSON), &tbl); err != nil {
+			continue
+		}
+		result[name] = &tbl
+	}
+	return result, rows.Err()
+}
+
 // IsORM returns true if the table was created via the ORM schema path.
 func (d *DB) IsORM(tableName string) bool {
 	d.mu.RLock()

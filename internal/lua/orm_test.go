@@ -45,12 +45,108 @@ func setupEngineWithDB(t *testing.T, scripts map[string]string) (*Engine, *stora
 	return e, db
 }
 
-func TestSchemaCount(t *testing.T) {
+func TestOrmNotORM(t *testing.T) {
+	e, _ := setupEngineWithDB(t, map[string]string{
+		"functions/bad.lua": `
+-- @rate_limit 0
+function call(req)
+  local handle, err = goop.orm("nonexistent")
+  if err then return {error = err} end
+  return {name = handle.name}
+end
+`,
+	})
+
+	result, err := e.CallFunction(context.Background(), "self-peer-id", "bad", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := result.(map[string]any)
+	if m["error"] == nil {
+		t.Fatal("expected error for non-ORM table")
+	}
+}
+
+func TestOrmProperties(t *testing.T) {
+	e, db := setupEngineWithDB(t, map[string]string{
+		"functions/info.lua": `
+-- @rate_limit 0
+function call(req)
+  local posts = goop.orm("posts")
+  return {
+    name = posts.name,
+    system_key = posts.system_key,
+    read = posts.access.read,
+    insert = posts.access.insert,
+    update = posts.access.update,
+    delete = posts.access.delete,
+    col_count = #posts.columns,
+    first_col = posts.columns[1].name,
+    first_type = posts.columns[1].type,
+    first_required = posts.columns[1].required,
+    second_col = posts.columns[2].name,
+  }
+end
+`,
+	})
+
+	db.CreateTableORM(&schema.Table{
+		Name:      "posts",
+		SystemKey: true,
+		Columns: []schema.Column{
+			{Name: "title", Type: "text", Required: true},
+			{Name: "body", Type: "text"},
+		},
+		Access: &schema.Access{Read: "open", Insert: "group", Update: "owner", Delete: "owner"},
+	})
+
+	result, err := e.CallFunction(context.Background(), "self-peer-id", "info", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := result.(map[string]any)
+	if m["name"] != "posts" {
+		t.Fatalf("expected name 'posts', got %v", m["name"])
+	}
+	if m["system_key"] != true {
+		t.Fatalf("expected system_key=true, got %v", m["system_key"])
+	}
+	if m["read"] != "open" {
+		t.Fatalf("expected access.read='open', got %v", m["read"])
+	}
+	if m["insert"] != "group" {
+		t.Fatalf("expected access.insert='group', got %v", m["insert"])
+	}
+	if m["update"] != "owner" {
+		t.Fatalf("expected access.update='owner', got %v", m["update"])
+	}
+	if m["delete"] != "owner" {
+		t.Fatalf("expected access.delete='owner', got %v", m["delete"])
+	}
+	if m["col_count"] != float64(2) {
+		t.Fatalf("expected 2 columns, got %v", m["col_count"])
+	}
+	if m["first_col"] != "title" {
+		t.Fatalf("expected first column 'title', got %v", m["first_col"])
+	}
+	if m["first_type"] != "text" {
+		t.Fatalf("expected first type 'text', got %v", m["first_type"])
+	}
+	if m["first_required"] != true {
+		t.Fatalf("expected first_required=true, got %v", m["first_required"])
+	}
+	if m["second_col"] != "body" {
+		t.Fatalf("expected second column 'body', got %v", m["second_col"])
+	}
+}
+
+func TestOrmCount(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/counter.lua": `
 -- @rate_limit 0
 function call(req)
-  local n, err = goop.schema.count("items")
+  local items = goop.orm("items")
+  local n, err = items:count()
   if err then return {error = err} end
   return {count = n}
 end
@@ -62,18 +158,13 @@ end
 		SystemKey: true,
 		Columns:   []schema.Column{{Name: "name", Type: "text", Required: true}},
 	}
-	if err := db.CreateTableORM(tbl); err != nil {
-		t.Fatal(err)
-	}
+	db.CreateTableORM(tbl)
 
 	result, err := e.CallFunction(context.Background(), "self-peer-id", "counter", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, ok := result.(map[string]any)
-	if !ok {
-		t.Fatalf("expected map, got %T", result)
-	}
+	m := result.(map[string]any)
 	if m["count"] != float64(0) {
 		t.Fatalf("expected count=0, got %v", m["count"])
 	}
@@ -91,12 +182,13 @@ end
 	}
 }
 
-func TestSchemaSeed(t *testing.T) {
+func TestOrmSeed(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/seed.lua": `
 -- @rate_limit 0
 function call(req)
-  return goop.schema.seed("items", {
+  local items = goop.orm("items")
+  return items:seed({
     {name = "apple"},
     {name = "banana"},
     {name = "cherry"},
@@ -110,9 +202,7 @@ end
 		SystemKey: true,
 		Columns:   []schema.Column{{Name: "name", Type: "text", Required: true}},
 	}
-	if err := db.CreateTableORM(tbl); err != nil {
-		t.Fatal(err)
-	}
+	db.CreateTableORM(tbl)
 
 	result, err := e.CallFunction(context.Background(), "self-peer-id", "seed", nil)
 	if err != nil {
@@ -131,12 +221,13 @@ end
 	}
 }
 
-func TestSchemaSeedIdempotent(t *testing.T) {
+func TestOrmSeedIdempotent(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/seed.lua": `
 -- @rate_limit 0
 function call(req)
-  return goop.schema.seed("items", {
+  local items = goop.orm("items")
+  return items:seed({
     {name = "only_once"},
   })
 end
@@ -148,9 +239,7 @@ end
 		SystemKey: true,
 		Columns:   []schema.Column{{Name: "name", Type: "text", Required: true}},
 	}
-	if err := db.CreateTableORM(tbl); err != nil {
-		t.Fatal(err)
-	}
+	db.CreateTableORM(tbl)
 
 	result1, _ := e.CallFunction(context.Background(), "self-peer-id", "seed", nil)
 	if result1 != float64(1) {
@@ -168,12 +257,13 @@ end
 	}
 }
 
-func TestSchemaSeedOwnership(t *testing.T) {
+func TestOrmSeedOwnership(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/seed.lua": `
 -- @rate_limit 0
 function call(req)
-  return goop.schema.seed("items", {
+  local items = goop.orm("items")
+  return items:seed({
     {name = "seeded_item"},
   })
 end
@@ -185,9 +275,7 @@ end
 		SystemKey: true,
 		Columns:   []schema.Column{{Name: "name", Type: "text", Required: true}},
 	}
-	if err := db.CreateTableORM(tbl); err != nil {
-		t.Fatal(err)
-	}
+	db.CreateTableORM(tbl)
 
 	e.CallFunction(context.Background(), "self-peer-id", "seed", nil)
 
@@ -201,12 +289,13 @@ end
 	}
 }
 
-func TestSchemaInsertViaLua(t *testing.T) {
+func TestOrmInsert(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/inserter.lua": `
 -- @rate_limit 0
 function call(req)
-  local id, err = goop.schema.insert("items", {name = req.params.name})
+  local items = goop.orm("items")
+  local id, err = items:insert({name = req.params.name})
   if err then return {error = err} end
   return {id = id}
 end
@@ -218,9 +307,7 @@ end
 		SystemKey: true,
 		Columns:   []schema.Column{{Name: "name", Type: "text", Required: true}},
 	}
-	if err := db.CreateTableORM(tbl); err != nil {
-		t.Fatal(err)
-	}
+	db.CreateTableORM(tbl)
 
 	result, err := e.CallFunction(context.Background(), "self-peer-id", "inserter", map[string]any{"name": "test"})
 	if err != nil {
@@ -235,12 +322,13 @@ end
 	}
 }
 
-func TestSchemaFind(t *testing.T) {
+func TestOrmFind(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/finder.lua": `
 -- @rate_limit 0
 function call(req)
-  local rows = goop.schema.find("posts", {
+  local posts = goop.orm("posts")
+  local rows = posts:find({
     where = "published = ?",
     args = { 1 },
     fields = { "title", "slug" },
@@ -261,9 +349,7 @@ end
 			{Name: "published", Type: "integer", Default: 1},
 		},
 	}
-	if err := db.CreateTableORM(tbl); err != nil {
-		t.Fatal(err)
-	}
+	db.CreateTableORM(tbl)
 
 	db.OrmInsert("posts", "p1", "", map[string]any{"title": "First", "slug": "first", "published": 1})
 	db.OrmInsert("posts", "p1", "", map[string]any{"title": "Draft", "slug": "draft", "published": 0})
@@ -290,12 +376,13 @@ end
 	}
 }
 
-func TestSchemaFindEmpty(t *testing.T) {
+func TestOrmFindEmpty(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/finder.lua": `
 -- @rate_limit 0
 function call(req)
-  local rows = goop.schema.find("posts", {
+  local posts = goop.orm("posts")
+  local rows = posts:find({
     where = "published = 1",
   })
   return { posts = rows or {} }
@@ -311,9 +398,7 @@ end
 			{Name: "published", Type: "integer", Default: 1},
 		},
 	}
-	if err := db.CreateTableORM(tbl); err != nil {
-		t.Fatal(err)
-	}
+	db.CreateTableORM(tbl)
 
 	result, err := e.CallFunction(context.Background(), "self-peer-id", "finder", nil)
 	if err != nil {
@@ -329,12 +414,13 @@ end
 	}
 }
 
-func TestSchemaFindOne(t *testing.T) {
+func TestOrmFindOne(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/getter.lua": `
 -- @rate_limit 0
 function call(req)
-  local row = goop.schema.find_one("posts", {
+  local posts = goop.orm("posts")
+  local row = posts:find_one({
     where = "slug = ?",
     args = { req.params.slug },
     fields = { "_id", "title", "slug" },
@@ -354,9 +440,7 @@ end
 			{Name: "published", Type: "integer", Default: 1},
 		},
 	}
-	if err := db.CreateTableORM(tbl); err != nil {
-		t.Fatal(err)
-	}
+	db.CreateTableORM(tbl)
 
 	db.OrmInsert("posts", "p1", "", map[string]any{"title": "Hello", "slug": "hello"})
 	db.OrmInsert("posts", "p1", "", map[string]any{"title": "World", "slug": "world"})
@@ -378,12 +462,13 @@ end
 	}
 }
 
-func TestSchemaFindOneNotFound(t *testing.T) {
+func TestOrmFindOneNotFound(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/getter.lua": `
 -- @rate_limit 0
 function call(req)
-  local row = goop.schema.find_one("posts", {
+  local posts = goop.orm("posts")
+  local row = posts:find_one({
     where = "slug = ?",
     args = { req.params.slug },
   })
@@ -398,9 +483,7 @@ end
 		SystemKey: true,
 		Columns:   []schema.Column{{Name: "title", Type: "text"}, {Name: "slug", Type: "text"}},
 	}
-	if err := db.CreateTableORM(tbl); err != nil {
-		t.Fatal(err)
-	}
+	db.CreateTableORM(tbl)
 
 	result, err := e.CallFunction(context.Background(), "self-peer-id", "getter", map[string]any{"slug": "nope"})
 	if err != nil {
@@ -412,12 +495,13 @@ end
 	}
 }
 
-func TestSchemaFindWithOrder(t *testing.T) {
+func TestOrmFindWithOrder(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/ordered.lua": `
 -- @rate_limit 0
 function call(req)
-  local rows = goop.schema.find("items", {
+  local items = goop.orm("items")
+  local rows = items:find({
     order = "priority DESC, name ASC",
     limit = 5,
   })
@@ -434,9 +518,7 @@ end
 			{Name: "priority", Type: "integer", Default: 0},
 		},
 	}
-	if err := db.CreateTableORM(tbl); err != nil {
-		t.Fatal(err)
-	}
+	db.CreateTableORM(tbl)
 
 	db.OrmInsert("items", "p1", "", map[string]any{"name": "low", "priority": 1})
 	db.OrmInsert("items", "p1", "", map[string]any{"name": "high", "priority": 10})
@@ -456,12 +538,13 @@ end
 	}
 }
 
-func TestSchemaAggregate(t *testing.T) {
+func TestOrmAggregate(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/stats.lua": `
 -- @rate_limit 0
 function call(req)
-  local rows = goop.schema.aggregate("scores", "COUNT(*) as n, SUM(score) as total")
+  local scores = goop.orm("scores")
+  local rows = scores:aggregate("COUNT(*) as n, SUM(score) as total")
   if not rows or #rows == 0 then return {n = 0, total = 0} end
   return rows[1]
 end
@@ -493,12 +576,13 @@ end
 	}
 }
 
-func TestSchemaAggregateGroupBy(t *testing.T) {
+func TestOrmAggregateGroupBy(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/grouped.lua": `
 -- @rate_limit 0
 function call(req)
-  return goop.schema.aggregate("scores", "player, SUM(score) as total", {
+  local scores = goop.orm("scores")
+  return scores:aggregate("player, SUM(score) as total", {
     group_by = "player",
   })
 end
@@ -527,12 +611,13 @@ end
 	}
 }
 
-func TestSchemaDistinct(t *testing.T) {
+func TestOrmDistinct(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/cats.lua": `
 -- @rate_limit 0
 function call(req)
-  return goop.schema.distinct("notes", "category")
+  local notes = goop.orm("notes")
+  return notes:distinct("category")
 end
 `,
 	})
@@ -559,12 +644,13 @@ end
 	}
 }
 
-func TestSchemaUpdateWhere(t *testing.T) {
+func TestOrmUpdateWhere(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/mover.lua": `
 -- @rate_limit 0
 function call(req)
-  return goop.schema.update_where("cards", {position = 99}, {
+  local cards = goop.orm("cards")
+  return cards:update_where({position = 99}, {
     where = "column_id = ?",
     args = { req.params.col },
   })
@@ -604,12 +690,13 @@ end
 	}
 }
 
-func TestSchemaDeleteWhere(t *testing.T) {
+func TestOrmDeleteWhere(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/cleaner.lua": `
 -- @rate_limit 0
 function call(req)
-  return goop.schema.delete_where("cards", {
+  local cards = goop.orm("cards")
+  return cards:delete_where({
     where = "column_id = ?",
     args = { req.params.col },
   })
@@ -646,12 +733,13 @@ end
 	}
 }
 
-func TestSchemaUpsert(t *testing.T) {
+func TestOrmUpsert(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/config.lua": `
 -- @rate_limit 0
 function call(req)
-  return goop.schema.upsert("config", "key", {
+  local cfg = goop.orm("config")
+  return cfg:upsert("key", {
     key = req.params.key,
     value = req.params.value,
   })
@@ -668,7 +756,6 @@ end
 	}
 	db.CreateTableORM(tbl)
 
-	// First call — insert
 	_, err := e.CallFunction(context.Background(), "self-peer-id", "config", map[string]any{"key": "title", "value": "My Blog"})
 	if err != nil {
 		t.Fatal(err)
@@ -682,7 +769,6 @@ end
 		t.Fatalf("expected value 'My Blog', got %v", rows[0]["value"])
 	}
 
-	// Second call — update (same key)
 	_, err = e.CallFunction(context.Background(), "self-peer-id", "config", map[string]any{"key": "title", "value": "New Title"})
 	if err != nil {
 		t.Fatal(err)
@@ -697,12 +783,13 @@ end
 	}
 }
 
-func TestSchemaGetBy(t *testing.T) {
+func TestOrmGetBy(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/lookup.lua": `
 -- @rate_limit 0
 function call(req)
-  local row = goop.schema.get_by("posts", "slug", req.params.slug)
+  local posts = goop.orm("posts")
+  local row = posts:get_by("slug", req.params.slug)
   if not row then return { found = false } end
   return { found = true, title = row.title }
 end
@@ -739,12 +826,13 @@ end
 	}
 }
 
-func TestSchemaGetByID(t *testing.T) {
+func TestOrmGetByID(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/byid.lua": `
 -- @rate_limit 0
 function call(req)
-  local row = goop.schema.get_by("items", "_id", req.params.id)
+  local items = goop.orm("items")
+  local row = items:get_by("_id", req.params.id)
   if not row then return { found = false } end
   return { found = true, name = row.name }
 end
@@ -769,16 +857,17 @@ end
 	}
 }
 
-func TestSchemaExists(t *testing.T) {
+func TestOrmExists(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/checker.lua": `
 -- @rate_limit 0
 function call(req)
-  local any_exist = goop.schema.exists("posts")
-  local published = goop.schema.exists("posts", {
+  local posts = goop.orm("posts")
+  local any_exist = posts:exists()
+  local published = posts:exists({
     where = "published = ?", args = { 1 },
   })
-  local drafts = goop.schema.exists("posts", {
+  local drafts = posts:exists({
     where = "published = ?", args = { 0 },
   })
   return { any = any_exist, published = published, drafts = drafts }
@@ -816,12 +905,13 @@ end
 	}
 }
 
-func TestSchemaPluck(t *testing.T) {
+func TestOrmPluck(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/titles.lua": `
 -- @rate_limit 0
 function call(req)
-  return goop.schema.pluck("posts", "title", {
+  local posts = goop.orm("posts")
+  return posts:pluck("title", {
     where = "published = 1",
     order = "_id ASC",
   })
@@ -854,12 +944,13 @@ end
 	}
 }
 
-func TestSchemaPluckEmpty(t *testing.T) {
+func TestOrmPluckEmpty(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/empty.lua": `
 -- @rate_limit 0
 function call(req)
-  return goop.schema.pluck("items", "name")
+  local items = goop.orm("items")
+  return items:pluck("name")
 end
 `,
 	})
@@ -883,12 +974,13 @@ end
 	}
 }
 
-func TestSchemaUpdateWhereRequiresWhere(t *testing.T) {
+func TestOrmUpdateWhereRequiresWhere(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/bad.lua": `
 -- @rate_limit 0
 function call(req)
-  local n, err = goop.schema.update_where("items", {name = "x"}, {})
+  local items = goop.orm("items")
+  local n, err = items:update_where({name = "x"}, {})
   if err then return {error = err} end
   return {n = n}
 end
@@ -912,12 +1004,13 @@ end
 	}
 }
 
-func TestSchemaDeleteWhereRequiresWhere(t *testing.T) {
+func TestOrmDeleteWhereRequiresWhere(t *testing.T) {
 	e, db := setupEngineWithDB(t, map[string]string{
 		"functions/bad.lua": `
 -- @rate_limit 0
 function call(req)
-  local n, err = goop.schema.delete_where("items", {})
+  local items = goop.orm("items")
+  local n, err = items:delete_where({})
   if err then return {error = err} end
   return {n = n}
 end
@@ -943,5 +1036,141 @@ end
 	rows, _ := db.OrmList("items", 0)
 	if len(rows) != 1 {
 		t.Fatal("row should still exist — delete was blocked")
+	}
+}
+
+func TestOrmValidate(t *testing.T) {
+	e, db := setupEngineWithDB(t, map[string]string{
+		"functions/val.lua": `
+-- @rate_limit 0
+function call(req)
+  local items = goop.orm("items")
+  local ok1, err1 = items:validate({name = "hello", count = 5})
+  local ok2, err2 = items:validate({name = "hello", count = "not_a_number"})
+  return {
+    valid_ok = ok1,
+    valid_err = err1,
+    invalid_ok = ok2,
+    invalid_err = err2,
+  }
+end
+`,
+	})
+
+	tbl := &schema.Table{
+		Name: "items", SystemKey: true,
+		Columns: []schema.Column{
+			{Name: "name", Type: "text", Required: true},
+			{Name: "count", Type: "integer"},
+		},
+	}
+	db.CreateTableORM(tbl)
+
+	result, err := e.CallFunction(context.Background(), "self-peer-id", "val", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := result.(map[string]any)
+	if m["valid_ok"] != true {
+		t.Fatalf("expected valid data ok=true, got %v", m["valid_ok"])
+	}
+	if m["invalid_ok"] != false {
+		t.Fatalf("expected invalid data ok=false, got %v", m["invalid_ok"])
+	}
+	if m["invalid_err"] == nil {
+		t.Fatal("expected error message for invalid data")
+	}
+}
+
+func TestOrmCRUDIntegration(t *testing.T) {
+	e, db := setupEngineWithDB(t, map[string]string{
+		"functions/crud.lua": `
+-- @rate_limit 0
+function call(req)
+  local posts = goop.orm("posts")
+
+  local id = posts:insert({title = "Hello", body = "World", published = 1})
+  posts:insert({title = "Draft", body = "Hidden", published = 0})
+
+  local rows = posts:find({where = "published = ?", args = {1}})
+  local row = posts:find_one({where = "title = ?", args = {"Hello"}})
+  local n = posts:count()
+  local got = posts:get(id)
+  local by = posts:get_by("title", "Hello")
+  local ex = posts:exists({where = "published = ?", args = {1}})
+  local titles = posts:pluck("title")
+  local all = posts:list(10)
+
+  posts:update(id, {title = "Updated"})
+  local after = posts:get(id)
+
+  posts:delete(id + 1)
+  local final_count = posts:count()
+
+  return {
+    insert_id = id,
+    find_count = #rows,
+    find_one_title = row and row.title,
+    total = n,
+    got_title = got and got.title,
+    by_title = by and by.title,
+    exists = ex,
+    titles_count = #titles,
+    list_count = #all,
+    updated_title = after and after.title,
+    final_count = final_count,
+  }
+end
+`,
+	})
+
+	db.CreateTableORM(&schema.Table{
+		Name:      "posts",
+		SystemKey: true,
+		Columns: []schema.Column{
+			{Name: "title", Type: "text", Required: true},
+			{Name: "body", Type: "text"},
+			{Name: "published", Type: "integer", Default: 1},
+		},
+		Access: &schema.Access{Read: "open", Insert: "group", Update: "owner", Delete: "owner"},
+	})
+
+	result, err := e.CallFunction(context.Background(), "self-peer-id", "crud", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := result.(map[string]any)
+	if m["insert_id"] == nil || m["insert_id"] == float64(0) {
+		t.Fatal("expected non-zero insert id")
+	}
+	if m["find_count"] != float64(1) {
+		t.Fatalf("expected 1 published, got %v", m["find_count"])
+	}
+	if m["find_one_title"] != "Hello" {
+		t.Fatalf("expected find_one 'Hello', got %v", m["find_one_title"])
+	}
+	if m["total"] != float64(2) {
+		t.Fatalf("expected 2 total, got %v", m["total"])
+	}
+	if m["got_title"] != "Hello" {
+		t.Fatalf("expected get 'Hello', got %v", m["got_title"])
+	}
+	if m["by_title"] != "Hello" {
+		t.Fatalf("expected get_by 'Hello', got %v", m["by_title"])
+	}
+	if m["exists"] != true {
+		t.Fatalf("expected exists=true, got %v", m["exists"])
+	}
+	if m["titles_count"] != float64(2) {
+		t.Fatalf("expected 2 titles, got %v", m["titles_count"])
+	}
+	if m["list_count"] != float64(2) {
+		t.Fatalf("expected 2 in list, got %v", m["list_count"])
+	}
+	if m["updated_title"] != "Updated" {
+		t.Fatalf("expected updated 'Updated', got %v", m["updated_title"])
+	}
+	if m["final_count"] != float64(1) {
+		t.Fatalf("expected 1 after delete, got %v", m["final_count"])
 	}
 }

@@ -113,6 +113,8 @@ func mapSuffixToOp(suffix string) string {
 		return "delete-where"
 	case "upsert":
 		return "upsert"
+	case "orm-schema":
+		return "orm-schema"
 	}
 	return ""
 }
@@ -121,7 +123,7 @@ func buildDataRequest(op string, r *http.Request) (p2p.DataRequest, error) {
 	req := p2p.DataRequest{Op: op}
 
 	// GET ops with no body
-	if op == "tables" || op == "lua-list" {
+	if op == "tables" || op == "lua-list" || op == "orm-schema" {
 		return req, nil
 	}
 

@@ -56,6 +56,16 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 		writeJSON(w, result)
 	})
 
+	// List all ORM schemas (full column info + access policies)
+	handleGet(mux, "/api/data/orm-schema", func(w http.ResponseWriter, r *http.Request) {
+		schemas, err := db.GetAllSchemas()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, schemas)
+	})
+
 	// Create a new table (supports both classic ColumnDef and ORM schema formats)
 	handlePost(mux, "/api/data/tables/create", func(w http.ResponseWriter, r *http.Request, req struct {
 		Name    string              `json:"name"`

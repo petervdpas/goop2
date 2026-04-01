@@ -1,17 +1,13 @@
-// Blog post detail page
+// Blog post detail page — ORM DSL
 (async function () {
-  var db = Goop.data;
+  var esc = Goop.esc;
+  var posts = await Goop.data.orm("posts");
+  var config = await Goop.data.orm("blog_config");
   var articleEl = document.getElementById("article");
 
   var basePath = '';
   var m = window.location.pathname.match(/^(\/p\/[^/]+)\//);
   if (m) basePath = m[1];
-
-  function esc(s) {
-    var d = document.createElement("div");
-    d.textContent = s == null ? "" : String(s);
-    return d.innerHTML;
-  }
 
   function goHome() {
     window.location.href = basePath + '/';
@@ -19,7 +15,7 @@
 
   // ── Load blog config for theming ──
   try {
-    var configRows = await db.find("blog_config");
+    var configRows = await config.find();
     var html = document.documentElement;
     var accentToIdx = {
       "#b44d2d": "1", "#2d6a9f": "2", "#4a8f46": "3",
@@ -56,9 +52,9 @@
   }
 
   try {
-    var p = await db.findOne("posts", { where: "slug = ? AND published = 1", args: [slug] });
+    var p = await posts.findOne({ where: "slug = ? AND published = 1", args: [slug] });
     if (!p) {
-      p = await db.findOne("posts", { where: "_id = ? AND published = 1", args: [slug] });
+      p = await posts.findOne({ where: "_id = ? AND published = 1", args: [slug] });
     }
     if (!p) {
       articleEl.innerHTML =

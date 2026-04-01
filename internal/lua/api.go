@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/petervdpas/goop2/internal/orm/schema"
 	"github.com/petervdpas/goop2/internal/storage"
 
 	lua "github.com/yuin/gopher-lua"
@@ -469,52 +470,54 @@ func dbExecFn(_ *invocationCtx, db *storage.DB) lua.LGFunction {
 	}
 }
 
-// schemaCreateFn implements goop.schema.create(name, columns) — creates an ORM-managed table.
-// columns is a Lua array of {name, type, key?, required?, default?} tables.
-func schemaCreateFn(_ *invocationCtx, db *storage.DB) lua.LGFunction {
-	return func(L *lua.LState) int {
-		name := L.CheckString(1)
-		colsTbl := L.CheckTable(2)
+// schemaToLua converts a schema.Table to a Lua table with full metadata.
+func schemaToLua(L *lua.LState, tbl *schema.Table) *lua.LTable {
+	result := L.NewTable()
+	result.RawSetString("name", lua.LString(tbl.Name))
+	result.RawSetString("system_key", lua.LBool(tbl.SystemKey))
+	result.RawSetString("context", lua.LBool(tbl.Context))
 
-		var columns []storage.LuaSchemaColumn
-		colsTbl.ForEach(func(_, val lua.LValue) {
-			row, ok := val.(*lua.LTable)
-			if !ok {
-				return
-			}
-			col := storage.LuaSchemaColumn{
-				Name: luaString(row, "name"),
-				Type: luaString(row, "type"),
-			}
-			if v := row.RawGetString("key"); v == lua.LTrue {
-				col.Key = true
-			}
-			if v := row.RawGetString("required"); v == lua.LTrue {
-				col.Required = true
-			}
-			if v := row.RawGetString("auto"); v == lua.LTrue {
-				col.Auto = true
-			}
-			if v := row.RawGetString("default"); v != lua.LNil {
-				col.Default = luaToGo(v)
-			}
-			columns = append(columns, col)
-		})
-
-		if err := db.CreateTableORMFromLua(name, columns); err != nil {
-			L.Push(lua.LNil)
-			L.Push(lua.LString(err.Error()))
-			return 2
+	colsTbl := L.NewTable()
+	for i, c := range tbl.Columns {
+		colTbl := L.NewTable()
+		colTbl.RawSetString("name", lua.LString(c.Name))
+		colTbl.RawSetString("type", lua.LString(c.Type))
+		colTbl.RawSetString("key", lua.LBool(c.Key))
+		colTbl.RawSetString("required", lua.LBool(c.Required))
+		colTbl.RawSetString("auto", lua.LBool(c.Auto))
+		if c.Default != nil {
+			colTbl.RawSetString("default", goToLua(L, c.Default))
 		}
-
-		L.Push(lua.LTrue)
-		L.Push(lua.LNil)
-		return 2
+		if len(c.Values) > 0 {
+			valsTbl := L.NewTable()
+			for j, v := range c.Values {
+				vTbl := L.NewTable()
+				vTbl.RawSetString("key", lua.LString(v.Key))
+				vTbl.RawSetString("label", lua.LString(v.Label))
+				valsTbl.RawSetInt(j+1, vTbl)
+			}
+			colTbl.RawSetString("values", valsTbl)
+		}
+		colsTbl.RawSetInt(i+1, colTbl)
 	}
+	result.RawSetString("columns", colsTbl)
+
+	if tbl.Access != nil {
+		accessTbl := L.NewTable()
+		accessTbl.RawSetString("read", lua.LString(tbl.Access.Read))
+		accessTbl.RawSetString("insert", lua.LString(tbl.Access.Insert))
+		accessTbl.RawSetString("update", lua.LString(tbl.Access.Update))
+		accessTbl.RawSetString("delete", lua.LString(tbl.Access.Delete))
+		result.RawSetString("access", accessTbl)
+	}
+
+	return result
 }
 
-// schemaDescribeFn implements goop.schema.describe(table) — returns typed schema.
-func schemaDescribeFn(db *storage.DB) lua.LGFunction {
+// ormFn implements goop.orm(table) — returns a schema-aware table handle.
+// The handle carries schema metadata (columns, access, system_key) and
+// scoped CRUD methods so callers never pass the table name again.
+func ormFn(inv *invocationCtx, db *storage.DB) lua.LGFunction {
 	return func(L *lua.LState) int {
 		tableName := L.CheckString(1)
 
@@ -526,34 +529,187 @@ func schemaDescribeFn(db *storage.DB) lua.LGFunction {
 		}
 		if tbl == nil {
 			L.Push(lua.LNil)
-			L.Push(lua.LString("not an ORM table"))
+			L.Push(lua.LString("not an ORM table: " + tableName))
 			return 2
 		}
 
-		result := L.NewTable()
-		result.RawSetString("name", lua.LString(tbl.Name))
-		colsTbl := L.NewTable()
-		for i, c := range tbl.Columns {
-			colTbl := L.NewTable()
-			colTbl.RawSetString("name", lua.LString(c.Name))
-			colTbl.RawSetString("type", lua.LString(c.Type))
-			colTbl.RawSetString("key", lua.LBool(c.Key))
-			colTbl.RawSetString("required", lua.LBool(c.Required))
-			colTbl.RawSetString("auto", lua.LBool(c.Auto))
-			if c.Default != nil {
-				colTbl.RawSetString("default", goToLua(L, c.Default))
-			}
-			colsTbl.RawSetInt(i+1, colTbl)
-		}
-		result.RawSetString("columns", colsTbl)
+		handle := schemaToLua(L, tbl)
 
-		L.Push(result)
+		handle.RawSetString("find", L.NewFunction(func(L *lua.LState) int {
+			opts := L.OptTable(2, nil)
+			L.SetTop(0)
+			L.Push(lua.LString(tableName))
+			if opts != nil {
+				L.Push(opts)
+			}
+			return schemaFindFn(db)(L)
+		}))
+
+		handle.RawSetString("find_one", L.NewFunction(func(L *lua.LState) int {
+			opts := L.OptTable(2, nil)
+			L.SetTop(0)
+			L.Push(lua.LString(tableName))
+			if opts != nil {
+				L.Push(opts)
+			}
+			return schemaFindOneFn(db)(L)
+		}))
+
+		handle.RawSetString("get", L.NewFunction(func(L *lua.LState) int {
+			id := L.CheckNumber(2)
+			L.SetTop(0)
+			L.Push(lua.LString(tableName))
+			L.Push(id)
+			return schemaGetFn(db)(L)
+		}))
+
+		handle.RawSetString("get_by", L.NewFunction(func(L *lua.LState) int {
+			col := L.CheckString(2)
+			val := L.Get(3)
+			L.SetTop(0)
+			L.Push(lua.LString(tableName))
+			L.Push(lua.LString(col))
+			L.Push(val)
+			return schemaGetByFn(db)(L)
+		}))
+
+		handle.RawSetString("list", L.NewFunction(func(L *lua.LState) int {
+			limit := L.OptNumber(2, 0)
+			L.SetTop(0)
+			L.Push(lua.LString(tableName))
+			L.Push(limit)
+			return schemaListFn(db)(L)
+		}))
+
+		handle.RawSetString("count", L.NewFunction(func(L *lua.LState) int {
+			L.SetTop(0)
+			L.Push(lua.LString(tableName))
+			return schemaCountFn(db)(L)
+		}))
+
+		handle.RawSetString("exists", L.NewFunction(func(L *lua.LState) int {
+			opts := L.OptTable(2, nil)
+			L.SetTop(0)
+			L.Push(lua.LString(tableName))
+			if opts != nil {
+				L.Push(opts)
+			}
+			return schemaExistsFn(db)(L)
+		}))
+
+		handle.RawSetString("pluck", L.NewFunction(func(L *lua.LState) int {
+			col := L.CheckString(2)
+			opts := L.OptTable(3, nil)
+			L.SetTop(0)
+			L.Push(lua.LString(tableName))
+			L.Push(lua.LString(col))
+			if opts != nil {
+				L.Push(opts)
+			}
+			return schemaPluckFn(db)(L)
+		}))
+
+		handle.RawSetString("distinct", L.NewFunction(func(L *lua.LState) int {
+			col := L.CheckString(2)
+			opts := L.OptTable(3, nil)
+			L.SetTop(0)
+			L.Push(lua.LString(tableName))
+			L.Push(lua.LString(col))
+			if opts != nil {
+				L.Push(opts)
+			}
+			return schemaDistinctFn(db)(L)
+		}))
+
+		handle.RawSetString("aggregate", L.NewFunction(func(L *lua.LState) int {
+			expr := L.CheckString(2)
+			opts := L.OptTable(3, nil)
+			L.SetTop(0)
+			L.Push(lua.LString(tableName))
+			L.Push(lua.LString(expr))
+			if opts != nil {
+				L.Push(opts)
+			}
+			return schemaAggregateFn(db)(L)
+		}))
+
+		handle.RawSetString("insert", L.NewFunction(func(L *lua.LState) int {
+			data := L.CheckTable(2)
+			L.SetTop(0)
+			L.Push(lua.LString(tableName))
+			L.Push(data)
+			return schemaInsertFn(inv, db)(L)
+		}))
+
+		handle.RawSetString("update", L.NewFunction(func(L *lua.LState) int {
+			id := L.CheckNumber(2)
+			data := L.CheckTable(3)
+			L.SetTop(0)
+			L.Push(lua.LString(tableName))
+			L.Push(id)
+			L.Push(data)
+			return schemaUpdateFn(db)(L)
+		}))
+
+		handle.RawSetString("delete", L.NewFunction(func(L *lua.LState) int {
+			id := L.CheckNumber(2)
+			L.SetTop(0)
+			L.Push(lua.LString(tableName))
+			L.Push(id)
+			return schemaDeleteFn(db)(L)
+		}))
+
+		handle.RawSetString("update_where", L.NewFunction(func(L *lua.LState) int {
+			data := L.CheckTable(2)
+			opts := L.CheckTable(3)
+			L.SetTop(0)
+			L.Push(lua.LString(tableName))
+			L.Push(data)
+			L.Push(opts)
+			return schemaUpdateWhereFn(db)(L)
+		}))
+
+		handle.RawSetString("delete_where", L.NewFunction(func(L *lua.LState) int {
+			opts := L.CheckTable(2)
+			L.SetTop(0)
+			L.Push(lua.LString(tableName))
+			L.Push(opts)
+			return schemaDeleteWhereFn(db)(L)
+		}))
+
+		handle.RawSetString("upsert", L.NewFunction(func(L *lua.LState) int {
+			keyCol := L.CheckString(2)
+			data := L.CheckTable(3)
+			L.SetTop(0)
+			L.Push(lua.LString(tableName))
+			L.Push(lua.LString(keyCol))
+			L.Push(data)
+			return schemaUpsertFn(inv, db)(L)
+		}))
+
+		handle.RawSetString("seed", L.NewFunction(func(L *lua.LState) int {
+			rows := L.CheckTable(2)
+			L.SetTop(0)
+			L.Push(lua.LString(tableName))
+			L.Push(rows)
+			return schemaSeedFn(inv, db)(L)
+		}))
+
+		handle.RawSetString("validate", L.NewFunction(func(L *lua.LState) int {
+			data := L.CheckTable(2)
+			L.SetTop(0)
+			L.Push(lua.LString(tableName))
+			L.Push(data)
+			return schemaValidateFn(db)(L)
+		}))
+
+		L.Push(handle)
 		L.Push(lua.LNil)
 		return 2
 	}
 }
 
-// schemaValidateFn implements goop.schema.validate(table, data) — validates types.
+// schemaValidateFn validates data against ORM schema types.
 func schemaValidateFn(db *storage.DB) lua.LGFunction {
 	return func(L *lua.LState) int {
 		tableName := L.CheckString(1)
@@ -578,17 +734,7 @@ func schemaValidateFn(db *storage.DB) lua.LGFunction {
 	}
 }
 
-// schemaIsORMFn implements goop.schema.is_orm(table) — checks if table is ORM-managed.
-func schemaIsORMFn(db *storage.DB) lua.LGFunction {
-	return func(L *lua.LState) int {
-		tableName := L.CheckString(1)
-		L.Push(lua.LBool(db.IsORM(tableName)))
-		return 1
-	}
-}
-
-
-// schemaInsertFn implements goop.schema.insert(table, data) — typed insert.
+// schemaInsertFn inserts a row with ORM validation and auto-generated columns.
 func schemaInsertFn(inv *invocationCtx, db *storage.DB) lua.LGFunction {
 	return func(L *lua.LState) int {
 		tableName := L.CheckString(1)
@@ -1167,13 +1313,6 @@ func luaTableToMap(tbl *lua.LTable) map[string]any {
 	return data
 }
 
-func luaString(tbl *lua.LTable, key string) string {
-	v := tbl.RawGetString(key)
-	if s, ok := v.(lua.LString); ok {
-		return string(s)
-	}
-	return ""
-}
 
 // collectLuaArgs gathers variadic arguments from the Lua stack starting at position start.
 func collectLuaArgs(L *lua.LState, start int) []any {

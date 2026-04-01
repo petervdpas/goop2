@@ -231,3 +231,51 @@ func TestExportSchemaORM(t *testing.T) {
 		t.Fatal("exported schema should preserve Access")
 	}
 }
+
+func TestGetAllSchemas(t *testing.T) {
+	db := testDB(t)
+
+	db.CreateTableORM(&schema.Table{
+		Name:      "posts",
+		SystemKey: true,
+		Columns:   []schema.Column{{Name: "title", Type: "text", Required: true}},
+		Access:    &schema.Access{Read: "open", Insert: "group", Update: "owner", Delete: "owner"},
+	})
+	db.CreateTableORM(&schema.Table{
+		Name:      "config",
+		SystemKey: true,
+		Columns:   []schema.Column{{Name: "key", Type: "text", Required: true}, {Name: "value", Type: "text"}},
+	})
+
+	schemas, err := db.GetAllSchemas()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(schemas) != 2 {
+		t.Fatalf("expected 2 schemas, got %d", len(schemas))
+	}
+	if schemas["posts"] == nil {
+		t.Fatal("missing posts schema")
+	}
+	if schemas["config"] == nil {
+		t.Fatal("missing config schema")
+	}
+	if schemas["posts"].Access == nil || schemas["posts"].Access.Insert != "group" {
+		t.Fatal("posts schema should have access.insert='group'")
+	}
+	if len(schemas["config"].Columns) != 2 {
+		t.Fatalf("config should have 2 columns, got %d", len(schemas["config"].Columns))
+	}
+}
+
+func TestGetAllSchemasEmpty(t *testing.T) {
+	db := testDB(t)
+
+	schemas, err := db.GetAllSchemas()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(schemas) != 0 {
+		t.Fatalf("expected 0 schemas, got %d", len(schemas))
+	}
+}
