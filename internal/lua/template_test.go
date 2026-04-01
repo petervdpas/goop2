@@ -24,6 +24,9 @@ var configRowLua string
 //go:embed testdata/templates/game.lua
 var gameLua string
 
+//go:embed testdata/templates/routing.lua
+var routingLua string
+
 func setupScriptEngine(t *testing.T, name, src string, tables []*schema.Table) (*Engine, *storage.DB) {
 	t.Helper()
 	dir := t.TempDir()
@@ -370,5 +373,77 @@ func TestGameLobbyWithAggregates(t *testing.T) {
 	}
 	if m["wins"] != float64(0) {
 		t.Fatalf("expected 0 wins, got %v", m["wins"])
+	}
+}
+
+// ── Routing + owner tests ──
+
+func TestRouteDispatch(t *testing.T) {
+	e, _ := setupScriptEngine(t, "routing", routingLua, []*schema.Table{itemsTable})
+
+	callMap(t, e, "routing", "self-peer-id", map[string]any{"action": "insert", "name": "apple"})
+	callMap(t, e, "routing", "self-peer-id", map[string]any{"action": "insert", "name": "banana"})
+
+	m := callMap(t, e, "routing", "self-peer-id", map[string]any{"action": "count"})
+	if m["n"] != float64(2) {
+		t.Fatalf("expected 2, got %v", m["n"])
+	}
+
+	rows := call(t, e, "routing", "self-peer-id", map[string]any{"action": "list"}).([]any)
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(rows))
+	}
+	if rows[0].(map[string]any)["name"] != "apple" {
+		t.Fatal("expected 'apple' first (ASC)")
+	}
+}
+
+func TestRouteUnknownAction(t *testing.T) {
+	e, _ := setupScriptEngine(t, "routing", routingLua, []*schema.Table{itemsTable})
+
+	_, err := e.CallFunction(context.Background(), "self-peer-id", "routing", map[string]any{"action": "nope"})
+	if err == nil {
+		t.Fatal("expected error for unknown action")
+	}
+}
+
+func TestRouteMissingAction(t *testing.T) {
+	e, _ := setupScriptEngine(t, "routing", routingLua, []*schema.Table{itemsTable})
+
+	_, err := e.CallFunction(context.Background(), "self-peer-id", "routing", map[string]any{})
+	if err == nil {
+		t.Fatal("expected error for missing action")
+	}
+}
+
+func TestOwnerAllowed(t *testing.T) {
+	e, _ := setupScriptEngine(t, "routing", routingLua, []*schema.Table{itemsTable})
+
+	m := callMap(t, e, "routing", "self-peer-id", map[string]any{"action": "admin"})
+	if m["secret"] != "admin-data" {
+		t.Fatalf("owner should access admin, got %v", m["secret"])
+	}
+}
+
+func TestOwnerDenied(t *testing.T) {
+	e, _ := setupScriptEngine(t, "routing", routingLua, []*schema.Table{itemsTable})
+
+	_, err := e.CallFunction(context.Background(), "other-peer-id", "routing", map[string]any{"action": "admin"})
+	if err == nil {
+		t.Fatal("non-owner should be denied admin action")
+	}
+}
+
+func TestRouteWithDelete(t *testing.T) {
+	e, _ := setupScriptEngine(t, "routing", routingLua, []*schema.Table{itemsTable})
+
+	m := callMap(t, e, "routing", "self-peer-id", map[string]any{"action": "insert", "name": "x"})
+	id := m["id"]
+
+	callMap(t, e, "routing", "self-peer-id", map[string]any{"action": "delete", "id": int64(int(id.(float64)))})
+
+	m = callMap(t, e, "routing", "self-peer-id", map[string]any{"action": "count"})
+	if m["n"] != float64(0) {
+		t.Fatalf("expected 0 after delete, got %v", m["n"])
 	}
 }

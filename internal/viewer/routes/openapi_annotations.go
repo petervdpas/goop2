@@ -2446,6 +2446,32 @@ func swagTransformExecute() {}
 //	@Router		/api/data/transformations/transforms [get]
 func swagTransformTransforms() {}
 
+// transformFileExistsRequest is the body for POST /api/data/transformations/file-exists.
+type transformFileExistsRequest struct {
+	Path string `json:"path" example:"/home/user/data.csv"`
+}
+
+// swagTransformFileExists is a documentation stub for POST /api/data/transformations/file-exists.
+//
+//	@Summary		Check if a local file path exists
+//	@Tags			transformations
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		transformFileExistsRequest	true	"File path"
+//	@Success		200		{object}	map[string]bool
+//	@Router			/api/data/transformations/file-exists [post]
+func swagTransformFileExists() {}
+
+// swagTransformSourceFields is a documentation stub for POST /api/data/transformations/source-fields.
+//
+//	@Summary		Discover column names from a data source (table or file)
+//	@Tags			transformations
+//	@Accept			json
+//	@Produce		json
+//	@Success		200		{array}		string
+//	@Router			/api/data/transformations/source-fields [post]
+func swagTransformSourceFields() {}
+
 // ── Schema ───────────────────────────────────────────────────────────────────
 
 // schemaListEntry describes one schema in the GET /api/data/schemas response.
@@ -2577,6 +2603,24 @@ type schemaSetContextRequest struct {
 //	@Router		/api/data/schemas/set-context [post]
 func swagSchemaSetContext() {}
 
+// schemaSetAccessRequest is the body for POST /api/data/schemas/set-access.
+type schemaSetAccessRequest struct {
+	Name   string    `json:"name"   example:"orders"`
+	Access ormAccess `json:"access"`
+}
+
+// swagSchemaSetAccess is a documentation stub for POST /api/data/schemas/set-access.
+//
+//	@Summary		Update access policy for a stored schema
+//	@Tags			schema
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		schemaSetAccessRequest	true	"Schema name and access policy"
+//	@Success		200		{object}	statusOK
+//	@Failure		404		{string}	string	"schema not found"
+//	@Router			/api/data/schemas/set-access [post]
+func swagSchemaSetAccess() {}
+
 // ── GraphQL ─────────────────────────────────────────────────────────────────
 
 // graphqlRequest is the body for POST /api/graphql.
@@ -2622,6 +2666,23 @@ func swagGraphQLRebuild() {}
 //	@Success	200	{object}	graphqlStatusResponse
 //	@Router		/api/graphql/status [get]
 func swagGraphQLStatus() {}
+
+// graphqlSchemaResponse is the body for POST /api/graphql/schema.
+type graphqlSchemaResponse struct {
+	SDL  string `json:"sdl"  example:"type Person { ... }"`
+	HTML string `json:"html"`
+}
+
+// swagGraphQLSchema is a documentation stub for POST /api/graphql/schema.
+//
+//	@Summary		Preview GraphQL SDL for a table schema
+//	@Tags			graphql
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		schemaSaveRequest	true	"Table schema definition"
+//	@Success		200		{object}	graphqlSchemaResponse
+//	@Router			/api/graphql/schema [post]
+func swagGraphQLSchema() {}
 
 // ── Data Federation ─────────────────────────────────────────────────────────
 
@@ -2702,3 +2763,22 @@ func swagDataFedWithdraw() {}
 //	@Success	200		{array}		datafedPeerContribution
 //	@Router		/api/datafed/contributions [post]
 func swagDataFedContributions() {}
+
+// ── Split Preferences ───────────────────────────────────────────────────────
+
+// splitPrefRequest is the body for POST /api/split-prefs.
+type splitPrefRequest struct {
+	Key   string  `json:"key"   example:"sidebar"`
+	Value float64 `json:"value" example:"30"`
+}
+
+// swagSplitPrefs is a documentation stub for POST /api/split-prefs.
+//
+//	@Summary	Save a UI split pane preference (position 0-100)
+//	@Tags		settings
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		splitPrefRequest	true	"Split pane key and position"
+//	@Success	200		{object}	statusOK
+//	@Router		/api/split-prefs [post]
+func swagSplitPrefs() {}

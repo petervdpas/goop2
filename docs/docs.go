@@ -1875,6 +1875,45 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/data/schemas/set-access": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "schema"
+                ],
+                "summary": "Update access policy for a stored schema",
+                "parameters": [
+                    {
+                        "description": "Schema name and access policy",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.schemaSetAccessRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    },
+                    "404": {
+                        "description": "schema not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/api/data/schemas/set-context": {
             "post": {
                 "description": "When context is true, the schema's table is exposed via the GraphQL API. Auto-rebuilds the GraphQL schema.",
@@ -2309,6 +2348,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/data/transformations/file-exists": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transformations"
+                ],
+                "summary": "Check if a local file path exists",
+                "parameters": [
+                    {
+                        "description": "File path",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.transformFileExistsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "boolean"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/data/transformations/get": {
             "post": {
                 "consumes": [
@@ -2431,6 +2506,31 @@ const docTemplate = `{
                         "description": "validation error",
                         "schema": {
                             "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/transformations/source-fields": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transformations"
+                ],
+                "summary": "Discover column names from a data source (table or file)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -3006,6 +3106,39 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/routes.statusOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/graphql/schema": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "graphql"
+                ],
+                "summary": "Preview GraphQL SDL for a table schema",
+                "parameters": [
+                    {
+                        "description": "Table schema definition",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.schemaSaveRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.graphqlSchemaResponse"
                         }
                     }
                 }
@@ -4535,6 +4668,39 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/split-prefs": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Save a UI split pane preference (position 0-100)",
+                "parameters": [
+                    {
+                        "description": "Split pane key and position",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.splitPrefRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    }
+                }
+            }
+        },
         "/api/templates/apply": {
             "post": {
                 "description": "Resets the site and database, then applies the named built-in template.",
@@ -5785,6 +5951,18 @@ const docTemplate = `{
                 }
             }
         },
+        "routes.graphqlSchemaResponse": {
+            "type": "object",
+            "properties": {
+                "html": {
+                    "type": "string"
+                },
+                "sdl": {
+                    "type": "string",
+                    "example": "type Person { ... }"
+                }
+            }
+        },
         "routes.graphqlStatusResponse": {
             "type": "object",
             "properties": {
@@ -6529,6 +6707,18 @@ const docTemplate = `{
                 }
             }
         },
+        "routes.schemaSetAccessRequest": {
+            "type": "object",
+            "properties": {
+                "access": {
+                    "$ref": "#/definitions/routes.ormAccess"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "orders"
+                }
+            }
+        },
         "routes.schemaSetContextRequest": {
             "type": "object",
             "properties": {
@@ -6639,6 +6829,19 @@ const docTemplate = `{
                 "status": {
                     "type": "string",
                     "example": "uploaded"
+                }
+            }
+        },
+        "routes.splitPrefRequest": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string",
+                    "example": "sidebar"
+                },
+                "value": {
+                    "type": "number",
+                    "example": 30
                 }
             }
         },
@@ -6963,6 +7166,15 @@ const docTemplate = `{
                 "transform": {
                     "type": "string",
                     "example": "prefix"
+                }
+            }
+        },
+        "routes.transformFileExistsRequest": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "example": "/home/user/data.csv"
                 }
             }
         },

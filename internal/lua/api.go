@@ -514,6 +514,83 @@ func schemaToLua(L *lua.LState, tbl *schema.Table) *lua.LTable {
 	return result
 }
 
+// routeFn implements goop.route(actions) — action dispatcher.
+// Takes a table of action_name → function mappings. Returns a function that
+// extracts "action" from request.params and dispatches to the right handler.
+// Usage: function call(req) return goop.route({ list = list_fn, save = save_fn })(req) end
+// Or assign: local dispatch = goop.route({...}); function call(req) return dispatch(req) end
+func routeFn() lua.LGFunction {
+	return func(L *lua.LState) int {
+		actionsTbl := L.CheckTable(1)
+
+		dispatcher := L.NewFunction(func(L *lua.LState) int {
+			req := L.CheckTable(1)
+
+			paramsTbl := req.RawGetString("params")
+			params, ok := paramsTbl.(*lua.LTable)
+			if !ok {
+				L.RaiseError("request.params missing")
+				return 0
+			}
+
+			actionVal := params.RawGetString("action")
+			action, ok := actionVal.(lua.LString)
+			if !ok || string(action) == "" {
+				L.RaiseError("action parameter required")
+				return 0
+			}
+
+			handler := actionsTbl.RawGetString(string(action))
+			if handler == lua.LNil {
+				L.RaiseError("unknown action: %s", string(action))
+				return 0
+			}
+
+			fn, ok := handler.(*lua.LFunction)
+			if !ok {
+				L.RaiseError("action %s is not a function", string(action))
+				return 0
+			}
+
+			top := L.GetTop()
+			L.Push(fn)
+			L.Push(params)
+			L.Call(1, lua.MultRet)
+			return L.GetTop() - top
+		})
+
+		L.Push(dispatcher)
+		return 1
+	}
+}
+
+// ownerFn implements goop.owner(fn) — owner-only wrapper.
+// Returns a new function that errors if goop.peer.id ~= goop.self.id,
+// otherwise calls the wrapped function with the same arguments.
+func ownerFn(inv *invocationCtx) lua.LGFunction {
+	return func(L *lua.LState) int {
+		fn := L.CheckFunction(1)
+
+		wrapped := L.NewFunction(func(L *lua.LState) int {
+			if inv.peerID != inv.selfID {
+				L.RaiseError("only the site owner can do this")
+				return 0
+			}
+			nArgs := L.GetTop()
+			top := nArgs
+			L.Push(fn)
+			for i := 1; i <= nArgs; i++ {
+				L.Push(L.Get(i))
+			}
+			L.Call(nArgs, lua.MultRet)
+			return L.GetTop() - top
+		})
+
+		L.Push(wrapped)
+		return 1
+	}
+}
+
 // ormFn implements goop.orm(table) — returns a schema-aware table handle.
 // The handle carries schema metadata (columns, access, system_key) and
 // scoped CRUD methods so callers never pass the table name again.

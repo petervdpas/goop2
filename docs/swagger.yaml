@@ -716,6 +716,14 @@ definitions:
         additionalProperties: {}
         type: object
     type: object
+  routes.graphqlSchemaResponse:
+    properties:
+      html:
+        type: string
+      sdl:
+        example: type Person { ... }
+        type: string
+    type: object
   routes.graphqlStatusResponse:
     properties:
       enabled:
@@ -1225,6 +1233,14 @@ definitions:
         example: orders
         type: string
     type: object
+  routes.schemaSetAccessRequest:
+    properties:
+      access:
+        $ref: '#/definitions/routes.ormAccess'
+      name:
+        example: orders
+        type: string
+    type: object
   routes.schemaSetContextRequest:
     properties:
       context:
@@ -1301,6 +1317,15 @@ definitions:
       status:
         example: uploaded
         type: string
+    type: object
+  routes.splitPrefRequest:
+    properties:
+      key:
+        example: sidebar
+        type: string
+      value:
+        example: 30
+        type: number
     type: object
   routes.statusOK:
     properties:
@@ -1527,6 +1552,12 @@ definitions:
         type: string
       transform:
         example: prefix
+        type: string
+    type: object
+  routes.transformFileExistsRequest:
+    properties:
+      path:
+        example: /home/user/data.csv
         type: string
     type: object
   routes.transformListEntry:
@@ -2833,6 +2864,31 @@ paths:
       summary: Create or update a schema definition (saves as JSON file)
       tags:
       - schema
+  /api/data/schemas/set-access:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Schema name and access policy
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.schemaSetAccessRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+        "404":
+          description: schema not found
+          schema:
+            type: string
+      summary: Update access policy for a stored schema
+      tags:
+      - schema
   /api/data/schemas/set-context:
     post:
       consumes:
@@ -3119,6 +3175,29 @@ paths:
         into target table'
       tags:
       - transformation
+  /api/data/transformations/file-exists:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: File path
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.transformFileExistsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: boolean
+            type: object
+      summary: Check if a local file path exists
+      tags:
+      - transformations
   /api/data/transformations/get:
     post:
       consumes:
@@ -3201,6 +3280,22 @@ paths:
       summary: Create or update a transformation definition (saves as JSON file)
       tags:
       - transformation
+  /api/data/transformations/source-fields:
+    post:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+      summary: Discover column names from a data source (table or file)
+      tags:
+      - transformations
   /api/data/transformations/transforms:
     get:
       produces:
@@ -3577,6 +3672,27 @@ paths:
           schema:
             $ref: '#/definitions/routes.statusOK'
       summary: Rebuild the GraphQL schema from current context tables
+      tags:
+      - graphql
+  /api/graphql/schema:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Table schema definition
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.schemaSaveRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.graphqlSchemaResponse'
+      summary: Preview GraphQL SDL for a table schema
       tags:
       - graphql
   /api/graphql/status:
@@ -4571,6 +4687,27 @@ paths:
       summary: Upload a file from a local filesystem path to the site content store
       tags:
       - site
+  /api/split-prefs:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Split pane key and position
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.splitPrefRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+      summary: Save a UI split pane preference (position 0-100)
+      tags:
+      - settings
   /api/templates/apply:
     post:
       consumes:

@@ -1,4 +1,4 @@
---- Make a move in a tic-tac-toe game — ORM DSL via goop.orm
+--- Make a move in a tic-tac-toe game
 --- @rate_limit 0
 
 local games = nil

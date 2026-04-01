@@ -87,6 +87,69 @@
     return _peerCtx;
   };
 
+  // ── List renderer ──
+
+  window.Goop.list = function(el, rows, renderFn, opts) {
+    opts = opts || {};
+    if (!rows || rows.length === 0) {
+      el.innerHTML = '<div class="empty-msg">' + (opts.empty || "<p>Nothing here yet.</p>") + '</div>';
+      return;
+    }
+    el.innerHTML = rows.map(renderFn).join("");
+    if (opts.actions) {
+      for (var action in opts.actions) {
+        (function(act, cb) {
+          el.querySelectorAll('[data-action="' + act + '"]').forEach(function(btn) {
+            btn.addEventListener("click", function(e) {
+              e.stopPropagation();
+              var id = btn.dataset.id ? parseInt(btn.dataset.id, 10) : null;
+              var row = id != null ? rows.find(function(r) { return r._id == id; }) : null;
+              cb(id, row, btn);
+            });
+          });
+        })(action, opts.actions[action]);
+      }
+    }
+    if (opts.onRow) {
+      el.querySelectorAll("[data-id]").forEach(function(item) {
+        item.style.cursor = "pointer";
+        item.addEventListener("click", function(e) {
+          if (e.target.tagName === "BUTTON") return;
+          var id = parseInt(item.dataset.id, 10);
+          opts.onRow(id, rows.find(function(r) { return r._id == id; }));
+        });
+      });
+    }
+  };
+
+  // ── Overlay helper ──
+
+  window.Goop.overlay = function(id) {
+    var el = typeof id === "string" ? document.getElementById(id) : id;
+    if (!el) return { open: function(){}, close: function(){} };
+
+    function close() { el.classList.add("hidden"); }
+    function open() {
+      el.classList.remove("hidden");
+      var first = el.querySelector("input, textarea, select");
+      if (first) first.focus();
+    }
+
+    el.addEventListener("mousedown", function(e) {
+      if (e.target === el) close();
+    });
+
+    el.querySelectorAll("[data-close]").forEach(function(btn) {
+      btn.addEventListener("click", close);
+    });
+
+    document.addEventListener("keydown", function(e) {
+      if (e.key === "Escape" && !el.classList.contains("hidden")) close();
+    });
+
+    return { open: open, close: close, el: el };
+  };
+
   // ── Schema-driven UI helpers (used by orm handle) ──
 
   var SYS = { _id: 1, _owner: 1, _owner_email: 1, _created_at: 1, _updated_at: 1 };
@@ -369,6 +432,15 @@
         upsert: function(keyCol, data) { return self.upsert(table, keyCol, data); },
       };
       return handle;
+    },
+
+    // ── API caller ──
+
+    api: function(fn) {
+      var self = this;
+      return function(action, params) {
+        return self.call(fn, Object.assign({ action: action }, params || {}));
+      };
     },
 
     // ── Config helper ──
