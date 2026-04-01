@@ -271,6 +271,12 @@ func luaToGo(lv lua.LValue) interface{} {
 	case lua.LString:
 		return string(v)
 	case *lua.LTable:
+		// Check for SQL expression marker
+		if expr := v.RawGetString("__sql_expr"); expr != lua.LNil {
+			if s, ok := expr.(lua.LString); ok {
+				return storage.SQLExpr{Expr: string(s)}
+			}
+		}
 		// Check if it's an array (sequential integer keys starting at 1)
 		maxN := v.MaxN()
 		if maxN > 0 {
@@ -512,6 +518,18 @@ func schemaToLua(L *lua.LState, tbl *schema.Table) *lua.LTable {
 	}
 
 	return result
+}
+
+// exprFn implements goop.expr(sql) — returns a marker table for raw SQL expressions.
+// Used in update_where data to emit "position + 1" instead of binding as a string.
+func exprFn() lua.LGFunction {
+	return func(L *lua.LState) int {
+		expr := L.CheckString(1)
+		tbl := L.NewTable()
+		tbl.RawSetString("__sql_expr", lua.LString(expr))
+		L.Push(tbl)
+		return 1
+	}
 }
 
 // routeFn implements goop.route(actions) — action dispatcher.

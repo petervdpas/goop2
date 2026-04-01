@@ -796,6 +796,12 @@ func (d *DB) AggregateGroupBy(table, expr, groupBy, where string, args ...any) (
 }
 
 // UpdateWhere updates rows matching a WHERE clause.
+// SQLExpr is a raw SQL expression used in UpdateWhere.
+// Values of this type are emitted as-is (not as bound params).
+type SQLExpr struct {
+	Expr string
+}
+
 func (d *DB) UpdateWhere(table string, data map[string]any, where string, args ...any) (int64, error) {
 	if !validIdent(table) {
 		return 0, fmt.Errorf("invalid table name: %s", table)
@@ -809,8 +815,12 @@ func (d *DB) UpdateWhere(table string, data map[string]any, where string, args .
 		if !validIdent(col) {
 			return 0, fmt.Errorf("invalid column name: %s", col)
 		}
-		setClauses += fmt.Sprintf(", %s = ?", col)
-		setArgs = append(setArgs, val)
+		if expr, ok := val.(SQLExpr); ok {
+			setClauses += fmt.Sprintf(", %s = %s", col, expr.Expr)
+		} else {
+			setClauses += fmt.Sprintf(", %s = ?", col)
+			setArgs = append(setArgs, val)
+		}
 	}
 	allArgs := append(setArgs, args...)
 

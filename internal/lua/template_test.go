@@ -27,6 +27,9 @@ var gameLua string
 //go:embed testdata/templates/routing.lua
 var routingLua string
 
+//go:embed testdata/templates/expr.lua
+var exprLua string
+
 func setupScriptEngine(t *testing.T, name, src string, tables []*schema.Table) (*Engine, *storage.DB) {
 	t.Helper()
 	dir := t.TempDir()
@@ -445,5 +448,74 @@ func TestRouteWithDelete(t *testing.T) {
 	m = callMap(t, e, "routing", "self-peer-id", map[string]any{"action": "count"})
 	if m["n"] != float64(0) {
 		t.Fatalf("expected 0 after delete, got %v", m["n"])
+	}
+}
+
+// ── SQL expression tests ──
+
+func TestExprIncrementAll(t *testing.T) {
+	e, _ := setupScriptEngine(t, "expr", exprLua, []*schema.Table{itemsTable})
+
+	callMap(t, e, "expr", "self-peer-id", map[string]any{"action": "seed"})
+	call(t, e, "expr", "self-peer-id", map[string]any{"action": "increment_all", "amount": 10})
+
+	rows := call(t, e, "expr", "self-peer-id", map[string]any{"action": "list"}).([]any)
+	for _, r := range rows {
+		row := r.(map[string]any)
+		name := row["name"].(string)
+		pri := row["priority"]
+		switch name {
+		case "a":
+			if pri != float64(15) {
+				t.Fatalf("a: expected 15, got %v", pri)
+			}
+		case "b":
+			if pri != float64(20) {
+				t.Fatalf("b: expected 20, got %v", pri)
+			}
+		case "c":
+			if pri != float64(13) {
+				t.Fatalf("c: expected 13, got %v", pri)
+			}
+		}
+	}
+}
+
+func TestExprIncrementWhere(t *testing.T) {
+	e, _ := setupScriptEngine(t, "expr", exprLua, []*schema.Table{itemsTable})
+
+	callMap(t, e, "expr", "self-peer-id", map[string]any{"action": "seed"})
+	call(t, e, "expr", "self-peer-id", map[string]any{"action": "increment_where", "name": "b", "amount": 5})
+
+	m := callMap(t, e, "expr", "self-peer-id", map[string]any{"action": "get", "name": "b"})
+	if m["priority"] != float64(15) {
+		t.Fatalf("b: expected 15 after +5, got %v", m["priority"])
+	}
+
+	m = callMap(t, e, "expr", "self-peer-id", map[string]any{"action": "get", "name": "a"})
+	if m["priority"] != float64(5) {
+		t.Fatalf("a: should be unchanged at 5, got %v", m["priority"])
+	}
+}
+
+func TestExprDecrement(t *testing.T) {
+	e, _ := setupScriptEngine(t, "expr", exprLua, []*schema.Table{itemsTable})
+
+	callMap(t, e, "expr", "self-peer-id", map[string]any{"action": "seed"})
+	call(t, e, "expr", "self-peer-id", map[string]any{"action": "decrement", "min": 4})
+
+	m := callMap(t, e, "expr", "self-peer-id", map[string]any{"action": "get", "name": "a"})
+	if m["priority"] != float64(4) {
+		t.Fatalf("a: expected 4 (was 5, >4), got %v", m["priority"])
+	}
+
+	m = callMap(t, e, "expr", "self-peer-id", map[string]any{"action": "get", "name": "b"})
+	if m["priority"] != float64(9) {
+		t.Fatalf("b: expected 9 (was 10, >4), got %v", m["priority"])
+	}
+
+	m = callMap(t, e, "expr", "self-peer-id", map[string]any{"action": "get", "name": "c"})
+	if m["priority"] != float64(3) {
+		t.Fatalf("c: should be unchanged at 3 (not >4), got %v", m["priority"])
 	}
 }

@@ -115,9 +115,10 @@ func injectGoopTable(L *lua.LState, inv *invocationCtx, kv *kvStore, engine *Eng
 	logTbl.RawSetString("error", L.NewFunction(logErrorFn))
 	goop.RawSetString("log", logTbl)
 
-	// goop.route / goop.owner
+	// goop.route / goop.owner / goop.expr
 	goop.RawSetString("route", L.NewFunction(routeFn()))
 	goop.RawSetString("owner", L.NewFunction(ownerFn(inv)))
+	goop.RawSetString("expr", L.NewFunction(exprFn()))
 
 	// goop.commands()
 	goop.RawSetString("commands", L.NewFunction(commandsFn(engine)))
