@@ -7,7 +7,7 @@ import (
 	"github.com/petervdpas/goop2/internal/mq"
 )
 
-// Handler implements group.TypeHandler for the "files" app_type.
+// Handler implements group.TypeHandler for the "files" group_type.
 type Handler struct {
 	mqMgr *mq.Manager
 	store *Store

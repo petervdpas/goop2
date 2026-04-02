@@ -526,18 +526,28 @@ func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePol
 	}
 
 	// 7. Manage template co-author group lifecycle.
+	// The group ID is tracked in _meta("template_group_id") so it can be
+	// cleaned up on re-apply or when switching to a different template.
 	if d.GroupManager != nil {
-		// Always close any existing template groups — the new template may not use one.
+		existingGroupID := ""
+		existingGroupTemplate := ""
+		if d.DB != nil {
+			existingGroupID = d.DB.GetMeta("template_group_id")
+			existingGroupTemplate = d.DB.GetMeta("template_group_name")
+		}
+
+		// Clean up any orphan template groups not matching the tracked ID
+		// (migration from before tracking was added).
 		if existing, err := d.GroupManager.ListHostedGroups(); err == nil {
 			for _, g := range existing {
-				if g.AppType == "template" {
+				if g.GroupType == "template" && g.ID != existingGroupID {
 					_ = d.GroupManager.CloseGroup(g.ID)
+					log.Printf("template: closed orphan template group %s", g.ID)
 				}
 			}
 		}
 
-		// If the new template uses "group" policy, create a fresh co-author group.
-		// Check ORM schema Access fields and legacy insert_policy map.
+		// Check if the new template uses "group" policy.
 		hasGroupPolicy := false
 		for rel, data := range files {
 			if !strings.HasPrefix(rel, "schemas/") || !strings.HasSuffix(rel, ".json") {
@@ -557,19 +567,40 @@ func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePol
 				}
 			}
 		}
-		if hasGroupPolicy {
-			groupName := templateName + " Co-authors"
-			if templateName == "" {
-				groupName = "Co-authors"
+
+		sameTemplate := existingGroupID != "" && existingGroupTemplate == templateName
+		if hasGroupPolicy && sameTemplate {
+			// Same template re-applied — keep the existing group and its members.
+			log.Printf("template: reusing existing co-author group %s", existingGroupID)
+		} else {
+			// Close the tracked group (switching template or new template has no group policy).
+			if existingGroupID != "" {
+				_ = d.GroupManager.CloseGroup(existingGroupID)
+				log.Printf("template: closed previous co-author group %s", existingGroupID)
 			}
-			groupID := generateGroupID()
-			if err := d.GroupManager.CreateGroup(groupID, groupName, "template", 0, false); err != nil {
-				log.Printf("template: failed to create co-author group: %v", err)
-			} else {
-				log.Printf("template: created co-author group %q (%s)", groupName, groupID)
-				// Host auto-joins their own template group so they appear as a member.
-				if err := d.GroupManager.JoinOwnGroup(groupID); err != nil {
-					log.Printf("template: failed to auto-join co-author group: %v", err)
+			if d.DB != nil {
+				d.DB.SetMeta("template_group_id", "")
+				d.DB.SetMeta("template_group_name", "")
+			}
+
+			// Create a new group if the new template needs one.
+			if hasGroupPolicy {
+				groupName := templateName + " Co-authors"
+				if templateName == "" {
+					groupName = "Co-authors"
+				}
+				groupID := generateGroupID()
+				if err := d.GroupManager.CreateGroup(groupID, groupName, "template", templateName, 0, false); err != nil {
+					log.Printf("template: failed to create co-author group: %v", err)
+				} else {
+					log.Printf("template: created co-author group %q (%s)", groupName, groupID)
+					if err := d.GroupManager.JoinOwnGroup(groupID); err != nil {
+						log.Printf("template: failed to auto-join co-author group: %v", err)
+					}
+					if d.DB != nil {
+						d.DB.SetMeta("template_group_id", groupID)
+						d.DB.SetMeta("template_group_name", templateName)
+					}
 				}
 			}
 		}

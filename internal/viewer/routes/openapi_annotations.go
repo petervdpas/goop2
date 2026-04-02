@@ -90,10 +90,11 @@ type loopbackICERequest struct {
 
 // groupCreateRequest is the body for POST /api/groups.
 type groupCreateRequest struct {
-	Name       string `json:"name"        example:"My Group"`
-	AppType    string `json:"app_type,omitempty"`
-	MaxMembers int    `json:"max_members,omitempty"`
-	Volatile   bool   `json:"volatile,omitempty"`
+	Name         string `json:"name"           example:"My Group"`
+	GroupType    string `json:"group_type,omitempty"`
+	GroupContext  string `json:"group_context,omitempty"`
+	MaxMembers   int    `json:"max_members,omitempty"`
+	Volatile     bool   `json:"volatile,omitempty"`
 }
 
 // groupCreateResponse is the response for POST /api/groups.
@@ -379,7 +380,8 @@ type groupMemberInfo struct {
 type hostedGroupInfo struct {
 	ID           string            `json:"id"             example:"a1b2c3d4e5f6a1b2"`
 	Name         string            `json:"name"           example:"My Group"`
-	AppType      string            `json:"app_type"       example:"listen"`
+	GroupType    string            `json:"group_type"     example:"listen"`
+	GroupContext string            `json:"group_context"  example:"Friday Jams"`
 	MaxMembers   int               `json:"max_members"    example:"20"`
 	Volatile     bool              `json:"volatile"`
 	HostJoined   bool              `json:"host_joined"`
@@ -394,7 +396,8 @@ type subscriptionInfo struct {
 	HostPeerID    string `json:"host_peer_id"    example:"12D3KooWXxx..."`
 	GroupID       string `json:"group_id"        example:"a1b2c3d4e5f6a1b2"`
 	GroupName     string `json:"group_name"      example:"My Group"`
-	AppType       string `json:"app_type"        example:"listen"`
+	GroupType     string `json:"group_type"      example:"listen"`
+	GroupContext  string `json:"group_context"   example:"Friday Jams"`
 	MaxMembers    int    `json:"max_members"     example:"20"`
 	Volatile      bool   `json:"volatile"`
 	Role          string `json:"role"            example:"member"`

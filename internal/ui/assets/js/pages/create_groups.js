@@ -11,33 +11,33 @@
 
   var hostedListEl = document.getElementById('cg-hosted-list');
   var nameInput = document.getElementById('cg-name');
-  var appTypeSelect = document.getElementById('cg-apptype');
+  var groupTypeSelect = document.getElementById('cg-grouptype');
   var maxMembersInput = document.getElementById('cg-maxmembers');
   var createBtn = document.getElementById('cg-create-btn');
 
   var hostedOpts = { showMgmt: true };
 
-  gsel.init(appTypeSelect);
+  gsel.init(groupTypeSelect);
   g.renderHostedGroups(hostedListEl, hostedOpts);
 
   createBtn.addEventListener('click', function() {
     var name = (nameInput.value || '').trim();
-    var appType = (gsel.val(appTypeSelect) || 'general').trim();
+    var groupType = (gsel.val(groupTypeSelect) || 'general').trim();
     var maxMembers = parseInt(maxMembersInput.value, 10) || 0;
 
     if (!name) { toast('Group name is required', "warning"); return; }
 
     var p;
-    if (appType === 'listen' && window.Goop && window.Goop.listen) {
+    if (groupType === 'listen' && window.Goop && window.Goop.listen) {
       p = window.Goop.listen.create(name);
     } else {
-      p = Goop.api.groups.create({ name: name, app_type: appType, max_members: maxMembers });
+      p = Goop.api.groups.create({ name: name, group_type: groupType, max_members: maxMembers });
     }
 
     p.then(function() {
       toast('Group created: ' + name);
       nameInput.value = '';
-      gsel.setVal(appTypeSelect, 'general');
+      gsel.setVal(groupTypeSelect, 'general');
       maxMembersInput.value = '0';
       g.renderHostedGroups(hostedListEl, hostedOpts);
     }).catch(function(err) {

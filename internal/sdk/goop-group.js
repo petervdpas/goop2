@@ -19,7 +19,7 @@
 //   // {
 //   //   id:           string   — group ID
 //   //   name:         string   — display name
-//   //   app_type:     string   — e.g. "files", "listen", "realtime", or ""
+//   //   group_type:     string   — e.g. "files", "listen", "realtime", or ""
 //   //   max_members:  number   — 0 means unlimited
 //   //   volatile:     bool     — group is destroyed when all members leave
 //   //   host_joined:  bool     — host has joined their own group
@@ -34,7 +34,7 @@
 //   // list subscriptions (groups you have joined as a member)
 //   const data = await Goop.group.subscriptions();
 //   // data.subscriptions: [{group_id, group_name, host_peer_id, host_name,
-//   //                        app_type, role, member_count, host_reachable}]
+//   //                        group_type, role, member_count, host_reachable}]
 //   // data.active_groups: [{group_id}]  — currently connected
 //
 //   // subscribe to group events (SSE)
@@ -42,7 +42,7 @@
 //     // evt: { type, group, from, payload }
 //     // type values: "welcome", "members", "msg", "state", "leave", "close", "error", "invite"
 //     //
-//     // "welcome"  — you joined; payload: {group_name, members, app_type, ...}
+//     // "welcome"  — you joined; payload: {group_name, members, group_type, ...}
 //     // "members"  — membership changed; payload: {members: [{peer_id, name}]}
 //     // "msg"      — message from a member; payload: any (app-defined)
 //     // "state"    — shared state update; payload: any
@@ -88,10 +88,11 @@
     },
 
     /** Create a hosted group (ID is auto-generated server-side) */
-    create(name, appType, maxMembers) {
+    create(name, groupType, groupContext, maxMembers) {
       return post("/api/groups", {
         name: name,
-        app_type: appType || "",
+        group_type: groupType || "",
+        group_context: groupContext || "",
         max_members: maxMembers || 0,
       });
     },

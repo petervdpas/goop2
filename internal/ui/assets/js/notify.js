@@ -10,7 +10,7 @@
     Goop.mq.onGroupInvite(function(from, topic, payload, ack) {
       var p = (payload && payload.payload) || {};
       var name = p.group_name || p.group_id || 'a group';
-      var href = (p.app_type === 'files' && p.group_id)
+      var href = (p.group_type === 'files' && p.group_id)
         ? '/groups/files?group_id=' + encodeURIComponent(p.group_id)
         : '/groups/joined';
       if (window.Goop && window.Goop.toast) {

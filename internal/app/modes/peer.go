@@ -372,6 +372,7 @@ func RunPeer(p PeerParams) error {
 	// setLuaListen is set after listenMgr is created, so ensureLua can wire it.
 	var setLuaListen func()
 	var setLuaContent func()
+	var setLuaGroups func()
 	ensureLua := func() {
 		if c, err := config.Load(o.CfgPath); err == nil {
 			if !c.Lua.Enabled {
@@ -386,6 +387,9 @@ func RunPeer(p PeerParams) error {
 		}
 		if setLuaContent != nil {
 			setLuaContent()
+		}
+		if setLuaGroups != nil {
+			setLuaGroups()
 		}
 		node.RescanLuaFunctions()
 	}
@@ -424,10 +428,16 @@ func RunPeer(p PeerParams) error {
 	grpMgr.RegisterType("listen", listenMgr)
 	if luaEngine != nil {
 		luaEngine.SetListen(listenMgr)
+		luaEngine.SetGroupChecker(grpMgr)
 	}
 	setLuaListen = func() {
 		if luaEngine != nil {
 			luaEngine.SetListen(listenMgr)
+		}
+	}
+	setLuaGroups = func() {
+		if luaEngine != nil {
+			luaEngine.SetGroupChecker(grpMgr)
 		}
 	}
 	log.Printf("🎵 Listen room enabled")
@@ -441,7 +451,7 @@ func RunPeer(p PeerParams) error {
 	defer clusterMgr.Close()
 	if hosted, err := grpMgr.ListHostedGroups(); err == nil {
 		for _, g := range hosted {
-			if g.AppType == "cluster" {
+			if g.GroupType == "cluster" {
 				if err := grpMgr.RestoreGroup(g.ID); err == nil {
 					if err := clusterMgr.CreateCluster(g.ID); err == nil {
 						log.Printf("🖥️ Cluster auto-activated: %s (%s)", g.Name, g.ID)
@@ -468,6 +478,14 @@ func RunPeer(p PeerParams) error {
 	_ = gqlEngine.Rebuild()
 	dataFedMgr := datafed.New(mqMgr, grpMgr, node.ID(), gqlEngine.ContextTables)
 	log.Printf("🔗 Data federation enabled (GraphQL)")
+
+	// All group type handlers are now registered — purge any stale groups
+	// that lack a handler or context. Template groups are managed by the
+	// template apply flow, so they're allowed here (they have a handler via
+	// the template code path, but no TypeHandler — allow them explicitly).
+	if n := grpMgr.PurgeInvalid(map[string]bool{"template": true}); n > 0 {
+		log.Printf("👥 Purged %d invalid group(s)", n)
+	}
 
 	publish := func(pctx context.Context, typ string) {
 		node.Publish(pctx, typ)

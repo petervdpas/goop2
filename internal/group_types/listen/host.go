@@ -75,7 +75,7 @@ func New(h libhost.Host, grp *group.Manager, mqMgr *mq.Manager, selfID, dataDir 
 // The listen-specific setup happens in the OnCreate lifecycle hook.
 func (m *Manager) CreateGroup(name string) (*Group, error) {
 	id := generateListenID()
-	if err := m.grp.CreateGroup(id, name, "listen", 0, false); err != nil {
+	if err := m.grp.CreateGroup(id, name, "listen", name, 0, false); err != nil {
 		return nil, fmt.Errorf("create group: %w", err)
 	}
 	if err := m.grp.JoinOwnGroup(id); err != nil {

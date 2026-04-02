@@ -11,7 +11,7 @@ import (
 	"github.com/petervdpas/goop2/internal/orm/schema"
 )
 
-const AppType = "data-federation"
+const GroupTypeName = "data-federation"
 
 type Relationship struct {
 	FromTable  string `json:"from_table"`
@@ -60,7 +60,7 @@ func New(mqMgr *mq.Manager, grpMgr *group.Manager, selfID string, schemas func()
 		schemas: schemas,
 		groups:  make(map[string]*federatedGroup),
 	}
-	grpMgr.RegisterType(AppType, m)
+	grpMgr.RegisterType(GroupTypeName, m)
 
 	mqMgr.SubscribeTopic("peer:", func(from, topic string, payload any) {
 		switch topic {
@@ -74,7 +74,7 @@ func New(mqMgr *mq.Manager, grpMgr *group.Manager, selfID string, schemas func()
 	return m
 }
 
-func (m *Manager) AppType() string { return AppType }
+func (m *Manager) GroupTypeName() string { return GroupTypeName }
 
 func (m *Manager) SetOnChange(fn func()) {
 	m.mu.Lock()
@@ -163,7 +163,7 @@ func (m *Manager) OnEvent(evt *group.Event) {
 		return
 	}
 
-	raw, ok := group.ExtractControl(evt.Payload, AppType)
+	raw, ok := group.ExtractControl(evt.Payload, GroupTypeName)
 	if !ok {
 		return
 	}
@@ -265,7 +265,7 @@ func (m *Manager) publishSync(groupID string) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), group.BroadcastTimeout)
 	defer cancel()
-	_ = m.grpMgr.SendControl(groupID, AppType, sync)
+	_ = m.grpMgr.SendControl(groupID, GroupTypeName, sync)
 	_ = ctx
 }
 
@@ -337,7 +337,7 @@ func (m *Manager) OfferTables(groupID string, tables []schema.Table, rels []Rela
 		Tables:        tables,
 		Relationships: rels,
 	}
-	_ = m.grpMgr.SendControl(groupID, AppType, msg)
+	_ = m.grpMgr.SendControl(groupID, GroupTypeName, msg)
 }
 
 func (m *Manager) WithdrawTables(groupID string) {
@@ -354,7 +354,7 @@ func (m *Manager) WithdrawTables(groupID string) {
 
 	m.publishSync(groupID)
 
-	_ = m.grpMgr.SendControl(groupID, AppType, controlMsg{Action: "schema-withdraw"})
+	_ = m.grpMgr.SendControl(groupID, GroupTypeName, controlMsg{Action: "schema-withdraw"})
 }
 
 func (m *Manager) handlePeerGone(from string, payload any) {

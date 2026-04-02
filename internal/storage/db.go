@@ -95,11 +95,12 @@ func Open(configDir string) (*DB, error) {
 	// Create groups table
 	if _, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS _groups (
-			id          TEXT PRIMARY KEY,
-			name        TEXT NOT NULL,
-			app_type    TEXT DEFAULT '',
-			max_members INTEGER DEFAULT 0,
-			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+			id            TEXT PRIMARY KEY,
+			name          TEXT NOT NULL,
+			group_type    TEXT DEFAULT '',
+			group_context TEXT DEFAULT '',
+			max_members   INTEGER DEFAULT 0,
+			created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
 	`); err != nil {
 		db.Close()
@@ -110,6 +111,14 @@ func Open(configDir string) (*DB, error) {
 	db.Exec(`ALTER TABLE _groups ADD COLUMN host_joined INTEGER DEFAULT 0`)
 	// Migration: add volatile column if missing (existing databases)
 	db.Exec(`ALTER TABLE _groups ADD COLUMN volatile INTEGER DEFAULT 0`)
+	// Migration: rename app_type → group_type and purge stale groups.
+	// Old groups lacked group_context and cannot be properly linked — remove them all.
+	if _, err := db.Exec(`ALTER TABLE _groups RENAME COLUMN app_type TO group_type`); err == nil {
+		db.Exec(`DELETE FROM _groups`)
+		db.Exec(`DELETE FROM _group_members`)
+	}
+	// Migration: add group_context column — links group to what created it (template name, job ID, etc.)
+	db.Exec(`ALTER TABLE _groups ADD COLUMN group_context TEXT DEFAULT ''`)
 
 	// Create group subscriptions table
 	if _, err := db.Exec(`
@@ -117,7 +126,7 @@ func Open(configDir string) (*DB, error) {
 			host_peer_id  TEXT NOT NULL,
 			group_id      TEXT NOT NULL,
 			group_name    TEXT DEFAULT '',
-			app_type      TEXT DEFAULT '',
+			group_type    TEXT DEFAULT '',
 			role          TEXT DEFAULT 'member',
 			subscribed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (host_peer_id, group_id)
@@ -133,6 +142,10 @@ func Open(configDir string) (*DB, error) {
 	db.Exec(`ALTER TABLE _group_subscriptions ADD COLUMN volatile INTEGER DEFAULT 0`)
 	// Migration: add host_name to subscriptions if missing (existing databases)
 	db.Exec(`ALTER TABLE _group_subscriptions ADD COLUMN host_name TEXT DEFAULT ''`)
+	// Migration: rename app_type → group_type in subscriptions and purge stale data.
+	if _, err := db.Exec(`ALTER TABLE _group_subscriptions RENAME COLUMN app_type TO group_type`); err == nil {
+		db.Exec(`DELETE FROM _group_subscriptions`)
+	}
 
 	// Create cluster jobs table
 	if _, err := db.Exec(`

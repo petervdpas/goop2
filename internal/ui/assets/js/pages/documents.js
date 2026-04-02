@@ -150,9 +150,9 @@
       api.groups.list().catch(function() { return []; }),
       api.groups.subscriptions().catch(function() { return { subscriptions: [] }; })
     ]).then(function(results) {
-      var hosted = (results[0] || []).filter(function(g) { return g.app_type === "files"; });
+      var hosted = (results[0] || []).filter(function(g) { return g.group_type === "files"; });
       var subsData = results[1] || {};
-      var subs = (subsData.subscriptions || []).filter(function(s) { return s.app_type === "files"; });
+      var subs = (subsData.subscriptions || []).filter(function(s) { return s.group_type === "files"; });
 
       hostedGroupIDs = {};
       hosted.forEach(function(g) { hostedGroupIDs[g.id] = true; });

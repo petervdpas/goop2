@@ -80,7 +80,7 @@
         var subs = await window.Goop.group.subscriptions();
         var list = (subs && subs.subscriptions) || [];
         _peerCtx.isGroup = list.some(function(s) {
-          return s.host_peer_id === hostId && s.app_type === "template";
+          return s.host_peer_id === hostId && s.group_type === "template";
         });
       }
     } catch (_) {}

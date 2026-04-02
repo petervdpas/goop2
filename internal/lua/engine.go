@@ -54,6 +54,11 @@ type DataFunctionInfo struct {
 	Description string `json:"description"`
 }
 
+// GroupChecker verifies group membership for Lua scripts.
+type GroupChecker interface {
+	IsTemplateMember(peerID string) bool
+}
+
 // Engine manages Lua scripts, hot reload, and command dispatch.
 type Engine struct {
 	mu           sync.RWMutex
@@ -65,6 +70,7 @@ type Engine struct {
 	db           *storage.DB
 	content      *content.Store
 	listen       *listen.Manager
+	groups       GroupChecker
 	watcher      *fsnotify.Watcher
 	limiter      *rateLimiter
 	selfID       string
@@ -444,6 +450,11 @@ func (e *Engine) SetContent(cs *content.Store) {
 // SetListen sets the listen manager reference for goop.listen access in scripts.
 func (e *Engine) SetListen(lm *listen.Manager) {
 	e.listen = lm
+}
+
+// SetGroupChecker sets the group checker for goop.group access in scripts.
+func (e *Engine) SetGroupChecker(gc GroupChecker) {
+	e.groups = gc
 }
 
 // registryMaxSize derives a registry cap from the MaxMemoryMB config.

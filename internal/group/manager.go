@@ -25,7 +25,7 @@ type Event struct {
 type ActiveGroupInfo struct {
 	HostPeerID string `json:"host_peer_id"`
 	GroupID    string `json:"group_id"`
-	AppType    string `json:"app_type"`
+	GroupType    string `json:"group_type"`
 }
 
 // Manager handles the group protocol, both host-side (relay) and client-side (connection).
@@ -46,7 +46,7 @@ type Manager struct {
 	pendingJoinsMu sync.Mutex
 	pendingJoins   map[string]chan joinResult
 
-	// Type-specific lifecycle handlers keyed by app_type.
+	// Type-specific lifecycle handlers keyed by group_type.
 	handlers map[string]TypeHandler
 
 	// MQ unsubscribe functions
@@ -77,7 +77,7 @@ type hostedGroup struct {
 type clientConn struct {
 	hostPeerID string
 	groupID    string
-	appType    string
+	groupType    string
 	volatile   bool
 	membersMu  sync.RWMutex
 	members    []MemberInfo // last known member list from host
@@ -175,31 +175,69 @@ func (m *Manager) SelfID() string {
 	return m.selfID
 }
 
-// RegisterType registers a TypeHandler for the given app_type.
-func (m *Manager) RegisterType(appType string, h TypeHandler) {
+// RegisterType registers a TypeHandler for the given group_type.
+func (m *Manager) RegisterType(groupType string, h TypeHandler) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.handlers[appType] = h
+	m.handlers[groupType] = h
+}
+
+// PurgeInvalid removes any persisted group that fails validation.
+// Call this after all type handlers are registered.
+// Groups are purged if they have no registered handler (unless their type is
+// in the skip set) or if they are missing a GroupContext.
+// Types managed outside the handler system (e.g. "template") should be skipped
+// here and validated by their own lifecycle code.
+func (m *Manager) PurgeInvalid(skip map[string]bool) int {
+	groups, err := m.db.ListGroups()
+	if err != nil {
+		return 0
+	}
+
+	m.mu.RLock()
+	handlers := m.handlers
+	m.mu.RUnlock()
+
+	removed := 0
+	for _, g := range groups {
+		if skip[g.GroupType] {
+			continue
+		}
+		if _, hasHandler := handlers[g.GroupType]; !hasHandler {
+			_ = m.CloseGroup(g.ID)
+			log.Printf("GROUP: Purged orphan group %s (unregistered type %q)", g.ID, g.GroupType)
+			removed++
+			continue
+		}
+		if g.GroupContext == "" {
+			_ = m.CloseGroup(g.ID)
+			log.Printf("GROUP: Purged group %s (type %q, missing context)", g.ID, g.GroupType)
+			removed++
+		}
+	}
+	return removed
 }
 
 func (m *Manager) notifyListeners(evt *Event) {
-	m.mq.PublishLocal("group:"+evt.Group+":"+evt.Type, "", evt)
+	if m.mq != nil {
+		m.mq.PublishLocal("group:"+evt.Group+":"+evt.Type, "", evt)
+	}
 
 	m.mu.RLock()
-	appType := m.appTypeForGroupLocked(evt.Group)
-	h := m.handlers[appType]
+	groupType := m.groupTypeForGroupLocked(evt.Group)
+	h := m.handlers[groupType]
 	m.mu.RUnlock()
 	if h != nil {
 		go h.OnEvent(evt)
 	}
 }
 
-func (m *Manager) appTypeForGroupLocked(groupID string) string {
+func (m *Manager) groupTypeForGroupLocked(groupID string) string {
 	if hg, ok := m.groups[groupID]; ok {
-		return hg.info.AppType
+		return hg.info.GroupType
 	}
 	if cc, ok := m.activeConns[groupID]; ok {
-		return cc.appType
+		return cc.groupType
 	}
 	return ""
 }

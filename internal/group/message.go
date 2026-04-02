@@ -28,12 +28,13 @@ type Message struct {
 
 // WelcomePayload is sent to a new member after joining.
 type WelcomePayload struct {
-	GroupName  string         `json:"group_name,omitempty"`
-	AppType    string         `json:"app_type,omitempty"`
-	MaxMembers int            `json:"max_members"`
-	Volatile   bool           `json:"volatile"`
-	Members    []MemberInfo   `json:"members"`
-	State      map[string]any `json:"state,omitempty"`
+	GroupName    string         `json:"group_name,omitempty"`
+	GroupType    string         `json:"group_type,omitempty"`
+	GroupContext string         `json:"group_context,omitempty"`
+	MaxMembers   int            `json:"max_members"`
+	Volatile     bool           `json:"volatile"`
+	Members      []MemberInfo   `json:"members"`
+	State        map[string]any `json:"state,omitempty"`
 }
 
 // MembersPayload is broadcast when membership changes.
@@ -44,7 +45,7 @@ type MembersPayload struct {
 // MetaPayload is broadcast when group metadata changes.
 type MetaPayload struct {
 	GroupName  string `json:"group_name"`
-	AppType    string `json:"app_type"`
+	GroupType    string `json:"group_type"`
 	MaxMembers int    `json:"max_members"`
 }
 
@@ -62,11 +63,12 @@ type ErrorPayload struct {
 
 // GroupInfo describes a hosted group.
 type GroupInfo struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	AppType    string `json:"app_type"`
-	MaxMembers int    `json:"max_members"`
-	CreatedAt  string `json:"created_at"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	GroupType    string `json:"group_type"`
+	GroupContext string `json:"group_context,omitempty"`
+	MaxMembers   int    `json:"max_members"`
+	CreatedAt    string `json:"created_at"`
 }
 
 // Subscription describes a client-side subscription to a remote group.
@@ -74,7 +76,7 @@ type Subscription struct {
 	HostPeerID   string `json:"host_peer_id"`
 	GroupID      string `json:"group_id"`
 	GroupName    string `json:"group_name"`
-	AppType      string `json:"app_type"`
+	GroupType      string `json:"group_type"`
 	Role         string `json:"role"`
 	SubscribedAt string `json:"subscribed_at"`
 }

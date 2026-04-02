@@ -739,7 +739,9 @@ definitions:
     type: object
   routes.groupCreateRequest:
     properties:
-      app_type:
+      group_context:
+        type: string
+      group_type:
         type: string
       max_members:
         type: integer
@@ -824,11 +826,14 @@ definitions:
     type: object
   routes.hostedGroupInfo:
     properties:
-      app_type:
-        example: listen
-        type: string
       created_at:
         example: "2026-03-08T12:00:00Z"
+        type: string
+      group_context:
+        example: Friday Jams
+        type: string
+      group_type:
+        example: listen
         type: string
       host_in_group:
         type: boolean
@@ -1335,14 +1340,17 @@ definitions:
     type: object
   routes.subscriptionInfo:
     properties:
-      app_type:
-        example: listen
+      group_context:
+        example: Friday Jams
         type: string
       group_id:
         example: a1b2c3d4e5f6a1b2
         type: string
       group_name:
         example: My Group
+        type: string
+      group_type:
+        example: listen
         type: string
       host_name:
         example: Eggman

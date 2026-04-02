@@ -83,7 +83,7 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 	cc := &clientConn{
 		hostPeerID: hostPeerID,
 		groupID:    groupID,
-		appType:    wp.AppType,
+		groupType:    wp.GroupType,
 		volatile:   wp.Volatile,
 		members:    wp.Members,
 	}
@@ -105,7 +105,7 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 	if wp.Volatile {
 		if subs, err := m.db.ListSubscriptions(); err == nil {
 			for _, s := range subs {
-				if s.AppType == wp.AppType && s.GroupID != groupID {
+				if s.GroupType == wp.GroupType && s.GroupID != groupID {
 					_ = m.db.RemoveSubscription(s.HostPeerID, s.GroupID)
 					_ = m.db.DeleteGroupMembers(s.GroupID)
 				}
@@ -115,14 +115,15 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 
 	// Store subscription with full metadata
 	hostName := m.db.GetPeerName(hostPeerID)
-	m.db.AddSubscription(hostPeerID, groupID, wp.GroupName, wp.AppType, wp.MaxMembers, wp.Volatile, "member", hostName) //nolint:errcheck
+	m.db.AddSubscription(hostPeerID, groupID, wp.GroupName, wp.GroupType, wp.MaxMembers, wp.Volatile, "member", hostName) //nolint:errcheck
 
 	m.notifyListeners(&Event{Type: TypeWelcome, Group: groupID, From: hostPeerID, Payload: map[string]any{
-		"group_name":  wp.GroupName,
-		"app_type":    wp.AppType,
-		"max_members": wp.MaxMembers,
-		"volatile":    wp.Volatile,
-		"members":     wp.Members,
+		"group_name":    wp.GroupName,
+		"group_type":    wp.GroupType,
+		"group_context": wp.GroupContext,
+		"max_members":   wp.MaxMembers,
+		"volatile":      wp.Volatile,
+		"members":       wp.Members,
 	}})
 
 	log.Printf("GROUP: Joined group %s on host %s", groupID, shortID(hostPeerID))
@@ -189,7 +190,7 @@ func (m *Manager) ActiveGroups() []ActiveGroupInfo {
 		result = append(result, ActiveGroupInfo{
 			HostPeerID: cc.hostPeerID,
 			GroupID:    cc.groupID,
-			AppType:    cc.appType,
+			GroupType:    cc.groupType,
 		})
 	}
 	return result

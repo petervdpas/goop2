@@ -23,7 +23,7 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 	}
 
 	// List all file groups with their local files included.
-	// Sources: hosted groups (app_type "files"), subscribed groups, and
+	// Sources: hosted groups (group_type "files"), subscribed groups, and
 	// groups that still have files on disk after leaving.
 	handleGet(mux, "/api/docs/groups", func(w http.ResponseWriter, r *http.Request) {
 		type docGroup struct {
@@ -38,14 +38,14 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 		if d.GroupManager != nil {
 			if hosted, err := d.GroupManager.ListHostedGroups(); err == nil {
 				for _, g := range hosted {
-					if g.AppType == "files" {
+					if g.GroupType == "files" {
 						seen[g.ID] = &docGroup{GroupID: g.ID, GroupName: g.Name, Source: "hosted"}
 					}
 				}
 			}
 			if subs, err := d.GroupManager.ListSubscriptions(); err == nil {
 				for _, s := range subs {
-					if s.AppType == "files" {
+					if s.GroupType == "files" {
 						if _, ok := seen[s.GroupID]; !ok {
 							seen[s.GroupID] = &docGroup{GroupID: s.GroupID, GroupName: s.GroupName, Source: "subscribed"}
 						}

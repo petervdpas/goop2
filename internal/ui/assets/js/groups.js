@@ -25,9 +25,9 @@
     return n === 1 ? '1 member' : (n || 0) + ' members';
   }
 
-  function typeBadge(appType) {
-    if (!appType) return '';
-    return ' <span class="badge badge-' + escapeHtml(appType) + '">' + escapeHtml(appType) + '</span>';
+  function typeBadge(groupType) {
+    if (!groupType) return '';
+    return ' <span class="badge badge-' + escapeHtml(groupType) + '">' + escapeHtml(groupType) + '</span>';
   }
 
   function formatEventPayload(evt) {
@@ -136,7 +136,7 @@
       var hasListen = false;
 
       groups.forEach(function(g) {
-        var isListen = g.app_type === 'listen';
+        var isListen = g.group_type === 'listen';
         if (isListen) hasListen = true;
         var doWrap = showMgmt || isListen;
         var joinBtn = '';
@@ -151,7 +151,7 @@
           '<div class="groups-card">' +
             '<div class="groups-card-info">' +
               '<div class="groups-card-name">' + escapeHtml(g.name) +
-                typeBadge(g.app_type) +
+                typeBadge(g.group_type) +
                 (g.host_in_group ? ' <span class="badge badge-connected">joined</span>' : '') +
               '</div>' +
               '<div class="groups-card-meta">' +
@@ -310,8 +310,8 @@
       subs.forEach(function(s) {
         var displayName = s.group_name || s.group_id;
         var isActive = !!activeGroupIds[s.group_id];
-        var isListen = s.app_type === 'listen';
-        var isFiles = s.app_type === 'files';
+        var isListen = s.group_type === 'listen';
+        var isFiles = s.group_type === 'files';
         if (isListen && isActive) hasListenSub = true;
         var cardDisabled = !isActive && !s.host_reachable;
 
@@ -319,7 +319,7 @@
           '<div class="groups-card' + (cardDisabled ? ' dimmed' : '') + '">' +
             '<div class="groups-card-info">' +
               '<div class="groups-card-name">' + escapeHtml(displayName) +
-                typeBadge(s.app_type) +
+                typeBadge(s.group_type) +
                 (isActive ? ' <span class="badge badge-connected">connected</span>' : '') +
               '</div>' +
               '<div class="groups-card-meta">Host: <code>' + escapeHtml(s.host_name || shortId(s.host_peer_id)) + '</code>' +

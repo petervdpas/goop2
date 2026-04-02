@@ -1,11 +1,11 @@
 package group
 
-// TypeFlags declares per-type rules for a group app_type.
+// TypeFlags declares per-type rules for a group group_type.
 type TypeFlags struct {
 	HostCanJoin bool // whether the host can join their own group as a member
 }
 
-// TypeHandler defines lifecycle hooks for a group app_type.
+// TypeHandler defines lifecycle hooks for a group group_type.
 // Each group type (listen, cluster, files, etc.) can register a handler
 // to receive lifecycle callbacks when groups of that type are created,
 // joined, left, closed, or receive events.
@@ -30,7 +30,7 @@ type TypeHandler interface {
 	OnEvent(evt *Event)
 }
 
-// TypeFlagsForGroup returns the TypeFlags for a group's app_type.
+// TypeFlagsForGroup returns the TypeFlags for a group's group_type.
 // Returns default flags (all true) if no handler is registered.
 func (m *Manager) TypeFlagsForGroup(groupID string) TypeFlags {
 	if h := m.handlerForGroup(groupID); h != nil {
@@ -39,19 +39,19 @@ func (m *Manager) TypeFlagsForGroup(groupID string) TypeFlags {
 	return TypeFlags{HostCanJoin: true}
 }
 
-// handlerForType returns the registered TypeHandler for the given app_type, or nil.
-func (m *Manager) handlerForType(appType string) TypeHandler {
+// handlerForType returns the registered TypeHandler for the given group_type, or nil.
+func (m *Manager) handlerForType(groupType string) TypeHandler {
 	m.mu.RLock()
-	h := m.handlers[appType]
+	h := m.handlers[groupType]
 	m.mu.RUnlock()
 	return h
 }
 
-// handlerForGroup returns the registered TypeHandler for the group's app_type, or nil.
+// handlerForGroup returns the registered TypeHandler for the group's group_type, or nil.
 func (m *Manager) handlerForGroup(groupID string) TypeHandler {
 	m.mu.RLock()
-	appType := m.appTypeForGroupLocked(groupID)
-	h := m.handlers[appType]
+	groupType := m.groupTypeForGroupLocked(groupID)
+	h := m.handlers[groupType]
 	m.mu.RUnlock()
 	return h
 }

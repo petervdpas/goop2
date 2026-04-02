@@ -6,13 +6,13 @@ import (
 )
 
 // SendControl sends a typed control message to all members of a group.
-// The payload is wrapped in the standard envelope: {"app_type": appType, appType: msg}.
+// The payload is wrapped in the standard envelope: {"group_type": groupType, groupType: msg}.
 // Automatically uses SendToGroupAsHost or SendToGroup depending on whether
 // this peer hosts the group.
-func (m *Manager) SendControl(groupID, appType string, msg any) error {
+func (m *Manager) SendControl(groupID, groupType string, msg any) error {
 	payload := map[string]any{
-		"app_type": appType,
-		appType:    msg,
+		"group_type": groupType,
+		groupType:    msg,
 	}
 
 	m.mu.RLock()
@@ -26,14 +26,14 @@ func (m *Manager) SendControl(groupID, appType string, msg any) error {
 }
 
 // ExtractControl extracts a typed control message from a group "msg" event payload.
-// The appType key is used to find the nested control data in the envelope.
+// The groupType key is used to find the nested control data in the envelope.
 // Returns the raw JSON bytes of the control message, or an error.
-func ExtractControl(payload any, appType string) (json.RawMessage, bool) {
+func ExtractControl(payload any, groupType string) (json.RawMessage, bool) {
 	mp, ok := payload.(map[string]any)
 	if !ok {
 		return nil, false
 	}
-	raw, ok := mp[appType]
+	raw, ok := mp[groupType]
 	if !ok {
 		return nil, false
 	}
@@ -46,8 +46,8 @@ func ExtractControl(payload any, appType string) (json.RawMessage, bool) {
 
 // ParseControl extracts and unmarshals a typed control message from a group event payload.
 // Usage: var ctrl MyControlMsg; if group.ParseControl(evt.Payload, "listen", &ctrl) { ... }
-func ParseControl(payload any, appType string, dest any) bool {
-	data, ok := ExtractControl(payload, appType)
+func ParseControl(payload any, groupType string, dest any) bool {
+	data, ok := ExtractControl(payload, groupType)
 	if !ok {
 		return false
 	}
@@ -100,7 +100,7 @@ func NewStateStore(dir string) *StateStore {
 	return &StateStore{dir: dir}
 }
 
-// Save persists state as JSON for the given key (typically app_type or group-specific).
+// Save persists state as JSON for the given key (typically group_type or group-specific).
 func (s *StateStore) Save(key string, v any) error {
 	if s == nil {
 		return nil

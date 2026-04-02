@@ -24,6 +24,7 @@ end
 local function page()
     init()
     local is_owner = goop.peer.id == goop.self.id
+    local is_coauthor = goop.group.is_member()
     return {
         posts = posts:find({ where = "published = 1", order = "_id DESC", limit = 50 }) or {},
         config = {
@@ -31,7 +32,7 @@ local function page()
             blog_subtitle = cfg.blog_subtitle, accent = cfg.accent,
             font = cfg.font, theme = cfg.theme,
         },
-        can_write = is_owner,
+        can_write = is_owner or is_coauthor,
         can_admin = is_owner,
     }
 end
@@ -102,8 +103,8 @@ local dispatch = goop.route({
     list_posts = function() init(); return { posts = posts:find({ where = "published = 1", order = "_id DESC", limit = 50 }) or {} } end,
     get_config = get_config,
     save_config = goop.owner(save_config),
-    save_post = save_post,
-    delete_post = delete_post,
+    save_post = goop.coauthor(save_post),
+    delete_post = goop.coauthor(delete_post),
 })
 
 function call(req) return dispatch(req) end

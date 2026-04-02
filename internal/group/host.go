@@ -9,15 +9,16 @@ import (
 	"github.com/petervdpas/goop2/internal/storage"
 )
 
-// CreateGroup creates a new hosted group.
-func (m *Manager) CreateGroup(id, name, appType string, maxMembers int, volatile bool) error {
+// CreateGroup creates a new hosted group. Source links the group to its creator
+// (e.g. the template name) for cleanup on re-apply.
+func (m *Manager) CreateGroup(id, name, groupType, groupContext string, maxMembers int, volatile bool) error {
 	// Volatile game groups: close any existing hosted group of the same type
 	if volatile {
 		m.mu.RLock()
 		var toClose []string
 		for gid, hg := range m.groups {
 			hg.mu.RLock()
-			if hg.info.Volatile && hg.info.AppType == appType {
+			if hg.info.Volatile && hg.info.GroupType == groupType {
 				toClose = append(toClose, gid)
 			}
 			hg.mu.RUnlock()
@@ -45,7 +46,7 @@ func (m *Manager) CreateGroup(id, name, appType string, maxMembers int, volatile
 		}
 	}
 
-	if err := m.db.CreateGroup(id, name, appType, maxMembers, volatile); err != nil {
+	if err := m.db.CreateGroup(id, name, groupType, groupContext, maxMembers, volatile); err != nil {
 		return err
 	}
 
@@ -65,11 +66,13 @@ func (m *Manager) CreateGroup(id, name, appType string, maxMembers int, volatile
 	m.groups[id] = hg
 	m.mu.Unlock()
 
-	go m.pingGroupLoop(ctx, id)
+	if m.mq != nil {
+		go m.pingGroupLoop(ctx, id)
+	}
 
 	log.Printf("GROUP: Created group %s (%s)", id, name)
 
-	if h := m.handlerForType(appType); h != nil {
+	if h := m.handlerForType(groupType); h != nil {
 		if err := h.OnCreate(id, name, maxMembers, volatile); err != nil {
 			_ = m.CloseGroup(id)
 			return err
@@ -116,7 +119,7 @@ func (m *Manager) CloseGroup(groupID string) error {
 		m.mu.Unlock()
 		return fmt.Errorf("group not found: %s", groupID)
 	}
-	appType := hg.info.AppType
+	groupType := hg.info.GroupType
 	delete(m.groups, groupID)
 	m.mu.Unlock()
 
@@ -146,7 +149,7 @@ func (m *Manager) CloseGroup(groupID string) error {
 
 	m.notifyListeners(&Event{Type: TypeClose, Group: groupID})
 
-	if h := m.handlerForType(appType); h != nil {
+	if h := m.handlerForType(groupType); h != nil {
 		h.OnClose(groupID)
 	}
 
@@ -215,7 +218,7 @@ func (m *Manager) SetMaxMembers(groupID string, max int) error {
 
 	hg.mu.Lock()
 	hg.info.MaxMembers = max
-	meta := MetaPayload{GroupName: hg.info.Name, AppType: hg.info.AppType, MaxMembers: max}
+	meta := MetaPayload{GroupName: hg.info.Name, GroupType: hg.info.GroupType, MaxMembers: max}
 	hg.mu.Unlock()
 
 	if err := m.db.SetMaxMembers(groupID, max); err != nil {
@@ -245,14 +248,14 @@ func (m *Manager) UpdateGroupMeta(groupID, name string, maxMembers int) error {
 	hg.mu.Lock()
 	hg.info.Name = name
 	hg.info.MaxMembers = maxMembers
-	appType := hg.info.AppType
+	groupType := hg.info.GroupType
 	hg.mu.Unlock()
 
 	if err := m.db.UpdateGroup(groupID, name, maxMembers); err != nil {
 		return fmt.Errorf("update group: %w", err)
 	}
 
-	meta := MetaPayload{GroupName: name, AppType: appType, MaxMembers: maxMembers}
+	meta := MetaPayload{GroupName: name, GroupType: groupType, MaxMembers: maxMembers}
 	m.broadcastToGroup(hg, groupID, TypeMeta, meta, "")
 	m.notifyListeners(&Event{Type: TypeMeta, Group: groupID, Payload: meta})
 
@@ -311,7 +314,7 @@ func (m *Manager) JoinOwnGroup(groupID string) error {
 	memberList := hg.memberList(m.selfID)
 	var meta MetaPayload
 	if newMax > 0 {
-		meta = MetaPayload{GroupName: hg.info.Name, AppType: hg.info.AppType, MaxMembers: newMax}
+		meta = MetaPayload{GroupName: hg.info.Name, GroupType: hg.info.GroupType, MaxMembers: newMax}
 	}
 	hg.mu.Unlock()
 

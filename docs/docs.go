@@ -6508,7 +6508,10 @@ const docTemplate = `{
         "routes.groupCreateRequest": {
             "type": "object",
             "properties": {
-                "app_type": {
+                "group_context": {
+                    "type": "string"
+                },
+                "group_type": {
                     "type": "string"
                 },
                 "max_members": {
@@ -6631,13 +6634,17 @@ const docTemplate = `{
         "routes.hostedGroupInfo": {
             "type": "object",
             "properties": {
-                "app_type": {
-                    "type": "string",
-                    "example": "listen"
-                },
                 "created_at": {
                     "type": "string",
                     "example": "2026-03-08T12:00:00Z"
+                },
+                "group_context": {
+                    "type": "string",
+                    "example": "Friday Jams"
+                },
+                "group_type": {
+                    "type": "string",
+                    "example": "listen"
                 },
                 "host_in_group": {
                     "type": "boolean"
@@ -7380,9 +7387,9 @@ const docTemplate = `{
         "routes.subscriptionInfo": {
             "type": "object",
             "properties": {
-                "app_type": {
+                "group_context": {
                     "type": "string",
-                    "example": "listen"
+                    "example": "Friday Jams"
                 },
                 "group_id": {
                     "type": "string",
@@ -7391,6 +7398,10 @@ const docTemplate = `{
                 "group_name": {
                     "type": "string",
                     "example": "My Group"
+                },
+                "group_type": {
+                    "type": "string",
+                    "example": "listen"
                 },
                 "host_name": {
                     "type": "string",

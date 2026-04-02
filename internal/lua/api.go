@@ -609,6 +609,52 @@ func ownerFn(inv *invocationCtx) lua.LGFunction {
 	}
 }
 
+// groupIsMemberFn implements goop.group.is_member() — returns true if the
+// calling peer is a member of the template co-author group.
+func groupIsMemberFn(inv *invocationCtx, engine *Engine) lua.LGFunction {
+	return func(L *lua.LState) int {
+		if inv.peerID == inv.selfID {
+			L.Push(lua.LTrue)
+			return 1
+		}
+		if engine.groups != nil && engine.groups.IsTemplateMember(inv.peerID) {
+			L.Push(lua.LTrue)
+			return 1
+		}
+		L.Push(lua.LFalse)
+		return 1
+	}
+}
+
+// coauthorFn implements goop.coauthor(fn) — owner-or-group-member wrapper.
+// Returns a new function that errors if the caller is neither the site owner
+// nor a template group member, otherwise calls the wrapped function.
+func coauthorFn(inv *invocationCtx, engine *Engine) lua.LGFunction {
+	return func(L *lua.LState) int {
+		fn := L.CheckFunction(1)
+
+		wrapped := L.NewFunction(func(L *lua.LState) int {
+			isOwner := inv.peerID == inv.selfID
+			isMember := engine.groups != nil && engine.groups.IsTemplateMember(inv.peerID)
+			if !isOwner && !isMember {
+				L.RaiseError("only the site owner or co-authors can do this")
+				return 0
+			}
+			nArgs := L.GetTop()
+			top := nArgs
+			L.Push(fn)
+			for i := 1; i <= nArgs; i++ {
+				L.Push(L.Get(i))
+			}
+			L.Call(nArgs, lua.MultRet)
+			return L.GetTop() - top
+		})
+
+		L.Push(wrapped)
+		return 1
+	}
+}
+
 // ormFn implements goop.orm(table) — returns a schema-aware table handle.
 // The handle carries schema metadata (columns, access, system_key) and
 // scoped CRUD methods so callers never pass the table name again.

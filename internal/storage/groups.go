@@ -7,13 +7,14 @@ import (
 
 // GroupRow represents a row from the _groups table.
 type GroupRow struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	AppType    string `json:"app_type"`
-	MaxMembers int    `json:"max_members"`
-	Volatile   bool   `json:"volatile"`
-	HostJoined bool   `json:"host_joined"`
-	CreatedAt  string `json:"created_at"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	GroupType      string `json:"group_type"`
+	GroupContext  string `json:"group_context"`
+	MaxMembers   int    `json:"max_members"`
+	Volatile     bool   `json:"volatile"`
+	HostJoined   bool   `json:"host_joined"`
+	CreatedAt    string `json:"created_at"`
 }
 
 // SubscriptionRow represents a row from the _group_subscriptions table.
@@ -22,7 +23,7 @@ type SubscriptionRow struct {
 	HostName     string `json:"host_name"`
 	GroupID      string `json:"group_id"`
 	GroupName    string `json:"group_name"`
-	AppType      string `json:"app_type"`
+	GroupType      string `json:"group_type"`
 	MaxMembers   int    `json:"max_members"`
 	Volatile     bool   `json:"volatile"`
 	Role         string `json:"role"`
@@ -30,7 +31,7 @@ type SubscriptionRow struct {
 }
 
 // CreateGroup inserts a new group into _groups.
-func (d *DB) CreateGroup(id, name, appType string, maxMembers int, volatile bool) error {
+func (d *DB) CreateGroup(id, name, groupType, groupContext string, maxMembers int, volatile bool) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -39,8 +40,8 @@ func (d *DB) CreateGroup(id, name, appType string, maxMembers int, volatile bool
 		v = 1
 	}
 	_, err := d.db.Exec(
-		`INSERT INTO _groups (id, name, app_type, max_members, volatile) VALUES (?, ?, ?, ?, ?)`,
-		id, name, appType, maxMembers, v,
+		`INSERT INTO _groups (id, name, group_type, group_context, max_members, volatile) VALUES (?, ?, ?, ?, ?, ?)`,
+		id, name, groupType, groupContext, maxMembers, v,
 	)
 	if err != nil {
 		return fmt.Errorf("create group: %w", err)
@@ -53,7 +54,7 @@ func (d *DB) ListGroups() ([]GroupRow, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	rows, err := d.db.Query(`SELECT id, name, app_type, max_members, COALESCE(volatile,0), host_joined, created_at FROM _groups ORDER BY created_at DESC`)
+	rows, err := d.db.Query(`SELECT id, name, group_type, COALESCE(group_context,''), max_members, COALESCE(volatile,0), host_joined, created_at FROM _groups ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +64,7 @@ func (d *DB) ListGroups() ([]GroupRow, error) {
 	for rows.Next() {
 		var g GroupRow
 		var vol int
-		if err := rows.Scan(&g.ID, &g.Name, &g.AppType, &g.MaxMembers, &vol, &g.HostJoined, &g.CreatedAt); err != nil {
+		if err := rows.Scan(&g.ID, &g.Name, &g.GroupType, &g.GroupContext, &g.MaxMembers, &vol, &g.HostJoined, &g.CreatedAt); err != nil {
 			return nil, err
 		}
 		g.Volatile = vol != 0
@@ -80,8 +81,8 @@ func (d *DB) GetGroup(id string) (GroupRow, error) {
 	var g GroupRow
 	var vol int
 	err := d.db.QueryRow(
-		`SELECT id, name, app_type, max_members, COALESCE(volatile,0), host_joined, created_at FROM _groups WHERE id = ?`, id,
-	).Scan(&g.ID, &g.Name, &g.AppType, &g.MaxMembers, &vol, &g.HostJoined, &g.CreatedAt)
+		`SELECT id, name, group_type, COALESCE(group_context,''), max_members, COALESCE(volatile,0), host_joined, created_at FROM _groups WHERE id = ?`, id,
+	).Scan(&g.ID, &g.Name, &g.GroupType, &g.GroupContext, &g.MaxMembers, &vol, &g.HostJoined, &g.CreatedAt)
 	if err != nil {
 		return g, fmt.Errorf("get group: %w", err)
 	}
@@ -130,7 +131,7 @@ func (d *DB) SetHostJoined(groupID string, joined bool) error {
 }
 
 // AddSubscription records a subscription to a remote group.
-func (d *DB) AddSubscription(hostPeerID, groupID, groupName, appType string, maxMembers int, volatile bool, role, hostName string) error {
+func (d *DB) AddSubscription(hostPeerID, groupID, groupName, groupType string, maxMembers int, volatile bool, role, hostName string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -139,8 +140,8 @@ func (d *DB) AddSubscription(hostPeerID, groupID, groupName, appType string, max
 		v = 1
 	}
 	_, err := d.db.Exec(
-		`INSERT OR REPLACE INTO _group_subscriptions (host_peer_id, group_id, group_name, app_type, max_members, volatile, role, host_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		hostPeerID, groupID, groupName, appType, maxMembers, v, role, hostName,
+		`INSERT OR REPLACE INTO _group_subscriptions (host_peer_id, group_id, group_name, group_type, max_members, volatile, role, host_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		hostPeerID, groupID, groupName, groupType, maxMembers, v, role, hostName,
 	)
 	if err != nil {
 		return fmt.Errorf("add subscription: %w", err)
@@ -232,7 +233,7 @@ func (d *DB) ListSubscriptions() ([]SubscriptionRow, error) {
 	defer d.mu.RUnlock()
 
 	rows, err := d.db.Query(
-		`SELECT host_peer_id, group_id, group_name, app_type, COALESCE(max_members,0), COALESCE(volatile,0), role, subscribed_at, COALESCE(host_name,'') FROM _group_subscriptions ORDER BY subscribed_at DESC`,
+		`SELECT host_peer_id, group_id, group_name, group_type, COALESCE(max_members,0), COALESCE(volatile,0), role, subscribed_at, COALESCE(host_name,'') FROM _group_subscriptions ORDER BY subscribed_at DESC`,
 	)
 	if err != nil {
 		return nil, err
@@ -243,7 +244,7 @@ func (d *DB) ListSubscriptions() ([]SubscriptionRow, error) {
 	for rows.Next() {
 		var s SubscriptionRow
 		var vol int
-		if err := rows.Scan(&s.HostPeerID, &s.GroupID, &s.GroupName, &s.AppType, &s.MaxMembers, &vol, &s.Role, &s.SubscribedAt, &s.HostName); err != nil {
+		if err := rows.Scan(&s.HostPeerID, &s.GroupID, &s.GroupName, &s.GroupType, &s.MaxMembers, &vol, &s.Role, &s.SubscribedAt, &s.HostName); err != nil {
 			return nil, err
 		}
 		s.Volatile = vol != 0

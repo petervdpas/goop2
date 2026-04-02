@@ -23,12 +23,12 @@ func (m *Manager) IsPeerInGroup(peerID, groupID string) bool {
 	return isMember
 }
 
-// IsTemplateMember returns true if peerID is an active member of any hosted group with app_type "template".
+// IsTemplateMember returns true if peerID is an active member of any hosted group with group_type "template".
 func (m *Manager) IsTemplateMember(peerID string) bool {
 	m.mu.RLock()
 	var templateGroupIDs []string
 	for gid, hg := range m.groups {
-		if hg.info.AppType == "template" {
+		if hg.info.GroupType == "template" {
 			templateGroupIDs = append(templateGroupIDs, gid)
 		}
 	}
