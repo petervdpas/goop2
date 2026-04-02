@@ -1,0 +1,22 @@
+.gc-tabs-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border, #d0d0d0);
+}
+
+.gc-tabs-bar button {
+  padding: 0.5rem 1rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: var(--muted, #888);
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.gc-tabs-bar button:hover { color: var(--text, #1a1a1a); }
+.gc-tabs-bar button.active { color: var(--accent, #5a3dff); border-bottom-color: var(--accent, #5a3dff); }
+
+.gc-tabs-panel { display: none; }
+.gc-tabs-panel.active { display: block; }

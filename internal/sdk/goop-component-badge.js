@@ -1,25 +1,27 @@
-//
-// CSS hooks:
-//   .gc-badge               — the badge element
-//   .gc-badge-dot           — status dot (when opts.dot)
-//   [data-goop-variant="success|warning|danger|muted"]
-//
-
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
 
-  Goop.ui.badge = function(text, opts) {
+  Goop.ui.badge = function(el, opts) {
     opts = opts || {};
-    var el = document.createElement("span");
-    el.className = opts.class || "gc-badge";
-    el.textContent = text;
-    if (opts.variant) el.setAttribute("data-goop-variant", opts.variant);
-    if (opts.dot) {
-      var d = document.createElement("span");
-      d.className = "gc-badge-dot";
-      el.insertBefore(d, el.firstChild);
-    }
-    return el;
+    var variantAttr = opts.variantAttr || "";
+    var dotSelector = opts.dot || "";
+
+    return {
+      setText: function(t) { el.textContent = t; },
+      setVariant: function(v) {
+        if (variantAttr) {
+          if (v) el.setAttribute(variantAttr, v);
+          else el.removeAttribute(variantAttr);
+        }
+      },
+      showDot: function(show) {
+        if (!dotSelector) return;
+        var dot = el.querySelector(dotSelector);
+        if (dot) dot.hidden = !show;
+      },
+      destroy: function() {},
+      el: el,
+    };
   };
 })();

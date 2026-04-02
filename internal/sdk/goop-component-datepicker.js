@@ -1,30 +1,12 @@
-//
-// CSS hooks:
-//   .gc-datepicker          — wrapper (override via opts.class)
-//   .gc-datepicker-input    — text input showing selected date
-//   .gc-datepicker-popup    — calendar dropdown
-//   .gc-dp-nav              — month/year navigation row
-//   .gc-dp-grid             — day grid (7 columns)
-//   .gc-dp-hdr              — day-of-week header cells
-//   .gc-dp-time             — time input row (when opts.time)
-//   [data-goop-open]        — popup is visible
-//   [data-goop-today]       — today cell
-//   [data-goop-selected]    — selected day cell
-//   [data-goop-outside]     — day from adjacent month
-//   [data-goop-disabled]    — disabled state
-//   :disabled               — out-of-range day (opts.min/max)
-//
-
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
-  var _e = Goop.ui._esc || function(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
   var _f = Goop.ui._fire || function(el, n, dt) { el.dispatchEvent(new CustomEvent(n, { bubbles: true, detail: dt })); };
 
   var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   var ALLDAYS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
 
-  Goop.ui.datepicker = function(opts) {
+  Goop.ui.datepicker = function(el, opts) {
     opts = opts || {};
     var includeTime = !!opts.time;
     var isDisabled = !!opts.disabled;
@@ -42,23 +24,20 @@
     if (current && !isNaN(current)) { viewYear = current.getFullYear(); viewMonth = current.getMonth(); }
     else { var now = new Date(); viewYear = now.getFullYear(); viewMonth = now.getMonth(); current = null; }
 
-    var wrap = document.createElement("div");
-    for (var _k in opts) { if (_k.indexOf("data-") === 0) wrap.setAttribute(_k, opts[_k]); }
-    wrap.className = opts.class || "gc-datepicker";
-    wrap.setAttribute("data-goop-component", "datepicker");
-    if (isDisabled) wrap.setAttribute("data-goop-disabled", "");
-
-    var input = document.createElement("input");
-    input.className = opts.inputClass || "gc-datepicker-input";
-    input.readOnly = true;
-    input.placeholder = opts.placeholder || (includeTime ? "Select date & time" : "Select date");
-    if (opts.name) input.setAttribute("data-goop-name", opts.name);
-    if (isDisabled) input.disabled = true;
-
-    var popup = document.createElement("div");
-    popup.className = opts.popupClass || "gc-datepicker-popup";
-    wrap.appendChild(input);
-    wrap.appendChild(popup);
+    var input = opts.input ? el.querySelector(opts.input) : el.querySelector("input");
+    var popup = opts.popup ? el.querySelector(opts.popup) : null;
+    var openAttr = opts.openAttr || "";
+    var openClass = opts.openClass || "";
+    var disabledAttr = opts.disabledAttr || "";
+    var todayAttr = opts.todayAttr || "data-today";
+    var selectedAttr = opts.selectedAttr || "data-selected";
+    var outsideAttr = opts.outsideAttr || "data-outside";
+    var navClass = opts.navClass || "";
+    var gridClass = opts.gridClass || "";
+    var hdrClass = opts.hdrClass || "";
+    var timeClass = opts.timeClass || "";
+    var dayAttr = opts.dayAttr || "data-day";
+    var monthAttr = opts.monthAttr || "data-month";
 
     function dateOnly(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
     function outOfRange(d) {
@@ -78,12 +57,33 @@
     }
 
     function renderCalendar() {
-      var html = '<div class="gc-dp-nav">';
-      html += '<button type="button" data-goop-action="prev">\u25C0</button>';
-      html += "<span>" + MONTHS[viewMonth] + " " + viewYear + "</span>";
-      html += '<button type="button" data-goop-action="next">\u25B6</button></div>';
-      html += '<div class="gc-dp-grid">';
-      for (var i = 0; i < 7; i++) html += '<div class="gc-dp-hdr">' + orderedDays[i] + "</div>";
+      if (!popup) return;
+      popup.innerHTML = "";
+
+      var nav = document.createElement("div");
+      if (navClass) nav.className = navClass;
+      var prevBtn = document.createElement("button"); prevBtn.type = "button"; prevBtn.textContent = "\u25C0";
+      var label = document.createElement("span"); label.textContent = MONTHS[viewMonth] + " " + viewYear;
+      var nextBtn = document.createElement("button"); nextBtn.type = "button"; nextBtn.textContent = "\u25B6";
+      nav.appendChild(prevBtn); nav.appendChild(label); nav.appendChild(nextBtn);
+      popup.appendChild(nav);
+
+      prevBtn.addEventListener("click", function(e) {
+        e.stopPropagation(); viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; } renderCalendar();
+      });
+      nextBtn.addEventListener("click", function(e) {
+        e.stopPropagation(); viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; } renderCalendar();
+      });
+
+      var grid = document.createElement("div");
+      if (gridClass) grid.className = gridClass;
+
+      for (var i = 0; i < 7; i++) {
+        var hdr = document.createElement("div");
+        if (hdrClass) hdr.className = hdrClass;
+        hdr.textContent = orderedDays[i];
+        grid.appendChild(hdr);
+      }
 
       var first = new Date(viewYear, viewMonth, 1);
       var startDay = (first.getDay() - firstDay + 7) % 7;
@@ -92,89 +92,108 @@
       var today = new Date();
       var todayStr = today.getFullYear() + "-" + (today.getMonth() + 1) + "-" + today.getDate();
 
-      for (var d = startDay - 1; d >= 0; d--) {
-        var pd = prevDim - d, oor = outOfRange(new Date(viewYear, viewMonth - 1, pd));
-        html += '<button type="button" data-goop-outside data-goop-day="' + pd + '" data-goop-month="' + (viewMonth - 1) + '"' + (oor ? " disabled" : "") + '>' + pd + "</button>";
-      }
-      for (var d = 1; d <= dim; d++) {
-        var attrs = 'data-goop-day="' + d + '"';
-        var ds = viewYear + "-" + (viewMonth + 1) + "-" + d;
-        if (ds === todayStr) attrs += " data-goop-today";
-        if (current && current.getFullYear() === viewYear && current.getMonth() === viewMonth && current.getDate() === d) attrs += " data-goop-selected";
-        var oor = outOfRange(new Date(viewYear, viewMonth, d));
-        html += '<button type="button" ' + attrs + (oor ? " disabled" : "") + ">" + d + "</button>";
-      }
-      var rem = 42 - (startDay + dim);
-      for (var d = 1; d <= rem; d++) {
-        var oor = outOfRange(new Date(viewYear, viewMonth + 1, d));
-        html += '<button type="button" data-goop-outside data-goop-day="' + d + '" data-goop-month="' + (viewMonth + 1) + '"' + (oor ? " disabled" : "") + '>' + d + "</button>";
-      }
-      html += "</div>";
-
-      if (includeTime) {
-        var h = current ? String(current.getHours()).padStart(2, "0") : "00";
-        var m = current ? String(current.getMinutes()).padStart(2, "0") : "00";
-        html += '<div class="gc-dp-time"><span>Time:</span>';
-        html += '<input type="text" data-goop-action="hours" value="' + h + '" maxlength="2"><span>:</span>';
-        html += '<input type="text" data-goop-action="minutes" value="' + m + '" maxlength="2"></div>';
-      }
-      popup.innerHTML = html;
-
-      popup.querySelectorAll(".gc-dp-nav button").forEach(function(btn) {
+      function makeDay(day, mo, outside) {
+        var btn = document.createElement("button"); btn.type = "button"; btn.textContent = day;
+        var actualMonth = mo != null ? mo : viewMonth;
+        var actualYear = viewYear;
+        if (mo != null) {
+          if (mo < 0) { actualMonth = 11; actualYear--; }
+          if (mo > 11) { actualMonth = 0; actualYear++; }
+        }
+        btn.setAttribute(dayAttr, day);
+        if (mo != null) btn.setAttribute(monthAttr, mo);
+        if (outside) btn.setAttribute(outsideAttr, "");
+        var ds = actualYear + "-" + (actualMonth + 1) + "-" + day;
+        if (ds === todayStr) btn.setAttribute(todayAttr, "");
+        if (current && current.getFullYear() === actualYear && current.getMonth() === actualMonth && current.getDate() === day) btn.setAttribute(selectedAttr, "");
+        if (outOfRange(new Date(actualYear, actualMonth, day))) btn.disabled = true;
         btn.addEventListener("click", function(e) {
           e.stopPropagation();
-          if (btn.getAttribute("data-goop-action") === "prev") { viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; } }
-          else { viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; } }
-          renderCalendar();
-        });
-      });
-
-      popup.querySelectorAll(".gc-dp-grid button:not([disabled])").forEach(function(btn) {
-        btn.addEventListener("click", function(e) {
-          e.stopPropagation();
-          var day = parseInt(btn.getAttribute("data-goop-day"), 10);
-          var mo = btn.getAttribute("data-goop-month");
-          if (mo !== null) { viewMonth = parseInt(mo, 10); if (viewMonth < 0) { viewMonth = 11; viewYear--; } if (viewMonth > 11) { viewMonth = 0; viewYear++; } }
+          if (mo != null) { viewMonth = mo; if (viewMonth < 0) { viewMonth = 11; viewYear--; } if (viewMonth > 11) { viewMonth = 0; viewYear++; } }
           var h = 0, mi = 0;
           if (includeTime && current) { h = current.getHours(); mi = current.getMinutes(); }
           current = new Date(viewYear, viewMonth, day, h, mi);
-          input.value = formatDate(current);
-          _f(wrap, "change", { value: input.value }); _f(wrap, "input", { value: input.value });
-          if (opts.onChange) opts.onChange(input.value);
+          if (input) input.value = formatDate(current);
+          _f(el, "change", { value: formatDate(current) }); _f(el, "input", { value: formatDate(current) });
+          if (opts.onChange) opts.onChange(formatDate(current));
           if (!includeTime) closePopup(); else renderCalendar();
         });
-      });
+        grid.appendChild(btn);
+      }
 
-      popup.querySelectorAll(".gc-dp-time input").forEach(function(inp) {
-        inp.addEventListener("change", function() {
-          if (!current) current = new Date(viewYear, viewMonth, 1);
-          var action = inp.getAttribute("data-goop-action"), val = parseInt(inp.value, 10) || 0;
-          if (action === "hours") { val = Math.max(0, Math.min(23, val)); current.setHours(val); inp.value = String(val).padStart(2, "0"); }
-          if (action === "minutes") { val = Math.max(0, Math.min(59, val)); current.setMinutes(val); inp.value = String(val).padStart(2, "0"); }
-          input.value = formatDate(current);
-          _f(wrap, "change", { value: input.value });
-          if (opts.onChange) opts.onChange(input.value);
-        });
+      for (var d = startDay - 1; d >= 0; d--) makeDay(prevDim - d, viewMonth - 1, true);
+      for (var d = 1; d <= dim; d++) makeDay(d, null, false);
+      var rem = 42 - (startDay + dim);
+      for (var d = 1; d <= rem; d++) makeDay(d, viewMonth + 1, true);
+
+      popup.appendChild(grid);
+
+      if (includeTime) {
+        var timeRow = document.createElement("div");
+        if (timeClass) timeRow.className = timeClass;
+        var tLabel = document.createElement("span"); tLabel.textContent = "Time:";
+        var hInp = document.createElement("input"); hInp.type = "text"; hInp.maxLength = 2; hInp.value = current ? String(current.getHours()).padStart(2, "0") : "00";
+        var sep = document.createElement("span"); sep.textContent = ":";
+        var mInp = document.createElement("input"); mInp.type = "text"; mInp.maxLength = 2; mInp.value = current ? String(current.getMinutes()).padStart(2, "0") : "00";
+        timeRow.appendChild(tLabel); timeRow.appendChild(hInp); timeRow.appendChild(sep); timeRow.appendChild(mInp);
+        popup.appendChild(timeRow);
+
+        function onTimeChange(inp, type) {
+          inp.addEventListener("change", function() {
+            if (!current) current = new Date(viewYear, viewMonth, 1);
+            var val = parseInt(inp.value, 10) || 0;
+            if (type === "h") { val = Math.max(0, Math.min(23, val)); current.setHours(val); }
+            if (type === "m") { val = Math.max(0, Math.min(59, val)); current.setMinutes(val); }
+            inp.value = String(val).padStart(2, "0");
+            if (input) input.value = formatDate(current);
+            _f(el, "change", { value: formatDate(current) });
+            if (opts.onChange) opts.onChange(formatDate(current));
+          });
+        }
+        onTimeChange(hInp, "h"); onTimeChange(mInp, "m");
+      }
+    }
+
+    function openPopup() {
+      if (isDisabled || !popup) return;
+      renderCalendar();
+      if (openClass) popup.classList.add(openClass);
+      if (openAttr) popup.setAttribute(openAttr, "");
+    }
+
+    function closePopup() {
+      if (!popup) return;
+      if (openClass) popup.classList.remove(openClass);
+      if (openAttr) popup.removeAttribute(openAttr);
+    }
+
+    if (input) {
+      input.readOnly = true;
+      input.addEventListener("click", function(e) {
+        e.stopPropagation();
+        var isOpen = popup && ((openClass && popup.classList.contains(openClass)) || (openAttr && popup.hasAttribute(openAttr)));
+        if (isOpen) closePopup(); else openPopup();
       });
     }
 
-    function openPopup() { if (isDisabled) return; renderCalendar(); popup.setAttribute("data-goop-open", ""); }
-    function closePopup() { popup.removeAttribute("data-goop-open"); }
-    input.addEventListener("click", function(e) { e.stopPropagation(); if (popup.hasAttribute("data-goop-open")) closePopup(); else openPopup(); });
-    function onDocClick(e) { if (!wrap.contains(e.target)) closePopup(); }
+    function onDocClick(e) { if (!el.contains(e.target)) closePopup(); }
     document.addEventListener("click", onDocClick);
-    if (current) input.value = formatDate(current);
+    if (current && input) input.value = formatDate(current);
 
     return {
-      getValue: function() { return input.value; },
+      getValue: function() { return input ? input.value : ""; },
       setValue: function(v) {
         current = v ? new Date(v) : null;
-        if (current && !isNaN(current)) { viewYear = current.getFullYear(); viewMonth = current.getMonth(); input.value = formatDate(current); }
-        else { current = null; input.value = ""; }
+        if (current && !isNaN(current)) { viewYear = current.getFullYear(); viewMonth = current.getMonth(); if (input) input.value = formatDate(current); }
+        else { current = null; if (input) input.value = ""; }
       },
-      setDisabled: function(v) { isDisabled = !!v; input.disabled = isDisabled; if (isDisabled) wrap.setAttribute("data-goop-disabled", ""); else wrap.removeAttribute("data-goop-disabled"); },
-      destroy: function() { document.removeEventListener("click", onDocClick); wrap.remove(); },
-      el: wrap,
+      setDisabled: function(v) {
+        isDisabled = !!v;
+        if (input) input.disabled = isDisabled;
+        if (disabledAttr) { if (isDisabled) el.setAttribute(disabledAttr, ""); else el.removeAttribute(disabledAttr); }
+      },
+      destroy: function() { document.removeEventListener("click", onDocClick); },
+      el: el,
     };
   };
 })();

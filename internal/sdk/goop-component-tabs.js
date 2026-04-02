@@ -1,73 +1,64 @@
-//
-// CSS hooks:
-//   .gc-tabs                — wrapper (override via opts.class)
-//   .gc-tabs-bar            — tab button row (override via opts.barClass)
-//   button                  — each tab button (override via opts.tabClass)
-//   .gc-tabs-panel          — content panel (override via opts.panelClass)
-//   .active                 — active tab/panel (override via opts.activeClass)
-//   :disabled               — disabled tab
-//
-
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
   var _f = Goop.ui._fire || function(el, n, dt) { el.dispatchEvent(new CustomEvent(n, { bubbles: true, detail: dt })); };
 
-  Goop.ui.tabs = function(opts) {
+  Goop.ui.tabs = function(el, opts) {
     opts = opts || {};
-    var tabs = opts.tabs || [];
-    var activeId = opts.active || (tabs[0] && tabs[0].id) || "";
-    var activeClass = opts.activeClass || "active";
-    var tabClass = opts.tabClass || "";
+    var tabAttr = opts.tabAttr || "data-tab";
+    var panelAttr = opts.panelAttr || tabAttr;
+    var activeClass = opts.activeClass || "";
+    var activeAttr = opts.activeAttr || "";
 
-    var wrap = document.createElement("div");
-    for (var _k in opts) { if (_k.indexOf("data-") === 0) wrap.setAttribute(_k, opts[_k]); }
-    wrap.className = opts.class || "gc-tabs";
-    var bar = document.createElement("div"); bar.className = opts.barClass || "gc-tabs-bar";
-    var panels = document.createElement("div");
-    wrap.appendChild(bar); wrap.appendChild(panels);
+    var bar = opts.bar ? el.querySelector(opts.bar) : el;
+    var panelContainer = opts.panels ? el.querySelector(opts.panels) : el;
+    var activeId = opts.active || "";
 
-    function render() {
-      bar.innerHTML = ""; panels.innerHTML = "";
-      tabs.forEach(function(tab) {
-        var btn = document.createElement("button"); btn.type = "button";
-        btn.textContent = tab.label || tab.id;
-        if (tabClass) btn.className = tabClass;
-        if (tab.id === activeId) btn.classList.add(activeClass);
-        if (tab.disabled) btn.disabled = true;
-        btn.addEventListener("click", function() { if (!tab.disabled) activate(tab.id); });
-        bar.appendChild(btn);
+    function getButtons() {
+      return bar ? Array.from(bar.querySelectorAll("[" + tabAttr + "]")) : [];
+    }
 
-        var panel = document.createElement("div");
-        panel.className = opts.panelClass || "gc-tabs-panel";
-        panel.id = "gc-tab-" + tab.id;
-        if (tab.id === activeId) panel.classList.add(activeClass);
-        if (tab.content) panel.innerHTML = tab.content;
-        panels.appendChild(panel);
-      });
+    function getPanels() {
+      return panelContainer ? Array.from(panelContainer.querySelectorAll("[" + panelAttr + "]")) : [];
     }
 
     function activate(id) {
       activeId = id;
-      bar.querySelectorAll("button").forEach(function(btn, i) {
-        if (tabs[i].id === id) btn.classList.add(activeClass); else btn.classList.remove(activeClass);
+      getButtons().forEach(function(btn) {
+        var match = btn.getAttribute(tabAttr) === id;
+        if (activeClass) { if (match) btn.classList.add(activeClass); else btn.classList.remove(activeClass); }
+        if (activeAttr) { if (match) btn.setAttribute(activeAttr, ""); else btn.removeAttribute(activeAttr); }
       });
-      panels.querySelectorAll("[id^='gc-tab-']").forEach(function(p, i) {
-        if (tabs[i].id === id) p.classList.add(activeClass); else p.classList.remove(activeClass);
+      getPanels().forEach(function(panel) {
+        var match = panel.getAttribute(panelAttr) === id;
+        if (activeClass) { if (match) panel.classList.add(activeClass); else panel.classList.remove(activeClass); }
+        if (activeAttr) { if (match) panel.setAttribute(activeAttr, ""); else panel.removeAttribute(activeAttr); }
       });
-      _f(wrap, "change", { value: id });
+      _f(el, "change", { value: id });
       if (opts.onChange) opts.onChange(id);
     }
 
-    render();
+    getButtons().forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        if (btn.disabled) return;
+        activate(btn.getAttribute(tabAttr));
+      });
+    });
+
+    if (!activeId) {
+      var btns = getButtons();
+      if (btns.length) activeId = btns[0].getAttribute(tabAttr);
+    }
+    if (activeId) activate(activeId);
 
     return {
       getValue: function() { return activeId; },
       setValue: function(id) { activate(id); },
-      getPanel: function(id) { return panels.querySelector("#gc-tab-" + id); },
-      setTabDisabled: function(id, v) { var t = tabs.find(function(x) { return x.id === id; }); if (t) { t.disabled = !!v; render(); } },
-      destroy: function() { wrap.remove(); },
-      el: wrap,
+      getPanel: function(id) {
+        return panelContainer ? panelContainer.querySelector("[" + panelAttr + '="' + id + '"]') : null;
+      },
+      destroy: function() {},
+      el: el,
     };
   };
 })();

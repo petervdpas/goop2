@@ -1,43 +1,19 @@
-//
-// CSS hooks:
-//   .gc-progress            — track (override via opts.class)
-//   .gc-progress-bar        — filled portion (width set via JS)
-//   .gc-progress-label      — percentage text below bar
-//   [data-goop-variant="success|warning|danger"]
-//   [data-goop-animated]    — striped animation
-//
-
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
 
-  Goop.ui.progress = function(opts) {
+  Goop.ui.progress = function(el, opts) {
     opts = opts || {};
     var value = opts.value || 0;
     var max = opts.max || 100;
+    var progressVar = opts.progressVar || "--gc-progress";
 
-    var wrap = document.createElement("div");
-    for (var _k in opts) { if (_k.indexOf("data-") === 0) wrap.setAttribute(_k, opts[_k]); }
-    wrap.className = opts.class || "gc-progress";
-    wrap.setAttribute("data-goop-component", "progress");
-    if (opts.variant) wrap.setAttribute("data-goop-variant", opts.variant);
-    if (opts.animated) wrap.setAttribute("data-goop-animated", "");
-    if (opts.height) wrap.style.height = typeof opts.height === "number" ? opts.height + "px" : opts.height;
-
-    var bar = document.createElement("div");
-    bar.className = "gc-progress-bar";
-
-    var label = null;
-    if (opts.label !== false) {
-      label = document.createElement("div");
-      label.className = "gc-progress-label";
-    }
-
-    wrap.appendChild(bar);
+    var bar = opts.bar ? el.querySelector(opts.bar) : el.firstElementChild;
+    var label = opts.label ? el.querySelector(opts.label) : null;
 
     function update() {
       var pct = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
-      bar.style.width = pct + "%";
+      if (bar) bar.style.setProperty(progressVar, pct + "%");
       if (label) {
         label.textContent = typeof opts.format === "function"
           ? opts.format(value, max, pct)
@@ -50,8 +26,8 @@
     return {
       getValue: function() { return value; },
       setValue: function(v, m) { value = v; if (m != null) max = m; update(); },
-      destroy: function() { wrap.remove(); if (label) label.remove(); },
-      el: wrap,
+      destroy: function() {},
+      el: el,
     };
   };
 })();

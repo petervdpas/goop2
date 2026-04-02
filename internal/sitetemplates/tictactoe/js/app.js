@@ -1,5 +1,13 @@
 // Tic-Tac-Toe app.js — PvP and PvE with server-side validation via Lua
 (async function () {
+  var toast = Goop.ui.toast(document.getElementById("toasts"), {
+    toastClass: "gc-toast",
+    titleClass: "gc-toast-title",
+    messageClass: "gc-toast-message",
+    enterClass: "gc-toast-enter",
+    exitClass: "gc-toast-exit",
+  });
+
   var h = Goop.dom;
   var db = Goop.data;
   var root = document.getElementById("ttt-root");
@@ -61,17 +69,17 @@
           this.disabled = true;
           try {
             var result = await db.call("ttt", { action: "new" });
-            if (result.error) { Goop.ui.toast(result.error); if (result.game_id) { showGame(result.game_id); return; } this.disabled = false; }
+            if (result.error) { toast(result.error); if (result.game_id) { showGame(result.game_id); return; } this.disabled = false; }
             else showGame(result.game_id);
-          } catch (e) { Goop.ui.toast(e.message); this.disabled = false; }
+          } catch (e) { toast(e.message); this.disabled = false; }
         } }, "Challenge Host") : null,
         h("button", { class: "btn " + (isOwner ? "btn-primary" : "btn-secondary"), onclick: async function() {
           this.disabled = true;
           try {
             var result = await db.call("ttt", { action: "new_pve" });
-            if (result.error) { Goop.ui.toast(result.error); this.disabled = false; }
+            if (result.error) { toast(result.error); this.disabled = false; }
             else { currentGameId = result.game_id; renderBoard(result); }
-          } catch (e) { Goop.ui.toast(e.message); this.disabled = false; }
+          } catch (e) { toast(e.message); this.disabled = false; }
         } }, "Play vs Computer")
       ),
 
@@ -181,12 +189,12 @@
             try {
               var gameId = state.game_id || currentGameId;
               var result = await db.call("move", { game_id: gameId, position: pos });
-              if (result.error) { Goop.ui.toast(result.error); renderBoard(state); return; }
+              if (result.error) { toast(result.error); renderBoard(state); return; }
               if (!result.game_id) result.game_id = gameId;
               if (!result.challenger_label) result.challenger_label = state.challenger_label;
               renderBoard(result);
               if (result.mode === "pvp" && result.status === "playing") startPolling(result.game_id);
-            } catch (e) { Goop.ui.toast(e.message); renderBoard(state); }
+            } catch (e) { toast(e.message); renderBoard(state); }
           };
         })(i) : null,
       }, ch !== "-" ? symbolChar(ch) : ""));
@@ -200,9 +208,9 @@
           this.disabled = true;
           try {
             var result = await db.call("ttt", { action: "new_pve" });
-            if (result.error) { Goop.ui.toast(result.error); this.disabled = false; }
+            if (result.error) { toast(result.error); this.disabled = false; }
             else { currentGameId = result.game_id; renderBoard(result); }
-          } catch (e) { Goop.ui.toast(e.message); this.disabled = false; }
+          } catch (e) { toast(e.message); this.disabled = false; }
         } }, "Play Again") : null,
         h("button", { class: "btn btn-secondary", onclick: function() { showLobby(); } }, "Back to Lobby")
       ) : null

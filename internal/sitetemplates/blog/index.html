@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <title>Blog</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/sdk/goop-component-dialog.css">
   <link rel="stylesheet" href="css/style.css">
   <script src="/sdk/goop-data.js"></script>
   <script src="/sdk/goop-site.js"></script>
@@ -91,6 +92,23 @@
         <button class="swatch" data-color="#7c4a9f" title="Purple"></button>
         <button class="swatch" data-color="#c0882c" title="Amber"></button>
         <button class="swatch" data-color="#2d7a6a" title="Teal"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- confirm dialog -->
+  <div id="confirm-dialog" class="gc-dialog-backdrop hidden">
+    <div class="gc-dialog">
+      <h2 class="gc-dialog-title">Confirm</h2>
+      <div class="gc-dialog-body">
+        <p class="gc-dialog-message"></p>
+        <div class="gc-dialog-input-wrap hidden">
+          <input type="text" class="gc-dialog-input">
+        </div>
+      </div>
+      <div class="gc-dialog-buttons">
+        <button class="gc-dialog-cancel">Cancel</button>
+        <button class="gc-dialog-ok">OK</button>
       </div>
     </div>
   </div>

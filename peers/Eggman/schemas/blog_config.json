@@ -1,0 +1,14 @@
+{
+  "name": "blog_config",
+  "system_key": true,
+  "columns": [
+    {"name": "key", "type": "text", "required": true},
+    {"name": "value", "type": "text", "default": ""}
+  ],
+  "access": {
+    "read": "open",
+    "insert": "owner",
+    "update": "owner",
+    "delete": "owner"
+  }
+}

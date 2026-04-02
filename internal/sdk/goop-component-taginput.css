@@ -1,0 +1,10 @@
+.gc-taginput { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; padding: 0.4rem 0.5rem; border: 1px solid var(--border, #d0d0d0); border-radius: 8px; background: var(--bg, #f5f5f5); cursor: text; position: relative; }
+
+.gc-taginput-tag { display: inline-flex; align-items: center; gap: 0.2rem; padding: 0.15rem 0.5rem; border-radius: 4px; background: var(--accent, #5a3dff); color: #fff; font-size: 0.8em; }
+.gc-taginput-tag button { border: none; background: none; color: inherit; cursor: pointer; padding: 0 0.15rem; font-size: 1.1em; }
+
+.gc-taginput input { border: none; background: none; outline: none; font: inherit; flex: 1; min-width: 60px; padding: 0.2rem; }
+
+.gc-taginput-suggestions { position: absolute; top: 100%; left: 0; right: 0; z-index: 100; background: var(--panel, #fff); border: 1px solid var(--border, #d0d0d0); border-radius: 8px; margin-top: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.1); max-height: 180px; overflow-y: auto; }
+.gc-taginput-suggestions div { padding: 0.4rem 0.65rem; cursor: pointer; }
+.gc-taginput-suggestions div:hover { background: rgba(0,0,0,0.04); }

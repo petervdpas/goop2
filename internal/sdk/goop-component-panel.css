@@ -1,0 +1,18 @@
+.gc-panel { border: 1px solid var(--border, #d0d0d0); border-radius: 10px; background: var(--panel, #fff); overflow: hidden; }
+.gc-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 0.65rem 1rem; border-bottom: 1px solid var(--border, #d0d0d0); font-weight: 600; font-size: 0.9rem; }
+.gc-panel-collapse-btn { border: none; background: none; cursor: pointer; font-size: 0.8rem; transition: transform 0.2s; }
+.gc-panel[data-collapsed] .gc-panel-collapse-btn { transform: rotate(-90deg); }
+.gc-panel[data-collapsed] .gc-panel-body { display: none; }
+.gc-panel[data-collapsed] .gc-panel-footer { display: none; }
+.gc-panel-body { padding: 1rem; }
+.gc-panel-footer { padding: 0.65rem 1rem; border-top: 1px solid var(--border, #d0d0d0); }
+
+.gc-scrollbox { overflow-y: auto; }
+
+.gc-splitpane { display: flex; height: 100%; }
+.gc-splitpane[data-dir="vertical"] { flex-direction: column; }
+.gc-splitpane-panel { overflow: auto; }
+.gc-splitpane-panel:first-child { flex: 0 0 var(--gc-split, 50%); }
+.gc-splitpane-panel:last-child { flex: 1 1 0; }
+.gc-splitpane-divider { flex: 0 0 4px; background: var(--border, #d0d0d0); cursor: col-resize; }
+.gc-splitpane[data-dir="vertical"] .gc-splitpane-divider { cursor: row-resize; }

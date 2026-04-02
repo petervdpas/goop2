@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <title>Clubhouse</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/sdk/goop-component-toast.css">
+  <link rel="stylesheet" href="/sdk/goop-component-dialog.css">
   <link rel="stylesheet" href="css/style.css">
   <script src="/sdk/goop-data.js"></script>
   <script src="/sdk/goop-identity.js"></script>
@@ -65,6 +67,26 @@
       <div class="create-btns">
         <button id="btn-create-cancel" class="btn-cancel">Cancel</button>
         <button id="btn-create-save" class="btn-save">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- toast container -->
+  <div id="toasts" class="gc-toast-container"></div>
+
+  <!-- confirm dialog -->
+  <div id="confirm-dialog" class="gc-dialog-backdrop hidden">
+    <div class="gc-dialog">
+      <h2 class="gc-dialog-title">Confirm</h2>
+      <div class="gc-dialog-body">
+        <p class="gc-dialog-message"></p>
+        <div class="gc-dialog-input-wrap hidden">
+          <input type="text" class="gc-dialog-input">
+        </div>
+      </div>
+      <div class="gc-dialog-buttons">
+        <button class="gc-dialog-cancel">Cancel</button>
+        <button class="gc-dialog-ok">OK</button>
       </div>
     </div>
   </div>

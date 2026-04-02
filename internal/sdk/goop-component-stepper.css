@@ -1,0 +1,8 @@
+.gc-stepper { display: inline-flex; align-items: center; gap: 0; border: 1px solid var(--border, #d0d0d0); border-radius: 8px; overflow: hidden; }
+
+.gc-stepper button { width: 2rem; height: 2rem; border: none; background: var(--bg, #f5f5f5); cursor: pointer; font: inherit; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; }
+.gc-stepper button:hover { background: rgba(0,0,0,0.06); }
+.gc-stepper button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.gc-stepper input { width: 3rem; text-align: center; border: none; border-left: 1px solid var(--border, #d0d0d0); border-right: 1px solid var(--border, #d0d0d0); background: var(--panel, #fff); font: inherit; padding: 0.3rem; -moz-appearance: textfield; }
+.gc-stepper input::-webkit-inner-spin-button { display: none; }

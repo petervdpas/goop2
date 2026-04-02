@@ -1,0 +1,11 @@
+.gc-tooltip-wrap { position: relative; display: inline-block; }
+
+.gc-tooltip { display: none; position: absolute; padding: 0.35rem 0.6rem; border-radius: 6px; background: var(--text, #1a1a1a); color: #fff; font-size: 0.75rem; white-space: nowrap; z-index: 100; pointer-events: none; }
+
+.gc-tooltip-wrap:hover .gc-tooltip,
+.gc-tooltip[data-open] { display: block; }
+
+.gc-tooltip[data-pos="top"] { bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 6px; }
+.gc-tooltip[data-pos="bottom"] { top: 100%; left: 50%; transform: translateX(-50%); margin-top: 6px; }
+.gc-tooltip[data-pos="left"] { right: 100%; top: 50%; transform: translateY(-50%); margin-right: 6px; }
+.gc-tooltip[data-pos="right"] { left: 100%; top: 50%; transform: translateY(-50%); margin-left: 6px; }

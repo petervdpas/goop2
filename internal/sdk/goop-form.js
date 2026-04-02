@@ -27,29 +27,6 @@
 (() => {
   window.Goop = window.Goop || {};
 
-  const STYLE_ID = "goop-form-style";
-  if (!document.getElementById(STYLE_ID)) {
-    const s = document.createElement("style");
-    s.id = STYLE_ID;
-    s.textContent = `
-      .gform-wrap{display:flex;flex-direction:column;gap:1.1rem}
-      .gform-field{display:flex;flex-direction:column;gap:.3rem}
-      .gform-label{font-size:.9rem;font-weight:500}
-      .gform-input,.gform-textarea,.gform-select{width:100%;box-sizing:border-box;padding:.5rem .65rem;border:1px solid #2a3142;border-radius:6px;background:#0f1115;color:#e6e9ef;font:inherit;font-size:.95rem}
-      .gform-textarea{min-height:5rem;resize:vertical}
-      .gform-select{appearance:auto}
-      .gform-radio-group,.gform-checkbox-wrap{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
-      .gform-radio-group label,.gform-checkbox-wrap label{display:flex;align-items:center;gap:.3rem;font-size:.9rem;cursor:pointer}
-      .gform-radio-group input[type=radio],.gform-checkbox-wrap input[type=checkbox]{accent-color:#7aa2ff}
-      .gform-btns{display:flex;gap:.5rem;margin-top:.4rem}
-      .gform-btns button{padding:.5rem 1.2rem;border:1px solid #2a3142;border-radius:6px;cursor:pointer;font:inherit;background:#1e2433;color:#e6e9ef}
-      .gform-btns button.primary{background:#7aa2ff;color:#0f1115;border-color:#7aa2ff;font-weight:600}
-      .gform-btns button.primary:hover{opacity:.9}
-      .gform-status{font-size:.85rem;color:#9aa3b2;margin-top:.25rem}
-    `;
-    document.head.appendChild(s);
-  }
-
   function esc(s) {
     var d = document.createElement("div");
     d.textContent = s == null ? "" : String(s);

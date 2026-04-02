@@ -1,0 +1,3 @@
+.gc-progress { height: 8px; background: var(--border, #d0d0d0); border-radius: 4px; overflow: hidden; }
+.gc-progress-bar { height: 100%; width: var(--gc-progress, 0%); background: var(--accent, #5a3dff); border-radius: 4px; transition: width 0.3s ease; }
+.gc-progress-label { font-size: 0.8rem; color: var(--muted, #888); margin-top: 0.3rem; }

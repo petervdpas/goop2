@@ -1,27 +1,10 @@
-//
-// CSS hooks:
-//   .gc-select              — wrapper (override via opts.class)
-//   .gc-select-trigger      — the clickable display area
-//   .gc-select-placeholder  — placeholder text
-//   .gc-select-tag          — multi-select selected tag
-//   .gc-select-arrow        — dropdown arrow
-//   .gc-select-clear        — clear button (when opts.clearable)
-//   .gc-select-dropdown     — dropdown panel
-//   .gc-select-search       — search input inside dropdown
-//   .gc-select-option       — each option
-//   .gc-select-empty        — "no results" text
-//   [data-goop-open]        — dropdown is visible
-//   [data-goop-selected]    — selected option
-//   [data-goop-disabled]    — disabled state
-//
-
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
   var _e = Goop.ui._esc || function(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
   var _f = Goop.ui._fire || function(el, n, dt) { el.dispatchEvent(new CustomEvent(n, { bubbles: true, detail: dt })); };
 
-  Goop.ui.select = function(opts) {
+  Goop.ui.select = function(el, opts) {
     opts = opts || {};
     var multi = !!opts.multi;
     var searchable = opts.searchable !== false;
@@ -31,84 +14,148 @@
     var selected = [];
     if (opts.value != null) selected = Array.isArray(opts.value) ? opts.value.slice() : [opts.value];
 
-    var wrap = document.createElement("div");
-    for (var _k in opts) { if (_k.indexOf("data-") === 0) wrap.setAttribute(_k, opts[_k]); }
-    wrap.className = opts.class || "gc-select";
-    wrap.setAttribute("data-goop-component", "select");
-    if (opts.name) wrap.setAttribute("data-goop-name", opts.name);
-    if (isDisabled) wrap.setAttribute("data-goop-disabled", "");
-
-    var trigger = document.createElement("div");
-    trigger.className = opts.triggerClass || "gc-select-trigger";
-    trigger.tabIndex = isDisabled ? -1 : 0;
-
-    var dropdown = document.createElement("div");
-    dropdown.className = opts.dropdownClass || "gc-select-dropdown";
-    wrap.appendChild(trigger);
-    wrap.appendChild(dropdown);
+    var trigger = opts.trigger ? el.querySelector(opts.trigger) : el.firstElementChild;
+    var dropdown = opts.dropdown ? el.querySelector(opts.dropdown) : el.lastElementChild;
+    var openAttr = opts.openAttr || "";
+    var openClass = opts.openClass || "";
+    var selectedAttr = opts.selectedAttr || "";
+    var selectedClass = opts.selectedClass || "";
+    var disabledAttr = opts.disabledAttr || "";
+    var placeholderClass = opts.placeholderClass || "";
+    var tagClass = opts.tagClass || "";
+    var clearClass = opts.clearClass || "";
+    var arrowClass = opts.arrowClass || "";
+    var searchClass = opts.searchClass || "";
+    var optionClass = opts.optionClass || "";
+    var emptyClass = opts.emptyClass || "";
 
     function renderTrigger() {
-      var html = "";
+      if (!trigger) return;
+      trigger.innerHTML = "";
+
       if (selected.length === 0) {
-        html = '<span class="gc-select-placeholder">' + _e(opts.placeholder || "Select...") + "</span>";
+        var ph = document.createElement("span");
+        if (placeholderClass) ph.className = placeholderClass;
+        ph.textContent = opts.placeholder || "Select...";
+        trigger.appendChild(ph);
       } else if (multi) {
         selected.forEach(function(v) {
           var lbl = v, opt = options.find(function(o) { return o.value === v; });
           if (opt) lbl = opt.label;
-          html += '<span class="gc-select-tag">' + _e(lbl) + '<button type="button" data-goop-remove="' + _e(v) + '">\u00D7</button></span>';
+          var span = document.createElement("span");
+          if (tagClass) span.className = tagClass;
+          span.textContent = lbl;
+          var rm = document.createElement("button");
+          rm.type = "button";
+          rm.textContent = "\u00D7";
+          rm.addEventListener("click", function(e) {
+            e.stopPropagation();
+            selected = selected.filter(function(s) { return s !== v; });
+            renderTrigger(); renderDropdown(); emitChange();
+          });
+          span.appendChild(rm);
+          trigger.appendChild(span);
         });
       } else {
         var opt = options.find(function(o) { return o.value === selected[0]; });
-        html = '<span>' + _e(opt ? opt.label : selected[0]) + "</span>";
+        var span = document.createElement("span");
+        span.textContent = opt ? opt.label : selected[0];
+        trigger.appendChild(span);
       }
-      if (clearable && selected.length > 0 && !multi) html += '<button type="button" class="gc-select-clear">\u00D7</button>';
-      html += '<span class="gc-select-arrow">\u25BC</span>';
-      trigger.innerHTML = html;
 
-      var cb = trigger.querySelector(".gc-select-clear");
-      if (cb) cb.addEventListener("click", function(e) { e.stopPropagation(); selected = []; renderTrigger(); emitChange(); });
+      if (clearable && selected.length > 0 && !multi) {
+        var cb = document.createElement("button");
+        cb.type = "button";
+        if (clearClass) cb.className = clearClass;
+        cb.textContent = "\u00D7";
+        cb.addEventListener("click", function(e) { e.stopPropagation(); selected = []; renderTrigger(); emitChange(); });
+        trigger.appendChild(cb);
+      }
 
-      trigger.querySelectorAll("[data-goop-remove]").forEach(function(btn) {
-        btn.addEventListener("click", function(e) {
-          e.stopPropagation();
-          selected = selected.filter(function(s) { return s !== btn.getAttribute("data-goop-remove"); });
-          renderTrigger(); renderDropdown(); emitChange();
-        });
-      });
+      if (arrowClass) {
+        var arrow = document.createElement("span");
+        arrow.className = arrowClass;
+        arrow.textContent = "\u25BC";
+        trigger.appendChild(arrow);
+      }
     }
 
     function renderDropdown(filter) {
-      var html = "";
-      if (searchable) html += '<input class="gc-select-search" type="text" placeholder="Search..." value="' + _e(filter || "") + '">';
-      var filtered = options;
-      if (filter) { var lf = filter.toLowerCase(); filtered = options.filter(function(o) { return o.label.toLowerCase().indexOf(lf) >= 0; }); }
-      if (filtered.length === 0) { html += '<div class="gc-select-empty">No results</div>'; }
-      else { filtered.forEach(function(o) { html += '<div class="gc-select-option" data-goop-value="' + _e(o.value) + '"' + (selected.indexOf(o.value) >= 0 ? ' data-goop-selected' : '') + '>' + _e(o.label) + "</div>"; }); }
-      dropdown.innerHTML = html;
+      if (!dropdown) return;
+      dropdown.innerHTML = "";
 
       if (searchable) {
-        var si = dropdown.querySelector(".gc-select-search");
+        var si = document.createElement("input");
+        si.type = "text";
+        if (searchClass) si.className = searchClass;
+        si.placeholder = "Search...";
+        si.value = filter || "";
         si.addEventListener("input", function() { renderDropdown(si.value); });
         si.addEventListener("click", function(e) { e.stopPropagation(); });
-        if (filter != null) si.focus();
+        dropdown.appendChild(si);
+        if (filter != null) setTimeout(function() { si.focus(); }, 0);
       }
 
-      dropdown.querySelectorAll(".gc-select-option").forEach(function(opt) {
-        opt.addEventListener("click", function(e) {
-          e.stopPropagation();
-          var v = opt.getAttribute("data-goop-value");
-          if (multi) { var idx = selected.indexOf(v); if (idx >= 0) selected.splice(idx, 1); else selected.push(v); renderTrigger(); renderDropdown(searchable ? (dropdown.querySelector(".gc-select-search") || {}).value : ""); }
-          else { selected = [v]; renderTrigger(); closeDropdown(); }
-          emitChange();
+      var filtered = options;
+      if (filter) { var lf = filter.toLowerCase(); filtered = options.filter(function(o) { return o.label.toLowerCase().indexOf(lf) >= 0; }); }
+
+      if (filtered.length === 0) {
+        var empty = document.createElement("div");
+        if (emptyClass) empty.className = emptyClass;
+        empty.textContent = "No results";
+        dropdown.appendChild(empty);
+      } else {
+        filtered.forEach(function(o) {
+          var opt = document.createElement("div");
+          if (optionClass) opt.className = optionClass;
+          if (selected.indexOf(o.value) >= 0) {
+            if (selectedClass) opt.classList.add(selectedClass);
+            if (selectedAttr) opt.setAttribute(selectedAttr, "");
+          }
+          opt.textContent = o.label;
+          opt.addEventListener("click", function(e) {
+            e.stopPropagation();
+            if (multi) {
+              var idx = selected.indexOf(o.value);
+              if (idx >= 0) selected.splice(idx, 1); else selected.push(o.value);
+              renderTrigger(); renderDropdown(searchable ? (dropdown.querySelector("input") || {}).value : "");
+            } else {
+              selected = [o.value]; renderTrigger(); closeDropdown();
+            }
+            emitChange();
+          });
+          dropdown.appendChild(opt);
         });
+      }
+    }
+
+    function emitChange() {
+      var val = multi ? selected.slice() : (selected[0] || "");
+      _f(el, "change", { value: val }); _f(el, "input", { value: val });
+      if (opts.onChange) opts.onChange(val);
+    }
+
+    function openDropdown() {
+      if (isDisabled) return;
+      renderDropdown();
+      if (openClass) el.classList.add(openClass);
+      if (openAttr) el.setAttribute(openAttr, "");
+    }
+
+    function closeDropdown() {
+      if (openClass) el.classList.remove(openClass);
+      if (openAttr) el.removeAttribute(openAttr);
+    }
+
+    if (trigger) {
+      trigger.addEventListener("click", function(e) {
+        e.stopPropagation();
+        var isOpen = (openClass && el.classList.contains(openClass)) || (openAttr && el.hasAttribute(openAttr));
+        if (isOpen) closeDropdown(); else openDropdown();
       });
     }
 
-    function emitChange() { var val = multi ? selected.slice() : (selected[0] || ""); _f(wrap, "change", { value: val }); _f(wrap, "input", { value: val }); if (opts.onChange) opts.onChange(val); }
-    function openDropdown() { if (isDisabled) return; renderDropdown(); dropdown.setAttribute("data-goop-open", ""); }
-    function closeDropdown() { dropdown.removeAttribute("data-goop-open"); }
-    trigger.addEventListener("click", function(e) { e.stopPropagation(); if (dropdown.hasAttribute("data-goop-open")) closeDropdown(); else openDropdown(); });
-    function onDocClick(e) { if (!wrap.contains(e.target)) closeDropdown(); }
+    function onDocClick(e) { if (!el.contains(e.target)) closeDropdown(); }
     document.addEventListener("click", onDocClick);
     renderTrigger();
 
@@ -116,9 +163,13 @@
       getValue: function() { return multi ? selected.slice() : (selected[0] || ""); },
       setValue: function(v) { selected = Array.isArray(v) ? v.slice() : (v != null ? [v] : []); renderTrigger(); },
       setOptions: function(no) { options = (no || []).map(function(o) { return typeof o === "string" ? { value: o, label: o } : o; }); renderTrigger(); },
-      setDisabled: function(v) { isDisabled = !!v; if (isDisabled) wrap.setAttribute("data-goop-disabled", ""); else wrap.removeAttribute("data-goop-disabled"); trigger.tabIndex = isDisabled ? -1 : 0; },
-      destroy: function() { document.removeEventListener("click", onDocClick); wrap.remove(); },
-      el: wrap,
+      setDisabled: function(v) {
+        isDisabled = !!v;
+        if (disabledAttr) { if (isDisabled) el.setAttribute(disabledAttr, ""); else el.removeAttribute(disabledAttr); }
+        if (trigger) trigger.tabIndex = isDisabled ? -1 : 0;
+      },
+      destroy: function() { document.removeEventListener("click", onDocClick); },
+      el: el,
     };
   };
 })();

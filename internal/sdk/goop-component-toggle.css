@@ -1,0 +1,10 @@
+.gc-toggle { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none; }
+
+.gc-toggle-track { width: 36px; height: 20px; border-radius: 10px; background: var(--border, #ccc); position: relative; transition: background 0.2s; }
+
+.gc-toggle-thumb { width: 16px; height: 16px; border-radius: 50%; background: #fff; position: absolute; top: 2px; left: 2px; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+
+.gc-toggle[data-checked] .gc-toggle-track { background: var(--accent, #5a3dff); }
+.gc-toggle[data-checked] .gc-toggle-thumb { transform: translateX(16px); }
+.gc-toggle[data-disabled] { opacity: 0.5; cursor: not-allowed; }
+.gc-toggle-label { font-size: 0.9rem; }

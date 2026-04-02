@@ -1,5 +1,23 @@
 // Clubhouse app.js — real-time group chat rooms, ORM DSL
 (async function () {
+  var toast = Goop.ui.toast(document.getElementById("toasts"), {
+    toastClass: "gc-toast",
+    titleClass: "gc-toast-title",
+    messageClass: "gc-toast-message",
+    enterClass: "gc-toast-enter",
+    exitClass: "gc-toast-exit",
+  });
+
+  Goop.ui.dialog(document.getElementById("confirm-dialog"), {
+    title: ".gc-dialog-title",
+    message: ".gc-dialog-message",
+    inputWrap: ".gc-dialog-input-wrap",
+    input: ".gc-dialog-input",
+    ok: ".gc-dialog-ok",
+    cancel: ".gc-dialog-cancel",
+    hiddenClass: "hidden",
+  });
+
   var esc = Goop.esc;
   var ctx = await Goop.peer();
   var rooms = await Goop.data.orm("rooms");
@@ -120,10 +138,10 @@
         status: "open"
       });
       createOverlay.classList.add("hidden");
-      Goop.ui.toast("Room created!");
+      toast("Room created!");
       loadRooms();
     } catch (err) {
-      Goop.ui.toast({ title: "Error", message: err.message });
+      toast({ title: "Error", message: err.message });
     }
   });
 
@@ -204,9 +222,9 @@
     try {
       await Goop.group.close(currentRoom.group_id);
       await rooms.update(currentRoom._id, { status: "closed" });
-      Goop.ui.toast("Room closed.");
+      toast("Room closed.");
     } catch (err) {
-      Goop.ui.toast({ title: "Error", message: err.message });
+      toast({ title: "Error", message: err.message });
     }
 
     Goop.group.unsubscribe();

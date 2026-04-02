@@ -1,72 +1,76 @@
-//
-// CSS hooks:
-//   .gc-accordion           — wrapper (override via opts.class)
-//   .gc-accordion-section   — each section (override via opts.sectionClass)
-//   .gc-accordion-header    — clickable header (override via opts.headerClass)
-//   .gc-accordion-chevron   — expand/collapse icon
-//   .gc-accordion-body      — collapsible content (override via opts.bodyClass)
-//   .open                   — expanded section (override via opts.openClass)
-//
-
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
-  var _e = Goop.ui._esc || function(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
   var _f = Goop.ui._fire || function(el, n, dt) { el.dispatchEvent(new CustomEvent(n, { bubbles: true, detail: dt })); };
 
-  Goop.ui.accordion = function(opts) {
+  Goop.ui.accordion = function(el, opts) {
     opts = opts || {};
-    var sections = opts.sections || [];
     var multi = opts.multi !== false;
-    var openClass = opts.openClass || "open";
-    var openIds = {};
-    if (opts.open) (Array.isArray(opts.open) ? opts.open : [opts.open]).forEach(function(id) { openIds[id] = true; });
+    var sectionSelector = opts.section || "";
+    var headerSelector = opts.header || "";
+    var openClass = opts.openClass || "";
+    var openAttr = opts.openAttr || "";
+    var sectionAttr = opts.sectionAttr || "data-section";
 
-    var wrap = document.createElement("div");
-    for (var _k in opts) { if (_k.indexOf("data-") === 0) wrap.setAttribute(_k, opts[_k]); }
-    wrap.className = opts.class || "gc-accordion";
-
-    function render() {
-      wrap.innerHTML = "";
-      sections.forEach(function(sec) {
-        var section = document.createElement("div");
-        section.className = opts.sectionClass || "gc-accordion-section";
-        section.id = "gc-acc-" + sec.id;
-        if (openIds[sec.id]) section.classList.add(openClass);
-
-        var header = document.createElement("button"); header.type = "button";
-        header.className = opts.headerClass || "gc-accordion-header";
-        header.innerHTML = '<span>' + _e(sec.label) + '</span><span class="gc-accordion-chevron">\u25B6</span>';
-
-        var body = document.createElement("div");
-        body.className = opts.bodyClass || "gc-accordion-body";
-        if (sec.content) body.innerHTML = sec.content;
-
-        header.addEventListener("click", function() {
-          if (openIds[sec.id]) {
-            delete openIds[sec.id]; section.classList.remove(openClass);
-          } else {
-            if (!multi) { openIds = {}; wrap.querySelectorAll("." + (opts.sectionClass || "gc-accordion-section")).forEach(function(s) { s.classList.remove(openClass); }); }
-            openIds[sec.id] = true; section.classList.add(openClass);
-          }
-          _f(wrap, "change", { value: Object.keys(openIds) });
-          if (opts.onChange) opts.onChange(Object.keys(openIds));
-        });
-
-        section.appendChild(header); section.appendChild(body);
-        wrap.appendChild(section);
-      });
+    function getSections() {
+      return sectionSelector ? Array.from(el.querySelectorAll(sectionSelector)) : Array.from(el.children);
     }
 
-    render();
+    function isOpen(sec) {
+      if (openClass && sec.classList.contains(openClass)) return true;
+      if (openAttr && sec.hasAttribute(openAttr)) return true;
+      return false;
+    }
+
+    function setOpen(sec, open) {
+      if (openClass) { if (open) sec.classList.add(openClass); else sec.classList.remove(openClass); }
+      if (openAttr) { if (open) sec.setAttribute(openAttr, ""); else sec.removeAttribute(openAttr); }
+    }
+
+    function getOpenIds() {
+      var ids = [];
+      getSections().forEach(function(sec) {
+        if (isOpen(sec)) {
+          var id = sec.getAttribute(sectionAttr) || "";
+          if (id) ids.push(id);
+        }
+      });
+      return ids;
+    }
+
+    function toggle(sec) {
+      if (isOpen(sec)) {
+        setOpen(sec, false);
+      } else {
+        if (!multi) getSections().forEach(function(s) { setOpen(s, false); });
+        setOpen(sec, true);
+      }
+      _f(el, "change", { value: getOpenIds() });
+      if (opts.onChange) opts.onChange(getOpenIds());
+    }
+
+    getSections().forEach(function(sec) {
+      var header = headerSelector ? sec.querySelector(headerSelector) : sec.firstElementChild;
+      if (header) {
+        header.addEventListener("click", function() { toggle(sec); });
+      }
+    });
 
     return {
-      getValue: function() { return Object.keys(openIds); },
-      getSection: function(id) { return wrap.querySelector("#gc-acc-" + id + " ." + (opts.bodyClass || "gc-accordion-body")); },
-      open: function(id) { openIds[id] = true; var sec = wrap.querySelector("#gc-acc-" + id); if (sec) sec.classList.add(openClass); },
-      close: function(id) { delete openIds[id]; var sec = wrap.querySelector("#gc-acc-" + id); if (sec) sec.classList.remove(openClass); },
-      destroy: function() { wrap.remove(); },
-      el: wrap,
+      getValue: function() { return getOpenIds(); },
+      open: function(id) {
+        var sec = el.querySelector("[" + sectionAttr + '="' + id + '"]');
+        if (sec) setOpen(sec, true);
+      },
+      close: function(id) {
+        var sec = el.querySelector("[" + sectionAttr + '="' + id + '"]');
+        if (sec) setOpen(sec, false);
+      },
+      getSection: function(id) {
+        return el.querySelector("[" + sectionAttr + '="' + id + '"]');
+      },
+      destroy: function() {},
+      el: el,
     };
   };
 })();

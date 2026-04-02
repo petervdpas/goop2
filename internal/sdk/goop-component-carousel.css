@@ -1,0 +1,14 @@
+.gc-carousel { position: relative; overflow: hidden; }
+.gc-carousel-track { display: flex; transition: transform 0.3s ease; transform: translateX(var(--gc-slide, 0)); }
+.gc-carousel-slide { flex: 0 0 100%; min-width: 0; }
+.gc-carousel-slide img { width: 100%; display: block; }
+
+.gc-carousel-btn { position: absolute; top: 50%; transform: translateY(-50%); border: none; background: rgba(0,0,0,0.4); color: #fff; font-size: 1.5rem; width: 2.5rem; height: 2.5rem; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
+.gc-carousel-btn:hover { background: rgba(0,0,0,0.6); }
+.gc-carousel-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.gc-carousel-btn[data-goop-dir="prev"] { left: 0.75rem; }
+.gc-carousel-btn[data-goop-dir="next"] { right: 0.75rem; }
+
+.gc-carousel-dots { display: flex; justify-content: center; gap: 0.4rem; padding: 0.5rem 0; }
+.gc-carousel-dot { width: 8px; height: 8px; border-radius: 50%; border: none; background: var(--border, #ccc); cursor: pointer; padding: 0; transition: background 0.15s; }
+.gc-carousel-dot[data-active] { background: var(--accent, #5a3dff); }

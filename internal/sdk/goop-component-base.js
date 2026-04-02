@@ -23,17 +23,6 @@
 
   // ── Theme detection ──
 
-  var LIGHT = {
-    bg: "#ffffff", panel: "#ffffff", text: "#101325", muted: "#4a4f6b",
-    line: "rgba(16,19,37,.12)", accent: "#5a3dff",
-    field: "rgba(16,19,37,.04)", shadow: "0 22px 60px rgba(16,19,37,.14)"
-  };
-  var DARK = {
-    bg: "#0f1115", panel: "#151924", text: "#e6e9ef", muted: "#9aa3b2",
-    line: "rgba(255,255,255,.10)", accent: "#7aa2ff",
-    field: "rgba(0,0,0,.25)", shadow: "0 18px 46px rgba(0,0,0,.34)"
-  };
-
   function isDark() {
     var t = document.documentElement.getAttribute("data-theme") || "";
     if (t === "dark") return true;
@@ -51,35 +40,10 @@
     return false;
   }
 
-  function cssVar(name) {
-    var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    return v || null;
-  }
-
   Goop.ui._isDark = isDark;
-
-  Goop.ui._resolveTheme = function() {
-    var d = isDark() ? DARK : LIGHT;
-    return {
-      bg:     cssVar("--bg") || cssVar("--gui-bg") || d.bg,
-      panel:  cssVar("--panel") || cssVar("--gui-panel") || d.panel,
-      text:   cssVar("--text") || cssVar("--gui-text") || d.text,
-      muted:  cssVar("--muted") || cssVar("--gui-muted") || d.muted,
-      line:   cssVar("--line") || cssVar("--border") || cssVar("--gui-line") || d.line,
-      accent: cssVar("--accent") || cssVar("--gui-accent") || d.accent,
-      field:  cssVar("--field-bg") || cssVar("--gui-field") || d.field,
-      shadow: d.shadow,
-    };
-  };
 
   Goop.ui.theme = function() {
     return document.documentElement.getAttribute("data-theme") || (isDark() ? "dark" : "light");
-  };
-
-  // ── Inline style helper (CSP-safe for WebKitGTK site pages) ──
-
-  Goop.ui._setStyles = function(el, styles) {
-    for (var k in styles) el.style[k] = styles[k];
   };
 
   // ── DOM builder ──
@@ -184,7 +148,7 @@
     var size = opts.size || 24;
     var src = "/api/avatar/peer/" + encodeURIComponent(peerId);
     return d("img", {
-      class: "gc-avatar " + (opts.class || ""),
+      class: opts.class || "",
       src: src,
       alt: opts.alt || "",
       width: size,
@@ -194,15 +158,16 @@
 
   Goop.ui.empty = function(message, opts) {
     opts = opts || {};
-    return d("div", { class: "gc-empty" },
-      opts.icon ? d("div", { class: "gc-empty-icon" }, opts.icon) : null,
+    return d("div", { class: opts.class || "" },
+      opts.icon ? d("div", { class: opts.iconClass || "" }, opts.icon) : null,
       d("p", {}, message)
     );
   };
 
-  Goop.ui.loading = function(message) {
-    return d("div", { class: "gc-loading" },
-      d("div", { class: "gc-spinner" }),
+  Goop.ui.loading = function(message, opts) {
+    opts = opts || {};
+    return d("div", { class: opts.class || "" },
+      d("div", { class: opts.spinnerClass || "" }),
       message ? d("p", {}, message) : null
     );
   };
@@ -217,32 +182,23 @@
     return Math.floor(diff / 86400) + "d ago";
   };
 
-  // ── CSS custom properties + grid ──
+  // ── Grid helper ──
 
   Goop.ui.grid = function(el, opts) {
     opts = opts || {};
-    var wrap = document.createElement("div");
-    wrap.className = "gc-grid";
-    wrap.setAttribute("data-goop-component", "grid");
-    if (opts.gap) wrap.setAttribute("data-goop-gap", opts.gap);
-    el.appendChild(wrap);
 
-    function col(span, opts2) {
-      opts2 = opts2 || {};
+    function col(colOpts) {
+      colOpts = colOpts || {};
       var c = document.createElement("div");
-      c.className = "gc-col-" + (span || 12);
-      if (opts2.sm) c.classList.add("gc-sm-" + opts2.sm);
-      if (opts2.lg) c.classList.add("gc-lg-" + opts2.lg);
-      if (opts2.content) c.innerHTML = opts2.content;
-      wrap.appendChild(c);
+      if (colOpts.class) c.className = colOpts.class;
+      el.appendChild(c);
       return c;
     }
 
     return {
       col: col,
-      clear: function() { wrap.innerHTML = ""; },
-      destroy: function() { wrap.remove(); },
-      el: wrap,
+      clear: function() { el.innerHTML = ""; },
+      el: el,
     };
   };
 })();

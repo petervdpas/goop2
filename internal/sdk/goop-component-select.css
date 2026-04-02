@@ -1,0 +1,65 @@
+.gc-select { position: relative; }
+
+.gc-select-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border, #d0d0d0);
+  border-radius: 8px;
+  background: var(--bg, #f5f5f5);
+  cursor: pointer;
+  min-height: 2.2rem;
+}
+
+.gc-select-placeholder { color: var(--muted, #888); }
+
+.gc-select-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  background: var(--accent, #5a3dff);
+  color: #fff;
+  font-size: 0.8em;
+}
+
+.gc-select-tag button { border: none; background: none; color: inherit; cursor: pointer; padding: 0 0.15rem; font-size: 1.1em; }
+.gc-select-arrow { margin-left: auto; font-size: 0.65em; color: var(--muted, #888); }
+.gc-select-clear { border: none; background: none; cursor: pointer; color: var(--muted, #888); }
+
+.gc-select-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: var(--panel, #fff);
+  border: 1px solid var(--border, #d0d0d0);
+  border-radius: 8px;
+  margin-top: 4px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.gc-select.open .gc-select-dropdown { display: block; }
+
+.gc-select-search {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem 0.65rem;
+  border: none;
+  border-bottom: 1px solid var(--border, #d0d0d0);
+  background: none;
+  font: inherit;
+  outline: none;
+}
+
+.gc-select-option { padding: 0.45rem 0.65rem; cursor: pointer; transition: background 0.1s; }
+.gc-select-option:hover { background: rgba(0,0,0,0.04); }
+.gc-select-option.selected { color: var(--accent, #5a3dff); font-weight: 600; }
+.gc-select-empty { padding: 0.65rem; color: var(--muted, #888); font-style: italic; }

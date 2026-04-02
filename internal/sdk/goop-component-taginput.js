@@ -1,60 +1,40 @@
-//
-// CSS hooks:
-//   .gc-taginput            — wrapper (override via opts.class)
-//   .gc-taginput-tag        — each tag pill
-//   .gc-taginput-tag button — tag remove button
-//   input                   — text input for adding tags
-//   .gc-taginput-suggestions— autocomplete dropdown
-//   [data-goop-disabled]    — disabled state
-//   [data-goop-idx="N"]     — tag index on remove button
-//
-
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
   var _e = Goop.ui._esc || function(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
   var _f = Goop.ui._fire || function(el, n, dt) { el.dispatchEvent(new CustomEvent(n, { bubbles: true, detail: dt })); };
 
-  Goop.ui.taginput = function(opts) {
+  Goop.ui.taginput = function(el, opts) {
     opts = opts || {};
     var tags = (opts.value || []).slice();
     var allowDuplicates = !!opts.allowDuplicates;
     var isDisabled = !!opts.disabled;
     var suggestions = opts.suggestions || [];
+    var tagClass = opts.tagClass || "";
+    var suggestionsClass = opts.suggestionsClass || "";
+    var disabledAttr = opts.disabledAttr || "";
 
-    var outer = document.createElement("div");
-    outer.style.position = "relative";
-
-    var wrap = document.createElement("div");
-    for (var _k in opts) { if (_k.indexOf("data-") === 0) wrap.setAttribute(_k, opts[_k]); }
-    wrap.className = opts.class || "gc-taginput";
-    wrap.setAttribute("data-goop-component", "taginput");
-    if (opts.name) wrap.setAttribute("data-goop-name", opts.name);
-    if (isDisabled) wrap.setAttribute("data-goop-disabled", "");
-
-    var input = document.createElement("input");
-    input.type = "text";
-    if (opts.inputClass) input.className = opts.inputClass; input.placeholder = opts.placeholder || "Add...";
-    if (isDisabled) input.disabled = true;
-
+    var input = opts.input ? el.querySelector(opts.input) : el.querySelector("input");
     var sugBox = null;
 
-    outer.appendChild(wrap);
-
     function renderTags() {
-      wrap.querySelectorAll(".gc-taginput-tag").forEach(function(t) { t.remove(); });
+      el.querySelectorAll("[data-tag]").forEach(function(t) { t.remove(); });
       tags.forEach(function(tag, idx) {
         var span = document.createElement("span");
-        span.className = "gc-taginput-tag";
-        span.innerHTML = _e(tag) + '<button type="button" data-goop-idx="' + idx + '">\u00D7</button>';
-        wrap.insertBefore(span, input);
-      });
-      wrap.querySelectorAll(".gc-taginput-tag button").forEach(function(btn) {
-        btn.addEventListener("click", function(e) {
+        if (tagClass) span.className = tagClass;
+        span.setAttribute("data-tag", idx);
+        span.textContent = tag;
+        var rm = document.createElement("button");
+        rm.type = "button";
+        rm.textContent = "\u00D7";
+        rm.addEventListener("click", function(e) {
           e.stopPropagation();
-          tags.splice(parseInt(btn.getAttribute("data-goop-idx"), 10), 1);
+          tags.splice(idx, 1);
           renderTags(); emitChange();
         });
+        span.appendChild(rm);
+        if (input) el.insertBefore(span, input);
+        else el.appendChild(span);
       });
     }
 
@@ -67,7 +47,7 @@
     }
 
     function emitChange() {
-      _f(wrap, "change", { value: tags.slice() }); _f(wrap, "input", { value: tags.slice() });
+      _f(el, "change", { value: tags.slice() }); _f(el, "input", { value: tags.slice() });
       if (opts.onChange) opts.onChange(tags.slice());
     }
 
@@ -78,29 +58,29 @@
       var matches = suggestions.filter(function(s) { return s.toLowerCase().indexOf(lf) >= 0 && tags.indexOf(s) < 0; });
       if (!matches.length) return;
       sugBox = document.createElement("div");
-      sugBox.className = "gc-taginput-suggestions";
+      if (suggestionsClass) sugBox.className = suggestionsClass;
       matches.slice(0, 8).forEach(function(m) {
         var div = document.createElement("div");
         div.textContent = m;
-        div.addEventListener("mousedown", function(e) { e.preventDefault(); addTag(m); input.value = ""; hideSuggestions(); });
+        div.addEventListener("mousedown", function(e) { e.preventDefault(); addTag(m); if (input) input.value = ""; hideSuggestions(); });
         sugBox.appendChild(div);
       });
-      outer.appendChild(sugBox);
+      el.appendChild(sugBox);
     }
 
     function hideSuggestions() { if (sugBox) { sugBox.remove(); sugBox = null; } }
 
-    input.addEventListener("keydown", function(e) {
-      if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(input.value); input.value = ""; hideSuggestions(); }
-      if (e.key === "Backspace" && input.value === "" && tags.length > 0) { tags.pop(); renderTags(); emitChange(); }
-      if (e.key === "Escape") hideSuggestions();
-    });
+    if (input) {
+      input.addEventListener("keydown", function(e) {
+        if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(input.value); input.value = ""; hideSuggestions(); }
+        if (e.key === "Backspace" && input.value === "" && tags.length > 0) { tags.pop(); renderTags(); emitChange(); }
+        if (e.key === "Escape") hideSuggestions();
+      });
+      input.addEventListener("input", function() { if (suggestions.length) showSuggestions(input.value); });
+      input.addEventListener("blur", function() { setTimeout(function() { hideSuggestions(); if (input.value.trim()) { addTag(input.value); input.value = ""; } }, 150); });
+    }
 
-    input.addEventListener("input", function() { if (suggestions.length) showSuggestions(input.value); });
-    input.addEventListener("blur", function() { setTimeout(function() { hideSuggestions(); if (input.value.trim()) { addTag(input.value); input.value = ""; } }, 150); });
-
-    wrap.addEventListener("click", function() { input.focus(); });
-    wrap.appendChild(input);
+    el.addEventListener("click", function() { if (input) input.focus(); });
     renderTags();
 
     return {
@@ -108,9 +88,13 @@
       setValue: function(v) { tags = (v || []).slice(); renderTags(); },
       addTag: addTag,
       setSuggestions: function(s) { suggestions = s || []; },
-      setDisabled: function(v) { isDisabled = !!v; input.disabled = isDisabled; if (isDisabled) wrap.setAttribute("data-goop-disabled", ""); else wrap.removeAttribute("data-goop-disabled"); },
-      destroy: function() { outer.remove(); },
-      el: wrap,
+      setDisabled: function(v) {
+        isDisabled = !!v;
+        if (input) input.disabled = isDisabled;
+        if (disabledAttr) { if (isDisabled) el.setAttribute(disabledAttr, ""); else el.removeAttribute(disabledAttr); }
+      },
+      destroy: function() {},
+      el: el,
     };
   };
 })();

@@ -6,6 +6,16 @@
   var blog = Goop.data.api("blog");
   var editor = Goop.overlay("editor-overlay");
 
+  Goop.ui.dialog(document.getElementById("confirm-dialog"), {
+    title: ".gc-dialog-title",
+    message: ".gc-dialog-message",
+    inputWrap: ".gc-dialog-input-wrap",
+    input: ".gc-dialog-input",
+    ok: ".gc-dialog-ok",
+    cancel: ".gc-dialog-cancel",
+    hiddenClass: "hidden",
+  });
+
   var postsEl = document.getElementById("posts");
   var btnNew = document.getElementById("btn-new");
   var btnCustomize = document.getElementById("btn-customize");

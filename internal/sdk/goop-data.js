@@ -112,7 +112,6 @@
     }
     if (opts.onRow) {
       el.querySelectorAll("[data-id]").forEach(function(item) {
-        item.style.cursor = "pointer";
         item.addEventListener("click", function(e) {
           if (e.target.tagName === "BUTTON") return;
           var id = parseInt(item.dataset.id, 10);
@@ -309,7 +308,6 @@
     }
     if (opts.onRow) {
       el.querySelectorAll("tbody tr").forEach(function(tr) {
-        tr.style.cursor = "pointer";
         tr.addEventListener("click", function(e) {
           if (e.target.tagName === "BUTTON") return;
           var id = parseInt(tr.dataset.id, 10);

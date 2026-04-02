@@ -1,0 +1,15 @@
+.gc-lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 99999; align-items: center; justify-content: center; }
+.gc-lightbox.open { display: flex; }
+.gc-lightbox img { max-width: 90vw; max-height: 85vh; object-fit: contain; }
+
+.gc-lightbox-close { position: absolute; top: 1rem; right: 1rem; border: none; background: rgba(255,255,255,0.15); color: #fff; font-size: 1.5rem; width: 2.5rem; height: 2.5rem; border-radius: 50%; cursor: pointer; }
+
+.gc-lightbox-prev,
+.gc-lightbox-next { position: absolute; top: 50%; transform: translateY(-50%); border: none; background: rgba(255,255,255,0.15); color: #fff; font-size: 2rem; width: 3rem; height: 3rem; border-radius: 50%; cursor: pointer; }
+.gc-lightbox-prev { left: 1rem; }
+.gc-lightbox-next { right: 1rem; }
+.gc-lightbox-prev:disabled,
+.gc-lightbox-next:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.gc-lightbox-caption { position: absolute; bottom: 2rem; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.8); font-size: 0.9rem; text-align: center; }
+.gc-lightbox-counter { position: absolute; top: 1rem; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.6); font-size: 0.8rem; }
