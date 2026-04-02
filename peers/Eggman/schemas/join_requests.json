@@ -1,0 +1,15 @@
+{
+  "name": "join_requests",
+  "system_key": true,
+  "columns": [
+    {"name": "peer_name", "type": "text", "default": ""},
+    {"name": "status", "type": "text", "default": "pending"},
+    {"name": "message", "type": "text", "default": ""}
+  ],
+  "access": {
+    "read": "open",
+    "insert": "open",
+    "update": "owner",
+    "delete": "owner"
+  }
+}

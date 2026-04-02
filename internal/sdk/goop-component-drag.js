@@ -1,21 +1,22 @@
 //
 // Reusable drag-and-drop for site pages.
-// Works standalone — does not depend on the viewer's CSS.
+// Link goop-component-drag.css for base styles.
 //
 // Usage:
 //
-//   <script src="/sdk/goop-drag.js"></script>
+//   <link rel="stylesheet" href="/sdk/goop-component-drag.css">
+//   <script src="/sdk/goop-component-drag.js"></script>
 //
 //   var sortable = Goop.drag.sortable(container, {
-//     items: ".card",           // selector for draggable children
-//     handle: null,             // optional handle selector
-//     group: "cards",           // items move between containers sharing a group
-//     direction: "vertical",    // "vertical" or "horizontal"
-//     placeholder: true,        // show insertion placeholder
-//     onStart: function(evt){}, // { item, container, index }
-//     onMove: function(evt){},  // { item, from, to, oldIndex, newIndex }
-//     onEnd: function(evt){},   // { item, from, to, oldIndex, newIndex }
-//     onCancel: function(evt){} // drag aborted (Escape)
+//     items: ".card",
+//     handle: null,
+//     group: "cards",
+//     direction: "vertical",
+//     placeholder: true,
+//     onStart: function(evt){},
+//     onMove: function(evt){},
+//     onEnd: function(evt){},
+//     onCancel: function(evt){}
 //   });
 //
 //   sortable.destroy();
@@ -24,20 +25,6 @@
   "use strict";
 
   window.Goop = window.Goop || {};
-
-  // ── inject minimal CSS (only once) ──
-  var STYLE_ID = "goop-drag-style";
-  if (!document.getElementById(STYLE_ID)) {
-    var s = document.createElement("style");
-    s.id = STYLE_ID;
-    s.textContent =
-      ".goop-drag-ghost{position:fixed;z-index:99999;pointer-events:none;opacity:0.9;box-shadow:0 8px 24px rgba(0,0,0,0.18);transform:rotate(1.5deg) scale(1.03);border-radius:8px;}" +
-      ".goop-drag-source{opacity:0.35;}" +
-      ".goop-drag-placeholder{border:2px dashed var(--accent,#6366f1);border-radius:6px;min-height:2rem;background:rgba(99,102,241,0.06);transition:height .15s;}" +
-      ".goop-drag-active{user-select:none;}" +
-      ".goop-drag-over{outline:2px solid var(--accent,#6366f1);outline-offset:-2px;border-radius:8px;}";
-    document.head.appendChild(s);
-  }
 
   var THRESHOLD = 5;
   var instances = [];
@@ -100,7 +87,6 @@
       if (e.button !== 0) return;
 
       var target = e.target;
-      // If handle specified, only start from handle
       if (handleSelector) {
         if (!target.closest(handleSelector)) return;
       }
@@ -108,8 +94,7 @@
       var item = closestItem(target, itemSelector);
       if (!item || item.parentNode !== container) return;
 
-      // Don't drag if clicking interactive elements (skip check when handle is set)
-      if (!handleSelector && target.closest("button, a, input, textarea, select, [contenteditable]")) return;
+      if (target.closest("button, a, input, textarea, select, [contenteditable]")) return;
 
       e.preventDefault();
       startX = e.clientX;
@@ -132,7 +117,6 @@
       originNext = dragItem.nextSibling;
       currentContainer = container;
 
-      // Create ghost — apply critical styles inline to beat any class specificity
       ghost = dragItem.cloneNode(true);
       ghost.classList.add("goop-drag-ghost");
       var rect = dragItem.getBoundingClientRect();
@@ -145,7 +129,6 @@
         "background:" + getComputedStyle(dragItem).backgroundColor + ";";
       document.body.appendChild(ghost);
 
-      // Create placeholder
       if (showPlaceholder) {
         placeholder = document.createElement("div");
         placeholder.classList.add("goop-drag-placeholder");
@@ -160,11 +143,9 @@
         dragItem.parentNode.insertBefore(placeholder, dragItem);
       }
 
-      // Dim original in place
       dragItem.classList.add("goop-drag-source");
       currentContainer.classList.add("goop-drag-over");
 
-      // Prevent text selection / touch scroll
       document.body.classList.add("goop-drag-active");
       container.style.touchAction = "none";
 
@@ -183,11 +164,9 @@
         startDrag(e);
       }
 
-      // Move ghost
       ghost.style.left = (e.clientX - offsetX) + "px";
       ghost.style.top = (e.clientY - offsetY) + "px";
 
-      // Find target container and insertion point
       var containers = getContainers();
       var targetContainer = null;
       var insertBefore = null;
@@ -230,20 +209,16 @@
         newIndex = items.length;
       }
 
-      // Adjust index: don't count placeholder or hidden dragItem
       var countBefore = 0;
       for (var j = 0; j < newIndex; j++) {
         if (items[j] === placeholder || items[j] === dragItem) countBefore++;
       }
       newIndex -= countBefore;
 
-      // Move placeholder
       if (showPlaceholder && placeholder) {
         if (insertBefore) {
           targetContainer.insertBefore(placeholder, insertBefore);
         } else {
-          // Insert before the first non-item child (e.g. "Add Column" button)
-          // so the placeholder stays among the sortable items
           var sentinel = null;
           var allChildren = targetContainer.children;
           for (var k = 0; k < allChildren.length; k++) {
@@ -259,7 +234,6 @@
         }
       }
 
-      // Update container highlight + touch-action
       if (currentContainer !== targetContainer) {
         currentContainer.classList.remove("goop-drag-over");
         currentContainer.style.touchAction = "";
@@ -293,7 +267,6 @@
       var newIndex = -1;
 
       if (cancelled) {
-        // Return to original position
         if (originNext) {
           originContainer.insertBefore(dragItem, originNext);
         } else {
@@ -301,28 +274,23 @@
         }
         dragItem.classList.remove("goop-drag-source");
       } else {
-        // Insert at placeholder position
         if (placeholder && placeholder.parentNode) {
           placeholder.parentNode.insertBefore(dragItem, placeholder);
         }
         dragItem.classList.remove("goop-drag-source");
 
-        // Calculate final index
         var finalItems = getItems(dragItem.parentNode);
         for (var i = 0; i < finalItems.length; i++) {
           if (finalItems[i] === dragItem) { newIndex = i; break; }
         }
       }
 
-      // Cleanup ghost
       if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
       ghost = null;
 
-      // Cleanup placeholder
       if (placeholder && placeholder.parentNode) placeholder.parentNode.removeChild(placeholder);
       placeholder = null;
 
-      // Restore body state
       document.body.classList.remove("goop-drag-active");
       var containers = getContainers();
       for (var c = 0; c < containers.length; c++) {

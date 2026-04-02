@@ -1,3 +1,6 @@
+.gc-dialog-backdrop.hidden { display: none !important; }
+.gc-dialog-input-wrap.hidden { display: none !important; }
+
 .gc-dialog-backdrop {
   position: fixed;
   inset: 0;

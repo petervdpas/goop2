@@ -399,9 +399,48 @@ func (d *DB) OrmList(tableName string, limit int) ([]map[string]any, error) {
 	return results, rows.Err()
 }
 
+// ValidateUpdate checks types of provided fields without enforcing required-field constraints.
+// Updates are partial — only the supplied columns are modified.
+func (d *DB) ValidateUpdate(tableName string, data map[string]any) error {
+	tbl, err := d.GetSchema(tableName)
+	if err != nil || tbl == nil {
+		return nil
+	}
+	colMap := make(map[string]schema.Column, len(tbl.Columns))
+	for _, col := range tbl.Columns {
+		colMap[col.Name] = col
+	}
+	for k, v := range data {
+		col, ok := colMap[k]
+		if !ok {
+			continue
+		}
+		if v == nil {
+			continue
+		}
+		if err := validateType(col.Name, col.Type, v); err != nil {
+			return err
+		}
+		if col.Type == "enum" && len(col.Values) > 0 {
+			s, _ := v.(string)
+			valid := false
+			for _, ev := range col.Values {
+				if ev.Key == s {
+					valid = true
+					break
+				}
+			}
+			if !valid {
+				return fmt.Errorf("column %q: value %q is not a valid enum option", col.Name, s)
+			}
+		}
+	}
+	return nil
+}
+
 // OrmUpdate validates and updates a row by _id in an ORM-managed table.
 func (d *DB) OrmUpdate(tableName string, id int64, data map[string]any) error {
-	if err := d.ValidateInsert(tableName, data); err != nil {
+	if err := d.ValidateUpdate(tableName, data); err != nil {
 		return err
 	}
 	return d.UpdateRow(tableName, id, data)

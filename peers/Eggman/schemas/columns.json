@@ -1,0 +1,15 @@
+{
+  "name": "columns",
+  "system_key": true,
+  "columns": [
+    {"name": "name", "type": "text", "required": true},
+    {"name": "position", "type": "integer", "required": true, "default": 0},
+    {"name": "color", "type": "text", "default": "#5b6abf"}
+  ],
+  "access": {
+    "read": "open",
+    "insert": "owner",
+    "update": "owner",
+    "delete": "owner"
+  }
+}

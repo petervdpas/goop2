@@ -1,5 +1,12 @@
-// Tic-Tac-Toe app.js — PvP and PvE with server-side validation via Lua
+// Kanban app.js
 (async function () {
+  var h = Goop.dom;
+  var db = Goop.data;
+  var root = document.getElementById("kanban-root");
+  var gate = document.getElementById("kanban-gate");
+  var subtitle = document.getElementById("subtitle");
+  var columns = [];
+
   var toast = Goop.ui.toast(document.getElementById("toasts"), {
     toastClass: "gc-toast",
     titleClass: "gc-toast-title",
@@ -8,212 +15,618 @@
     exitClass: "gc-toast-exit",
   });
 
-  var h = Goop.dom;
-  var db = Goop.data;
-  var root = document.getElementById("ttt-root");
-  var subtitle = document.getElementById("subtitle");
-  var isOwner = false;
+  Goop.ui.dialog(document.getElementById("confirm-dialog"), {
+    title: ".gc-dialog-title",
+    message: ".gc-dialog-message",
+    inputWrap: ".gc-dialog-input-wrap",
+    input: ".gc-dialog-input",
+    ok: ".gc-dialog-ok",
+    cancel: ".gc-dialog-cancel",
+    hiddenClass: "hidden",
+  });
+
   var myId = await Goop.identity.id();
   var myLabel = await Goop.identity.label();
-  var pollTimer = null;
-  var currentGameId = null;
 
+  // Detect owner vs visitor
   var match = window.location.pathname.match(/\/p\/([^/]+)/);
-  if (!match || match[1] === myId) isOwner = true;
+  var ownerPeerId = match ? match[1] : null;
+  var isOwner = !ownerPeerId || ownerPeerId === myId;
 
-  subtitle.textContent = isOwner
-    ? "Challenge visitors or play against the computer."
-    : "Challenge the host or play against the computer.";
-
-  showLobby();
-
-  function startPolling(gameId) {
-    stopPolling();
-    pollTimer = setInterval(async function () {
-      try {
-        var state = await db.call("ttt", { action: "state", game_id: gameId });
-        renderBoard(state);
-        if (state.status !== "playing" && state.status !== "waiting") stopPolling();
-      } catch (e) {}
-    }, 2000);
+  // Check template group membership for non-owners
+  var isMember = false;
+  if (!isOwner && Goop.group) {
+    try {
+      var subs = await Goop.group.subscriptions();
+      var list = (subs && subs.subscriptions) || [];
+      isMember = list.some(function (s) {
+        return s.host_peer_id === ownerPeerId && s.app_type === "template";
+      });
+    } catch (_) {}
   }
 
-  function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+  // Find template group ID (owner needs this for approvals)
+  var templateGroupId = null;
 
-  async function showLobby() {
-    stopPolling();
-    currentGameId = null;
+  if (isOwner) {
+    // Owner: show board + config gear
+    subtitle.textContent = "Shared team kanban board";
+    gate.classList.add("hidden");
+    root.classList.remove("hidden");
+    loadConfig();
+    loadBoard();
+    initOwnerConfig();
+  } else if (isMember) {
+    // Member: show board (no config gear)
+    subtitle.textContent = "Shared team kanban board";
+    gate.classList.add("hidden");
+    root.classList.remove("hidden");
+    loadConfig();
+    loadBoard();
+  } else {
+    // Non-member: show gate
+    loadConfig();
+    subtitle.textContent = "Join to collaborate on this board";
+    gate.classList.remove("hidden");
+    root.classList.add("hidden");
+    initGate();
+  }
 
-    var lobby;
-    try { lobby = await db.call("ttt", { action: "lobby" }); }
-    catch (e) { Goop.render(root, Goop.ui.empty("Could not load lobby.", { class: "ttt-empty" })); return; }
+  // --- Gate logic ---
 
-    var games = lobby.games || [];
-    var stats = lobby.stats || {};
+  async function initGate() {
+    var gateRequest = document.getElementById("gate-request");
+    var gatePending = document.getElementById("gate-pending");
+    var gateApproved = document.getElementById("gate-approved");
+    var gateDenied = document.getElementById("gate-denied");
 
-    for (var i = 0; i < games.length; i++) {
-      var g = games[i];
-      if (isOwner && g.status === "waiting" && g.mode === "pvp") continue;
-      if ((g.status === "playing" || g.status === "waiting") && (g._owner === myId || g.challenger === myId)) {
-        showGame(g._id);
-        return;
+    try {
+      var res = await db.call("kanban", { action: "get_my_request" });
+      if (res.status === "pending") {
+        gateRequest.classList.add("hidden");
+        gatePending.classList.remove("hidden");
+      } else if (res.status === "approved") {
+        gateRequest.classList.add("hidden");
+        gateApproved.classList.remove("hidden");
+      } else if (res.status === "dismissed") {
+        gateRequest.classList.add("hidden");
+        gateDenied.classList.remove("hidden");
+      }
+    } catch (_) {}
+
+    document.getElementById("btn-request").onclick = async function () {
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = "Sending...";
+      try {
+        var msg = document.getElementById("request-message").value.trim();
+        var res = await db.call("kanban", {
+          action: "request_join",
+          peer_name: myLabel || myId,
+          message: msg
+        });
+        if (res.status === "pending") {
+          gateRequest.classList.add("hidden");
+          gatePending.classList.remove("hidden");
+        } else {
+          // Already requested
+          gateRequest.classList.add("hidden");
+          if (res.status === "dismissed") gateDenied.classList.remove("hidden");
+          else if (res.status === "approved") gateApproved.classList.remove("hidden");
+          else gatePending.classList.remove("hidden");
+        }
+      } catch (e) {
+        toast({ title: "Error", message: e.message || "Failed to send request" });
+        btn.disabled = false;
+        btn.textContent = "Request to Join";
+      }
+    };
+  }
+
+  // --- Owner config ---
+
+  function initOwnerConfig() {
+    var configModal = document.getElementById("config-modal");
+    var configBtn = document.getElementById("config-btn");
+    configBtn.classList.remove("hidden");
+
+    configBtn.onclick = async function () {
+      document.getElementById("cfg-title").value = document.getElementById("board-title").textContent;
+      document.getElementById("cfg-subtitle").value = subtitle.textContent;
+      configModal.classList.remove("hidden");
+      document.getElementById("cfg-title").focus();
+      await loadRequests();
+    };
+
+    configModal.onclick = function (e) {
+      if (e.target === configModal) configModal.classList.add("hidden");
+    };
+
+    document.getElementById("cancel-config").onclick = function () {
+      configModal.classList.add("hidden");
+    };
+
+    document.getElementById("save-config").onclick = async function () {
+      var t = document.getElementById("cfg-title").value.trim();
+      var s = document.getElementById("cfg-subtitle").value.trim();
+      try {
+        await db.call("kanban", {
+          action: "save_config",
+          title: t || "Kanban Board",
+          subtitle: s || "Shared team kanban board"
+        });
+        document.getElementById("board-title").textContent = t || "Kanban Board";
+        subtitle.textContent = s || "Shared team kanban board";
+        configModal.classList.add("hidden");
+      } catch (e) {
+        toast({ title: "Error", message: e.message || "Failed to save config" });
+      }
+    };
+  }
+
+  async function findTemplateGroupId() {
+    if (templateGroupId) return templateGroupId;
+    try {
+      var groups = await Goop.group.list();
+      for (var i = 0; i < groups.length; i++) {
+        if (groups[i].app_type === "template") {
+          templateGroupId = groups[i].id;
+          return templateGroupId;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+
+
+  async function loadRequests() {
+    var container = document.getElementById("cfg-requests-list");
+    var noRequests = document.getElementById("cfg-no-requests");
+    var section = document.getElementById("cfg-requests");
+    section.classList.remove("hidden");
+
+    try {
+      var res = await db.call("kanban", { action: "get_requests" });
+      var requests = res.requests || [];
+      if (requests.length === 0) { container.innerHTML = ""; noRequests.classList.remove("hidden"); return; }
+      noRequests.classList.add("hidden");
+      Goop.list(container, requests, function(r) {
+        var item = h("div", { class: "request-item" },
+          h("div", { class: "request-info" },
+            h("span", { class: "request-name" }, r.peer_name || r._owner),
+            r.message ? h("span", { class: "request-msg" }, r.message) : null
+          ),
+          h("div", { class: "request-actions" },
+            h("button", { class: "btn btn-primary btn-sm", onclick: async function() {
+              this.disabled = true; this.textContent = "Approving...";
+              try {
+                var res = await db.call("kanban", { action: "approve_request", request_id: r._id });
+                if (res.error) throw new Error(res.error);
+                var groupId = await findTemplateGroupId();
+                if (groupId && r._owner) {
+                  await fetch("/api/groups/invite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ group_id: groupId, peer_id: r._owner }) });
+                }
+                item.remove();
+                if (!container.querySelector(".gc-item")) noRequests.classList.remove("hidden");
+              } catch (e) { toast.error(e.message || "Failed to approve"); this.disabled = false; this.textContent = "Approve"; }
+            } }, "Approve"),
+            h("button", { class: "btn btn-secondary btn-sm", onclick: async function() {
+              this.disabled = true;
+              try {
+                await db.call("kanban", { action: "dismiss_request", request_id: r._id });
+                item.remove();
+                if (!container.querySelector(".request-item")) noRequests.classList.remove("hidden");
+              } catch (e) { toast.error(e.message || "Failed to dismiss"); this.disabled = false; }
+            } }, "Dismiss")
+          )
+        );
+        return item;
+      });
+    } catch (e) { container.innerHTML = ""; noRequests.classList.remove("hidden"); }
+  }
+
+  // --- Board ---
+
+  async function loadConfig() {
+    try {
+      var cfg = await db.call("kanban", { action: "get_config" });
+      if (cfg.title) document.getElementById("board-title").textContent = cfg.title;
+      if (cfg.subtitle && (isOwner || isMember)) subtitle.textContent = cfg.subtitle;
+    } catch (_) {}
+  }
+
+  async function loadBoard() {
+    try {
+      var result = await db.call("kanban", { action: "get_board" });
+      columns = result.columns || [];
+      renderBoard();
+    } catch (e) {
+      Goop.render(root, Goop.ui.empty("Failed to load board: " + (e.message || "unknown error"), { class: "loading" }));
+    }
+  }
+
+  async function renderBoard() {
+    var boardEl = h("div", { class: "board" },
+      columns.map(function(col, i) {
+        var cards = Array.isArray(col.cards) ? col.cards : [];
+        return h("div", { class: "column", data: { "column-id": col._id } },
+          h("div", { class: "column-header" },
+            h("span", { class: "column-title" },
+              h("span", { class: "column-dot", data: { color: col.color || "#5b6abf" } }),
+              col.name
+            ),
+            h("span", { class: "column-count" }, cards.length + (cards.length === 1 ? " item" : " items")),
+            isOwner ? h("span", { class: "column-actions" },
+              i > 0 ? h("button", { class: "col-action-btn", title: "Move left", onclick: function(e) { e.stopPropagation(); moveColumn(col._id, "left"); } }, "\u25C4") : null,
+              i < columns.length - 1 ? h("button", { class: "col-action-btn", title: "Move right", onclick: function(e) { e.stopPropagation(); moveColumn(col._id, "right"); } }, "\u25BA") : null,
+              h("button", { class: "col-action-btn", title: "Delete column", onclick: function(e) { e.stopPropagation(); deleteColumn(col._id); } }, "\u2715")
+            ) : null
+          ),
+          h("div", { class: "column-cards", data: { "col-id": col._id } },
+            cards.length === 0
+              ? h("div", { class: "empty-column" }, "No cards")
+              : null
+          ),
+          h("div", { class: "column-add" },
+            h("button", { class: "btn-add", onclick: function() { showAddCardModal(col._id); } }, "+ Add card")
+          )
+        );
+      }),
+      isOwner ? h("div", { class: "column add-column-placeholder" },
+        h("button", { class: "btn-add", onclick: async function() {
+          var name = await Goop.ui.prompt({ title: "New Column", message: "Column name:" });
+          if (name && name.trim()) addColumn(name.trim());
+        } }, "+ Add Column")
+      ) : null
+    );
+
+    Goop.render(root, boardEl);
+
+    // Render cards async into their columns
+    for (var ci = 0; ci < columns.length; ci++) {
+      var col = columns[ci];
+      var cards = Array.isArray(col.cards) ? col.cards : [];
+      var container = root.querySelector('[data-col-id="' + col._id + '"]');
+      if (container && cards.length > 0) {
+        for (var cj = 0; cj < cards.length; cj++) {
+          container.appendChild(await renderCard(cards[cj], col._id));
+        }
       }
     }
 
-    var pending = isOwner ? games.filter(function(g) { return g.status === "waiting" && g.mode === "pvp"; }) : [];
-    var finished = games.filter(function(g) { return g.status !== "waiting" && g.status !== "playing"; }).slice(0, 10);
+    document.addEventListener("click", function() {
+      root.querySelectorAll(".move-dropdown.open").forEach(function(d) { d.classList.remove("open"); });
+    });
 
-    Goop.render(root, h("div", { class: "ttt-lobby" },
-      h("div", { class: "ttt-actions" },
-        !isOwner ? h("button", { class: "btn btn-primary", onclick: async function() {
-          this.disabled = true;
-          try {
-            var result = await db.call("ttt", { action: "new" });
-            if (result.error) { toast(result.error); if (result.game_id) { showGame(result.game_id); return; } this.disabled = false; }
-            else showGame(result.game_id);
-          } catch (e) { toast(e.message); this.disabled = false; }
-        } }, "Challenge Host") : null,
-        h("button", { class: "btn " + (isOwner ? "btn-primary" : "btn-secondary"), onclick: async function() {
-          this.disabled = true;
-          try {
-            var result = await db.call("ttt", { action: "new_pve" });
-            if (result.error) { toast(result.error); this.disabled = false; }
-            else { currentGameId = result.game_id; renderBoard(result); }
-          } catch (e) { toast(e.message); this.disabled = false; }
-        } }, "Play vs Computer")
-      ),
-
-      h("div", { class: "ttt-stats" },
-        h("span", {}, h("span", { class: "stat-val" }, String(stats.wins || 0)), " wins"),
-        h("span", {}, h("span", { class: "stat-val" }, String(stats.losses || 0)), " losses"),
-        h("span", {}, h("span", { class: "stat-val" }, String(stats.draws || 0)), " draws")
-      ),
-
-      pending.length > 0 ? h("div", { class: "ttt-panel" },
-        h("h2", {}, "Pending Challenges"),
-        h("ul", { class: "ttt-challenges" }, pending.map(function(pg) {
-          return h("li", { class: "ttt-challenge-item" },
-            h("span", {}, h("span", { class: "name" }, pg.challenger_label || pg.challenger.substring(0, 12) + "..."), h("span", { class: "time" }, Goop.ui.time(pg._created_at))),
-            h("button", { class: "btn-sm", onclick: async function() {
-              this.disabled = true;
-              try { await db.call("ttt", { action: "accept", game_id: pg._id }); } catch (e) {}
-              showGame(pg._id);
-            } }, "Play")
-          );
-        }))
-      ) : null,
-
-      h("div", { class: "ttt-panel" },
-        h("h2", {}, "Recent Games"),
-        finished.length === 0
-          ? h("p", { class: "ttt-empty" }, "No games played yet.")
-          : h("table", { class: "ttt-history" },
-              h("thead", {}, h("tr", {}, h("th", {}, "Opponent"), h("th", {}, "Result"), h("th", {}, "Mode"), h("th", {}))),
-              h("tbody", {}, finished.map(function(fg) {
-                var opponent = fg.mode === "pve" ? "Computer" : (fg.challenger_label || fg.challenger.substring(0, 12) + "...");
-                var result = fg.status === "draw" || fg.status === "cancelled" ? (fg.status === "cancelled" ? "cancelled" : "draw") : (fg.winner === myId ? "won" : "lost");
-                var resultCls = fg.winner === myId ? "result-win" : (result === "draw" || result === "cancelled" ? "result-draw" : "result-loss");
-                return h("tr", {},
-                  h("td", {}, opponent),
-                  h("td", { class: resultCls }, result),
-                  h("td", {}, fg.mode === "pve" ? "vs AI" : "PvP"),
-                  h("td", {}, Goop.ui.time(fg._created_at))
-                );
-              }))
-            )
-      )
-    ));
+    if (Goop.drag) initDrag();
   }
 
-  async function showGame(gameId) {
-    stopPolling();
-    currentGameId = gameId;
+  async function renderCard(card, currentColumnId) {
+    var metaParts = [];
+    if (card.created_by) metaParts.push("added by " + card.created_by);
+    if (card.moved_by) metaParts.push("moved by " + card.moved_by);
+
+    var el = await Goop.partial("card", {
+      _id: card._id, title: card.title, description: card.description,
+      color: card.color || "", meta: metaParts.join(" \u00B7 ")
+    });
+
+    var moveDropdown = h("div", { class: "move-dropdown" },
+      columns.filter(function(c) { return c._id !== currentColumnId; }).map(function(col) {
+        return h("button", { class: "move-option", onclick: async function(e) {
+          e.stopPropagation();
+          await moveCard(card._id, col._id);
+        } }, col.name);
+      })
+    );
+
+    el.insertBefore(h("div", { class: "card-actions" },
+      h("button", { class: "card-action-btn move-btn", title: "Move", onclick: function(e) {
+        e.stopPropagation();
+        root.querySelectorAll(".move-dropdown.open").forEach(function(d) { if (d !== moveDropdown) d.classList.remove("open"); });
+        moveDropdown.classList.toggle("open");
+      } }, "\u21C4"),
+      moveDropdown
+    ), el.firstChild);
+
+    el.addEventListener("click", function(e) {
+      if (justDragged) return;
+      if (e.target.closest(".card-action-btn") || e.target.closest(".move-dropdown")) return;
+      showEditCardModal(card._id);
+    });
+
+    return el;
+  }
+
+  // --- Drag-and-drop ---
+
+  var cardSortables = [];
+  var columnSortable = null;
+  var justDragged = false;
+
+  function initDrag() {
+    destroyDrag();
+
+    // Card drag (move between columns)
+    document.querySelectorAll(".column-cards").forEach(function (container) {
+      cardSortables.push(Goop.drag.sortable(container, {
+        items: ".card",
+        group: "cards",
+        direction: "vertical",
+        onEnd: function (evt) {
+          justDragged = true;
+          setTimeout(function () { justDragged = false; }, 0);
+          var cardId = parseInt(evt.item.getAttribute("data-card-id"));
+          var toColumn = parseInt(evt.to.closest(".column").getAttribute("data-column-id"));
+          var toPosition = evt.newIndex;
+          moveCardToPosition(cardId, toColumn, toPosition);
+        },
+        onCancel: function () {
+          justDragged = true;
+          setTimeout(function () { justDragged = false; }, 0);
+        }
+      }));
+    });
+
+    // Column drag (owner only)
+    if (isOwner) {
+      var board = document.querySelector(".board");
+      if (board) {
+        columnSortable = Goop.drag.sortable(board, {
+          items: ".column[data-column-id]",
+          handle: ".column-header",
+          direction: "horizontal",
+          onEnd: function () {
+            reorderColumns();
+          }
+        });
+      }
+    }
+  }
+
+  function destroyDrag() {
+    for (var i = 0; i < cardSortables.length; i++) cardSortables[i].destroy();
+    cardSortables = [];
+    if (columnSortable) { columnSortable.destroy(); columnSortable = null; }
+  }
+
+  async function moveCardToPosition(cardId, toColumn, toPosition) {
     try {
-      var state = await db.call("ttt", { action: "state", game_id: gameId });
-      renderBoard(state);
-      if (state.mode === "pvp" && (state.status === "playing" || state.status === "waiting")) startPolling(gameId);
-    } catch (e) { Goop.render(root, Goop.ui.empty("Could not load game.", { class: "ttt-empty" })); }
+      await db.call("kanban", {
+        action: "move_card",
+        card_id: cardId,
+        to_column: toColumn,
+        to_position: toPosition,
+        peer_name: myLabel || myId
+      });
+      loadBoard();
+    } catch (e) {
+      toast({ title: "Error", message: e.message || "Failed to move card" });
+      loadBoard();
+    }
   }
 
-  function symbolChar(s) { return s === "X" ? "\u2715" : s === "O" ? "\u25CB" : ""; }
+  async function reorderColumns() {
+    var cols = document.querySelectorAll(".board > .column[data-column-id]");
+    var ids = [];
+    cols.forEach(function (col) {
+      ids.push(parseInt(col.getAttribute("data-column-id")));
+    });
+    try {
+      var res = await db.call("kanban", {
+        action: "reorder_columns",
+        column_ids: ids
+      });
+      if (res.error) throw new Error(res.error);
+      loadBoard();
+    } catch (e) {
+      toast({ title: "Error", message: e.message || "Failed to reorder columns" });
+      loadBoard();
+    }
+  }
 
-  function renderBoard(state) {
-    var board = state.board || "---------";
-    var yourSymbol = state.your_symbol;
-    var isYourTurn = (state.status === "playing" && state.turn === yourSymbol);
-    var gameOver = (state.status !== "playing" && state.status !== "waiting");
-    var winCells = {};
-    if (state.win_line) state.win_line.forEach(function(w) { winCells[w] = true; });
+  // --- Add card modal ---
 
-    if (state.status === "waiting") {
-      Goop.render(root, h("div", { class: "ttt-game" },
-        h("div", { class: "ttt-waiting" },
-          h("div", { class: "spinner" }),
-          h("p", {}, "Waiting for host to accept\u2026"),
-          h("button", { class: "btn btn-secondary btn-sm", onclick: async function() { await db.call("ttt", { action: "cancel", game_id: state.game_id }); showLobby(); } }, "Cancel")
-        )
-      ));
+  var addCardModal = document.getElementById("add-card-modal");
+  var CARD_COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#8b5cf6", "#ec4899"];
+  var addColorPicker = null;
+
+  function showAddCardModal(columnId) {
+    document.getElementById("card-column-id").value = columnId;
+    document.getElementById("card-title").value = "";
+    document.getElementById("card-desc").value = "";
+
+    var cpEl = document.getElementById("card-colorpicker");
+    addColorPicker = Goop.ui.colorpicker(cpEl, {
+      colors: CARD_COLORS,
+      value: CARD_COLORS[0],
+      swatch: ".color-swatch",
+      popup: ".color-popup",
+      openClass: "open",
+      selectedAttr: "data-selected",
+      colorVar: "--gc-color",
+      buttonClass: "color-btn",
+    });
+
+    addCardModal.classList.remove("hidden");
+    document.getElementById("card-title").focus();
+  }
+
+  document.getElementById("cancel-card").onclick = function () {
+    addCardModal.classList.add("hidden");
+  };
+
+  addCardModal.onclick = function (e) {
+    if (e.target === addCardModal) addCardModal.classList.add("hidden");
+  };
+
+  document.getElementById("save-card").onclick = async function () {
+    var title = document.getElementById("card-title").value.trim();
+    var columnId = parseInt(document.getElementById("card-column-id").value);
+    var desc = document.getElementById("card-desc").value.trim();
+    var color = addColorPicker ? addColorPicker.getValue() : "";
+
+    if (!title) {
+      document.getElementById("card-title").focus();
       return;
     }
 
-    var statusEl;
-    if (gameOver) {
-      var cls = "draw", msg = "Draw!";
-      if (state.status === "cancelled") msg = "Cancelled";
-      else if (state.winner === myId) { cls = "win"; msg = "You won!"; }
-      else if (state.winner) { cls = "loss"; msg = (state.mode === "pve" ? "Computer" : "Opponent") + " won!"; }
-      statusEl = h("div", { class: "ttt-result " + cls }, msg);
-    } else {
-      var opLabel = state.mode === "pve" ? "Computer" : "Opponent";
-      statusEl = h("div", { class: "ttt-status" },
-        "You: ", h("span", { class: yourSymbol === "X" ? "symbol-x" : "symbol-o" }, symbolChar(yourSymbol)),
-        " \u2014 " + (isYourTurn ? "Your turn" : opLabel + "'s turn")
-      );
+    try {
+      await db.call("kanban", {
+        action: "add_card",
+        column_id: columnId,
+        title: title,
+        description: desc,
+        color: color,
+        peer_name: myLabel || myId
+      });
+      addCardModal.classList.add("hidden");
+      loadBoard();
+    } catch (e) {
+      toast({ title: "Error", message: e.message || "Failed to add card" });
+    }
+  };
+
+  // --- Edit card modal ---
+
+  var editCardModal = document.getElementById("edit-card-modal");
+  var editingCardId = null;
+  var editColorPicker = null;
+
+  function showEditCardModal(cardId) {
+    editingCardId = parseInt(cardId);
+
+    var card = null;
+    for (var i = 0; i < columns.length; i++) {
+      var cards = Array.isArray(columns[i].cards) ? columns[i].cards : [];
+      for (var j = 0; j < cards.length; j++) {
+        if (cards[j]._id === editingCardId) {
+          card = cards[j];
+          break;
+        }
+      }
+      if (card) break;
     }
 
-    var cells = [];
-    for (var i = 0; i < 9; i++) {
-      var ch = board.charAt(i);
-      var cls = "ttt-cell";
-      if (ch === "X") cls += " taken x";
-      else if (ch === "O") cls += " taken o";
-      if (winCells[i]) cls += " win-cell";
-      if (gameOver || !isYourTurn || ch !== "-") cls += " disabled";
+    if (!card) return;
 
-      cells.push(h("div", {
-        class: cls,
-        data: { pos: i },
-        onclick: (!gameOver && isYourTurn && ch === "-") ? (function(pos) {
-          return async function() {
-            this.classList.add("disabled");
-            try {
-              var gameId = state.game_id || currentGameId;
-              var result = await db.call("move", { game_id: gameId, position: pos });
-              if (result.error) { toast(result.error); renderBoard(state); return; }
-              if (!result.game_id) result.game_id = gameId;
-              if (!result.challenger_label) result.challenger_label = state.challenger_label;
-              renderBoard(result);
-              if (result.mode === "pvp" && result.status === "playing") startPolling(result.game_id);
-            } catch (e) { toast(e.message); renderBoard(state); }
-          };
-        })(i) : null,
-      }, ch !== "-" ? symbolChar(ch) : ""));
-    }
+    document.getElementById("edit-card-id").value = card._id;
+    document.getElementById("edit-card-title").value = card.title || "";
+    document.getElementById("edit-card-desc").value = card.description || "";
 
-    Goop.render(root, h("div", { class: "ttt-game" },
-      statusEl,
-      h("div", { class: "ttt-board" }, cells),
-      gameOver ? h("div", { class: "ttt-game-actions" },
-        state.mode === "pve" ? h("button", { class: "btn btn-primary", onclick: async function() {
-          this.disabled = true;
-          try {
-            var result = await db.call("ttt", { action: "new_pve" });
-            if (result.error) { toast(result.error); this.disabled = false; }
-            else { currentGameId = result.game_id; renderBoard(result); }
-          } catch (e) { toast(e.message); this.disabled = false; }
-        } }, "Play Again") : null,
-        h("button", { class: "btn btn-secondary", onclick: function() { showLobby(); } }, "Back to Lobby")
-      ) : null
-    ));
+    var cpEl = document.getElementById("edit-colorpicker");
+    editColorPicker = Goop.ui.colorpicker(cpEl, {
+      colors: CARD_COLORS,
+      value: card.color || CARD_COLORS[0],
+      swatch: ".color-swatch",
+      popup: ".color-popup",
+      openClass: "open",
+      selectedAttr: "data-selected",
+      colorVar: "--gc-color",
+      buttonClass: "color-btn",
+    });
+
+    editCardModal.classList.remove("hidden");
+    document.getElementById("edit-card-title").focus();
   }
+
+  document.getElementById("cancel-edit-card").onclick = function () {
+    editCardModal.classList.add("hidden");
+  };
+
+  editCardModal.onclick = function (e) {
+    if (e.target === editCardModal) editCardModal.classList.add("hidden");
+  };
+
+  document.getElementById("save-edit-card").onclick = async function () {
+    var cardId = parseInt(document.getElementById("edit-card-id").value);
+    var title = document.getElementById("edit-card-title").value.trim();
+    var desc = document.getElementById("edit-card-desc").value.trim();
+    var color = editColorPicker ? editColorPicker.getValue() : "";
+
+    if (!title) {
+      document.getElementById("edit-card-title").focus();
+      return;
+    }
+
+    try {
+      await db.call("kanban", {
+        action: "update_card",
+        card_id: cardId,
+        title: title,
+        description: desc,
+        color: color
+      });
+      editCardModal.classList.add("hidden");
+      loadBoard();
+    } catch (e) {
+      toast({ title: "Error", message: e.message || "Failed to update card" });
+    }
+  };
+
+  document.getElementById("delete-card").onclick = async function () {
+    var cardId = parseInt(document.getElementById("edit-card-id").value);
+
+    if (!(await Goop.ui.confirm("Delete this card?"))) return;
+
+    try {
+      await db.call("kanban", {
+        action: "delete_card",
+        card_id: cardId
+      });
+      editCardModal.classList.add("hidden");
+      loadBoard();
+    } catch (e) {
+      toast({ title: "Error", message: e.message || "Failed to delete card" });
+    }
+  };
+
+  async function moveCard(cardId, toColumn) {
+    try {
+      await db.call("kanban", {
+        action: "move_card",
+        card_id: cardId,
+        to_column: toColumn,
+        peer_name: myLabel || myId
+      });
+      loadBoard();
+    } catch (e) {
+      toast({ title: "Error", message: e.message || "Failed to move card" });
+    }
+  }
+
+  async function deleteColumn(columnId) {
+    if (!(await Goop.ui.confirm("Delete this column?"))) return;
+    try {
+      var res = await db.call("kanban", { action: "delete_column", column_id: columnId });
+      if (res.error) throw new Error(res.error);
+      loadBoard();
+    } catch (e) {
+      toast({ title: "Error", message: e.message || "Failed to delete column" });
+    }
+  }
+
+  async function moveColumn(columnId, direction) {
+    try {
+      var res = await db.call("kanban", { action: "move_column", column_id: columnId, direction: direction });
+      if (res.error) throw new Error(res.error);
+      loadBoard();
+    } catch (e) {
+      toast({ title: "Error", message: e.message || "Failed to move column" });
+    }
+  }
+
+  async function addColumn(name) {
+    try {
+      await db.call("kanban", {
+        action: "add_column",
+        name: name
+      });
+      loadBoard();
+    } catch (e) {
+      toast({ title: "Error", message: e.message || "Failed to add column" });
+    }
+  }
+
 })();
