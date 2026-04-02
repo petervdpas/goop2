@@ -1,28 +1,26 @@
 // Blog post detail page
 (async function () {
-  var esc = Goop.esc;
+  var h = Goop.dom;
   var date = Goop.date;
   var blog = Goop.data.api("blog");
   var articleEl = document.getElementById("article");
 
-  var basePath = '';
+  var basePath = "";
   var m = window.location.pathname.match(/^(\/p\/[^/]+)\//);
   if (m) basePath = m[1];
 
-  function goHome() { window.location.href = basePath + '/'; }
-  function wireBack() {
-    articleEl.querySelectorAll(".article-back").forEach(function (a) {
-      a.addEventListener("click", function (e) { e.preventDefault(); goHome(); });
-    });
+  function goHome() { window.location.href = basePath + "/"; }
+  function backLink() {
+    return h("a", { class: "article-back", href: "index.html", onclick: function(e) { e.preventDefault(); goHome(); } }, "Back");
   }
 
   try {
     var cfg = await blog("get_config");
-    var html = document.documentElement;
+    var root = document.documentElement;
     var accentToIdx = { "#b44d2d": "1", "#2d6a9f": "2", "#4a8f46": "3", "#7c4a9f": "4", "#c0882c": "5", "#2d7a6a": "6" };
-    if (cfg.accent) { html.className = html.className.replace(/\baccent-\d+\b/g, "").trim(); html.classList.add("accent-" + (accentToIdx[cfg.accent] || "1")); }
-    if (cfg.font) { html.className = html.className.replace(/\bfont-\w+\b/g, "").trim(); html.classList.add("font-" + cfg.font); }
-    if (cfg.theme) { html.className = html.className.replace(/\btheme-\w+\b/g, "").trim(); html.classList.add("theme-" + cfg.theme); }
+    if (cfg.accent) { root.className = root.className.replace(/\baccent-\d+\b/g, "").trim(); root.classList.add("accent-" + (accentToIdx[cfg.accent] || "1")); }
+    if (cfg.font) { root.className = root.className.replace(/\bfont-\w+\b/g, "").trim(); root.classList.add("font-" + cfg.font); }
+    if (cfg.theme) { root.className = root.className.replace(/\btheme-\w+\b/g, "").trim(); root.classList.add("theme-" + cfg.theme); }
     if (cfg.blog_title) document.title = cfg.blog_title;
   } catch (_) {}
 
@@ -32,21 +30,20 @@
   try {
     var result = await blog("get_post", { slug: slug });
     if (!result.found) {
-      articleEl.innerHTML = '<a class="article-back" href="index.html">Back</a><div class="empty-msg"><h2>Post not found</h2></div>';
-      wireBack(); return;
+      Goop.render(articleEl, backLink(), Goop.ui.empty("Post not found"));
+      return;
     }
     var p = result.post;
     document.title = p.title;
-    var out = '<a class="article-back" href="index.html">Back</a>';
-    if (p.image) out += '<img class="article-image" src="images/' + esc(p.image) + '" alt="">';
-    out += '<h1 class="article-title">' + esc(p.title) + '</h1>';
-    out += '<div class="article-meta">' + date(p._created_at);
-    if (p.author_name) out += ' &middot; by ' + esc(p.author_name);
-    out += '</div><div class="article-body">' + esc(p.body) + '</div>';
-    articleEl.innerHTML = out;
-    wireBack();
+    var metaText = date(p._created_at) + (p.author_name ? " \u00B7 by " + p.author_name : "");
+    Goop.render(articleEl,
+      backLink(),
+      p.image ? h("img", { class: "article-image", src: "images/" + p.image, alt: "" }) : null,
+      h("h1", { class: "article-title" }, p.title),
+      h("div", { class: "article-meta" }, metaText),
+      h("div", { class: "article-body" }, p.body)
+    );
   } catch (err) {
-    articleEl.innerHTML = '<a class="article-back" href="index.html">Back</a><div class="empty-msg"><p>' + esc(err.message) + '</p></div>';
-    wireBack();
+    Goop.render(articleEl, backLink(), Goop.ui.empty(err.message));
   }
 })();

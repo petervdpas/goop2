@@ -1,7 +1,7 @@
 // Blog app.js
 (async function () {
+  var h = Goop.dom;
   var site = Goop.site;
-  var esc = Goop.esc;
   var date = Goop.date;
   var blog = Goop.data.api("blog");
   var editor = Goop.overlay("editor-overlay");
@@ -125,33 +125,26 @@
   function renderPosts(rows) {
     Goop.list(postsEl, rows, function (p) {
       var slug = p.slug || p._id;
-      var url = 'post.html?slug=' + encodeURIComponent(slug);
-      var h = '<article class="post" data-id="' + p._id + '">';
-      if (p.image) h += '<a href="' + url + '"><img class="post-image" src="images/' + esc(p.image) + '" alt=""></a>';
-      h += '<h2 class="post-title"><a class="post-title-link" href="' + url + '">' + esc(p.title) + '</a></h2>';
-      h += '<div class="post-meta">' + date(p._created_at) + '</div>';
-      if (p.author_name) h += '<div class="post-byline">by ' + esc(p.author_name) + '</div>';
-      h += '<div class="post-body">' + esc(p.body) + '</div>';
-      h += '<a class="post-read-more" href="' + url + '">Read more</a>';
-      if (canWrite) {
-        h += '<div class="post-actions">';
-        h += '<button data-action="edit" data-id="' + p._id + '">Edit</button>';
-        h += '<button data-action="delete" data-id="' + p._id + '">Delete</button>';
-        h += '</div>';
-      }
-      h += '</article>';
-      return h;
+      var url = "post.html?slug=" + encodeURIComponent(slug);
+      return h("article", { class: "post", data: { id: p._id } },
+        p.image ? h("a", { href: url }, h("img", { class: "post-image", src: "images/" + p.image, alt: "" })) : null,
+        h("h2", { class: "post-title" }, h("a", { class: "post-title-link", href: url }, p.title)),
+        h("div", { class: "post-meta" }, date(p._created_at)),
+        p.author_name ? h("div", { class: "post-byline" }, "by " + p.author_name) : null,
+        h("div", { class: "post-body" }, p.body),
+        h("a", { class: "post-read-more", href: url }, "Read more"),
+        canWrite ? h("div", { class: "post-actions" },
+          h("button", { onclick: function() { openEditor(p._id); } }, "Edit"),
+          h("button", { onclick: async function() {
+            if (!(await Goop.ui.confirm("Delete this post?"))) return;
+            var result = await blog("delete_post", { id: p._id });
+            if (result.image && canAdmin && site) { try { await site.remove("images/" + result.image); } catch (_) {} }
+            reload();
+          } }, "Delete")
+        ) : null
+      );
     }, {
-      empty: '<p>No posts yet.</p>' + (canWrite ? '<p class="loading">Click "+ New Post" to write your first one.</p>' : ''),
-      actions: {
-        edit: function (id) { openEditor(id); },
-        delete: async function (id, row) {
-          if (Goop.ui && !(await Goop.ui.confirm("Delete this post?"))) return;
-          var result = await blog("delete_post", { id: id });
-          if (result.image && canAdmin && site) { try { await site.remove("images/" + result.image); } catch (_) {} }
-          reload();
-        },
-      },
+      empty: "No posts yet." + (canWrite ? ' Click "+ New Post" to write your first one.' : "")
     });
   }
 

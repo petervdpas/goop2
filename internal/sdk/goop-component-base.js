@@ -82,6 +82,141 @@
     for (var k in styles) el.style[k] = styles[k];
   };
 
+  // ── DOM builder ──
+  //
+  //   Goop.dom("div", { class: "card", onclick: fn },
+  //     Goop.dom("h3", {}, title),
+  //     Goop.dom("p", { class: "muted" }, description),
+  //     condition && Goop.dom("button", { onclick: del }, "Delete")
+  //   )
+  //
+  //   Strings → text nodes (auto-escaped). Nulls/false → skipped.
+  //   Event handlers (onclick, onchange, ...) attached directly.
+  //   "class" attr supported (maps to className).
+  //   Arrays flattened. Numbers coerced to strings.
+  //
+
+  var d = Goop.dom = function(tag, attrs) {
+    var el = document.createElement(tag);
+    if (attrs) {
+      for (var k in attrs) {
+        if (attrs[k] == null || attrs[k] === false) continue;
+        if (typeof attrs[k] === "function") {
+          el.addEventListener(k.replace(/^on/, ""), attrs[k]);
+        } else if (k === "class") {
+          el.className = attrs[k];
+        } else if (k === "data" && typeof attrs[k] === "object") {
+          for (var dk in attrs[k]) el.setAttribute("data-" + dk, attrs[k][dk]);
+        } else {
+          el.setAttribute(k, attrs[k]);
+        }
+      }
+    }
+    for (var i = 2; i < arguments.length; i++) {
+      appendChild(el, arguments[i]);
+    }
+    return el;
+  };
+
+  function appendChildren(el, children) {
+    for (var i = 0; i < children.length; i++) appendChild(el, children[i]);
+  }
+
+  function appendChild(el, child) {
+    if (child == null || child === false || child === true) return;
+    if (Array.isArray(child)) { appendChildren(el, child); return; }
+    if (child instanceof Node) { el.appendChild(child); return; }
+    el.appendChild(document.createTextNode(String(child)));
+  }
+
+  // ── Goop.list — DOM-native list renderer ──
+  //
+  //   Goop.list(container, rows, function(row, idx) {
+  //     return Goop.dom("div", { class: "card", data: { id: row._id } },
+  //       Goop.dom("h3", {}, row.title)
+  //     );
+  //   }, { empty: "Nothing here yet." });
+  //
+
+  var _oldList = Goop.list;
+  Goop.list = function(el, rows, renderFn, opts) {
+    opts = opts || {};
+    if (!rows || rows.length === 0) {
+      el.innerHTML = "";
+      if (opts.empty) {
+        if (typeof opts.empty === "string") {
+          el.appendChild(d("div", { class: "gc-empty" }, opts.empty));
+        } else if (opts.empty instanceof Node) {
+          el.appendChild(opts.empty);
+        } else {
+          el.innerHTML = '<div class="gc-empty">' + opts.empty + '</div>';
+        }
+      }
+      return;
+    }
+    var first = renderFn(rows[0], 0);
+    if (typeof first === "string") {
+      if (_oldList) return _oldList(el, rows, renderFn, opts);
+      el.innerHTML = rows.map(renderFn).join("");
+      return;
+    }
+    el.innerHTML = "";
+    if (first) el.appendChild(first);
+    for (var i = 1; i < rows.length; i++) {
+      var node = renderFn(rows[i], i);
+      if (node) el.appendChild(node);
+    }
+  };
+
+  // ── Goop.render — replace container contents ──
+
+  Goop.render = function(el) {
+    el.innerHTML = "";
+    for (var i = 1; i < arguments.length; i++) {
+      appendChild(el, arguments[i]);
+    }
+  };
+
+  // ── Built-in micro-components ──
+
+  Goop.ui.avatar = function(peerId, opts) {
+    opts = opts || {};
+    var size = opts.size || 24;
+    var src = "/api/avatar/peer/" + encodeURIComponent(peerId);
+    return d("img", {
+      class: "gc-avatar " + (opts.class || ""),
+      src: src,
+      alt: opts.alt || "",
+      width: size,
+      height: size,
+    });
+  };
+
+  Goop.ui.empty = function(message, opts) {
+    opts = opts || {};
+    return d("div", { class: "gc-empty" },
+      opts.icon ? d("div", { class: "gc-empty-icon" }, opts.icon) : null,
+      d("p", {}, message)
+    );
+  };
+
+  Goop.ui.loading = function(message) {
+    return d("div", { class: "gc-loading" },
+      d("div", { class: "gc-spinner" }),
+      message ? d("p", {}, message) : null
+    );
+  };
+
+  Goop.ui.time = function(ts) {
+    if (!ts) return "";
+    var then = new Date(String(ts).replace(" ", "T") + "Z");
+    var diff = Math.floor((Date.now() - then) / 1000);
+    if (diff < 60) return "just now";
+    if (diff < 3600) return Math.floor(diff / 60) + "m ago";
+    if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
+    return Math.floor(diff / 86400) + "d ago";
+  };
+
   // ── CSS custom properties + grid ──
 
   var STYLE_ID = "gc-base-style";
@@ -112,6 +247,17 @@
         --goop-field: var(--field-bg, rgba(16,19,37,.04));
       }
       [data-goop-disabled] { opacity: 0.5; pointer-events: none; }
+
+      .gc-avatar { border-radius: 50%; vertical-align: middle; object-fit: cover; }
+      .gc-empty { text-align: center; padding: 2rem 1rem; color: var(--goop-muted, #9aa3b2); }
+      .gc-empty-icon { font-size: 2rem; margin-bottom: .5rem; }
+      .gc-loading { display: flex; flex-direction: column; align-items: center; gap: .5rem; padding: 2rem; color: var(--goop-muted, #9aa3b2); }
+      .gc-spinner {
+        width: 1.5rem; height: 1.5rem; border: 2px solid var(--goop-border, #2a3142);
+        border-top-color: var(--goop-accent, #7aa2ff); border-radius: 50%;
+        animation: gc-spin .6s linear infinite;
+      }
+      @keyframes gc-spin { to { transform: rotate(360deg); } }
 
       .gc-grid {
         display: grid; gap: 1rem;

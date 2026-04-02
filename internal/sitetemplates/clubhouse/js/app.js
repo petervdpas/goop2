@@ -70,34 +70,20 @@
       var rows = await rooms.find({ where: "status = 'open'", limit: 50 });
       renderRooms(rows || []);
     } catch (err) {
-      roomsEl.innerHTML = '<div class="empty-msg"><p>Could not load rooms.</p></div>';
+      Goop.render(roomsEl, Goop.ui.empty("Could not load rooms."));
     }
   }
 
   function renderRooms(rooms) {
-    if (rooms.length === 0) {
-      roomsEl.innerHTML = '<div class="empty-msg"><div class="empty-icon">&#128172;</div><p>No rooms yet.</p>' +
-        (isOwner ? '<p>Create one with the button above!</p>' : '') + '</div>';
-      return;
-    }
-
-    roomsEl.innerHTML = rooms.map(function (r) {
-      var html = '<div class="room-card" data-room-id="' + r._id + '">';
-      html += '<h3 class="room-card-name">' + esc(r.name) + '</h3>';
-      html += '<p class="room-card-desc">' + esc(r.description || "No description") + '</p>';
-      html += '<div class="room-card-footer">';
-      html += '<span class="room-card-status"><span class="status-dot"></span> ' + esc(r.status) + '</span>';
-      html += '<button class="btn-join" data-room-id="' + r._id + '">Join</button>';
-      html += '</div></div>';
-      return html;
-    }).join("");
-
-    roomsEl.querySelectorAll(".btn-join").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        var id = parseInt(btn.getAttribute("data-room-id"), 10);
-        var room = rooms.find(function (r) { return r._id === id; });
-        if (room) enterRoom(room);
+    Goop.list(roomsEl, rooms, function(r) {
+      return Goop.card({
+        title: r.name,
+        body: r.description || "No description",
+        footer: Goop.button("Join", { primary: true, onclick: function() { enterRoom(r); } }),
+        class: "room-card",
       });
+    }, {
+      empty: Goop.ui.empty("No rooms yet." + (isOwner ? " Create one with the button above!" : ""), { icon: "\uD83D\uDCAC" })
     });
   }
 
@@ -348,12 +334,9 @@
 
   // ── Render helpers ──
   function renderMembers() {
-    membersListEl.innerHTML = members.map(function (peerId) {
-      var name = displayName(peerId);
-      var cls = peerId === myId ? ' class="member-you"' : '';
-      var avatarUrl = '/api/avatar/peer/' + encodeURIComponent(peerId);
-      return '<li><img class="avatar avatar-xs" src="' + esc(avatarUrl) + '" alt="" style="border-radius:50%;width:24px;height:24px;vertical-align:middle;margin-right:6px;"><span class="member-dot"></span><span' + cls + '>' + esc(name) + '</span></li>';
-    }).join("");
+    Goop.list(membersListEl, members, function(peerId) {
+      return Goop.item({ avatar: peerId, label: displayName(peerId), class: peerId === myId ? "member-you" : "" });
+    });
   }
 
   function timeStr() {
@@ -363,23 +346,12 @@
   }
 
   function appendChat(fromId, label, text, isSelf) {
-    var div = document.createElement("div");
-    div.className = "msg " + (isSelf ? "msg-self" : "msg-other");
-
-    var labelText = isSelf ? "You" : esc(label || shortId(fromId));
-    div.innerHTML = '<div class="msg-label">' + labelText + '</div>' +
-                    '<div class="msg-text">' + esc(text) + '</div>' +
-                    '<div class="msg-time">' + timeStr() + '</div>';
-
-    messagesEl.appendChild(div);
+    messagesEl.appendChild(Goop.message({ from: label || shortId(fromId), text: text, time: timeStr(), self: isSelf }));
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
   function appendSystem(text) {
-    var div = document.createElement("div");
-    div.className = "msg-system";
-    div.textContent = text;
-    messagesEl.appendChild(div);
+    messagesEl.appendChild(Goop.message({ text: text, system: true }));
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 

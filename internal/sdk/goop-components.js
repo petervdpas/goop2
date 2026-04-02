@@ -32,6 +32,7 @@
     "goop-component-pagination.js",
     "goop-component-tooltip.js",
     "goop-component-panel.js",
+    "goop-component-elements.js",
   ];
 
   var sdkBase = "/sdk/";
