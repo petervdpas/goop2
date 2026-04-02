@@ -1,10 +1,27 @@
+//
+// CSS hooks:
+//   .gc-select              — wrapper (override via opts.class)
+//   .gc-select-trigger      — the clickable display area
+//   .gc-select-placeholder  — placeholder text
+//   .gc-select-tag          — multi-select selected tag
+//   .gc-select-arrow        — dropdown arrow
+//   .gc-select-clear        — clear button (when opts.clearable)
+//   .gc-select-dropdown     — dropdown panel
+//   .gc-select-search       — search input inside dropdown
+//   .gc-select-option       — each option
+//   .gc-select-empty        — "no results" text
+//   [data-goop-open]        — dropdown is visible
+//   [data-goop-selected]    — selected option
+//   [data-goop-disabled]    — disabled state
+//
+
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
   var _e = Goop.ui._esc || function(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
   var _f = Goop.ui._fire || function(el, n, dt) { el.dispatchEvent(new CustomEvent(n, { bubbles: true, detail: dt })); };
 
-  Goop.ui.select = function(el, opts) {
+  Goop.ui.select = function(opts) {
     opts = opts || {};
     var multi = !!opts.multi;
     var searchable = opts.searchable !== false;
@@ -15,20 +32,20 @@
     if (opts.value != null) selected = Array.isArray(opts.value) ? opts.value.slice() : [opts.value];
 
     var wrap = document.createElement("div");
+    for (var _k in opts) { if (_k.indexOf("data-") === 0) wrap.setAttribute(_k, opts[_k]); }
     wrap.className = opts.class || "gc-select";
     wrap.setAttribute("data-goop-component", "select");
     if (opts.name) wrap.setAttribute("data-goop-name", opts.name);
     if (isDisabled) wrap.setAttribute("data-goop-disabled", "");
 
     var trigger = document.createElement("div");
-    trigger.className = "gc-select-trigger";
+    trigger.className = opts.triggerClass || "gc-select-trigger";
     trigger.tabIndex = isDisabled ? -1 : 0;
 
     var dropdown = document.createElement("div");
-    dropdown.className = "gc-select-dropdown";
+    dropdown.className = opts.dropdownClass || "gc-select-dropdown";
     wrap.appendChild(trigger);
     wrap.appendChild(dropdown);
-    el.appendChild(wrap);
 
     function renderTrigger() {
       var html = "";

@@ -1,9 +1,19 @@
+//
+// CSS hooks:
+//   .gc-tabs                — wrapper (override via opts.class)
+//   .gc-tabs-bar            — tab button row (override via opts.barClass)
+//   button                  — each tab button (override via opts.tabClass)
+//   .gc-tabs-panel          — content panel (override via opts.panelClass)
+//   .active                 — active tab/panel (override via opts.activeClass)
+//   :disabled               — disabled tab
+//
+
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
   var _f = Goop.ui._fire || function(el, n, dt) { el.dispatchEvent(new CustomEvent(n, { bubbles: true, detail: dt })); };
 
-  Goop.ui.tabs = function(el, opts) {
+  Goop.ui.tabs = function(opts) {
     opts = opts || {};
     var tabs = opts.tabs || [];
     var activeId = opts.active || (tabs[0] && tabs[0].id) || "";
@@ -11,11 +21,11 @@
     var tabClass = opts.tabClass || "";
 
     var wrap = document.createElement("div");
+    for (var _k in opts) { if (_k.indexOf("data-") === 0) wrap.setAttribute(_k, opts[_k]); }
     wrap.className = opts.class || "gc-tabs";
     var bar = document.createElement("div"); bar.className = opts.barClass || "gc-tabs-bar";
     var panels = document.createElement("div");
     wrap.appendChild(bar); wrap.appendChild(panels);
-    el.appendChild(wrap);
 
     function render() {
       bar.innerHTML = ""; panels.innerHTML = "";

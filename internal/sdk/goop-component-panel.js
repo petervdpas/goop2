@@ -1,9 +1,32 @@
+//
+// CSS hooks for Goop.ui.panel:
+//   .gc-panel               — wrapper
+//   .gc-panel-header        — header row
+//   .gc-panel-header-actions— header buttons area
+//   .gc-panel-collapse-btn  — collapse toggle
+//   .gc-panel-body          — content area
+//   .gc-panel-footer        — footer area
+//   [data-goop-collapsed]   — panel is collapsed
+//   [data-goop-collapsible] — panel can collapse
+//   [data-goop-scroll]      — body has overflow scroll
+//   [data-goop-variant="flat|raised"]
+//
+// CSS hooks for Goop.ui.scrollbox:
+//   .gc-scrollbox           — scrollable container
+//
+// CSS hooks for Goop.ui.splitpane:
+//   .gc-splitpane           — flex container
+//   .gc-splitpane-panel     — each pane
+//   .gc-splitpane-divider   — draggable divider
+//   [data-goop-dir="vertical"] — vertical split
+//
+
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
   var _e = Goop.ui._esc || function(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
 
-  Goop.ui.panel = function(el, opts) {
+  Goop.ui.panel = function(opts) {
     opts = opts || {};
 
     var wrap = document.createElement("div");
@@ -56,7 +79,6 @@
       wrap.appendChild(footer);
     }
 
-    el.appendChild(wrap);
 
     return {
       body: body,
@@ -70,7 +92,7 @@
     };
   };
 
-  Goop.ui.scrollbox = function(el, opts) {
+  Goop.ui.scrollbox = function(opts) {
     opts = opts || {};
     var wrap = document.createElement("div");
     wrap.className = opts.class || "gc-scrollbox";
@@ -78,7 +100,6 @@
     if (opts.maxHeight) wrap.style.maxHeight = typeof opts.maxHeight === "number" ? opts.maxHeight + "px" : opts.maxHeight;
     if (opts.height) wrap.style.height = typeof opts.height === "number" ? opts.height + "px" : opts.height;
     if (opts.content) wrap.innerHTML = opts.content;
-    el.appendChild(wrap);
 
     return {
       scrollTo: function(y) { wrap.scrollTop = y; },
@@ -88,7 +109,7 @@
     };
   };
 
-  Goop.ui.splitpane = function(el, opts) {
+  Goop.ui.splitpane = function(opts) {
     opts = opts || {};
     var direction = opts.direction || "horizontal";
     var sizes = opts.sizes || [50, 50];
@@ -115,7 +136,6 @@
     wrap.appendChild(panelA);
     wrap.appendChild(divider);
     wrap.appendChild(panelB);
-    el.appendChild(wrap);
 
     var dragging = false;
     divider.addEventListener("mousedown", function(e) {

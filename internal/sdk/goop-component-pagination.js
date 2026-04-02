@@ -1,9 +1,19 @@
+//
+// CSS hooks:
+//   .gc-pagination          — wrapper (override via opts.class)
+//   button                  — page buttons and prev/next
+//   .gc-pagination-ellipsis — "..." gap
+//   .gc-pagination-info     — "Page X of Y" text
+//   [data-goop-active]      — current page button
+//   :disabled               — prev/next at boundary
+//
+
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
   var _f = Goop.ui._fire || function(el, n, dt) { el.dispatchEvent(new CustomEvent(n, { bubbles: true, detail: dt })); };
 
-  Goop.ui.pagination = function(el, opts) {
+  Goop.ui.pagination = function(opts) {
     opts = opts || {};
     var perPage = opts.perPage || 0;
     var totalItems = opts.totalItems || 0;
@@ -12,9 +22,9 @@
     var maxButtons = opts.maxButtons || 7;
 
     var wrap = document.createElement("div");
-    wrap.className = opts.class || "gc-pagination";
+    for (var _k in opts) { if (_k.indexOf("data-") === 0) wrap.setAttribute(_k, opts[_k]); }
+    wrap.className = opts.class || "gc-pagination"; var btnClass = opts.buttonClass || "";
     wrap.setAttribute("data-goop-component", "pagination");
-    el.appendChild(wrap);
 
     function render() {
       wrap.innerHTML = "";

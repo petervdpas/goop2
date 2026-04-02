@@ -1,3 +1,11 @@
+//
+// CSS hooks:
+//   .gc-tooltip-wrap        — wrapper around target element
+//   .gc-tooltip             — the tooltip popup
+//   [data-goop-pos="top|bottom|left|right"] — position
+//   [data-goop-open]        — force-show (normally shows on hover)
+//
+
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
@@ -13,7 +21,7 @@
     el.appendChild(wrap);
 
     var tip = document.createElement("span");
-    tip.className = "gc-tooltip";
+    tip.className = opts.tipClass || "gc-tooltip";
     tip.setAttribute("data-goop-pos", pos);
     tip.textContent = text;
     wrap.appendChild(tip);

@@ -1,3 +1,18 @@
+//
+// CSS hooks:
+//   .gc-color               — wrapper (override via opts.class)
+//   .gc-color-swatch        — preview square (uses --gc-color CSS var for background)
+//   .gc-color-hex           — hex text input
+//   .gc-color-popup         — dropdown grid container
+//   .gc-color-grid          — grid of color buttons
+//   .gc-color-grid button   — each color button (uses --gc-color CSS var)
+//   [data-goop-open]        — popup is visible
+//   [data-goop-selected]    — selected color button
+//   [data-goop-hidden]      — hex input hidden (when opts.showHex=false)
+//   [data-goop-disabled]    — disabled state
+//   [data-goop-color="..."] — color value on each grid button
+//
+
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
@@ -11,7 +26,7 @@
     "#ef4444","#f97316","#eab308","#84cc16","#10b981","#06b6d4","#3b82f6","#8b5cf6",
   ];
 
-  Goop.ui.colorpicker = function(el, opts) {
+  Goop.ui.colorpicker = function(opts) {
     opts = opts || {};
     var colors = opts.colors || DEFAULTS;
     var current = opts.value || colors[0];
@@ -19,23 +34,23 @@
     var showHex = opts.showHex !== false;
 
     var wrap = document.createElement("div");
+    for (var _k in opts) { if (_k.indexOf("data-") === 0) wrap.setAttribute(_k, opts[_k]); }
     wrap.className = opts.class || "gc-color";
     wrap.setAttribute("data-goop-component", "colorpicker");
     if (opts.name) wrap.setAttribute("data-goop-name", opts.name);
     if (isDisabled) wrap.setAttribute("data-goop-disabled", "");
 
     var swatch = document.createElement("div");
-    swatch.className = "gc-color-swatch";
+    swatch.className = opts.swatchClass || "gc-color-swatch";
 
     var hex = document.createElement("input");
-    hex.className = "gc-color-hex";
+    hex.className = opts.hexClass || "gc-color-hex";
     hex.type = "text"; hex.maxLength = 7;
     if (!showHex) hex.setAttribute("data-goop-hidden", "");
 
     var popup = document.createElement("div");
-    popup.className = "gc-color-popup";
+    popup.className = opts.popupClass || "gc-color-popup";
     wrap.appendChild(swatch); wrap.appendChild(hex); wrap.appendChild(popup);
-    el.appendChild(wrap);
 
     function setColor(c) {
       current = c;
@@ -46,7 +61,7 @@
     function renderGrid() {
       popup.innerHTML = "";
       var grid = document.createElement("div");
-      grid.className = "gc-color-grid";
+      grid.className = opts.gridClass || "gc-color-grid";
       colors.forEach(function(c) {
         var btn = document.createElement("button");
         btn.type = "button";

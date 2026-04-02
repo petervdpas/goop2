@@ -1,3 +1,16 @@
+//
+// CSS hooks:
+//   .gc-sidebar-backdrop    — overlay behind sidebar
+//   .gc-sidebar             — the sliding panel
+//   .gc-sidebar-header      — header row with title and close
+//   .gc-sidebar-title       — title text
+//   .gc-sidebar-close       — close button
+//   .gc-sidebar-body        — content area
+//   [data-goop-open]        — sidebar/backdrop is visible
+//   [data-goop-side="left"] — left side
+//   [data-goop-side="right"]— right side
+//
+
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
@@ -11,11 +24,11 @@
     var closeOnEscape = opts.closeOnEscape !== false;
 
     var backdrop = document.createElement("div");
-    backdrop.className = "gc-sidebar-backdrop";
+    backdrop.className = opts.backdropClass || "gc-sidebar-backdrop";
     if (!showOverlay) backdrop.style.background = "transparent";
 
     var panel = document.createElement("div");
-    panel.className = "gc-sidebar";
+    panel.className = opts.class || "gc-sidebar";
     panel.setAttribute("data-goop-component", "sidebar");
     panel.setAttribute("data-goop-side", side);
     if (opts.width) panel.style.width = typeof opts.width === "number" ? opts.width + "px" : opts.width;
@@ -25,7 +38,7 @@
     header.innerHTML = '<span class="gc-sidebar-title">' + _e(opts.title || "") + '</span><button type="button" class="gc-sidebar-close">\u00D7</button>';
 
     var body = document.createElement("div");
-    body.className = "gc-sidebar-body";
+    body.className = opts.bodyClass || "gc-sidebar-body";
     if (opts.content) body.innerHTML = opts.content;
 
     panel.appendChild(header); panel.appendChild(body);

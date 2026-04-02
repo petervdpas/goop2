@@ -1,10 +1,24 @@
+//
+// CSS hooks:
+//   .gc-carousel            — wrapper (override via opts.class)
+//   .gc-carousel-track      — sliding container (transform set via JS)
+//   .gc-carousel-slide      — each slide
+//   .gc-carousel-btn        — prev/next buttons
+//   .gc-carousel-dots       — dot navigation row
+//   .gc-carousel-dot        — each dot
+//   [data-goop-active]      — active dot
+//   [data-goop-dir="prev"]  — previous button
+//   [data-goop-dir="next"]  — next button
+//   :disabled               — button at boundary (when opts.loop=false)
+//
+
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
   var _e = Goop.ui._esc || function(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
   var _f = Goop.ui._fire || function(el, n, dt) { el.dispatchEvent(new CustomEvent(n, { bubbles: true, detail: dt })); };
 
-  Goop.ui.carousel = function(el, opts) {
+  Goop.ui.carousel = function(opts) {
     opts = opts || {};
     var slides = opts.slides || [];
     var current = opts.start || 0;
@@ -15,10 +29,11 @@
     var autoTimer = null;
 
     var wrap = document.createElement("div");
+    for (var _k in opts) { if (_k.indexOf("data-") === 0) wrap.setAttribute(_k, opts[_k]); }
     wrap.className = opts.class || "gc-carousel";
     wrap.setAttribute("data-goop-component", "carousel");
 
-    var track = document.createElement("div"); track.className = "gc-carousel-track";
+    var track = document.createElement("div"); track.className = opts.trackClass || "gc-carousel-track";
     var prevBtn = document.createElement("button"); prevBtn.type = "button"; prevBtn.className = "gc-carousel-btn"; prevBtn.setAttribute("data-goop-dir", "prev"); prevBtn.textContent = "\u2039";
     var nextBtn = document.createElement("button"); nextBtn.type = "button"; nextBtn.className = "gc-carousel-btn"; nextBtn.setAttribute("data-goop-dir", "next"); nextBtn.textContent = "\u203A";
     var dots = document.createElement("div"); dots.className = "gc-carousel-dots";
@@ -26,7 +41,6 @@
     wrap.appendChild(track);
     if (slides.length > 1 && showArrows) { wrap.appendChild(prevBtn); wrap.appendChild(nextBtn); }
     if (slides.length > 1 && showDots) wrap.appendChild(dots);
-    el.appendChild(wrap);
 
     function renderSlides() {
       track.innerHTML = "";

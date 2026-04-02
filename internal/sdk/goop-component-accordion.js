@@ -1,10 +1,20 @@
+//
+// CSS hooks:
+//   .gc-accordion           — wrapper (override via opts.class)
+//   .gc-accordion-section   — each section (override via opts.sectionClass)
+//   .gc-accordion-header    — clickable header (override via opts.headerClass)
+//   .gc-accordion-chevron   — expand/collapse icon
+//   .gc-accordion-body      — collapsible content (override via opts.bodyClass)
+//   .open                   — expanded section (override via opts.openClass)
+//
+
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
   var _e = Goop.ui._esc || function(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
   var _f = Goop.ui._fire || function(el, n, dt) { el.dispatchEvent(new CustomEvent(n, { bubbles: true, detail: dt })); };
 
-  Goop.ui.accordion = function(el, opts) {
+  Goop.ui.accordion = function(opts) {
     opts = opts || {};
     var sections = opts.sections || [];
     var multi = opts.multi !== false;
@@ -13,8 +23,8 @@
     if (opts.open) (Array.isArray(opts.open) ? opts.open : [opts.open]).forEach(function(id) { openIds[id] = true; });
 
     var wrap = document.createElement("div");
+    for (var _k in opts) { if (_k.indexOf("data-") === 0) wrap.setAttribute(_k, opts[_k]); }
     wrap.className = opts.class || "gc-accordion";
-    el.appendChild(wrap);
 
     function render() {
       wrap.innerHTML = "";

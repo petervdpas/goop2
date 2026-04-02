@@ -74,20 +74,16 @@
     }
   }
 
-  var h = Goop.dom;
-
-  function renderRooms(rooms) {
-    Goop.list(roomsEl, rooms, function(r) {
-      return h("div", { class: "room-card", onclick: function() { enterRoom(r); } },
-        h("h3", { class: "room-card-name" }, r.name),
-        h("p", { class: "room-card-desc" }, r.description || "No description"),
-        h("div", { class: "room-card-footer" },
-          h("span", { class: "room-card-status" }, h("span", { class: "status-dot" }), " " + r.status),
-          h("button", { class: "btn-join" }, "Join")
-        )
-      );
-    }, {
-      empty: h("div", { class: "empty-msg" }, h("div", { class: "empty-icon" }, "\uD83D\uDCAC"), h("p", {}, "No rooms yet." + (isOwner ? " Create one with the button above!" : "")))
+  function renderRooms(allRooms) {
+    Goop.list(roomsEl, allRooms, "room-card", {
+      empty: "No rooms yet." + (isOwner ? " Create one with the button above!" : "")
+    }).then(function() {
+      roomsEl.querySelectorAll(".btn-join").forEach(function(btn) {
+        var card = btn.closest(".room-card");
+        var id = parseInt(card.getAttribute("data-room-id"), 10);
+        var room = allRooms.find(function(r) { return r._id === id; });
+        btn.addEventListener("click", function() { if (room) enterRoom(room); });
+      });
     });
   }
 
@@ -354,18 +350,22 @@
   }
 
   function appendChat(fromId, label, text, isSelf) {
-    messagesEl.appendChild(
-      h("div", { class: "msg " + (isSelf ? "msg-self" : "msg-other") },
-        h("div", { class: "msg-label" }, isSelf ? "You" : (label || shortId(fromId))),
-        h("div", { class: "msg-text" }, text),
-        h("div", { class: "msg-time" }, timeStr())
-      )
-    );
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    Goop.partial("message", {
+      msgClass: isSelf ? "msg-self" : "msg-other",
+      fromLabel: isSelf ? "You" : (label || shortId(fromId)),
+      text: text,
+      time: timeStr()
+    }).then(function(el) {
+      messagesEl.appendChild(el);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    });
   }
 
   function appendSystem(text) {
-    messagesEl.appendChild(h("div", { class: "msg-system" }, text));
+    var div = document.createElement("div");
+    div.className = "msg-system";
+    div.textContent = text;
+    messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 

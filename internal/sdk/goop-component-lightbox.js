@@ -1,3 +1,15 @@
+//
+// CSS hooks:
+//   .gc-lightbox            — fullscreen overlay
+//   .gc-lightbox img        — displayed image
+//   .gc-lightbox-close      — close button
+//   .gc-lightbox-prev       — previous button
+//   .gc-lightbox-next       — next button
+//   .gc-lightbox-caption    — image caption text
+//   .gc-lightbox-counter    — "3 / 10" counter (when opts.showCounter)
+//   [data-goop-open]        — lightbox is visible
+//
+
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
@@ -11,7 +23,7 @@
     var loop = opts.loop !== false;
 
     var lb = document.createElement("div");
-    lb.className = "gc-lightbox";
+    lb.className = opts.class || "gc-lightbox";
     lb.setAttribute("data-goop-component", "lightbox");
 
     var closeBtn = document.createElement("button"); closeBtn.type = "button"; closeBtn.className = "gc-lightbox-close"; closeBtn.textContent = "\u00D7";

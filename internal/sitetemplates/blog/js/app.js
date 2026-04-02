@@ -80,28 +80,27 @@
 
   // ── Posts ──
   function renderPosts(rows) {
-    Goop.list(postsEl, rows, function (p) {
-      var slug = p.slug || p._id;
-      var url = "post.html?slug=" + encodeURIComponent(slug);
-      return h("article", { class: "post", data: { id: p._id } },
-        p.image ? h("a", { href: url }, h("img", { class: "post-image", src: "images/" + p.image, alt: "" })) : null,
-        h("h2", { class: "post-title" }, h("a", { class: "post-title-link", href: url }, p.title)),
-        h("div", { class: "post-meta" }, date(p._created_at)),
-        p.author_name ? h("div", { class: "post-byline" }, "by " + p.author_name) : null,
-        h("div", { class: "post-body" }, p.body),
-        h("a", { class: "post-read-more", href: url }, "Read more"),
-        canWrite ? h("div", { class: "post-actions" },
-          h("button", { onclick: function() { openEditor(p._id); } }, "Edit"),
+    var postsData = rows.map(function(p) {
+      return { _id: p._id, slug: p.slug || p._id, title: p.title, body: p.body, image: p.image, author_name: p.author_name, date: date(p._created_at) };
+    });
+    Goop.list(postsEl, postsData, "post-card", {
+      empty: "No posts yet." + (canWrite ? ' Click "+ New Post" to write your first one.' : "")
+    }).then(function() {
+      if (!canWrite) return;
+      postsEl.querySelectorAll("[data-id]").forEach(function(article) {
+        var id = parseInt(article.dataset.id, 10);
+        var p = rows.find(function(r) { return r._id === id; });
+        var actions = h("div", { class: "post-actions" },
+          h("button", { onclick: function() { openEditor(id); } }, "Edit"),
           h("button", { onclick: async function() {
             if (!(await Goop.ui.confirm("Delete this post?"))) return;
-            var result = await blog("delete_post", { id: p._id });
+            var result = await blog("delete_post", { id: id });
             if (result.image && canAdmin && site) { try { await site.remove("images/" + result.image); } catch (_) {} }
             reload();
           } }, "Delete")
-        ) : null
-      );
-    }, {
-      empty: "No posts yet." + (canWrite ? ' Click "+ New Post" to write your first one.' : "")
+        );
+        article.appendChild(actions);
+      });
     });
   }
 

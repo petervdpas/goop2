@@ -1,10 +1,21 @@
+//
+// CSS hooks:
+//   .gc-taginput            — wrapper (override via opts.class)
+//   .gc-taginput-tag        — each tag pill
+//   .gc-taginput-tag button — tag remove button
+//   input                   — text input for adding tags
+//   .gc-taginput-suggestions— autocomplete dropdown
+//   [data-goop-disabled]    — disabled state
+//   [data-goop-idx="N"]     — tag index on remove button
+//
+
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
   var _e = Goop.ui._esc || function(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
   var _f = Goop.ui._fire || function(el, n, dt) { el.dispatchEvent(new CustomEvent(n, { bubbles: true, detail: dt })); };
 
-  Goop.ui.taginput = function(el, opts) {
+  Goop.ui.taginput = function(opts) {
     opts = opts || {};
     var tags = (opts.value || []).slice();
     var allowDuplicates = !!opts.allowDuplicates;
@@ -15,6 +26,7 @@
     outer.style.position = "relative";
 
     var wrap = document.createElement("div");
+    for (var _k in opts) { if (_k.indexOf("data-") === 0) wrap.setAttribute(_k, opts[_k]); }
     wrap.className = opts.class || "gc-taginput";
     wrap.setAttribute("data-goop-component", "taginput");
     if (opts.name) wrap.setAttribute("data-goop-name", opts.name);
@@ -22,13 +34,12 @@
 
     var input = document.createElement("input");
     input.type = "text";
-    input.placeholder = opts.placeholder || "Add...";
+    if (opts.inputClass) input.className = opts.inputClass; input.placeholder = opts.placeholder || "Add...";
     if (isDisabled) input.disabled = true;
 
     var sugBox = null;
 
     outer.appendChild(wrap);
-    el.appendChild(outer);
 
     function renderTags() {
       wrap.querySelectorAll(".gc-taginput-tag").forEach(function(t) { t.remove(); });

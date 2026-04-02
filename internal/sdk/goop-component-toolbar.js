@@ -1,9 +1,20 @@
+//
+// CSS hooks:
+//   .gc-toolbar             — wrapper (override via opts.class)
+//   button                  — each button (override via opts.buttonClass)
+//   [data-goop-active]      — currently selected button
+//   [data-goop-id="..."]    — button identifier
+//   :disabled               — disabled button
+//
+// Also sets opts.activeClass on active button if provided.
+//
+
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
   var _f = Goop.ui._fire || function(el, n, dt) { el.dispatchEvent(new CustomEvent(n, { bubbles: true, detail: dt })); };
 
-  Goop.ui.toolbar = function(el, opts) {
+  Goop.ui.toolbar = function(opts) {
     opts = opts || {};
     var buttons = opts.buttons || [];
     var activeId = opts.active || (buttons[0] && buttons[0].id) || "";
@@ -15,8 +26,8 @@
     var activeClass = opts.activeClass || null;
 
     var wrap = document.createElement("div");
+    for (var _k in opts) { if (_k.indexOf("data-") === 0) wrap.setAttribute(_k, opts[_k]); }
     wrap.className = opts.class || "gc-toolbar";
-    el.appendChild(wrap);
 
     function setActive(btn, on) {
       if (on) btn.setAttribute("data-goop-active", "");

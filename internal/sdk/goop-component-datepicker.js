@@ -1,3 +1,20 @@
+//
+// CSS hooks:
+//   .gc-datepicker          — wrapper (override via opts.class)
+//   .gc-datepicker-input    — text input showing selected date
+//   .gc-datepicker-popup    — calendar dropdown
+//   .gc-dp-nav              — month/year navigation row
+//   .gc-dp-grid             — day grid (7 columns)
+//   .gc-dp-hdr              — day-of-week header cells
+//   .gc-dp-time             — time input row (when opts.time)
+//   [data-goop-open]        — popup is visible
+//   [data-goop-today]       — today cell
+//   [data-goop-selected]    — selected day cell
+//   [data-goop-outside]     — day from adjacent month
+//   [data-goop-disabled]    — disabled state
+//   :disabled               — out-of-range day (opts.min/max)
+//
+
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
@@ -7,7 +24,7 @@
   var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   var ALLDAYS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
 
-  Goop.ui.datepicker = function(el, opts) {
+  Goop.ui.datepicker = function(opts) {
     opts = opts || {};
     var includeTime = !!opts.time;
     var isDisabled = !!opts.disabled;
@@ -26,22 +43,22 @@
     else { var now = new Date(); viewYear = now.getFullYear(); viewMonth = now.getMonth(); current = null; }
 
     var wrap = document.createElement("div");
+    for (var _k in opts) { if (_k.indexOf("data-") === 0) wrap.setAttribute(_k, opts[_k]); }
     wrap.className = opts.class || "gc-datepicker";
     wrap.setAttribute("data-goop-component", "datepicker");
     if (isDisabled) wrap.setAttribute("data-goop-disabled", "");
 
     var input = document.createElement("input");
-    input.className = "gc-datepicker-input";
+    input.className = opts.inputClass || "gc-datepicker-input";
     input.readOnly = true;
     input.placeholder = opts.placeholder || (includeTime ? "Select date & time" : "Select date");
     if (opts.name) input.setAttribute("data-goop-name", opts.name);
     if (isDisabled) input.disabled = true;
 
     var popup = document.createElement("div");
-    popup.className = "gc-datepicker-popup";
+    popup.className = opts.popupClass || "gc-datepicker-popup";
     wrap.appendChild(input);
     wrap.appendChild(popup);
-    el.appendChild(wrap);
 
     function dateOnly(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
     function outOfRange(d) {

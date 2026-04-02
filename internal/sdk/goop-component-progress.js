@@ -1,13 +1,23 @@
+//
+// CSS hooks:
+//   .gc-progress            — track (override via opts.class)
+//   .gc-progress-bar        — filled portion (width set via JS)
+//   .gc-progress-label      — percentage text below bar
+//   [data-goop-variant="success|warning|danger"]
+//   [data-goop-animated]    — striped animation
+//
+
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
 
-  Goop.ui.progress = function(el, opts) {
+  Goop.ui.progress = function(opts) {
     opts = opts || {};
     var value = opts.value || 0;
     var max = opts.max || 100;
 
     var wrap = document.createElement("div");
+    for (var _k in opts) { if (_k.indexOf("data-") === 0) wrap.setAttribute(_k, opts[_k]); }
     wrap.className = opts.class || "gc-progress";
     wrap.setAttribute("data-goop-component", "progress");
     if (opts.variant) wrap.setAttribute("data-goop-variant", opts.variant);
@@ -24,8 +34,6 @@
     }
 
     wrap.appendChild(bar);
-    el.appendChild(wrap);
-    if (label) el.appendChild(label);
 
     function update() {
       var pct = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;

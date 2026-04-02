@@ -1,9 +1,19 @@
+//
+// CSS hooks:
+//   .gc-stepper             — wrapper (override via opts.class)
+//   button:first-child      — decrement button
+//   button:last-child       — increment button
+//   input                   — number input
+//   [data-goop-disabled]    — disabled state
+//   :disabled               — button at min/max
+//
+
 (() => {
   window.Goop = window.Goop || {};
   window.Goop.ui = window.Goop.ui || {};
   var _f = Goop.ui._fire || function(el, n, dt) { el.dispatchEvent(new CustomEvent(n, { bubbles: true, detail: dt })); };
 
-  Goop.ui.stepper = function(el, opts) {
+  Goop.ui.stepper = function(opts) {
     opts = opts || {};
     var min = opts.min != null ? opts.min : -Infinity;
     var max = opts.max != null ? opts.max : Infinity;
@@ -12,13 +22,14 @@
     var isDisabled = !!opts.disabled;
 
     var wrap = document.createElement("div");
+    for (var _k in opts) { if (_k.indexOf("data-") === 0) wrap.setAttribute(_k, opts[_k]); }
     wrap.className = opts.class || "gc-stepper";
     wrap.setAttribute("data-goop-component", "stepper");
     if (opts.name) wrap.setAttribute("data-goop-name", opts.name);
     if (isDisabled) wrap.setAttribute("data-goop-disabled", "");
 
     var btnDec = document.createElement("button"); btnDec.type = "button"; btnDec.textContent = "\u2212";
-    var input = document.createElement("input"); input.type = "number";
+    var input = document.createElement("input"); input.className = opts.inputClass || ""; input.type = "number";
     if (min !== -Infinity) input.min = min;
     if (max !== Infinity) input.max = max;
     input.step = step;
@@ -26,7 +37,6 @@
     var btnInc = document.createElement("button"); btnInc.type = "button"; btnInc.textContent = "+";
 
     wrap.appendChild(btnDec); wrap.appendChild(input); wrap.appendChild(btnInc);
-    el.appendChild(wrap);
 
     function clamp(v) { return Math.max(min, Math.min(max, v)); }
     function setValue(v) { value = clamp(v); input.value = value; btnDec.disabled = isDisabled || value <= min; btnInc.disabled = isDisabled || value >= max; }
