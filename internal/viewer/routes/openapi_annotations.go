@@ -2772,6 +2772,31 @@ type splitPrefRequest struct {
 	Value float64 `json:"value" example:"30"`
 }
 
+// swagBridgeRequestToken is a documentation stub for POST /api/bridge/request-token.
+//
+//	@Summary	Request a bridge token from the rendezvous server
+//	@Description	Requests a bridge authentication token after email verification. The peer must be verified and have a WAN rendezvous configured.
+//	@Tags		settings
+//	@Accept		json
+//	@Produce	json
+//	@Success	200	{object}	map[string]string	"token or error"
+//	@Failure	500	{string}	string				"failed to load config"
+//	@Router		/api/bridge/request-token [post]
+func swagBridgeRequestToken() {}
+
+// swagLogsVerbose is a documentation stub for GET/POST /api/logs/verbose.
+//
+//	@Summary	Get or set verbose P2P logging
+//	@Description	GET returns current verbose status. POST enables or disables verbose logging.
+//	@Tags		logs
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		object{on bool}	false	"Enable/disable verbose (POST only)"
+//	@Success	200		{object}	object{on bool}
+//	@Success	204
+//	@Router		/api/logs/verbose [get]
+func swagLogsVerbose() {}
+
 // swagSplitPrefs is a documentation stub for POST /api/split-prefs.
 //
 //	@Summary	Save a UI split pane preference (position 0-100)
@@ -2782,3 +2807,186 @@ type splitPrefRequest struct {
 //	@Success	200		{object}	statusOK
 //	@Router		/api/split-prefs [post]
 func swagSplitPrefs() {}
+
+// ─── Rendezvous / Service proxy endpoints ───
+
+// swagCapabilities is a documentation stub for GET /api/capabilities.
+//
+//	@Summary	Feature capabilities of the rendezvous server
+//	@Tags		rendezvous
+//	@Produce	json
+//	@Success	200	{object}	map[string]bool	"Feature flags: encryption, registration, credits, templates, bridge, relay"
+//	@Router		/api/capabilities [get]
+func swagCapabilities() {}
+
+// swagPulse is a documentation stub for POST /api/pulse.
+//
+//	@Summary	Refresh relay reservation for a peer
+//	@Tags		rendezvous
+//	@Produce	json
+//	@Param		peer	query	string	true	"Peer ID to refresh relay for"
+//	@Success	200		{object}	map[string]bool
+//	@Router		/api/pulse [post]
+func swagPulse() {}
+
+// swagServicesLogs is a documentation stub for GET /api/services/logs.
+//
+//	@Summary	Aggregate logs from all microservices (admin only)
+//	@Tags		rendezvous
+//	@Produce	json
+//	@Success	200	{array}	object	"Array of {service, message} objects"
+//	@Router		/api/services/logs [get]
+func swagServicesLogs() {}
+
+// swagExecutorAPIYaml is a documentation stub for GET /api/executor-api.yaml.
+//
+//	@Summary	Executor OpenAPI specification (YAML)
+//	@Tags		rendezvous
+//	@Produce	text/yaml
+//	@Success	200	{string}	string	"OpenAPI YAML spec"
+//	@Router		/api/executor-api.yaml [get]
+func swagExecutorAPIYaml() {}
+
+// ─── Credits proxy endpoints ───
+
+// swagCreditsBalance is a documentation stub for GET /api/credits/balance.
+//
+//	@Summary	Fetch account credit balance
+//	@Tags		credits
+//	@Produce	json
+//	@Param		peer_id	query	string	false	"Peer ID (defaults to caller)"
+//	@Success	200		{object}	map[string]int	"balance"
+//	@Router		/api/credits/balance [get]
+func swagCreditsBalance() {}
+
+// swagCreditsGrant is a documentation stub for POST /api/credits/grant.
+//
+//	@Summary	Grant credits to an account
+//	@Tags		credits
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body	object{amount int, reason string}	true	"Grant details"
+//	@Success	200		{object}	map[string]any
+//	@Router		/api/credits/grant [post]
+func swagCreditsGrant() {}
+
+// swagCreditsSpend is a documentation stub for POST /api/credits/spend.
+//
+//	@Summary	Spend credits on a template purchase
+//	@Tags		credits
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body	object{template string}	true	"Template to purchase"
+//	@Success	200		{object}	map[string]any
+//	@Router		/api/credits/spend [post]
+func swagCreditsSpend() {}
+
+// swagCreditsAccess is a documentation stub for GET /api/credits/access.
+//
+//	@Summary	Check template access for a peer
+//	@Tags		credits
+//	@Produce	json
+//	@Param		template_dir	query	string	true	"Template directory name"
+//	@Param		peer_id			query	string	false	"Peer ID (defaults to caller)"
+//	@Success	200				{object}	map[string]bool	"allowed"
+//	@Router		/api/credits/access [get]
+func swagCreditsAccess() {}
+
+// swagCreditsStoreData is a documentation stub for GET /api/credits/store-data.
+//
+//	@Summary	Fetch store page data (balance, email, credits active)
+//	@Tags		credits
+//	@Produce	json
+//	@Param		peer_id	query	string	false	"Peer ID (defaults to caller)"
+//	@Success	200		{object}	map[string]any	"credits_active, email, balance, app_name"
+//	@Router		/api/credits/store-data [get]
+func swagCreditsStoreData() {}
+
+// swagCreditsTemplateInfo is a documentation stub for GET /api/credits/template-info.
+//
+//	@Summary	Fetch per-template pricing and ownership info
+//	@Tags		credits
+//	@Produce	json
+//	@Param		template_dir	query	string	true	"Template directory name"
+//	@Param		peer_id			query	string	false	"Peer ID (defaults to caller)"
+//	@Success	200				{object}	map[string]any	"price, status"
+//	@Router		/api/credits/template-info [get]
+func swagCreditsTemplateInfo() {}
+
+// ─── Encryption proxy endpoints ───
+
+// swagEncryptionKeysUpload is a documentation stub for POST /api/encryption/keys.
+//
+//	@Summary	Upload peer's public encryption key
+//	@Tags		encryption
+//	@Accept		json
+//	@Produce	json
+//	@Success	200	{object}	map[string]any
+//	@Router		/api/encryption/keys [post]
+func swagEncryptionKeysUpload() {}
+
+// swagEncryptionKeysGet is a documentation stub for GET /api/encryption/keys/{peer_id}.
+//
+//	@Summary	Fetch a peer's public encryption key
+//	@Tags		encryption
+//	@Produce	json
+//	@Param		peer_id	path	string	true	"Peer ID"
+//	@Success	200		{object}	map[string]any
+//	@Router		/api/encryption/keys/{peer_id} [get]
+func swagEncryptionKeysGet() {}
+
+// swagEncryptionBroadcastKey is a documentation stub for GET /api/encryption/broadcast-key.
+//
+//	@Summary	Fetch sealed broadcast key for a peer
+//	@Tags		encryption
+//	@Produce	json
+//	@Success	200	{object}	map[string]any
+//	@Router		/api/encryption/broadcast-key [get]
+func swagEncryptionBroadcastKey() {}
+
+// ─── Service proxy endpoints ───
+
+// swagEmailProxy is a documentation stub for /api/email/*.
+//
+//	@Summary	Reverse proxy for email service
+//	@Tags		services
+//	@Router		/api/email/ [get]
+func swagEmailProxy() {}
+
+// swagRegProxy is a documentation stub for /api/reg/*.
+//
+//	@Summary	Reverse proxy for registration service
+//	@Tags		services
+//	@Router		/api/reg/ [get]
+func swagRegProxy() {}
+
+// ─── Template store endpoints ───
+
+// swagTemplatesList is a documentation stub for GET /api/templates.
+//
+//	@Summary	List available store templates
+//	@Tags		templates
+//	@Produce	json
+//	@Success	200	{array}	object	"Array of StoreMeta objects"
+//	@Router		/api/templates [get]
+func swagTemplatesList() {}
+
+// swagTemplatesBundle is a documentation stub for GET /api/templates/{dir}/bundle.
+//
+//	@Summary	Fetch template bundle or manifest by directory name
+//	@Tags		templates
+//	@Produce	json
+//	@Param		dir	path	string	true	"Template directory name"
+//	@Success	200	{object}	object
+//	@Router		/api/templates/{dir} [get]
+func swagTemplatesBundle() {}
+
+// swagTemplatesPrices is a documentation stub for GET/POST /api/templates/prices.
+//
+//	@Summary	Get or update template pricing
+//	@Tags		templates
+//	@Accept		json
+//	@Produce	json
+//	@Success	200	{object}	map[string]any
+//	@Router		/api/templates/prices [get]
+func swagTemplatesPrices() {}

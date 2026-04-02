@@ -1,0 +1,7 @@
+{
+  "name": "Todo",
+  "description": "A shared to-do list. The owner manages tasks — group members can check them off.",
+  "category": "productivity",
+  "icon": "✅",
+  "schemas": ["todos"]
+}

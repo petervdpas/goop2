@@ -114,6 +114,38 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/bridge/request-token": {
+            "post": {
+                "description": "Requests a bridge authentication token after email verification. The peer must be verified and have a WAN rendezvous configured.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Request a bridge token from the rendezvous server",
+                "responses": {
+                    "200": {
+                        "description": "token or error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "failed to load config",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/api/call/accept": {
             "post": {
                 "description": "Creates the Go-side Pion PeerConnection for an incoming call.\\nGo sends call-ack via MQ; origin then connects MSE.\\nFlow: receive call-request via MQ → POST /api/call/accept → Go sends call-ack → origin's _handleCallAck → _connectNative()",
@@ -528,6 +560,28 @@ const docTemplate = `{
                         "description": "Chunked WebM stream",
                         "schema": {
                             "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/capabilities": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rendezvous"
+                ],
+                "summary": "Feature capabilities of the rendezvous server",
+                "responses": {
+                    "200": {
+                        "description": "Feature flags: encryption, registration, credits, templates, bridge, relay",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "boolean"
+                            }
                         }
                     }
                 }
@@ -1152,6 +1206,204 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/routes.clusterWorkerInfo"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/credits/access": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "credits"
+                ],
+                "summary": "Check template access for a peer",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Template directory name",
+                        "name": "template_dir",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Peer ID (defaults to caller)",
+                        "name": "peer_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "allowed",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "boolean"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/credits/balance": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "credits"
+                ],
+                "summary": "Fetch account credit balance",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Peer ID (defaults to caller)",
+                        "name": "peer_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "balance",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "integer"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/credits/grant": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "credits"
+                ],
+                "summary": "Grant credits to an account",
+                "parameters": [
+                    {
+                        "description": "Grant details",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/credits/spend": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "credits"
+                ],
+                "summary": "Spend credits on a template purchase",
+                "parameters": [
+                    {
+                        "description": "Template to purchase",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/credits/store-data": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "credits"
+                ],
+                "summary": "Fetch store page data (balance, email, credits active)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Peer ID (defaults to caller)",
+                        "name": "peer_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "credits_active, email, balance, app_name",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/credits/template-info": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "credits"
+                ],
+                "summary": "Fetch per-template pricing and ownership info",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Template directory name",
+                        "name": "template_dir",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Peer ID (defaults to caller)",
+                        "name": "peer_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "price, status",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 }
@@ -3023,6 +3275,106 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/email/": {
+            "get": {
+                "tags": [
+                    "services"
+                ],
+                "summary": "Reverse proxy for email service",
+                "responses": {}
+            }
+        },
+        "/api/encryption/broadcast-key": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "encryption"
+                ],
+                "summary": "Fetch sealed broadcast key for a peer",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/encryption/keys": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "encryption"
+                ],
+                "summary": "Upload peer's public encryption key",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/encryption/keys/{peer_id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "encryption"
+                ],
+                "summary": "Fetch a peer's public encryption key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Peer ID",
+                        "name": "peer_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/executor-api.yaml": {
+            "get": {
+                "produces": [
+                    "text/yaml"
+                ],
+                "tags": [
+                    "rendezvous"
+                ],
+                "summary": "Executor OpenAPI specification (YAML)",
+                "responses": {
+                    "200": {
+                        "description": "OpenAPI YAML spec",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/api/fs/browse": {
             "get": {
                 "produces": [
@@ -3944,6 +4296,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/logs/verbose": {
+            "get": {
+                "description": "GET returns current verbose status. POST enables or disables verbose logging.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "logs"
+                ],
+                "summary": "Get or set verbose P2P logging",
+                "parameters": [
+                    {
+                        "description": "Enable/disable verbose (POST only)",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/api/lua/content": {
             "get": {
                 "produces": [
@@ -4267,6 +4655,46 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/pulse": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rendezvous"
+                ],
+                "summary": "Refresh relay reservation for a peer",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Peer ID to refresh relay for",
+                        "name": "peer",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "boolean"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/reg/": {
+            "get": {
+                "tags": [
+                    "services"
+                ],
+                "summary": "Reverse proxy for registration service",
+                "responses": {}
+            }
+        },
         "/api/rendezvous/check": {
             "get": {
                 "description": "Fetches /api/capabilities from the given rendezvous URL and returns the capabilities map.",
@@ -4365,6 +4793,28 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/routes.servicesHealthResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/services/logs": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rendezvous"
+                ],
+                "summary": "Aggregate logs from all microservices (admin only)",
+                "responses": {
+                    "200": {
+                        "description": "Array of {service, message} objects",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "object"
+                            }
                         }
                     }
                 }
@@ -4701,6 +5151,28 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/templates": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "templates"
+                ],
+                "summary": "List available store templates",
+                "responses": {
+                    "200": {
+                        "description": "Array of StoreMeta objects",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "object"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/templates/apply": {
             "post": {
                 "description": "Resets the site and database, then applies the named built-in template.",
@@ -4851,6 +5323,29 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/templates/prices": {
+            "get": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "templates"
+                ],
+                "summary": "Get or update template pricing",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/api/templates/validate-local": {
             "post": {
                 "description": "Reads manifest.json from the given absolute path and returns its metadata for preview.",
@@ -4886,6 +5381,34 @@ const docTemplate = `{
                         "description": "path required / not a directory / manifest.json not found",
                         "schema": {
                             "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/templates/{dir}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "templates"
+                ],
+                "summary": "Fetch template bundle or manifest by directory name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Template directory name",
+                        "name": "dir",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object"
                         }
                     }
                 }

@@ -1693,6 +1693,28 @@ paths:
       summary: Upload own avatar (multipart image)
       tags:
       - avatar
+  /api/bridge/request-token:
+    post:
+      consumes:
+      - application/json
+      description: Requests a bridge authentication token after email verification.
+        The peer must be verified and have a WAN rendezvous configured.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: token or error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: failed to load config
+          schema:
+            type: string
+      summary: Request a bridge token from the rendezvous server
+      tags:
+      - settings
   /api/call/accept:
     post:
       consumes:
@@ -1977,6 +1999,21 @@ paths:
       summary: HTTP chunked WebM stream of remote video/audio (Linux native mode)
       tags:
       - call
+  /api/capabilities:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'Feature flags: encryption, registration, credits, templates,
+            bridge, relay'
+          schema:
+            additionalProperties:
+              type: boolean
+            type: object
+      summary: Feature capabilities of the rendezvous server
+      tags:
+      - rendezvous
   /api/chat/history:
     delete:
       parameters:
@@ -2399,6 +2436,134 @@ paths:
       summary: List all workers (host only)
       tags:
       - cluster
+  /api/credits/access:
+    get:
+      parameters:
+      - description: Template directory name
+        in: query
+        name: template_dir
+        required: true
+        type: string
+      - description: Peer ID (defaults to caller)
+        in: query
+        name: peer_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: allowed
+          schema:
+            additionalProperties:
+              type: boolean
+            type: object
+      summary: Check template access for a peer
+      tags:
+      - credits
+  /api/credits/balance:
+    get:
+      parameters:
+      - description: Peer ID (defaults to caller)
+        in: query
+        name: peer_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: balance
+          schema:
+            additionalProperties:
+              type: integer
+            type: object
+      summary: Fetch account credit balance
+      tags:
+      - credits
+  /api/credits/grant:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Grant details
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Grant credits to an account
+      tags:
+      - credits
+  /api/credits/spend:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Template to purchase
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Spend credits on a template purchase
+      tags:
+      - credits
+  /api/credits/store-data:
+    get:
+      parameters:
+      - description: Peer ID (defaults to caller)
+        in: query
+        name: peer_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: credits_active, email, balance, app_name
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Fetch store page data (balance, email, credits active)
+      tags:
+      - credits
+  /api/credits/template-info:
+    get:
+      parameters:
+      - description: Template directory name
+        in: query
+        name: template_dir
+        required: true
+        type: string
+      - description: Peer ID (defaults to caller)
+        in: query
+        name: peer_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: price, status
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Fetch per-template pricing and ownership info
+      tags:
+      - credits
   /api/data/aggregate:
     post:
       consumes:
@@ -3614,6 +3779,71 @@ paths:
       summary: Upload a file from a local filesystem path to share with the group
       tags:
       - docs
+  /api/email/:
+    get:
+      responses: {}
+      summary: Reverse proxy for email service
+      tags:
+      - services
+  /api/encryption/broadcast-key:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Fetch sealed broadcast key for a peer
+      tags:
+      - encryption
+  /api/encryption/keys:
+    post:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Upload peer's public encryption key
+      tags:
+      - encryption
+  /api/encryption/keys/{peer_id}:
+    get:
+      parameters:
+      - description: Peer ID
+        in: path
+        name: peer_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Fetch a peer's public encryption key
+      tags:
+      - encryption
+  /api/executor-api.yaml:
+    get:
+      produces:
+      - text/yaml
+      responses:
+        "200":
+          description: OpenAPI YAML spec
+          schema:
+            type: string
+      summary: Executor OpenAPI specification (YAML)
+      tags:
+      - rendezvous
   /api/fs/browse:
     get:
       parameters:
@@ -4206,6 +4436,30 @@ paths:
       summary: SSE stream of new Go process log lines
       tags:
       - logs
+  /api/logs/verbose:
+    get:
+      consumes:
+      - application/json
+      description: GET returns current verbose status. POST enables or disables verbose
+        logging.
+      parameters:
+      - description: Enable/disable verbose (POST only)
+        in: body
+        name: body
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "204":
+          description: No Content
+      summary: Get or set verbose P2P logging
+      tags:
+      - logs
   /api/lua/content:
     get:
       parameters:
@@ -4424,6 +4678,32 @@ paths:
       summary: Probe all known peers for reachability
       tags:
       - peers
+  /api/pulse:
+    post:
+      parameters:
+      - description: Peer ID to refresh relay for
+        in: query
+        name: peer
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: boolean
+            type: object
+      summary: Refresh relay reservation for a peer
+      tags:
+      - rendezvous
+  /api/reg/:
+    get:
+      responses: {}
+      summary: Reverse proxy for registration service
+      tags:
+      - services
   /api/rendezvous/check:
     get:
       description: Fetches /api/capabilities from the given rendezvous URL and returns
@@ -4492,6 +4772,20 @@ paths:
       summary: Ping all configured external services
       tags:
       - settings
+  /api/services/logs:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Array of {service, message} objects
+          schema:
+            items:
+              type: object
+            type: array
+      summary: Aggregate logs from all microservices (admin only)
+      tags:
+      - rendezvous
   /api/settings/quick:
     post:
       consumes:
@@ -4708,6 +5002,38 @@ paths:
       summary: Save a UI split pane preference (position 0-100)
       tags:
       - settings
+  /api/templates:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Array of StoreMeta objects
+          schema:
+            items:
+              type: object
+            type: array
+      summary: List available store templates
+      tags:
+      - templates
+  /api/templates/{dir}:
+    get:
+      parameters:
+      - description: Template directory name
+        in: path
+        name: dir
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+      summary: Fetch template bundle or manifest by directory name
+      tags:
+      - templates
   /api/templates/apply:
     post:
       consumes:
@@ -4807,6 +5133,21 @@ paths:
           schema:
             type: string
       summary: Apply a store template (download, spend credits, apply)
+      tags:
+      - templates
+  /api/templates/prices:
+    get:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get or update template pricing
       tags:
       - templates
   /api/templates/validate-local:

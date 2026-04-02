@@ -1,0 +1,7 @@
+<div class="todo-item" data-id="{{_id}}" data-done="{{done}}">
+  <button class="todo-check" title="Toggle">{{#if done}}&#10003;{{/if}}</button>
+  <span class="todo-text">{{text}}</span>
+  {{#if created_by}}
+  <span class="todo-meta">{{created_by}}</span>
+  {{/if}}
+</div>

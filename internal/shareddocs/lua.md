@@ -1,6 +1,6 @@
 # Scripting with Lua
 
-Goop2 includes an embedded Lua runtime that lets you add server-side logic to your peer. Lua scripts can power chat commands, validate data, compute scores, enforce game rules, and more.
+Goop2 includes an embedded Lua runtime for server-side logic. Lua scripts power template backends, chat commands, data validation, game rules, and more.
 
 ## Enabling Lua
 
@@ -17,23 +17,23 @@ Add the `lua` section to your `goop.json`:
 }
 ```
 
-Lua scripts come in two flavors: **chat commands** that respond to visitor messages, and **data functions** that provide server-side logic for templates.
-
-```mermaid
-graph LR
-    CM["Chat command"] --> E["Lua Engine"]
-    E --> VM1["Sandboxed VM"]
-    VM1 --> R["Reply"]
-    JS["Goop.data.call"] --> E
-    E --> VM2["Data VM + goop.db"]
-    VM2 --> JSON["JSON response"]
-```
+Templates enable Lua automatically when they include scripts in `lua/functions/`.
 
 ## Script types
 
+```mermaid
+graph LR
+    CM["!hello Alice"] --> E["Lua Engine"]
+    E --> VM1["Sandboxed VM"]
+    VM1 --> R["Hello, Alice!"]
+    JS["db.call('kanban', {action: 'get_board'})"] --> E
+    E --> VM2["Data VM + goop.orm"]
+    VM2 --> JSON["{columns: [...]}"]
+```
+
 ### Chat commands
 
-Files in `site/lua/` (not in `functions/`) are chat commands. A visitor sends a direct message starting with `!` and the matching script runs.
+Files in `site/lua/` (not in `functions/`) are chat commands. A visitor sends a message starting with `!` and the matching script runs.
 
 File: `site/lua/hello.lua`
 
@@ -43,94 +43,275 @@ function handle(args)
 end
 ```
 
-A visitor typing `!hello Alice` receives the response `Hello, Alice!`.
+A visitor typing `!hello Alice` receives `Hello, Alice!`.
 
 ### Data functions
 
-Files in `site/lua/functions/` are data functions. They are called from the browser via the `goop-data.js` library and return structured data.
+Files in `site/lua/functions/` are data functions — the template backend. They are called from the browser via `Goop.data.call()` and return structured data.
 
-File: `site/lua/functions/score-quiz.lua`
+File: `site/lua/functions/myapp.lua`
 
 ```lua
 function call(request)
-    local answers = request.params.answers
-    local score = 0
-    -- scoring logic here
-    return { score = score, total = #answers }
+    local params = request.params
+    return { message = "Hello", action = params.action }
 end
 ```
 
 Called from JavaScript:
 
 ```javascript
-const result = await Goop.data.call("score-quiz", { answers: [...] });
+var result = await Goop.data.call("myapp", { action: "greet" });
+// result = { message: "Hello", action: "greet" }
 ```
+
+## How frontend and backend connect
+
+When JS calls `db.call("kanban", { action: "get_board" })`, the SDK sends the request to the Lua engine. The engine creates a fresh sandboxed VM, loads `lua/functions/kanban.lua`, and calls its `call()` function with a request table:
+
+```lua
+function call(request)
+    -- request.params = the JS object you passed
+    -- request.params.action = "get_board"
+    -- request.params.card_id = 42  (if you passed it)
+    local action = request.params.action
+    local card_id = request.params.card_id
+end
+```
+
+The Lua function returns a table, which becomes the JSON response in JS:
+
+```mermaid
+sequenceDiagram
+    participant JS as app.js
+    participant SDK as Goop.data
+    participant LUA as kanban.lua
+    participant DB as SQLite
+
+    JS->>SDK: db.call("kanban", {action: "get_board"})
+    SDK->>LUA: call({params: {action: "get_board"}})
+    LUA->>DB: goop.orm("columns"):find(...)
+    DB-->>LUA: rows
+    LUA-->>SDK: {columns: [...]}
+    SDK-->>JS: result.columns
+    JS->>JS: renderBoard(result.columns)
+```
+
+### Who is calling?
+
+Every Lua invocation knows who's calling:
+
+```lua
+goop.peer.id       -- the viewer's peer ID (who triggered this call)
+goop.peer.label    -- the viewer's display name
+
+goop.self.id       -- the site owner's peer ID (whose site this is)
+goop.self.label    -- the site owner's display name
+```
+
+Check if the caller is the site owner:
+
+```lua
+if goop.peer.id ~= goop.self.id then
+    return { error = "only the site owner can do this" }
+end
+```
+
+Or use the `goop.owner()` wrapper (see below).
+
+## Patterns
+
+### Action dispatcher with goop.route
+
+Most templates use a single Lua function with `goop.route()` to handle multiple actions. The router extracts `action` from `request.params` and calls the matching handler with `params`:
+
+```lua
+local function get_items(params)
+    return { items = items_tbl:find({ order = "_id DESC" }) or {} }
+end
+
+local function add_item(params)
+    if not params.title or params.title == "" then
+        return { error = "title required" }
+    end
+    local id = items_tbl:insert({ title = params.title })
+    return { id = id }
+end
+
+local dispatch = goop.route({
+    get_items = get_items,
+    add_item  = add_item,
+})
+
+function call(req) return dispatch(req) end
+```
+
+JS calls different actions on the same function:
+
+```javascript
+var result = await db.call("myapp", { action: "get_items" });
+await db.call("myapp", { action: "add_item", title: "New task" });
+```
+
+Or using the `api()` shorthand (inserts `action` automatically):
+
+```javascript
+var api = Goop.data.api("myapp");
+var result = await api("get_items");
+await api("add_item", { title: "New task" });
+```
+
+### Owner-only actions with goop.owner
+
+Wrap handlers with `goop.owner()` to restrict them to the site owner. If a non-owner calls it, an error is raised automatically:
+
+```lua
+local dispatch = goop.route({
+    get_board     = get_board,          -- anyone can read
+    add_card      = add_card,           -- anyone can add
+    add_column    = goop.owner(add_column),    -- owner only
+    delete_column = goop.owner(delete_column), -- owner only
+})
+```
+
+### Lazy init pattern
+
+ORM handles persist across the function body but the VM is fresh each call. Use lazy init to avoid re-creating handles:
+
+```lua
+local items_tbl = nil
+
+local function init()
+    if not items_tbl then items_tbl = goop.orm("items") end
+end
+
+local function i(fn) return function(p) init(); return fn(p) end end
+
+local dispatch = goop.route({
+    get_items = i(get_items),
+    add_item  = i(add_item),
+})
+```
+
+### Seed data
+
+To populate initial data when the template is installed, create `lua/functions/seed.lua`:
+
+```lua
+function call(req)
+    local cols = goop.orm("columns")
+    local cfg = goop.orm("config")
+    local n1 = cols:seed({
+        { name = "To Do",       position = 0, color = "#6366f1" },
+        { name = "In Progress", position = 1, color = "#f59e0b" },
+        { name = "Done",        position = 2, color = "#22c55e" },
+    })
+    local n2 = cfg:seed({
+        { key = "title",    value = "My Board" },
+        { key = "subtitle", value = "Shared kanban board" },
+    })
+    return n1 + n2
+end
+```
+
+`seed()` only inserts rows if the table is empty. It runs once after the template tables are created.
 
 ## Available APIs
 
-### goop.peer
+### goop.orm (recommended)
 
-Information about the calling peer:
-
-```lua
-goop.peer.id       -- Peer ID (e.g. "12D3Koo...")
-goop.peer.label    -- Display name (if known)
-```
-
-### goop.self
-
-Information about the local peer:
+The ORM provides typed, schema-aware database access. Tables are defined in `schemas/*.json` and created automatically when the template is installed.
 
 ```lua
-goop.self.id       -- Local peer ID
-goop.self.label    -- Local display name
+local posts = goop.orm("posts")
 ```
 
-### goop.http
-
-HTTP client (requires `http_enabled: true`):
+**Reading:**
 
 ```lua
-local body, err = goop.http.get("https://api.example.com/data")
-local body, err = goop.http.post("https://api.example.com/submit", {key = "val"})
+local rows = posts:find({ where = "published = 1", order = "_id DESC", limit = 10 })
+local row = posts:find_one({ where = "slug = ?", args = { "hello" } })
+local post = posts:get(42)                             -- by _id
+local bySlug = posts:get_by("slug", "hello")           -- by column
+local all = posts:list(100)                             -- shorthand for find with limit
+local titles = posts:pluck("title")                     -- single column as array
+local n = posts:count({ where = "published = 1" })      -- row count
+local yes = posts:exists({ where = "slug = ?", args = { "hello" } })  -- boolean
+local uniq = posts:distinct("category")                 -- unique values
+local agg = posts:aggregate("SUM(score) as total", { where = "active = 1" })
 ```
 
-Only `http://` and `https://` URLs are allowed. Requests to private/loopback addresses are blocked (SSRF protection with DNS pinning). Limited to 3 requests per invocation, 1 MB max response size.
-
-### goop.json
-
-JSON encoding and decoding:
+**Writing:**
 
 ```lua
-local obj = goop.json.decode('{"name":"Alice"}')
-local str = goop.json.encode({name = "Bob"})
+local id = posts:insert({ title = "New", body = "Content" })  -- returns _id
+posts:update(42, { title = "Updated" })          -- partial update by _id
+posts:delete(42)                                  -- delete by _id
+posts:update_where(                               -- bulk update
+    { published = 1 },
+    { where = "draft = 0" }
+)
+posts:delete_where({ where = "archived = 1" })   -- bulk delete
+posts:upsert("slug", { slug = "hello", title = "Hello" })  -- insert or update by key
+posts:seed({ {title = "A"}, {title = "B"} })     -- insert only if table is empty
+local ok, err = posts:validate({ title = "Test" })  -- check types/required
 ```
 
-### goop.kv
+The handle also exposes `posts.columns` and `posts.access`.
 
-Persistent key-value store (per script, requires `kv_enabled: true`):
+### goop.expr
+
+Raw SQL expression inside `update_where` data:
 
 ```lua
-goop.kv.set("api_key", "secret123")
-local key = goop.kv.get("api_key")
-goop.kv.del("api_key")
+cards:update_where(
+    { position = goop.expr("position + 1") },
+    { where = "column_id = ? AND position >= ?", args = { col_id, pos } }
+)
 ```
 
-Limited to 1000 keys and 64 KB total per script.
+Without `goop.expr`, the value would be bound as a literal string.
 
-### goop.log
+### goop.config
 
-Logging:
+Key-value configuration backed by a database table. The table must have `key` and `value` columns:
 
 ```lua
-goop.log.info("processing request")
-goop.log.warn("API key missing")
-goop.log.error("connection failed")
+local cfg = goop.config("settings", { theme = "light", accent = "#6366f1" })
+
+cfg.theme                -- read: returns "light" (or DB value if set)
+cfg:set("theme", "dark") -- write: persists to DB immediately
 ```
 
-### goop.db
+### goop.route
 
-Raw SQL database access (data functions only):
+Action dispatcher. Takes a table mapping action names to handler functions:
+
+```lua
+local dispatch = goop.route({
+    list = list_fn,
+    save = save_fn,
+})
+
+function call(req) return dispatch(req) end
+```
+
+Extracts `request.params.action` and calls the matching handler with `params`. Raises an error for unknown actions.
+
+### goop.owner
+
+Owner-only wrapper. Returns a new function that raises an error if `goop.peer.id ~= goop.self.id`:
+
+```lua
+local dispatch = goop.route({
+    read   = read_fn,                    -- anyone
+    delete = goop.owner(delete_fn),      -- owner only
+})
+```
+
+### goop.db (legacy)
+
+Raw SQL database access. Still available but `goop.orm()` is preferred for new code:
 
 ```lua
 local rows = goop.db.query("SELECT * FROM posts WHERE _owner = ?", goop.peer.id)
@@ -138,90 +319,56 @@ local count = goop.db.scalar("SELECT COUNT(*) FROM responses")
 goop.db.exec("UPDATE games SET turn = ? WHERE _id = ?", "O", game_id)
 ```
 
-### goop.schema
+Use `goop.db` when you need SQL that the ORM can't express (complex joins, CTEs, etc.).
 
-Typed ORM database access (data functions only). Works with tables created via `goop.schema.create` or through the ORM schema system:
+### goop.http
 
-```lua
-goop.schema.create("scores", {
-    {name = "player", type = "text", required = true},
-    {name = "points", type = "integer", default = 0},
-})
-
-goop.schema.insert("scores", {player = "Alice", points = 100})
-
-local row = goop.schema.get("scores", 1)
-local all = goop.schema.list("scores", 10)
-
-goop.schema.update("scores", 1, {points = 200})
-goop.schema.delete("scores", 1)
-
-local ok, err = goop.schema.validate("scores", {player = "Bob"})
-local info = goop.schema.describe("scores")
-local is_orm = goop.schema.is_orm("scores")
-```
-
-### goop.schema.find / find_one
-
-Filtered queries with ordering, pagination, and field selection:
+HTTP client (requires `http_enabled: true` in config):
 
 ```lua
-local rows = goop.schema.find("posts", {
-    where = "published = 1",
-    order = "_id DESC",
-    limit = 10,
-    fields = {"title", "slug"}
-})
-
-local row = goop.schema.find_one("posts", {
-    where = "slug = ?",
-    args = {"hello-world"}
-})
--- returns the row directly (not an array), or nil
+local body, err = goop.http.get("https://api.example.com/data")
+local body, err = goop.http.post("https://api.example.com/submit", { key = "val" })
 ```
+
+Only `http://` and `https://` URLs allowed. Private/loopback addresses blocked (SSRF protection). Limited to 3 requests per invocation, 1 MB max response.
+
+### goop.json
+
+```lua
+local obj = goop.json.decode('{"name":"Alice"}')
+local str = goop.json.encode({ name = "Bob" })
+```
+
+### goop.kv
+
+Persistent key-value store, scoped per script (requires `kv_enabled: true`):
+
+```lua
+goop.kv.set("api_key", "secret123")
+local key = goop.kv.get("api_key")
+goop.kv.del("api_key")
+```
+
+Limited to 1000 keys and 64 KB total per script. Useful for storing API keys or per-script state that shouldn't be in the database.
+
+### goop.log
+
+```lua
+goop.log.info("processing request")
+goop.log.warn("API key missing")
+goop.log.error("connection failed")
+```
+
+Logs appear in the Logs tab.
 
 ### goop.site
 
-Read files from the site content store (data functions only):
+Read files from the site content directory:
 
 ```lua
-local content, err = goop.site.read("api.json")
+local content, err = goop.site.read("config.json")
 local config = goop.json.decode(content)
 ```
-
-This enables a **virtual REST API pattern**: a data function reads `api.json` to configure which tables and operations are exposed, then dispatches CRUD requests based on those declarations.
-
-```mermaid
-flowchart LR
-    JS["Goop.api.get('posts', {slug})"]
-    SDK["goop-api.js"]
-    DC["db.call('api', params)"]
-    P2P["P2P data protocol"]
-    LUA["api.lua"]
-    CFG["api.json"]
-    DB["SQLite"]
-
-    JS --> SDK --> DC --> P2P --> LUA
-    LUA -->|"goop.site.read"| CFG
-    LUA -->|"goop.db.query"| DB
-    DB --> LUA --> P2P --> DC --> SDK --> JS
-```
-
-Templates declare endpoints in `api.json`:
-
-```json
-{
-  "posts": {
-    "table": "posts",
-    "slug": "slug",
-    "filter": "published = 1",
-    "get": true,
-    "list": {"order": "_id DESC", "limit": 50}
-  }
-}
-```
-
-Without `api.json`, all tables are exposed with default CRUD. See the SDK documentation for `Goop.api` for the JavaScript side.
 
 ### goop.listen
 
@@ -229,8 +376,7 @@ Audio listening session control:
 
 ```lua
 local group, err = goop.listen.create("My Session")
-local state = goop.listen.state()
-local track, err = goop.listen.load("/path/to/track.mp3")
+goop.listen.load("/path/to/track.mp3")
 goop.listen.play()
 goop.listen.pause()
 goop.listen.seek(30.5)
@@ -239,11 +385,9 @@ goop.listen.close()
 
 ### goop.commands()
 
-Returns a list of all loaded chat commands.
+Returns a list of all loaded chat commands (name + description).
 
 ## Script annotations
-
-Scripts can include metadata annotations in leading `---` comments:
 
 ```lua
 --- A weather lookup command
@@ -253,8 +397,77 @@ function handle(args)
 end
 ```
 
-- **Description**: The first `---` line (not starting with `@`) becomes the script's description, shown in command listings.
-- **`@rate_limit N`**: Override the per-peer rate limit for this script. `0` = unlimited, any positive number = custom per-peer-per-minute limit. Without this annotation, the global `rate_limit_per_peer` config applies.
+- **Description**: First `---` line becomes the script's description, shown in command listings and the Lua Scripts tab.
+- **`@rate_limit N`**: Override per-peer rate limit. `0` = unlimited. Without this, the global `rate_limit_per_peer` config applies.
+
+## Complete example: todo list backend
+
+A minimal but complete Lua backend for a todo list template:
+
+```lua
+--- Todo list operations
+--- @rate_limit 0
+
+local todos = nil
+
+local function init()
+    if not todos then todos = goop.orm("todos") end
+end
+
+local function list_todos(params)
+    return { todos = todos:find({ order = "position ASC" }) or {} }
+end
+
+local function add_todo(params)
+    if not params.text or params.text == "" then
+        return { error = "text required" }
+    end
+    local max = todos:aggregate("COALESCE(MAX(position), -1) as v")
+    local pos = (max and #max > 0) and max[1].v + 1 or 0
+    local id = todos:insert({
+        text = params.text,
+        done = 0,
+        position = pos,
+        created_by = params.peer_name or "",
+    })
+    return { id = id }
+end
+
+local function toggle_todo(params)
+    if not params.id then return { error = "id required" } end
+    local row = todos:find_one({ where = "_id = ?", args = { params.id }, fields = { "done" } })
+    if not row then return { error = "not found" } end
+    todos:update(params.id, { done = row.done == 0 and 1 or 0 })
+    return { status = "toggled" }
+end
+
+local function delete_todo(params)
+    if not params.id then return { error = "id required" } end
+    todos:delete(params.id)
+    return { status = "deleted" }
+end
+
+local function i(fn) return function(p) init(); return fn(p) end end
+
+local dispatch = goop.route({
+    list   = i(list_todos),
+    add    = i(add_todo),
+    toggle = i(toggle_todo),
+    delete = goop.owner(i(delete_todo)),
+})
+
+function call(req) return dispatch(req) end
+```
+
+The JS side:
+
+```javascript
+var todo = Goop.data.api("todo");
+var result = await todo("list");                       // {todos: [...]}
+await todo("add", { text: "Buy milk" });               // {id: 1}
+await todo("toggle", { id: 1 });                       // {status: "toggled"}
+await todo("delete", { id: 1 });                       // {status: "deleted"} (owner only)
+```
 
 ## Security
 
@@ -271,69 +484,13 @@ graph LR
 
 Every Lua invocation runs in a fresh, sandboxed VM:
 
-- **No filesystem access** -- `io`, `loadfile`, and `dofile` are disabled.
-- **No module loading** -- `require` and `package` are disabled.
-- **No shell execution** -- `os.execute`, `os.remove`, etc. are disabled.
+- **No filesystem access** -- `io`, `loadfile`, `dofile` disabled.
+- **No module loading** -- `require`, `package` disabled.
+- **No shell execution** -- `os.execute`, `os.remove` disabled.
 - **Hard timeout** -- Default 5 seconds, configurable up to 60.
 - **Memory limit** -- Default 10 MB per VM.
-- **Rate limiting** -- Per-peer (30/min) and global (120/min) limits prevent abuse.
+- **Rate limiting** -- Per-peer (30/min) and global (120/min) limits.
 
 ## Hot reload
 
-Scripts are automatically reloaded when their files change. There is no need to restart the peer. If a script has a syntax error, the previous working version stays active and the error is logged.
-
-## Example: weather command
-
-```lua
-function handle(args)
-    if args == "" then return "Usage: !weather <city>" end
-
-    local key = goop.kv.get("api_key")
-    if not key then return "Weather API key not configured." end
-
-    local url = "https://api.openweathermap.org/data/2.5/weather"
-        .. "?q=" .. args .. "&appid=" .. key .. "&units=metric"
-
-    local body, err = goop.http.get(url)
-    if err then return "Error: " .. err end
-
-    local data = goop.json.decode(body)
-    return string.format("%s: %s C, %s",
-        data.name,
-        tostring(math.floor(data.main.temp)),
-        data.weather[1].description)
-end
-```
-
-## Example: game move validation
-
-```lua
-function call(request)
-    local game_id = request.params.game_id
-    local position = tonumber(request.params.position)
-
-    local rows = goop.db.query("SELECT * FROM games WHERE _id = ?", game_id)
-    if not rows or #rows == 0 then
-        error("game not found")
-    end
-
-    local game = rows[1]
-    if game.turn ~= goop.peer.id then
-        return { error = "not your turn" }
-    end
-
-    local idx = position + 1
-    if string.sub(game.board, idx, idx) ~= "-" then
-        return { error = "cell occupied" }
-    end
-
-    local new_board = string.sub(game.board, 1, idx - 1)
-                   .. "X"
-                   .. string.sub(game.board, idx + 1)
-
-    goop.db.exec("UPDATE games SET board = ?, turn = ? WHERE _id = ?",
-        new_board, "O", game_id)
-
-    return { board = new_board, turn = "O" }
-end
-```
+Scripts are automatically reloaded when files change. No restart needed. If a script has a syntax error, the previous working version stays active and the error is logged.

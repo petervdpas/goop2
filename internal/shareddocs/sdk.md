@@ -2,296 +2,477 @@
 
 The Goop2 SDK is a set of JavaScript modules that templates load to interact with the peer. Each module is a single `<script>` tag served from `/sdk/` and attaches to the global `Goop` object.
 
+## Building a template
+
+### The workflow
+
+1. **Build your site** using the Editor tab — write HTML, CSS, JS, upload images
+2. **Test it live** by viewing your own peer (the View tab shows your site)
+3. **Add a backend** — create Lua data functions in the Lua Scripts tab
+4. **Define schemas** — add `schemas/*.json` for your database tables
+5. **Publish** — add `manifest.json` and submit to the template store
+
+Your site IS the template. Other peers install it by copying your files, creating your tables, and running your Lua scripts on their peer.
+
+### File structure
+
+```bash
+my-template/
+  index.html           HTML structure (IDs and classes for JS/CSS)
+  css/style.css        Styling (CSS variables for SDK components)
+  js/app.js            Behavior (reacts to IDs/classes, calls SDK)
+  lua/functions/        Backend logic (called from JS via db.call)
+  partials/            Reusable HTML fragments (rendered by JS)
+  schemas/             ORM table definitions (JSON)
+  images/              Static assets
+  manifest.json        Template metadata
+```
+
+### How the layers connect
+
+```mermaid
+graph TD
+  HTML["index.html<br/>IDs + classes + SDK scripts"]
+  CSS["style.css<br/>:root variables + layout"]
+  JS["app.js<br/>Goop.data / Goop.ui / Goop.partial"]
+  LUA["lua/functions/*.lua<br/>goop.orm() / goop.route()"]
+  DB[("SQLite<br/>schemas/*.json")]
+
+  HTML --> JS
+  CSS --> HTML
+  JS -->|"db.call / db.orm"| LUA
+  JS -->|"Goop.partial"| HTML
+  LUA --> DB
+```
+
+**HTML** defines the structure. Use IDs and classes as hooks — JS finds elements by ID, CSS styles them by class:
+
+```html
+<main id="gallery" class="gallery"></main>
+<div id="toasts" class="gc-toast-container"></div>
+<div id="confirm-dialog" class="gc-dialog-backdrop hidden">
+  <div class="gc-dialog">
+    <h2 class="gc-dialog-title">Confirm</h2>
+    <div class="gc-dialog-body"><p class="gc-dialog-message"></p></div>
+    <div class="gc-dialog-buttons">
+      <button class="gc-dialog-cancel">Cancel</button>
+      <button class="gc-dialog-ok">OK</button>
+    </div>
+  </div>
+</div>
+```
+
+**CSS** styles everything. Define CSS variables in `:root` that SDK components pick up:
+
+```css
+:root {
+  --bg: #1a1a2e;
+  --panel: #16213e;
+  --text: #e6e6e6;
+  --muted: #8888aa;
+  --accent: #e94560;
+  --border: #2a2a4a;
+}
+```
+
+SDK component CSS (dialog, toast, lightbox, etc.) uses these variables with light-theme fallbacks like `var(--panel, #fff)`. If a component looks wrong on your theme, add the missing variable to your `:root`.
+
+**JS** wires up behavior. It reads the DOM by ID/class, detects who's viewing, and renders data:
+
+```javascript
+var db = Goop.data;
+var ctx = await Goop.peer();
+// ctx.isOwner — true if the viewer owns this site
+// ctx.isGroup — true if the viewer is a group member
+// ctx.myId    — viewer's peer ID
+// ctx.hostId  — site owner's peer ID
+
+if (ctx.isOwner) document.getElementById("admin-panel").classList.remove("hidden");
+```
+
+**Lua** handles server-side logic. JS calls Lua via `db.call()`, Lua reads/writes the database, returns JSON:
+
+```javascript
+var result = await db.call("myapp", { action: "get_items" });
+```
+
+### When to use JS ORM vs Lua
+
+- **JS ORM** (`db.orm("table")`) — simple CRUD that doesn't need server-side logic. Good for: reading lists, inserting user-submitted data, basic updates. Access is controlled by the schema's `access` policy.
+- **Lua** (`db.call("function", {})`) — business logic, validation, multi-table operations, owner-only actions, anything that needs server-side rules. Good for: game moves, position swaps, computed fields, authorization checks.
+
+### Schemas
+
+Each table is defined in `schemas/<name>.json`:
+
+```json
+{
+  "name": "cards",
+  "system_key": true,
+  "columns": [
+    {"name": "title", "type": "text", "required": true},
+    {"name": "position", "type": "integer", "default": 0},
+    {"name": "color", "type": "text", "default": ""}
+  ],
+  "access": {
+    "read": "open",
+    "insert": "group",
+    "update": "owner",
+    "delete": "owner"
+  }
+}
+```
+
+**`system_key: true`** means the system manages the `_id` column (auto-increment integer) and adds `_owner`, `_created_at`, `_updated_at` columns automatically. Always use this for template tables.
+
+**Column types**: `text`, `integer`, `real`, `blob`, `enum`.
+
+**Access policies** control who can perform each operation:
+
+| Policy | Meaning |
+|--------|---------|
+| `open` | Anyone can do this (even non-members) |
+| `group` | Only group members and the site owner |
+| `owner` | Only the row's creator (`_owner`) or the site owner |
+| `local` | Only the site owner (server-side only) |
+
+### Partials
+
+HTML fragments in `partials/` are rendered by JS. File name = partial name.
+
+File: `partials/card.html`
+
+```html
+<div class="card" data-card-id="{{_id}}" data-color="{{color}}">
+  <div class="card-title">{{title}}</div>
+  {{#if description}}
+  <div class="card-desc">{{description}}</div>
+  {{/if}}
+</div>
+```
+
+Used from JS:
+
+```javascript
+var el = await Goop.partial("card", { _id: 1, title: "Task", color: "#ff0" });
+container.appendChild(el);
+
+// Or render a list:
+await Goop.list(container, rows, "card", { empty: "No cards yet." });
+```
+
+Syntax: `{{name}}` (escaped), `{{{name}}}` (raw HTML), `{{#if name}}...{{/if}}`, `{{#each items}}...{{/each}}`, `{{#unless name}}...{{/unless}}`.
+
+### Seed data
+
+To populate initial data when the template is installed, add `lua/functions/seed.lua`:
+
+```lua
+function call(req)
+  local cols = goop.orm("columns")
+  local n = cols:seed({
+    { name = "To Do",       position = 0, color = "#6366f1" },
+    { name = "In Progress", position = 1, color = "#f59e0b" },
+    { name = "Done",        position = 2, color = "#22c55e" },
+  })
+  return n
+end
+```
+
+The seed function runs once after the template tables are created.
+
+### Manifest
+
+`manifest.json` registers the template:
+
+```json
+{
+  "name": "Kanban",
+  "description": "A shared team kanban board",
+  "category": "productivity",
+  "icon": "...",
+  "schemas": ["columns", "cards", "kanban_config"]
+}
+```
+
+The `schemas` field lists table names that this template owns. On uninstall, only these tables are dropped.
+
+### Minimal complete example
+
+A working notes template in 4 files:
+
+**schemas/notes.json**
+```json
+{
+  "name": "notes",
+  "system_key": true,
+  "columns": [
+    {"name": "text", "type": "text", "required": true}
+  ],
+  "access": {"read": "open", "insert": "owner", "update": "owner", "delete": "owner"}
+}
+```
+
+**index.html**
+```html
+<!doctype html>
+<html><head>
+  <script src="/sdk/goop-data.js"></script>
+  <script src="/sdk/goop-component-base.js"></script>
+</head><body>
+  <h1>Notes</h1>
+  <div id="notes"></div>
+  <input id="input" placeholder="Add a note...">
+  <button id="add">Add</button>
+  <script src="js/app.js"></script>
+</body></html>
+```
+
+**js/app.js**
+```javascript
+(async function() {
+  var db = Goop.data;
+  var notes = await db.orm("notes");
+  var ctx = await Goop.peer();
+  var list = document.getElementById("notes");
+
+  async function load() {
+    var rows = await notes.find({ order: "_id DESC" }) || [];
+    Goop.render(list);
+    rows.forEach(function(r) {
+      list.appendChild(Goop.dom("p", {}, r.text));
+    });
+  }
+
+  if (ctx.isOwner) {
+    document.getElementById("add").onclick = async function() {
+      var text = document.getElementById("input").value.trim();
+      if (!text) return;
+      await notes.insert({ text: text });
+      document.getElementById("input").value = "";
+      load();
+    };
+  } else {
+    document.getElementById("input").style.display = "none";
+    document.getElementById("add").style.display = "none";
+  }
+
+  load();
+})();
+```
+
+**manifest.json**
+```json
+{"name": "Notes", "description": "Simple notes", "category": "productivity", "schemas": ["notes"]}
+```
+
+That's a complete, installable template. No Lua needed — the JS ORM handles simple CRUD directly.
+
 ## Loading
 
 ```html
+<link rel="stylesheet" href="/sdk/goop-component-toast.css">
+<link rel="stylesheet" href="/sdk/goop-component-dialog.css">
 <script src="/sdk/goop-data.js"></script>
 <script src="/sdk/goop-identity.js"></script>
-<script src="/sdk/goop-components.js"></script>
-<script src="app.js"></script>
-```
-
-Load only the modules you need. `goop-components.js` loads the full component library (toast, dialogs, datepicker, select, etc.). For minimal builds, load individual components:
-
-```html
 <script src="/sdk/goop-component-base.js"></script>
 <script src="/sdk/goop-component-toast.js"></script>
 <script src="/sdk/goop-component-dialog.js"></script>
+<script src="/sdk/goop-component-template.js"></script>
+<script src="js/app.js"></script>
 ```
+
+Load only what you need. Each component has a matching CSS file. Always load `goop-component-base.js` before other components.
 
 The SDK auto-detects whether the template is running on the local peer (`/`) or viewing a remote peer (`/p/<peerID>/`), and routes API calls to the correct peer transparently.
-
-```mermaid
-graph LR
-    T["Template JS"] --> SDK["Goop SDK"]
-    SDK -->|"local context"| LA["Local API"]
-    SDK -->|"remote context"| RA["Remote API"]
-    LA --> DB[("Local SQLite")]
-    RA -->|"P2P stream"| RDB[("Remote SQLite")]
-```
 
 ## Modules
 
 | Module | Global | Purpose |
 |--------|--------|---------|
-| `goop-data.js` | `Goop.data` | Database CRUD, schema, Lua function calls |
+| `goop-data.js` | `Goop.data` | Database CRUD, ORM, Lua calls, config, overlays |
 | `goop-identity.js` | `Goop.identity` | Peer ID, display name, email |
+| `goop-site.js` | `Goop.site` | File storage (read, upload, delete) |
+| `goop-group.js` | `Goop.group` | Group membership, subscriptions |
 | `goop-peers.js` | `Goop.peers` | Peer discovery and status polling |
-| `goop-group.js` | `Goop.group` | Group membership, messaging |
 | `goop-chat.js` | `Goop.chat` | Direct and broadcast chat over MQ |
 | `goop-realtime.js` | `Goop.realtime` | Virtual MQ-based channels |
 | `goop-call.js` | `Goop.call` | Audio/video calling |
 | `goop-api.js` | `Goop.api` | Virtual REST API over Lua data functions |
-| `goop-site.js` | `Goop.site` | File storage (read, upload, delete) |
-| `goop-components.js` | `Goop.ui` | Component library loader (loads all below) |
 | `goop-form.js` | `Goop.form` | JSON-driven form renderer |
 | `goop-forms.js` | `Goop.forms` | Auto-generated CRUD UI from schema |
-| `goop-drag.js` | `Goop.drag` | Drag-and-drop with sortable lists |
 | `goop-engine.js` | `GameLoop, Renderer, ...` | 2D game engine (Canvas) |
+
+## Utilities (from goop-data.js)
+
+`goop-data.js` also provides these helpers on the `Goop` global:
+
+```javascript
+var ctx = await Goop.peer();
+// ctx.myId    — this viewer's peer ID
+// ctx.hostId  — site owner's peer ID
+// ctx.isOwner — true when viewing your own site
+// ctx.isGroup — true when viewer is a subscribed group member
+// ctx.label   — viewer's display name
+
+var formatted = Goop.date(timestamp);  // "April 2, 2026"
+var safe = Goop.esc(userInput);        // HTML-escaped string
+
+var overlay = Goop.overlay("my-overlay-id");
+overlay.open();   // removes .hidden, focuses first input
+overlay.close();  // adds .hidden
+```
 
 ## Component Library
 
-The component library is modular. Load everything with `goop-components.js`, or pick individual files:
+Each component is a separate JS + CSS file pair. Load `goop-component-base.js` first.
 
 | Component file | Provides | Key options |
 |---|---|---|
-| `goop-component-base.js` | Theme detection, CSS vars, grid, toast enhancements | Required by all components |
-| `goop-component-toast.js` | `Goop.ui.toast()`, `.success()`, `.error()`, `.warning()`, `.info()` | message, title, duration |
-| `goop-component-dialog.js` | `Goop.ui.dialog()`, `.alert()`, `.confirm()`, `.prompt()`, `.confirmDanger()` | title, message, input, ok, cancel |
-| `goop-component-datepicker.js` | `Goop.ui.datepicker(el, opts)` | value, time, min, max, format, firstDay, disabled |
-| `goop-component-select.js` | `Goop.ui.select(el, opts)` | options, value, multi, searchable, clearable, disabled |
-| `goop-component-colorpicker.js` | `Goop.ui.colorpicker(el, opts)` | value, colors, showHex, disabled |
-| `goop-component-toggle.js` | `Goop.ui.toggle(el, opts)` | checked, label, disabled |
-| `goop-component-tabs.js` | `Goop.ui.tabs(el, opts)` | tabs[{id, label, content, disabled}], active |
-| `goop-component-accordion.js` | `Goop.ui.accordion(el, opts)` | sections[{id, label, content}], multi, open |
-| `goop-component-taginput.js` | `Goop.ui.taginput(el, opts)` | value, placeholder, max, suggestions, disabled |
-| `goop-component-stepper.js` | `Goop.ui.stepper(el, opts)` | value, min, max, step, disabled |
-| `goop-component-sidebar.js` | `Goop.ui.sidebar(opts)` | title, content, side, width, overlay, closeOnEscape |
-| `goop-component-carousel.js` | `Goop.ui.carousel(el, opts)` | slides, start, autoplay, loop, dots, arrows |
-| `goop-component-lightbox.js` | `Goop.ui.lightbox(opts)` | items, showCounter, loop |
-| `goop-component-toolbar.js` | `Goop.ui.toolbar(el, opts)` | buttons[{id, label, disabled}], active, multi |
-| `goop-component-badge.js` | `Goop.ui.badge(text, opts)` | variant (success/warning/danger/muted), dot |
-| `goop-component-progress.js` | `Goop.ui.progress(el, opts)` | value, max, variant, animated, height, format |
-| `goop-component-pagination.js` | `Goop.ui.pagination(el, opts)` | total, page, perPage, totalItems, maxButtons, showInfo |
-| `goop-component-tooltip.js` | `Goop.ui.tooltip(el, opts)` | text, position (top/bottom/left/right) |
-| `goop-component-panel.js` | `Goop.ui.panel()`, `.scrollbox()`, `.splitpane()` | collapsible, variant, maxHeight, direction |
+| `goop-component-base.js` | `Goop.dom()`, `Goop.render()`, `Goop.list()`, `Goop.ui.empty()`, `Goop.ui.theme()`, grid | Required by all components |
+| `goop-component-template.js` | `Goop.partial()`, `Goop.preload()` | Mustache-like partials from `partials/` dir |
+| `goop-component-toast.js` | `Goop.ui.toast(el, opts)` | toastClass, titleClass, messageClass, duration |
+| `goop-component-dialog.js` | `Goop.ui.dialog(el, opts)` => `.confirm()`, `.prompt()`, `.alert()`, `.confirmDanger()` | title, message, input, ok, cancel, hiddenClass |
+| `goop-component-lightbox.js` | `Goop.ui.lightbox(el, opts)` | img, prev, next, close, caption, openClass, hiddenClass |
+| `goop-component-drag.js` | `Goop.drag.sortable(el, opts)` | items, handle, group, direction, onEnd |
+| `goop-component-colorpicker.js` | `Goop.ui.colorpicker(el, opts)` | colors, value, swatch, popup |
+| `goop-component-toolbar.js` | `Goop.ui.toolbar(el, opts)` | idAttr, activeClass, active, onChange |
+| `goop-component-datepicker.js` | `Goop.ui.datepicker(el, opts)` | value, time, min, max, format |
+| `goop-component-select.js` | `Goop.ui.select(el, opts)` | options, value, multi, searchable |
+| `goop-component-tabs.js` | `Goop.ui.tabs(el, opts)` | tabs, active |
+| `goop-component-accordion.js` | `Goop.ui.accordion(el, opts)` | sections, multi, open |
+| `goop-component-taginput.js` | `Goop.ui.taginput(el, opts)` | value, placeholder, max, suggestions |
+| `goop-component-stepper.js` | `Goop.ui.stepper(el, opts)` | value, min, max, step |
+| `goop-component-carousel.js` | `Goop.ui.carousel(el, opts)` | slides, autoplay, loop, dots, arrows |
+| `goop-component-sidebar.js` | `Goop.ui.sidebar(opts)` | title, side, width, overlay |
+| `goop-component-badge.js` | `Goop.ui.badge(text, opts)` | variant, dot |
+| `goop-component-progress.js` | `Goop.ui.progress(el, opts)` | value, max, variant, animated |
+| `goop-component-pagination.js` | `Goop.ui.pagination(el, opts)` | total, page, perPage |
+| `goop-component-tooltip.js` | `Goop.ui.tooltip(el, opts)` | text, position |
+| `goop-component-panel.js` | `Goop.ui.panel()`, `.scrollbox()`, `.splitpane()` | collapsible, variant |
 
-All components return a handle with `getValue()`, `setValue()`, `destroy()`, and `el`. All fire standard `change` and `input` DOM events. All support `--goop-*` CSS custom properties for theming.
+### Goop.dom (from base.js)
+
+Build DOM elements without innerHTML:
+
+```javascript
+var h = Goop.dom;
+var card = h("div", { class: "card", data: { id: row._id } },
+  h("h3", {}, row.title),
+  h("p", { class: "muted" }, row.description),
+  ctx.isOwner ? h("button", { onclick: deleteCard }, "Delete") : null
+);
+Goop.render(container, card);
+```
+
+### Goop.ui.toast
+
+```javascript
+var toast = Goop.ui.toast(document.getElementById("toasts"), {
+  toastClass: "gc-toast",
+  titleClass: "gc-toast-title",
+  messageClass: "gc-toast-message",
+  enterClass: "gc-toast-enter",
+  exitClass: "gc-toast-exit",
+});
+
+toast("Saved!");
+toast({ title: "Error", message: "Something went wrong" });
+```
+
+### Goop.ui.dialog
+
+```javascript
+Goop.ui.dialog(document.getElementById("confirm-dialog"), {
+  title: ".gc-dialog-title",
+  message: ".gc-dialog-message",
+  inputWrap: ".gc-dialog-input-wrap",
+  input: ".gc-dialog-input",
+  ok: ".gc-dialog-ok",
+  cancel: ".gc-dialog-cancel",
+  hiddenClass: "hidden",
+});
+
+var ok = await Goop.ui.confirm("Delete this item?");
+var name = await Goop.ui.prompt({ title: "Rename", message: "New name:", value: "old" });
+await Goop.ui.alert("Done", "Operation completed.");
+```
 
 ## Goop.data
 
-Database access. Works in both self and remote peer context.
+Database access and Lua function calls. Works in both local and remote peer context.
+
+### ORM handle (recommended for simple CRUD)
 
 ```javascript
-const db = Goop.data;
+var db = Goop.data;
+var posts = await db.orm("posts");
 
-// List tables (includes mode: orm/classic)
-const tables = await db.tables();
+var rows = await posts.find({ where: "published = 1", order: "_id DESC", limit: 10 });
+var row = await posts.findOne({ where: "slug = ?", args: ["hello"] });
+var post = await posts.get(42);
+var bySlug = await posts.getBy("slug", "hello");
+var titles = await posts.pluck("title");
+var n = await posts.count({ where: "published = 1" });
+var exists = await posts.exists({ where: "slug = ?", args: ["hello"] });
 
-// Describe a table's columns
-const info = await db.describe("tasks");
+var result = await posts.insert({ title: "New", body: "Content" });
+await posts.update(42, { title: "Updated" });
+await posts.remove(42);
+await posts.updateWhere({ published: 1 }, { where: "draft = 0" });
+await posts.deleteWhere({ where: "archived = 1" });
+await posts.upsert("slug", { slug: "hello", title: "Hello" });
+```
 
-// Create table (ORM format with typed columns)
-await db.createTable("tasks", [
-  {name: "id",    type: "integer", key: true},
-  {name: "title", type: "text",    required: true},
-  {name: "score", type: "real"}
-]);
+The ORM handle also exposes `posts.columns`, `posts.access`, `posts.canInsert`, `posts.canUpdate`, `posts.canDelete`, `posts.validate(data)`, `posts.form(el, opts)`, and `posts.table(el, rows, opts)`.
 
-// Insert
-const {id} = await db.insert("tasks", {title: "Hello", score: 9.5});
+### Calling Lua functions (for business logic)
 
-// Query with options
-const rows = await db.query("tasks", {limit: 10, where: "score > ?", args: [5]});
+```javascript
+var result = await db.call("kanban", { action: "get_board" });
+```
 
-// Update by _id
-await db.update("tasks", id, {score: 10});
+The second argument becomes `request.params` in Lua. The return value is the Lua function's return table, as JSON. See the Lua guide for the server side.
 
-// Delete by _id
+### API helper
+
+Shorthand for Lua functions that use `goop.route()`. Inserts `action` automatically:
+
+```javascript
+var blog = Goop.data.api("blog");
+// blog("get_posts", {limit: 10}) calls db.call("blog", {action: "get_posts", limit: 10})
+var result = await blog("get_posts", { limit: 10 });
+await blog("save_config", { key: "title", value: "My Blog" });
+```
+
+### Config helper
+
+```javascript
+var cfg = await db.config("settings", { theme: "light", accent: "#6366f1" });
+cfg.theme;                          // reads current value
+await cfg.set("theme", "dark");     // persists to DB
+```
+
+Works with key-value tables (columns: `key`, `value`) or single-row tables.
+
+### Direct CRUD (without ORM handle)
+
+```javascript
+var rows = await db.find("tasks", { limit: 10, where: "score > ?", args: [5] });
+var result = await db.insert("tasks", { title: "Hello", score: 9.5 });
+await db.update("tasks", id, { score: 10 });
 await db.remove("tasks", id);
-
-// Drop a table
-await db.dropTable("tasks");
-
-// Add a column
-await db.addColumn("tasks", {name: "priority", type: "INTEGER", not_null: false});
-
-// Call a Lua data function
-const result = await db.call("score-quiz", {answers: [1, 2, 3]});
-
-// List available Lua functions
-const fns = await db.functions();
+var tables = await db.tables();
+var schemas = await db.schemas();
 ```
-
-## Goop.api
-
-Virtual REST-like API backed by a server-side Lua function. Requires `goop-data.js`. Templates define endpoints in `api.json`; without it, all tables get default CRUD.
-
-```javascript
-const api = Goop.api;
-
-// Get a single record by slug or id
-const post = await api.get("posts", {slug: "hello-world"});
-// → {found: true, item: {_id, title, body, ...}}
-
-// List records (paginated)
-const result = await api.list("posts", {limit: 10, offset: 0});
-// → {items: [...]}
-
-// Insert, update, delete
-await api.insert("posts", {title: "New", body: "Content"});
-await api.update("posts", 42, {title: "Updated"});
-await api.delete("posts", 42);
-
-// Config table as key-value map
-const config = await api.map("config");
-// → {theme: "dark", accent: "#2d6a9f"}
-```
-
-### api.json
-
-Endpoint declarations placed in the site root:
-
-```json
-{
-  "posts": {
-    "table": "posts",
-    "slug": "slug",
-    "filter": "published = 1",
-    "fields": ["title", "body", "author_name"],
-    "get": true,
-    "list": {"order": "_id DESC", "limit": 50},
-    "insert": true, "update": true, "delete": true
-  },
-  "config": {
-    "table": "blog_config",
-    "map": {"key": "key", "value": "value"}
-  }
-}
-```
-
-Without `api.json`, all tables are exposed with default CRUD (get by `_id`, list by `_id DESC`, limit 50). See the Lua scripting page for the server-side architecture.
 
 ## Goop.identity
 
 ```javascript
-const info  = await Goop.identity.get();    // {id, label, email}
-const myId  = await Goop.identity.id();     // peer ID string
-const name  = await Goop.identity.label();  // display name
-const email = await Goop.identity.email();  // email string
-Goop.identity.refresh();                    // clear cache, force re-fetch
-```
-
-## Goop.peers
-
-```javascript
-// One-time fetch
-const peers = await Goop.peers.list();
-// Each peer: {ID, Content, Email, AvatarHash, VideoDisabled,
-//   ActiveTemplate, Verified, Reachable, Offline, LastSeen}
-
-// Live updates (polls every 5s by default)
-Goop.peers.subscribe({
-  onSnapshot(peers) { /* full list on first load */ },
-  onUpdate(peerId, peer) { /* peer came online or changed */ },
-  onRemove(peerId) { /* peer pruned from list */ },
-  onError() { /* optional error handler */ }
-}, 5000);
-
-// Stop polling
-Goop.peers.unsubscribe();
-```
-
-## Goop.group
-
-```javascript
-// Create a hosted group
-await Goop.group.create("My Room", "realtime", 10);
-
-// List hosted groups
-const groups = await Goop.group.list();
-
-// Join a remote group
-await Goop.group.join(hostPeerId, groupId);
-
-// Send a message to the group
-await Goop.group.send({action: "move", x: 5}, groupId);
-
-// Leave a group
-await Goop.group.leave();
-
-// Host joins/leaves own group
-await Goop.group.joinOwn(groupId);
-await Goop.group.leaveOwn(groupId);
-
-// Close a hosted group
-await Goop.group.close(groupId);
-
-// SSE event stream
-const es = Goop.group.subscribe(function(evt) {
-  // evt.type: "welcome", "members", "msg", "state", "leave", "close", "invite"
-});
-Goop.group.unsubscribe();
-```
-
-## Goop.chat
-
-```javascript
-// Direct message
-await Goop.chat.send(peerId, "Hello!");
-
-// Broadcast to all peers
-await Goop.chat.broadcast("Server restarting");
-
-// Subscribe to incoming messages via MQ
-Goop.chat.subscribe(function(msg) {
-  // msg: {from, content, type, timestamp}
-  // type: "broadcast" or "direct"
-});
-Goop.chat.unsubscribe();
-```
-
-## Goop.realtime
-
-Virtual MQ-based channels for real-time peer communication.
-
-```javascript
-// Connect to a peer
-const ch = await Goop.realtime.connect(peerId);
-
-// Channel methods
-ch.send({action: "ping"});
-ch.onMessage(function(msg, env) { /* env: {channel, from} */ });
-ch.close();
-
-// Accept an incoming channel
-const ch = await Goop.realtime.accept(channelId, hostPeerId);
-
-// Listen for incoming channel invitations
-Goop.realtime.onIncoming(function(info) {
-  // info: {channelId, hostPeerId}
-});
-```
-
-## Goop.call
-
-Audio/video calling.
-
-```javascript
-// Start a call
-const session = await Goop.call.start(peerId, {video: true, audio: true});
-
-session.onRemoteStream(function(stream) { video.srcObject = stream; });
-session.onHangup(function() { /* call ended */ });
-session.hangup();
-session.toggleAudio();
-session.toggleVideo();
-
-// Listen for incoming calls
-Goop.call.onIncoming(function(info) {
-  const session = await info.accept({video: true, audio: true});
-  // or: info.reject();
-});
+var info  = await Goop.identity.get();    // {id, label, email}
+var myId  = await Goop.identity.id();     // peer ID string
+var name  = await Goop.identity.label();  // display name
+var email = await Goop.identity.email();  // email string
 ```
 
 ## Goop.site
@@ -299,81 +480,77 @@ Goop.call.onIncoming(function(info) {
 File storage for the peer's site content directory.
 
 ```javascript
-const files = await Goop.site.files();
-const content = await Goop.site.read("data.json");
-const response = await Goop.site.fetch("image.png");
-await Goop.site.upload("data.json", fileOrBlob);
-await Goop.site.remove("data.json");
+var files = await Goop.site.files();
+var content = await Goop.site.read("data.json");
+await Goop.site.upload("images/photo.jpg", file);
+await Goop.site.remove("images/old.jpg");
 ```
 
-## Goop.ui
-
-UI components — loaded via `goop-components.js` or individual component files.
+## Goop.group
 
 ```javascript
-// Toast
-Goop.ui.toast("Saved!");
-Goop.ui.toast.success("Row inserted");
-Goop.ui.toast.error("Something failed");
+await Goop.group.create("My Room", "realtime", 10);
+var groups = await Goop.group.list();
+var subs = await Goop.group.subscriptions();
+await Goop.group.join(hostPeerId, groupId);
+await Goop.group.send({ action: "move", x: 5 }, groupId);
+await Goop.group.leave();
 
-// Dialogs
-const ok = await Goop.ui.confirm("Delete this item?");
-const name = await Goop.ui.prompt({ title: "Rename", message: "New name:" });
-const theme = Goop.ui.theme();  // "dark" or "light"
-
-// Components
-const dp = Goop.ui.datepicker(el, { value: "2026-01-15", time: true });
-const sel = Goop.ui.select(el, { options: ["A", "B", "C"], searchable: true });
-const tb = Goop.ui.tabs(el, { tabs: [{id: "a", label: "Tab A"}, {id: "b", label: "Tab B"}] });
-const sb = Goop.ui.sidebar({ title: "Settings", side: "right" });
-sb.open();
-```
-
-## Goop.form
-
-JSON-driven form renderer. Requires `goop-data.js` and `goop-identity.js`.
-
-```javascript
-await Goop.form.render(document.getElementById("form"), {
-  table: "responses",
-  fields: [
-    {name: "name",    label: "Your Name", type: "text",     required: true},
-    {name: "rating",  label: "Rating",    type: "number"},
-    {name: "comment", label: "Comment",   type: "textarea"},
-    {name: "color",   label: "Color",     type: "select",   options: ["Red", "Blue", "Green"]},
-    {name: "agree",   label: "I agree",   type: "checkbox"}
-  ],
-  submitLabel: "Send",
-  singleResponse: true,
-  onDone: function() { /* callback after save */ }
+var es = Goop.group.subscribe(function(evt) {
+  // evt.type: "welcome", "members", "msg", "state", "leave", "close", "invite"
 });
 ```
 
-## Goop.forms
-
-Auto-generated CRUD UI from table schemas. Requires `goop-data.js` and `goop-component-dialog.js`.
+## Goop.peers
 
 ```javascript
-// Full CRUD interface
-await Goop.forms.render(document.getElementById("crud"), "tasks");
+var peers = await Goop.peers.list();
+Goop.peers.subscribe({
+  onSnapshot(peers) { },
+  onUpdate(peerId, peer) { },
+  onRemove(peerId) { }
+}, 5000);
+Goop.peers.unsubscribe();
+```
 
-// Insert form only
-await Goop.forms.insertForm(document.getElementById("form"), "tasks", function() {
-  // called after row inserted
+## Goop.chat
+
+```javascript
+await Goop.chat.send(peerId, "Hello!");
+await Goop.chat.broadcast("Server restarting");
+Goop.chat.subscribe(function(msg) { /* msg: {from, content, type, timestamp} */ });
+```
+
+## Goop.realtime
+
+```javascript
+var ch = await Goop.realtime.connect(peerId);
+ch.send({ action: "ping" });
+ch.onMessage(function(msg, env) { });
+ch.close();
+```
+
+## Goop.call
+
+```javascript
+var session = await Goop.call.start(peerId, { video: true, audio: true });
+session.onRemoteStream(function(stream) { video.srcObject = stream; });
+session.hangup();
+
+Goop.call.onIncoming(function(info) {
+  var session = await info.accept({ video: true });
 });
 ```
 
 ## Goop.drag
 
-Reusable drag-and-drop with sortable lists.
-
 ```javascript
-const instance = Goop.drag.sortable(container, {
-  items: "> .card",
+var instance = Goop.drag.sortable(container, {
+  items: ".card",
   handle: ".drag-handle",
   group: "kanban",
   direction: "vertical",
-  onEnd(evt) { /* {item, from, to, oldIndex, newIndex} */ }
+  onEnd: function(evt) { /* evt: {item, from, to, oldIndex, newIndex} */ }
 });
 instance.destroy();
 ```
@@ -383,20 +560,19 @@ instance.destroy();
 2D game engine for Canvas-based templates. Exposes global classes (not under `Goop`).
 
 ```javascript
-const loop = new GameLoop(60);
+var loop = new GameLoop(60);
 loop.start(update, render);
 
-const renderer = new Renderer(canvas);
+var renderer = new Renderer(canvas);
 renderer.clear("#000");
 renderer.drawRect(x, y, w, h, color);
 renderer.drawSprite(image, sx, sy, sw, sh, dx, dy, dw, dh);
 renderer.drawText(text, x, y, font, color, align);
 
-const sheet = new SpriteSheet("sprites.png", 16, 16);
-const input = new Input();
+var input = new Input();
 input.bind(canvas);
 
-const scenes = new SceneManager();
+var scenes = new SceneManager();
 scenes.add("menu", { enter(){}, update(dt){}, render(r){}, exit(){} });
 scenes.switch("menu");
 ```
