@@ -77,11 +77,11 @@
         _ss(btn, {
           padding: "8px 12px", border: "1px solid " + c, borderRadius: "999px",
           cursor: "pointer", font: "inherit", color: t.text,
-          background: "color-mix(in srgb," + c + " 14%,transparent)",
+          background: danger ? "rgba(255,90,90,.14)" : "rgba(122,162,255,.14)",
           transition: "background 0.17s, transform 0.17s"
         });
-        btn.addEventListener("mouseenter", function() { btn.style.background = "color-mix(in srgb," + c + " 22%,transparent)"; btn.style.transform = "translateY(-0.5px)"; });
-        btn.addEventListener("mouseleave", function() { btn.style.background = "color-mix(in srgb," + c + " 14%,transparent)"; btn.style.transform = "none"; });
+        btn.addEventListener("mouseenter", function() { _ss(btn, { background: danger ? "rgba(255,90,90,.22)" : "rgba(122,162,255,.22)", transform: "translateY(-0.5px)" }); });
+        btn.addEventListener("mouseleave", function() { _ss(btn, { background: danger ? "rgba(255,90,90,.14)" : "rgba(122,162,255,.14)", transform: "none" }); });
         return btn;
       }
 

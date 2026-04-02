@@ -3,62 +3,11 @@
   window.Goop.ui = window.Goop.ui || {};
   var _e = Goop.ui._esc || function(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
 
-  var SID = "gc-panel-style";
-  if (!document.getElementById(SID)) {
-    var s = document.createElement("style"); s.id = SID;
-    s.textContent = `
-      .gc-panel {
-        background: var(--goop-panel, #151924); border: 1px solid var(--goop-border, #2a3142);
-        border-radius: var(--goop-radius, 6px); font: var(--goop-font, inherit); color: var(--goop-text, #e6e9ef);
-        overflow: hidden;
-      }
-      .gc-panel[data-goop-variant="flat"] { border: none; box-shadow: none; }
-      .gc-panel[data-goop-variant="raised"] { box-shadow: 0 4px 16px rgba(0,0,0,.2); }
-      .gc-panel-header {
-        display: flex; align-items: center; justify-content: space-between;
-        padding: .6rem .85rem; border-bottom: 1px solid var(--goop-border, #2a3142);
-        font-weight: 600; font-size: .95rem;
-      }
-      .gc-panel-header-actions { display: flex; gap: .35rem; }
-      .gc-panel-body { padding: .75rem .85rem; }
-      .gc-panel-body[data-goop-scroll] { overflow-y: auto; }
-      .gc-panel-footer { padding: .6rem .85rem; border-top: 1px solid var(--goop-border, #2a3142); }
-      .gc-panel[data-goop-collapsible] .gc-panel-collapse-btn {
-        background: none; border: none; color: var(--goop-muted, #9aa3b2); cursor: pointer;
-        font-size: .7rem; transition: transform .2s; padding: .1rem .3rem;
-      }
-      .gc-panel[data-goop-collapsed] .gc-panel-body,
-      .gc-panel[data-goop-collapsed] .gc-panel-footer { display: none; }
-      .gc-panel[data-goop-collapsed] .gc-panel-collapse-btn { transform: rotate(-90deg); }
-
-      .gc-scrollbox {
-        overflow-y: auto; overflow-x: hidden;
-        scrollbar-width: thin;
-        scrollbar-color: var(--goop-border, #2a3142) transparent;
-      }
-      .gc-scrollbox::-webkit-scrollbar { width: 6px; }
-      .gc-scrollbox::-webkit-scrollbar-track { background: transparent; }
-      .gc-scrollbox::-webkit-scrollbar-thumb { background: var(--goop-border, #2a3142); border-radius: 3px; }
-
-      .gc-splitpane { display: flex; height: 100%; }
-      .gc-splitpane[data-goop-dir="vertical"] { flex-direction: column; }
-      .gc-splitpane-panel { overflow: auto; min-width: 0; min-height: 0; }
-      .gc-splitpane-divider {
-        flex-shrink: 0; background: var(--goop-border, #2a3142); cursor: col-resize;
-        transition: background .15s;
-      }
-      .gc-splitpane[data-goop-dir="vertical"] .gc-splitpane-divider { cursor: row-resize; height: 4px; width: 100%; }
-      .gc-splitpane:not([data-goop-dir="vertical"]) .gc-splitpane-divider { width: 4px; height: 100%; }
-      .gc-splitpane-divider:hover { background: var(--goop-accent, #7aa2ff); }
-    `;
-    document.head.appendChild(s);
-  }
-
   Goop.ui.panel = function(el, opts) {
     opts = opts || {};
 
     var wrap = document.createElement("div");
-    wrap.className = "gc-panel";
+    wrap.className = opts.class || "gc-panel";
     wrap.setAttribute("data-goop-component", "panel");
     if (opts.variant) wrap.setAttribute("data-goop-variant", opts.variant);
     var collapsible = !!opts.collapsible;
@@ -124,7 +73,7 @@
   Goop.ui.scrollbox = function(el, opts) {
     opts = opts || {};
     var wrap = document.createElement("div");
-    wrap.className = "gc-scrollbox";
+    wrap.className = opts.class || "gc-scrollbox";
     wrap.setAttribute("data-goop-component", "scrollbox");
     if (opts.maxHeight) wrap.style.maxHeight = typeof opts.maxHeight === "number" ? opts.maxHeight + "px" : opts.maxHeight;
     if (opts.height) wrap.style.height = typeof opts.height === "number" ? opts.height + "px" : opts.height;
@@ -146,7 +95,7 @@
     var minSize = opts.minSize || 50;
 
     var wrap = document.createElement("div");
-    wrap.className = "gc-splitpane";
+    wrap.className = opts.class || "gc-splitpane";
     wrap.setAttribute("data-goop-component", "splitpane");
     if (direction === "vertical") wrap.setAttribute("data-goop-dir", "vertical");
 

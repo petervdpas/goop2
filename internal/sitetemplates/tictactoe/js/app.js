@@ -56,56 +56,63 @@
     var finished = games.filter(function(g) { return g.status !== "waiting" && g.status !== "playing"; }).slice(0, 10);
 
     Goop.render(root, h("div", { class: "ttt-lobby" },
-      Goop.actions(
-        !isOwner ? Goop.button("Challenge Host", { primary: true, onclick: async function() {
+      h("div", { class: "ttt-actions" },
+        !isOwner ? h("button", { class: "btn btn-primary", onclick: async function() {
           this.disabled = true;
           try {
             var result = await db.call("ttt", { action: "new" });
             if (result.error) { Goop.ui.toast(result.error); if (result.game_id) { showGame(result.game_id); return; } this.disabled = false; }
             else showGame(result.game_id);
           } catch (e) { Goop.ui.toast(e.message); this.disabled = false; }
-        } }) : null,
-        Goop.button("Play vs Computer", { primary: isOwner, onclick: async function() {
+        } }, "Challenge Host") : null,
+        h("button", { class: "btn " + (isOwner ? "btn-primary" : "btn-secondary"), onclick: async function() {
           this.disabled = true;
           try {
             var result = await db.call("ttt", { action: "new_pve" });
             if (result.error) { Goop.ui.toast(result.error); this.disabled = false; }
             else { currentGameId = result.game_id; renderBoard(result); }
           } catch (e) { Goop.ui.toast(e.message); this.disabled = false; }
-        } })
+        } }, "Play vs Computer")
       ),
 
-      Goop.stats([
-        { label: "wins", value: stats.wins || 0 },
-        { label: "losses", value: stats.losses || 0 },
-        { label: "draws", value: stats.draws || 0 },
-      ]),
+      h("div", { class: "ttt-stats" },
+        h("span", {}, h("span", { class: "stat-val" }, String(stats.wins || 0)), " wins"),
+        h("span", {}, h("span", { class: "stat-val" }, String(stats.losses || 0)), " losses"),
+        h("span", {}, h("span", { class: "stat-val" }, String(stats.draws || 0)), " draws")
+      ),
 
-      pending.length > 0 ? Goop.section("Pending Challenges",
+      pending.length > 0 ? h("div", { class: "ttt-panel" },
+        h("h2", {}, "Pending Challenges"),
         h("ul", { class: "ttt-challenges" }, pending.map(function(pg) {
-          return Goop.item({
-            label: pg.challenger_label || pg.challenger.substring(0, 12) + "...",
-            subtitle: Goop.ui.time(pg._created_at),
-            actions: [Goop.button("Play", { small: true, onclick: async function() {
+          return h("li", { class: "ttt-challenge-item" },
+            h("span", {}, h("span", { class: "name" }, pg.challenger_label || pg.challenger.substring(0, 12) + "..."), h("span", { class: "time" }, Goop.ui.time(pg._created_at))),
+            h("button", { class: "btn-sm", onclick: async function() {
               this.disabled = true;
               try { await db.call("ttt", { action: "accept", game_id: pg._id }); } catch (e) {}
               showGame(pg._id);
-            } })],
-          });
+            } }, "Play")
+          );
         }))
       ) : null,
 
-      Goop.section("Recent Games",
-        Goop.table(["Opponent", "Result", "Mode", ""],
-          finished.map(function(fg) {
-            var opponent = fg.mode === "pve" ? "Computer" : (fg.challenger_label || fg.challenger.substring(0, 12) + "...");
-            var result = fg.status === "draw" || fg.status === "cancelled"
-              ? (fg.status === "cancelled" ? "cancelled" : "draw")
-              : (fg.winner === myId ? "won" : "lost");
-            return [opponent, result, fg.mode === "pve" ? "vs AI" : "PvP", Goop.ui.time(fg._created_at)];
-          }),
-          { empty: "No games played yet." }
-        )
+      h("div", { class: "ttt-panel" },
+        h("h2", {}, "Recent Games"),
+        finished.length === 0
+          ? h("p", { class: "ttt-empty" }, "No games played yet.")
+          : h("table", { class: "ttt-history" },
+              h("thead", {}, h("tr", {}, h("th", {}, "Opponent"), h("th", {}, "Result"), h("th", {}, "Mode"), h("th", {}))),
+              h("tbody", {}, finished.map(function(fg) {
+                var opponent = fg.mode === "pve" ? "Computer" : (fg.challenger_label || fg.challenger.substring(0, 12) + "...");
+                var result = fg.status === "draw" || fg.status === "cancelled" ? (fg.status === "cancelled" ? "cancelled" : "draw") : (fg.winner === myId ? "won" : "lost");
+                var resultCls = fg.winner === myId ? "result-win" : (result === "draw" || result === "cancelled" ? "result-draw" : "result-loss");
+                return h("tr", {},
+                  h("td", {}, opponent),
+                  h("td", { class: resultCls }, result),
+                  h("td", {}, fg.mode === "pve" ? "vs AI" : "PvP"),
+                  h("td", {}, Goop.ui.time(fg._created_at))
+                );
+              }))
+            )
       )
     ));
   }
@@ -132,8 +139,11 @@
 
     if (state.status === "waiting") {
       Goop.render(root, h("div", { class: "ttt-game" },
-        Goop.ui.loading("Waiting for host to accept\u2026"),
-        Goop.button("Cancel", { onclick: async function() { await db.call("ttt", { action: "cancel", game_id: state.game_id }); showLobby(); } })
+        h("div", { class: "ttt-waiting" },
+          h("div", { class: "spinner" }),
+          h("p", {}, "Waiting for host to accept\u2026"),
+          h("button", { class: "btn btn-secondary btn-sm", onclick: async function() { await db.call("ttt", { action: "cancel", game_id: state.game_id }); showLobby(); } }, "Cancel")
+        )
       ));
       return;
     }
@@ -185,16 +195,16 @@
     Goop.render(root, h("div", { class: "ttt-game" },
       statusEl,
       h("div", { class: "ttt-board" }, cells),
-      gameOver ? Goop.actions(
-        state.mode === "pve" ? Goop.button("Play Again", { primary: true, onclick: async function() {
+      gameOver ? h("div", { class: "ttt-game-actions" },
+        state.mode === "pve" ? h("button", { class: "btn btn-primary", onclick: async function() {
           this.disabled = true;
           try {
             var result = await db.call("ttt", { action: "new_pve" });
             if (result.error) { Goop.ui.toast(result.error); this.disabled = false; }
             else { currentGameId = result.game_id; renderBoard(result); }
           } catch (e) { Goop.ui.toast(e.message); this.disabled = false; }
-        } }) : null,
-        Goop.button("Back to Lobby", { onclick: function() { showLobby(); } })
+        } }, "Play Again") : null,
+        h("button", { class: "btn btn-secondary", onclick: function() { showLobby(); } }, "Back to Lobby")
       ) : null
     ));
   }

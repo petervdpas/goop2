@@ -4,49 +4,6 @@
   var _e = Goop.ui._esc || function(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
   var _f = Goop.ui._fire || function(el, n, dt) { el.dispatchEvent(new CustomEvent(n, { bubbles: true, detail: dt })); };
 
-  var SID = "gc-select-style";
-  if (!document.getElementById(SID)) {
-    var s = document.createElement("style"); s.id = SID;
-    s.textContent = `
-      .gc-select { position: relative; display: inline-block; font: var(--goop-font, inherit); width: 100%; }
-      .gc-select-trigger {
-        box-sizing: border-box; display: flex; align-items: center; gap: .3rem; flex-wrap: wrap;
-        padding: .4rem .65rem; min-height: 2.1rem; width: 100%; cursor: pointer;
-        border: 1px solid var(--goop-border, #2a3142); border-radius: var(--goop-radius, 6px);
-        background: var(--goop-field, rgba(0,0,0,.25)); color: var(--goop-text, #e6e9ef); font: inherit;
-      }
-      .gc-select-trigger:focus { border-color: var(--goop-accent, #7aa2ff); outline: none; }
-      .gc-select-placeholder { color: var(--goop-muted, #9aa3b2); }
-      .gc-select-tag {
-        display: inline-flex; align-items: center; gap: .2rem;
-        padding: .1rem .4rem; border-radius: 999px; font-size: .8rem;
-        background: color-mix(in srgb, var(--goop-accent, #7aa2ff) 18%, transparent);
-        border: 1px solid color-mix(in srgb, var(--goop-accent, #7aa2ff) 30%, transparent);
-        color: var(--goop-text, #e6e9ef);
-      }
-      .gc-select-tag button { background: none; border: none; color: var(--goop-muted, #9aa3b2); cursor: pointer; padding: 0; font-size: .9rem; line-height: 1; }
-      .gc-select-clear { background: none; border: none; color: var(--goop-muted, #9aa3b2); cursor: pointer; font-size: .85rem; padding: 0 .2rem; line-height: 1; }
-      .gc-select-arrow { margin-left: auto; color: var(--goop-muted, #9aa3b2); font-size: .7rem; flex-shrink: 0; }
-      .gc-select-dropdown {
-        display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 9990;
-        margin-top: 4px; max-height: 200px; overflow-y: auto;
-        background: var(--goop-panel, #151924); border: 1px solid var(--goop-border, #2a3142);
-        border-radius: var(--goop-radius, 6px); box-shadow: 0 8px 24px rgba(0,0,0,.3);
-      }
-      .gc-select-dropdown[data-goop-open] { display: block; }
-      .gc-select-search {
-        box-sizing: border-box; width: 100%; padding: .4rem .65rem;
-        border: none; border-bottom: 1px solid var(--goop-border, #2a3142);
-        background: var(--goop-field, rgba(0,0,0,.25)); color: var(--goop-text, #e6e9ef); font: inherit; outline: none;
-      }
-      .gc-select-option { padding: .4rem .65rem; cursor: pointer; font-size: .9rem; color: var(--goop-text, #e6e9ef); }
-      .gc-select-option:hover { background: color-mix(in srgb, var(--goop-accent, #7aa2ff) 12%, transparent); }
-      .gc-select-option[data-goop-selected] { background: color-mix(in srgb, var(--goop-accent, #7aa2ff) 20%, transparent); }
-      .gc-select-empty { padding: .6rem .65rem; color: var(--goop-muted, #9aa3b2); font-size: .85rem; }
-    `;
-    document.head.appendChild(s);
-  }
-
   Goop.ui.select = function(el, opts) {
     opts = opts || {};
     var multi = !!opts.multi;
@@ -58,7 +15,7 @@
     if (opts.value != null) selected = Array.isArray(opts.value) ? opts.value.slice() : [opts.value];
 
     var wrap = document.createElement("div");
-    wrap.className = "gc-select";
+    wrap.className = opts.class || "gc-select";
     wrap.setAttribute("data-goop-component", "select");
     if (opts.name) wrap.setAttribute("data-goop-name", opts.name);
     if (isDisabled) wrap.setAttribute("data-goop-disabled", "");

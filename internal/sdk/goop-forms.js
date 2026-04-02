@@ -1,6 +1,6 @@
 //
 // Auto-generated CRUD forms from table schemas.
-// Depends on goop-data.js and goop-component-base.js (or goop-components.js).
+// Depends on goop-data.js and goop-component-base.js.
 //
 // Usage:
 //

@@ -4,54 +4,6 @@
   var _e = Goop.ui._esc || function(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
   var _f = Goop.ui._fire || function(el, n, dt) { el.dispatchEvent(new CustomEvent(n, { bubbles: true, detail: dt })); };
 
-  var SID = "gc-datepicker-style";
-  if (!document.getElementById(SID)) {
-    var s = document.createElement("style"); s.id = SID;
-    s.textContent = `
-      .gc-datepicker { position: relative; display: inline-block; font: var(--goop-font, inherit); }
-      .gc-datepicker-input {
-        box-sizing: border-box; padding: .5rem .65rem; width: 100%;
-        border: 1px solid var(--goop-border, #2a3142); border-radius: var(--goop-radius, 6px);
-        background: var(--goop-field, rgba(0,0,0,.25)); color: var(--goop-text, #e6e9ef);
-        font: inherit; cursor: pointer; outline: none;
-      }
-      .gc-datepicker-input:focus { border-color: var(--goop-accent, #7aa2ff); }
-      .gc-datepicker-popup {
-        display: none; position: absolute; top: 100%; left: 0; z-index: 9990;
-        margin-top: 4px; padding: .5rem; min-width: 260px;
-        background: var(--goop-panel, #151924); border: 1px solid var(--goop-border, #2a3142);
-        border-radius: var(--goop-radius, 6px); box-shadow: 0 8px 24px rgba(0,0,0,.3);
-      }
-      .gc-datepicker-popup[data-goop-open] { display: block; }
-      .gc-dp-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: .4rem; }
-      .gc-dp-nav button {
-        background: none; border: 1px solid var(--goop-border, #2a3142); border-radius: var(--goop-radius, 6px);
-        color: var(--goop-text, #e6e9ef); cursor: pointer; padding: .2rem .5rem; font: inherit;
-      }
-      .gc-dp-nav button:hover { border-color: var(--goop-accent, #7aa2ff); }
-      .gc-dp-nav span { font-weight: 600; color: var(--goop-text, #e6e9ef); font-size: .9rem; }
-      .gc-dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
-      .gc-dp-grid .gc-dp-hdr { font-size: .7rem; color: var(--goop-muted, #9aa3b2); padding: .25rem 0; }
-      .gc-dp-grid button {
-        background: none; border: 1px solid transparent; border-radius: var(--goop-radius, 6px);
-        color: var(--goop-text, #e6e9ef); cursor: pointer; padding: .3rem; font: inherit; font-size: .85rem;
-      }
-      .gc-dp-grid button:hover:not([disabled]) { border-color: var(--goop-accent, #7aa2ff); }
-      .gc-dp-grid button[data-goop-today] { border-color: var(--goop-muted, #9aa3b2); }
-      .gc-dp-grid button[data-goop-selected] { background: var(--goop-accent, #7aa2ff); color: var(--goop-bg, #0f1115); }
-      .gc-dp-grid button[data-goop-outside] { color: var(--goop-muted, #9aa3b2); opacity: .5; }
-      .gc-dp-grid button:disabled { opacity: .3; cursor: not-allowed; }
-      .gc-dp-time { display: flex; gap: .4rem; align-items: center; margin-top: .5rem; padding-top: .5rem; border-top: 1px solid var(--goop-border, #2a3142); }
-      .gc-dp-time input {
-        width: 3.5rem; padding: .3rem; text-align: center;
-        border: 1px solid var(--goop-border, #2a3142); border-radius: var(--goop-radius, 6px);
-        background: var(--goop-field, rgba(0,0,0,.25)); color: var(--goop-text, #e6e9ef); font: inherit; font-size: .85rem;
-      }
-      .gc-dp-time span { color: var(--goop-muted, #9aa3b2); font-size: .85rem; }
-    `;
-    document.head.appendChild(s);
-  }
-
   var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   var ALLDAYS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
 
@@ -74,7 +26,7 @@
     else { var now = new Date(); viewYear = now.getFullYear(); viewMonth = now.getMonth(); current = null; }
 
     var wrap = document.createElement("div");
-    wrap.className = "gc-datepicker";
+    wrap.className = opts.class || "gc-datepicker";
     wrap.setAttribute("data-goop-component", "datepicker");
     if (isDisabled) wrap.setAttribute("data-goop-disabled", "");
 

@@ -4,42 +4,6 @@
   var _e = Goop.ui._esc || function(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
   var _f = Goop.ui._fire || function(el, n, dt) { el.dispatchEvent(new CustomEvent(n, { bubbles: true, detail: dt })); };
 
-  var SID = "gc-taginput-style";
-  if (!document.getElementById(SID)) {
-    var s = document.createElement("style"); s.id = SID;
-    s.textContent = `
-      .gc-taginput {
-        display: flex; flex-wrap: wrap; gap: .3rem; align-items: center;
-        padding: .35rem .5rem; min-height: 2.1rem; box-sizing: border-box;
-        border: 1px solid var(--goop-border, #2a3142); border-radius: var(--goop-radius, 6px);
-        background: var(--goop-field, rgba(0,0,0,.25)); font: var(--goop-font, inherit); cursor: text;
-      }
-      .gc-taginput:focus-within { border-color: var(--goop-accent, #7aa2ff); }
-      .gc-taginput-tag {
-        display: inline-flex; align-items: center; gap: .2rem;
-        padding: .1rem .45rem; border-radius: 999px; font-size: .8rem;
-        background: color-mix(in srgb, var(--goop-accent, #7aa2ff) 18%, transparent);
-        border: 1px solid color-mix(in srgb, var(--goop-accent, #7aa2ff) 30%, transparent);
-        color: var(--goop-text, #e6e9ef);
-      }
-      .gc-taginput-tag button { background: none; border: none; color: var(--goop-muted, #9aa3b2); cursor: pointer; padding: 0; font-size: .9rem; line-height: 1; }
-      .gc-taginput-tag button:hover { color: var(--goop-danger, #f87171); }
-      .gc-taginput input {
-        border: none; background: none; color: var(--goop-text, #e6e9ef); font: inherit;
-        outline: none; min-width: 4rem; flex: 1; padding: .1rem 0; font-size: .9rem;
-      }
-      .gc-taginput-suggestions {
-        position: absolute; top: 100%; left: 0; right: 0; z-index: 9990;
-        margin-top: 2px; max-height: 140px; overflow-y: auto;
-        background: var(--goop-panel, #151924); border: 1px solid var(--goop-border, #2a3142);
-        border-radius: var(--goop-radius, 6px); box-shadow: 0 4px 12px rgba(0,0,0,.3);
-      }
-      .gc-taginput-suggestions div { padding: .35rem .6rem; cursor: pointer; font-size: .85rem; color: var(--goop-text, #e6e9ef); }
-      .gc-taginput-suggestions div:hover { background: color-mix(in srgb, var(--goop-accent, #7aa2ff) 12%, transparent); }
-    `;
-    document.head.appendChild(s);
-  }
-
   Goop.ui.taginput = function(el, opts) {
     opts = opts || {};
     var tags = (opts.value || []).slice();
@@ -51,7 +15,7 @@
     outer.style.position = "relative";
 
     var wrap = document.createElement("div");
-    wrap.className = "gc-taginput";
+    wrap.className = opts.class || "gc-taginput";
     wrap.setAttribute("data-goop-component", "taginput");
     if (opts.name) wrap.setAttribute("data-goop-name", opts.name);
     if (isDisabled) wrap.setAttribute("data-goop-disabled", "");

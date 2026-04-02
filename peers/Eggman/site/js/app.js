@@ -1,432 +1,174 @@
-// Tic-Tac-Toe app.js — PvP and PvE with server-side validation via Lua
+// Blog app.js
 (async function () {
-  var db = Goop.data;
-  var root = document.getElementById("ttt-root");
-  var subtitle = document.getElementById("subtitle");
-  var isOwner = false;
-  var myId = await Goop.identity.id();
-  var myLabel = await Goop.identity.label();
-  var pollTimer = null;
-  var currentGameId = null;
+  var h = Goop.dom;
+  var site = Goop.site;
+  var date = Goop.date;
+  var blog = Goop.data.api("blog");
+  var editor = Goop.overlay("editor-overlay");
 
-  // Detect owner vs visitor
-  var match = window.location.pathname.match(/\/p\/([^/]+)/);
-  if (!match || match[1] === myId) {
-    isOwner = true;
+  var postsEl = document.getElementById("posts");
+  var btnNew = document.getElementById("btn-new");
+  var btnCustomize = document.getElementById("btn-customize");
+  var designerPanel = document.getElementById("designer-panel");
+
+  var editingId = null;
+  var editingImage = null;
+  var canWrite = false;
+  var canAdmin = false;
+
+  // ── Config ──
+
+  var accentToIdx = {
+    "#b44d2d": "1", "#2d6a9f": "2", "#4a8f46": "3",
+    "#7c4a9f": "4", "#c0882c": "5", "#2d7a6a": "6",
+  };
+
+  function applyConfig(cfg) {
+    var html = document.documentElement;
+    document.querySelector(".blog").className = "blog layout-" + (cfg.layout || "list");
+    document.querySelectorAll(".layout-btn").forEach(function (b) { b.classList.toggle("active", b.dataset.layout === (cfg.layout || "list")); });
+    document.querySelector(".blog-title").textContent = cfg.blog_title || "My Blog";
+    document.getElementById("blog-subtitle").textContent = cfg.blog_subtitle || "Thoughts, stories & notes";
+    if (cfg.accent) {
+      html.className = html.className.replace(/\baccent-\d+\b/g, "").trim();
+      html.classList.add("accent-" + (accentToIdx[cfg.accent] || "1"));
+      document.querySelectorAll(".swatch").forEach(function (s) { s.classList.toggle("active", s.dataset.color === cfg.accent); });
+    }
+    html.className = html.className.replace(/\bfont-\w+\b/g, "").trim();
+    html.classList.add("font-" + (cfg.font || "serif"));
+    document.querySelectorAll(".font-btn").forEach(function (b) { b.classList.toggle("active", b.dataset.font === (cfg.font || "serif")); });
+    html.className = html.className.replace(/\btheme-\w+\b/g, "").trim();
+    html.classList.add("theme-" + (cfg.theme || "light"));
+    document.querySelectorAll(".theme-btn").forEach(function (b) { b.classList.toggle("active", b.dataset.theme === (cfg.theme || "light")); });
   }
 
-  subtitle.textContent = isOwner
-    ? "Challenge visitors or play against the computer."
-    : "Challenge the host or play against the computer.";
+  // ── Designer (owner only) ──
+  function setupDesigner(cfg) {
+    if (!canAdmin) return;
+    var defaults = { layout: "list", blog_title: "My Blog", blog_subtitle: "Thoughts, stories & notes", accent: "#b44d2d", font: "serif", theme: "light" };
+    for (var k in defaults) if (!cfg[k]) { cfg[k] = defaults[k]; blog("save_config", { key: k, value: defaults[k] }); }
 
-  showLobby();
+    var panel = document.getElementById("designer-panel");
+    document.getElementById("d-title").value = cfg.blog_title || "My Blog";
+    document.getElementById("d-subtitle").value = cfg.blog_subtitle || "";
+    btnCustomize.classList.remove("hidden");
 
-  // ── Polling ──
+    function bind(sel, attr, key) {
+      document.querySelectorAll(sel).forEach(function (b) {
+        b.addEventListener("click", function () { cfg[key] = b.dataset[attr]; applyConfig(cfg); blog("save_config", { key: key, value: cfg[key] }); });
+      });
+    }
+    bind(".layout-btn[data-layout]", "layout", "layout");
+    bind(".swatch", "color", "accent");
+    bind(".font-btn", "font", "font");
+    bind(".theme-btn", "theme", "theme");
 
-  function startPolling(gameId) {
-    stopPolling();
-    pollTimer = setInterval(async function () {
-      try {
-        var state = await db.call("ttt", { action: "state", game_id: gameId });
-        renderBoard(state);
-        if (state.status !== "playing" && state.status !== "waiting") {
-          stopPolling();
-        }
-      } catch (e) {
-        // ignore transient errors
-      }
-    }, 2000);
+    var titleInput = document.getElementById("d-title");
+    titleInput.addEventListener("blur", function () {
+      cfg.blog_title = titleInput.value.trim() || "My Blog"; titleInput.value = cfg.blog_title;
+      applyConfig(cfg); blog("save_config", { key: "blog_title", value: cfg.blog_title });
+    });
+    var subtitleInput = document.getElementById("d-subtitle");
+    subtitleInput.addEventListener("blur", function () {
+      cfg.blog_subtitle = subtitleInput.value.trim();
+      applyConfig(cfg); blog("save_config", { key: "blog_subtitle", value: cfg.blog_subtitle });
+    });
+
+    btnCustomize.addEventListener("click", function () { panel.classList.toggle("hidden"); });
+    document.getElementById("btn-designer-close").addEventListener("click", function () { panel.classList.add("hidden"); });
   }
 
-  function stopPolling() {
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
-  }
-
-  // ── Lobby ──
-
-  async function showLobby() {
-    stopPolling();
-    currentGameId = null;
-
-    var lobby;
-    try {
-      // Single call returns both games list and stats
-      lobby = await db.call("ttt", { action: "lobby" });
-    } catch (e) {
-      console.error("lobby error:", e);
-      root.innerHTML = '<p class="ttt-empty">Could not load lobby.</p>'
-        + '<p class="ttt-empty" style="font-size:11px;color:#999;">' + esc(e.message || String(e)) + '</p>';
-      return;
-    }
-
-    var games = lobby.games || [];
-    var stats = lobby.stats || {};
-
-    // Check if I have an active game — render directly from lobby data
-    for (var i = 0; i < games.length; i++) {
-      var g = games[i];
-      // Skip waiting PvP games for the owner — they see these as pending challenges
-      if (isOwner && g.status === "waiting" && g.mode === "pvp") continue;
-      if ((g.status === "playing" || g.status === "waiting") &&
-          (g._owner === myId || g.challenger === myId)) {
-        showGame(g._id);
-        return;
-      }
-    }
-
-    var html = '<div class="ttt-lobby">';
-
-    // Action buttons
-    html += '<div class="ttt-actions">';
-    if (!isOwner) {
-      html += '<button class="btn btn-primary" id="btn-challenge">Challenge Host</button>';
-    }
-    html += '<button class="btn ' + (isOwner ? 'btn-primary' : 'btn-secondary') + '" id="btn-pve">Play vs Computer</button>';
-    html += '</div>';
-
-    // Stats
-    html += '<div class="ttt-stats">';
-    html += '<span><span class="stat-val">' + (stats.wins || 0) + '</span> wins</span>';
-    html += '<span><span class="stat-val">' + (stats.losses || 0) + '</span> losses</span>';
-    html += '<span><span class="stat-val">' + (stats.draws || 0) + '</span> draws</span>';
-    html += '</div>';
-
-    // Pending challenges (owner only)
-    if (isOwner) {
-      var pending = [];
-      for (var j = 0; j < games.length; j++) {
-        if (games[j].status === "waiting" && games[j].mode === "pvp") {
-          pending.push(games[j]);
-        }
-      }
-      if (pending.length > 0) {
-        html += '<div class="ttt-panel">';
-        html += '<h2>Pending Challenges</h2>';
-        html += '<ul class="ttt-challenges">';
-        for (var k = 0; k < pending.length; k++) {
-          var pg = pending[k];
-          var label = esc(pg.challenger_label || pg.challenger.substring(0, 12) + '...');
-          html += '<li class="ttt-challenge-item">';
-          html += '<span><span class="name">' + label + '</span>';
-          html += '<span class="time">' + timeAgo(pg._created_at) + '</span></span>';
-          html += '<button class="btn-sm" data-accept="' + pg._id + '">Play</button>';
-          html += '</li>';
-        }
-        html += '</ul></div>';
-      }
-    }
-
-    // Recent games
-    var finished = [];
-    for (var m = 0; m < games.length; m++) {
-      var fg = games[m];
-      if (fg.status !== "waiting" && fg.status !== "playing") {
-        finished.push(fg);
-      }
-    }
-
-    if (finished.length > 0) {
-      html += '<div class="ttt-panel">';
-      html += '<h2>Recent Games</h2>';
-      html += '<table class="ttt-history"><thead><tr>';
-      html += '<th>Opponent</th><th>Result</th><th>Mode</th><th></th>';
-      html += '</tr></thead><tbody>';
-      for (var n = 0; n < finished.length && n < 10; n++) {
-        var hg = finished[n];
-        var opponent = hg.mode === "pve" ? "Computer"
-          : esc(hg.challenger_label || hg.challenger.substring(0, 12) + '...');
-        var resultCls = "", resultTxt = "";
-        if (hg.status === "draw" || hg.status === "cancelled") {
-          resultCls = "result-draw";
-          resultTxt = hg.status === "cancelled" ? "cancelled" : "draw";
-        } else if (hg.winner === myId) {
-          resultCls = "result-win";
-          resultTxt = "won";
-        } else {
-          resultCls = "result-loss";
-          resultTxt = "lost";
-        }
-        html += '<tr>';
-        html += '<td>' + opponent + '</td>';
-        html += '<td class="' + resultCls + '">' + resultTxt + '</td>';
-        html += '<td>' + (hg.mode === "pve" ? "vs AI" : "PvP") + '</td>';
-        html += '<td>' + timeAgo(hg._created_at) + '</td>';
-        html += '</tr>';
-      }
-      html += '</tbody></table></div>';
-    } else {
-      html += '<div class="ttt-panel"><p class="ttt-empty">No games played yet.</p></div>';
-    }
-
-    html += '</div>';
-    root.innerHTML = html;
-
-    // Button handlers
-    var btnPve = document.getElementById("btn-pve");
-    if (btnPve) {
-      btnPve.onclick = async function () {
-        btnPve.disabled = true;
-        try {
-          var result = await db.call("ttt", { action: "new_pve" });
-          if (result.error) {
-            Goop.ui.toast(result.error);
-            btnPve.disabled = false;
-          } else {
-            // Render directly from the new_pve response — no extra game_state call
-            currentGameId = result.game_id;
-            renderBoard(result);
-          }
-        } catch (e) {
-          Goop.ui.toast(e.message || "Error starting game.");
-          btnPve.disabled = false;
-        }
-      };
-    }
-
-    var btnChallenge = document.getElementById("btn-challenge");
-    if (btnChallenge) {
-      btnChallenge.onclick = async function () {
-        btnChallenge.disabled = true;
-        try {
-          var result = await db.call("ttt", { action: "new" });
-          if (result.error) {
-            Goop.ui.toast(result.error);
-            if (result.game_id) {
-              showGame(result.game_id);
-              return;
-            }
-            btnChallenge.disabled = false;
-          } else {
-            // For PvP, we need to poll for the host's acceptance
-            showGame(result.game_id);
-          }
-        } catch (e) {
-          Goop.ui.toast(e.message || "Error creating challenge.");
-          btnChallenge.disabled = false;
-        }
-      };
-    }
-
-    // Accept handlers — transition game from "waiting" to "playing", then show board
-    root.querySelectorAll("[data-accept]").forEach(function (btn) {
-      btn.onclick = async function () {
-        var gid = parseInt(btn.getAttribute("data-accept"));
-        btn.disabled = true;
-        try {
-          await db.call("ttt", { action: "accept", game_id: gid });
-        } catch (e) { /* showGame will handle current state */ }
-        showGame(gid);
-      };
+  // ── Posts ──
+  function renderPosts(rows) {
+    Goop.list(postsEl, rows, function (p) {
+      var slug = p.slug || p._id;
+      var url = "post.html?slug=" + encodeURIComponent(slug);
+      return h("article", { class: "post", data: { id: p._id } },
+        p.image ? h("a", { href: url }, h("img", { class: "post-image", src: "images/" + p.image, alt: "" })) : null,
+        h("h2", { class: "post-title" }, h("a", { class: "post-title-link", href: url }, p.title)),
+        h("div", { class: "post-meta" }, date(p._created_at)),
+        p.author_name ? h("div", { class: "post-byline" }, "by " + p.author_name) : null,
+        h("div", { class: "post-body" }, p.body),
+        h("a", { class: "post-read-more", href: url }, "Read more"),
+        canWrite ? h("div", { class: "post-actions" },
+          h("button", { onclick: function() { openEditor(p._id); } }, "Edit"),
+          h("button", { onclick: async function() {
+            if (!(await Goop.ui.confirm("Delete this post?"))) return;
+            var result = await blog("delete_post", { id: p._id });
+            if (result.image && canAdmin && site) { try { await site.remove("images/" + result.image); } catch (_) {} }
+            reload();
+          } }, "Delete")
+        ) : null
+      );
+    }, {
+      empty: "No posts yet." + (canWrite ? ' Click "+ New Post" to write your first one.' : "")
     });
   }
 
-  // ── Game view ──
+  // ── Editor ──
+  async function openEditor(id) {
+    editingId = id || null;
+    editingImage = null;
+    document.getElementById("f-title").value = "";
+    document.getElementById("f-body").value = "";
+    document.getElementById("editor-heading").textContent = id ? "Edit Post" : "New Post";
+    document.getElementById("btn-save").textContent = id ? "Update" : "Publish";
+    var fImage = document.getElementById("f-image");
+    var fPreview = document.getElementById("f-image-preview");
+    if (fImage) fImage.value = "";
+    if (fPreview) { fPreview.src = ""; fPreview.classList.add("hidden"); }
 
-  async function showGame(gameId) {
-    stopPolling();
-    currentGameId = gameId;
-
-    try {
-      var state = await db.call("ttt", { action: "state", game_id: gameId });
-      renderBoard(state);
-
-      // Poll for PvP games in progress or waiting
-      if (state.mode === "pvp" && (state.status === "playing" || state.status === "waiting")) {
-        startPolling(gameId);
-      }
-    } catch (e) {
-      console.error("game error:", e);
-      root.innerHTML = '<p class="ttt-empty">Could not load game.</p>'
-        + '<p class="ttt-empty" style="font-size:11px;color:#999;">' + esc(e.message || String(e)) + '</p>';
-    }
-  }
-
-  function renderBoard(state) {
-    var board = state.board || "---------";
-    var yourSymbol = state.your_symbol;
-    var isYourTurn = (state.status === "playing" && state.turn === yourSymbol);
-    var gameOver = (state.status !== "playing" && state.status !== "waiting");
-    var winCells = {};
-
-    if (state.win_line) {
-      for (var w = 0; w < state.win_line.length; w++) {
-        winCells[state.win_line[w]] = true;
-      }
-    }
-
-    var html = '<div class="ttt-game">';
-
-    // Waiting state — visitor sees spinner until host accepts
-    if (state.status === "waiting") {
-      html += '<div class="ttt-waiting">';
-      html += '<div class="spinner"></div>';
-      html += '<p>Waiting for host to accept&hellip;</p>';
-      html += '<button class="btn btn-secondary btn-sm" id="btn-cancel">Cancel</button>';
-      html += '</div>';
-      root.innerHTML = html;
-      var btnCancel = document.getElementById("btn-cancel");
-      if (btnCancel) {
-        btnCancel.onclick = async function () {
-          await db.call("ttt", { action: "cancel", game_id: state.game_id });
-          showLobby();
-        };
-      }
-      return;
-    }
-
-    // Result banner
-    if (gameOver) {
-      var resultCls = "draw";
-      var resultMsg = "Draw!";
-      if (state.status === "cancelled") {
-        resultMsg = "Cancelled";
-      } else if (state.winner === myId) {
-        resultCls = "win";
-        resultMsg = "You won!";
-      } else if (state.winner && state.winner !== myId) {
-        resultCls = "loss";
-        var opponentName = (state.mode === "pve") ? "Computer" : "Opponent";
-        resultMsg = opponentName + " won!";
-      }
-      html += '<div class="ttt-result ' + resultCls + '">' + resultMsg + '</div>';
-    } else {
-      // Turn indicator
-      var opLabel = (state.mode === "pve") ? "Computer" : "Opponent";
-      var turnLabel = isYourTurn ? "Your turn" : opLabel + "'s turn";
-      html += '<div class="ttt-status">';
-      html += 'You: <span class="' + (yourSymbol === "X" ? "symbol-x" : "symbol-o") + '">' + symbolChar(yourSymbol) + '</span>';
-      html += ' &mdash; ' + turnLabel;
-      html += '</div>';
-    }
-
-    // Board
-    html += '<div class="ttt-board">';
-    for (var i = 0; i < 9; i++) {
-      var ch = board.charAt(i);
-      var cls = "ttt-cell";
-      var content = "";
-
-      if (ch === "X") {
-        cls += " taken x";
-        content = symbolChar("X");
-      } else if (ch === "O") {
-        cls += " taken o";
-        content = symbolChar("O");
-      }
-
-      if (winCells[i]) {
-        cls += " win-cell";
-      }
-
-      if (gameOver || !isYourTurn || ch !== "-") {
-        cls += " disabled";
-      }
-
-      html += '<div class="' + cls + '" data-pos="' + i + '">' + content + '</div>';
-    }
-    html += '</div>';
-
-    // Actions
-    if (gameOver) {
-      html += '<div class="ttt-game-actions">';
-      if (state.mode === "pve") {
-        html += '<button class="btn btn-primary" id="btn-rematch-pve">Play Again</button>';
-      }
-      html += '<button class="btn btn-secondary" id="btn-back">Back to Lobby</button>';
-      html += '</div>';
-    }
-
-    html += '</div>';
-    root.innerHTML = html;
-
-    // Click handlers for cells
-    if (!gameOver && isYourTurn) {
-      root.querySelectorAll(".ttt-cell:not(.taken):not(.disabled)").forEach(function (cell) {
-        cell.onclick = async function () {
-          var pos = parseInt(cell.getAttribute("data-pos"));
-          cell.classList.add("disabled");
-
-          try {
-            var gameId = state.game_id || currentGameId;
-            var result = await db.call("move", {
-              game_id: gameId,
-              position: pos
-            });
-            if (result.error) {
-              Goop.ui.toast(result.error);
-              renderBoard(state); // re-render previous state
-              return;
-            }
-            if (!result.game_id) result.game_id = gameId;
-            if (!result.challenger_label) result.challenger_label = state.challenger_label;
-            renderBoard(result);
-
-            // Start polling for opponent's move in PvP
-            if (result.mode === "pvp" && result.status === "playing") {
-              startPolling(result.game_id);
-            }
-          } catch (e) {
-            Goop.ui.toast(e.message || "Error making move.");
-            renderBoard(state);
-          }
-        };
-      });
-    }
-
-    // Game-over button handlers
-    var btnRematchPve = document.getElementById("btn-rematch-pve");
-    if (btnRematchPve) {
-      btnRematchPve.onclick = async function () {
-        btnRematchPve.disabled = true;
-        try {
-          var result = await db.call("ttt", { action: "new_pve" });
-          if (result.error) {
-            Goop.ui.toast(result.error);
-            btnRematchPve.disabled = false;
-          } else {
-            // Render directly — no extra game_state call needed
-            currentGameId = result.game_id;
-            renderBoard(result);
-          }
-        } catch (e) {
-          Goop.ui.toast(e.message || "Error starting game.");
-          btnRematchPve.disabled = false;
+    if (id) {
+      try {
+        var r = await blog("get_post", { slug: String(id) });
+        if (r.found && r.post) {
+          document.getElementById("f-title").value = r.post.title;
+          document.getElementById("f-body").value = r.post.body;
+          if (r.post.image && fPreview) { editingImage = r.post.image; fPreview.src = "images/" + editingImage; fPreview.classList.remove("hidden"); }
         }
-      };
+      } catch (_) {}
+    }
+    editor.open();
+  }
+
+  btnNew.addEventListener("click", function () { openEditor(null); });
+  document.getElementById("btn-cancel").addEventListener("click", function () { editor.close(); });
+
+  document.getElementById("btn-save").addEventListener("click", async function () {
+    var title = document.getElementById("f-title").value.trim();
+    var body = document.getElementById("f-body").value.trim();
+    if (!title || !body) return;
+
+    var imageName = editingId ? (editingImage || "") : "";
+    var fImage = document.getElementById("f-image");
+    var imageFile = fImage && fImage.files && fImage.files[0];
+    if (imageFile && canAdmin && site) {
+      var ext = (imageFile.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+      var safeName = Date.now() + "-" + imageFile.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 60) + "." + ext;
+      try {
+        await site.upload("images/" + safeName, imageFile);
+        if (editingImage) { try { await site.remove("images/" + editingImage); } catch (_) {} }
+        imageName = safeName;
+      } catch (_) {}
     }
 
-    var btnBack = document.getElementById("btn-back");
-    if (btnBack) {
-      btnBack.onclick = function () { showLobby(); };
-    }
+    await blog("save_post", { id: editingId, title: title, body: body, image: imageName });
+    editor.close();
+    reload();
+  });
+
+  // ── Init ──
+  async function reload() {
+    var p = await blog("page");
+    renderPosts(p.posts || []);
   }
 
-  // ── Helpers ──
-
-  function symbolChar(s) {
-    if (s === "X") return "\u2715";
-    if (s === "O") return "\u25CB";
-    return "";
-  }
-
-  function timeAgo(ts) {
-    if (!ts) return "";
-    var now = new Date();
-    var then = new Date(ts.replace(" ", "T") + "Z");
-    var diff = Math.floor((now - then) / 1000);
-    if (diff < 60) return "just now";
-    if (diff < 3600) return Math.floor(diff / 60) + "m ago";
-    if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
-    return Math.floor(diff / 86400) + "d ago";
-  }
-
-  function esc(s) {
-    if (!s) return "";
-    var d = document.createElement("div");
-    d.appendChild(document.createTextNode(s));
-    return d.innerHTML;
-  }
+  var page = await blog("page");
+  canWrite = page.can_write;
+  canAdmin = page.can_admin;
+  if (canWrite) btnNew.classList.remove("hidden");
+  if (canAdmin) document.getElementById("editor-image-section").classList.remove("hidden");
+  applyConfig(page.config || {});
+  setupDesigner(page.config || {});
+  renderPosts(page.posts || []);
 })();

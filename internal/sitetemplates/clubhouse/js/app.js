@@ -74,16 +74,20 @@
     }
   }
 
+  var h = Goop.dom;
+
   function renderRooms(rooms) {
     Goop.list(roomsEl, rooms, function(r) {
-      return Goop.card({
-        title: r.name,
-        body: r.description || "No description",
-        footer: Goop.button("Join", { primary: true, onclick: function() { enterRoom(r); } }),
-        class: "room-card",
-      });
+      return h("div", { class: "room-card", onclick: function() { enterRoom(r); } },
+        h("h3", { class: "room-card-name" }, r.name),
+        h("p", { class: "room-card-desc" }, r.description || "No description"),
+        h("div", { class: "room-card-footer" },
+          h("span", { class: "room-card-status" }, h("span", { class: "status-dot" }), " " + r.status),
+          h("button", { class: "btn-join" }, "Join")
+        )
+      );
     }, {
-      empty: Goop.ui.empty("No rooms yet." + (isOwner ? " Create one with the button above!" : ""), { icon: "\uD83D\uDCAC" })
+      empty: h("div", { class: "empty-msg" }, h("div", { class: "empty-icon" }, "\uD83D\uDCAC"), h("p", {}, "No rooms yet." + (isOwner ? " Create one with the button above!" : "")))
     });
   }
 
@@ -335,7 +339,11 @@
   // ── Render helpers ──
   function renderMembers() {
     Goop.list(membersListEl, members, function(peerId) {
-      return Goop.item({ avatar: peerId, label: displayName(peerId), class: peerId === myId ? "member-you" : "" });
+      return h("li", {},
+        Goop.ui.avatar(peerId, { size: 24 }),
+        h("span", { class: "member-dot" }),
+        h("span", { class: peerId === myId ? "member-you" : "" }, displayName(peerId))
+      );
     });
   }
 
@@ -346,12 +354,18 @@
   }
 
   function appendChat(fromId, label, text, isSelf) {
-    messagesEl.appendChild(Goop.message({ from: label || shortId(fromId), text: text, time: timeStr(), self: isSelf }));
+    messagesEl.appendChild(
+      h("div", { class: "msg " + (isSelf ? "msg-self" : "msg-other") },
+        h("div", { class: "msg-label" }, isSelf ? "You" : (label || shortId(fromId))),
+        h("div", { class: "msg-text" }, text),
+        h("div", { class: "msg-time" }, timeStr())
+      )
+    );
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
   function appendSystem(text) {
-    messagesEl.appendChild(Goop.message({ text: text, system: true }));
+    messagesEl.appendChild(h("div", { class: "msg-system" }, text));
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 

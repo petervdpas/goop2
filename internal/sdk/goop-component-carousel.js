@@ -4,34 +4,6 @@
   var _e = Goop.ui._esc || function(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
   var _f = Goop.ui._fire || function(el, n, dt) { el.dispatchEvent(new CustomEvent(n, { bubbles: true, detail: dt })); };
 
-  var SID = "gc-carousel-style";
-  if (!document.getElementById(SID)) {
-    var s = document.createElement("style"); s.id = SID;
-    s.textContent = `
-      .gc-carousel { position: relative; overflow: hidden; font: var(--goop-font, inherit); }
-      .gc-carousel-track { display: flex; transition: transform .3s ease; }
-      .gc-carousel-slide { flex: 0 0 100%; min-width: 0; box-sizing: border-box; }
-      .gc-carousel-slide img { width: 100%; height: auto; display: block; object-fit: cover; }
-      .gc-carousel-btn {
-        position: absolute; top: 50%; transform: translateY(-50%); z-index: 2;
-        width: 2.2rem; height: 2.2rem; border-radius: 50%;
-        background: color-mix(in srgb, var(--goop-bg, #0f1115) 80%, transparent);
-        border: 1px solid var(--goop-border, #2a3142); color: var(--goop-text, #e6e9ef);
-        cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center;
-      }
-      .gc-carousel-btn:hover { background: var(--goop-panel, #151924); }
-      .gc-carousel-btn[data-goop-dir="prev"] { left: .5rem; }
-      .gc-carousel-btn[data-goop-dir="next"] { right: .5rem; }
-      .gc-carousel-dots { display: flex; justify-content: center; gap: 6px; padding: .5rem 0; }
-      .gc-carousel-dot {
-        width: 8px; height: 8px; border-radius: 50%; border: none; padding: 0;
-        background: var(--goop-border, #2a3142); cursor: pointer; transition: background .15s;
-      }
-      .gc-carousel-dot[data-goop-active] { background: var(--goop-accent, #7aa2ff); }
-    `;
-    document.head.appendChild(s);
-  }
-
   Goop.ui.carousel = function(el, opts) {
     opts = opts || {};
     var slides = opts.slides || [];
@@ -43,7 +15,7 @@
     var autoTimer = null;
 
     var wrap = document.createElement("div");
-    wrap.className = "gc-carousel";
+    wrap.className = opts.class || "gc-carousel";
     wrap.setAttribute("data-goop-component", "carousel");
 
     var track = document.createElement("div"); track.className = "gc-carousel-track";
