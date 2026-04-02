@@ -580,10 +580,6 @@ func (n *Node) dataOpInsert(callerID string, req DataRequest) DataResponse {
 		if !isLocal {
 			return DataResponse{Error: "insert not allowed: this table only accepts data from the site owner"}
 		}
-	case "email":
-		if !isLocal && ownerEmail == "" {
-			return DataResponse{Error: "insert not allowed: your peer must have an email address configured"}
-		}
 	case "group":
 		if !isLocal {
 			if errMsg := n.checkGroupAccess(callerID, req.Table, "insert"); errMsg != "" {
@@ -617,12 +613,38 @@ func (n *Node) dataOpUpdate(callerID string, req DataRequest) DataResponse {
 	if req.ID <= 0 {
 		return DataResponse{Error: "valid row id required"}
 	}
+	isLocal := callerID == n.ID()
 	access := n.getAccess(req.Table)
-	if access.Update == "local" {
-		return DataResponse{Error: "update not allowed: table is local-only"}
+	switch access.Update {
+	case "local":
+		if !isLocal {
+			return DataResponse{Error: "update not allowed: table is local-only"}
+		}
+	case "owner":
+		if !isLocal {
+			return DataResponse{Error: "update not allowed: owner only"}
+		}
+	case "group":
+		if !isLocal {
+			if errMsg := n.checkGroupAccess(callerID, req.Table, "update"); errMsg != "" {
+				return DataResponse{Error: errMsg}
+			}
+		}
+	case "open":
+		// anyone can update
+	default:
+		if !isLocal {
+			return DataResponse{Error: "update not allowed: unknown table policy"}
+		}
 	}
-	if err := n.db.UpdateRowOwner(req.Table, req.ID, callerID, req.Data); err != nil {
-		return DataResponse{Error: err.Error()}
+	if access.Update == "open" || access.Update == "group" {
+		if err := n.db.UpdateRow(req.Table, req.ID, req.Data); err != nil {
+			return DataResponse{Error: err.Error()}
+		}
+	} else {
+		if err := n.db.UpdateRowOwner(req.Table, req.ID, callerID, req.Data); err != nil {
+			return DataResponse{Error: err.Error()}
+		}
 	}
 	return DataResponse{OK: true, Data: map[string]string{"status": "updated"}}
 }
@@ -634,12 +656,38 @@ func (n *Node) dataOpDelete(callerID string, req DataRequest) DataResponse {
 	if req.ID <= 0 {
 		return DataResponse{Error: "valid row id required"}
 	}
+	isLocal := callerID == n.ID()
 	access := n.getAccess(req.Table)
-	if access.Delete == "local" {
-		return DataResponse{Error: "delete not allowed: table is local-only"}
+	switch access.Delete {
+	case "local":
+		if !isLocal {
+			return DataResponse{Error: "delete not allowed: table is local-only"}
+		}
+	case "owner":
+		if !isLocal {
+			return DataResponse{Error: "delete not allowed: owner only"}
+		}
+	case "group":
+		if !isLocal {
+			if errMsg := n.checkGroupAccess(callerID, req.Table, "delete"); errMsg != "" {
+				return DataResponse{Error: errMsg}
+			}
+		}
+	case "open":
+		// anyone can delete
+	default:
+		if !isLocal {
+			return DataResponse{Error: "delete not allowed: unknown table policy"}
+		}
 	}
-	if err := n.db.DeleteRowOwner(req.Table, req.ID, callerID); err != nil {
-		return DataResponse{Error: err.Error()}
+	if access.Delete == "open" || access.Delete == "group" {
+		if err := n.db.DeleteRow(req.Table, req.ID); err != nil {
+			return DataResponse{Error: err.Error()}
+		}
+	} else {
+		if err := n.db.DeleteRowOwner(req.Table, req.ID, callerID); err != nil {
+			return DataResponse{Error: err.Error()}
+		}
 	}
 	return DataResponse{OK: true, Data: map[string]string{"status": "deleted"}}
 }

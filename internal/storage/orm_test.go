@@ -64,7 +64,7 @@ func TestGetAccessORM(t *testing.T) {
 		Name:      "data",
 		SystemKey: true,
 		Columns:   []schema.Column{{Name: "val", Type: "text"}},
-		Access:    &schema.Access{Read: "group", Insert: "email", Update: "owner", Delete: "owner"},
+		Access:    &schema.Access{Read: "group", Insert: "open", Update: "owner", Delete: "owner"},
 	}
 	if err := db.CreateTableORM(tbl); err != nil {
 		t.Fatal(err)
@@ -74,8 +74,8 @@ func TestGetAccessORM(t *testing.T) {
 	if access.Read != "group" {
 		t.Fatalf("access.read = %q, want 'group'", access.Read)
 	}
-	if access.Insert != "email" {
-		t.Fatalf("access.insert = %q, want 'email'", access.Insert)
+	if access.Insert != "open" {
+		t.Fatalf("access.insert = %q, want 'open'", access.Insert)
 	}
 }
 

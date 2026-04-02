@@ -592,10 +592,10 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 			return
 		}
 		switch req.Policy {
-		case "owner", "email", "open", "group", "local":
+		case "owner", "open", "group", "local":
 			// valid
 		default:
-			http.Error(w, "policy must be owner, email, open, group, or local", http.StatusBadRequest)
+			http.Error(w, "policy must be owner, open, group, or local", http.StatusBadRequest)
 			return
 		}
 		if db.IsORM(req.Table) {

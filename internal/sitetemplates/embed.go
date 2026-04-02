@@ -14,18 +14,19 @@ var templateFS embed.FS
 
 // TablePolicy holds per-table configuration from a template manifest.
 type TablePolicy struct {
-	InsertPolicy string `json:"insert_policy"` // "owner", "email", "open", "public"
+	InsertPolicy string `json:"insert_policy"` // "owner", "open", "group", "public"
 }
 
 // TemplateMeta holds template metadata from manifest.json
 type TemplateMeta struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Category    string                 `json:"category"`
-	Icon        string                 `json:"icon"`
-	Dir         string                 `json:"dir"`     // directory name (e.g. "corkboard")
-	Tables      map[string]TablePolicy `json:"tables"`  // legacy: table name → policy
-	Schemas     []string               `json:"schemas"` // ORM table names owned by this template
+	Name         string                 `json:"name"`
+	Description  string                 `json:"description"`
+	Category     string                 `json:"category"`
+	Icon         string                 `json:"icon"`
+	Dir          string                 `json:"dir"`           // directory name (e.g. "corkboard")
+	Tables       map[string]TablePolicy `json:"tables"`        // legacy: table name → policy
+	Schemas      []string               `json:"schemas"`       // ORM table names owned by this template
+	RequireEmail bool                   `json:"require_email,omitempty"`
 }
 
 // List returns metadata for all available templates.

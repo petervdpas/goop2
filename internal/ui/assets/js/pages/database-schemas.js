@@ -131,35 +131,28 @@ function renderSchemaEditor(s) {
   '</div>';
 
   var acc = s.access || {};
+  var accessOptions = [
+    { value: "local", label: "local" }, { value: "owner", label: "owner" },
+    { value: "group", label: "group" }, { value: "open", label: "open" },
+  ];
   html += '<div class="form-group schema-access-group">' +
     '<label>Access Policy</label>' +
     '<div class="schema-access-grid">' +
       '<div class="schema-access-field">' +
         '<span class="schema-access-label">Read</span>' +
-        gsel.html({ id: "schema-access-read", value: acc.read || "open", options: [
-          { value: "local", label: "local" }, { value: "owner", label: "owner" },
-          { value: "group", label: "group" }, { value: "open", label: "open" },
-        ]}) +
+        gsel.html({ id: "schema-access-read", value: acc.read || "open", options: accessOptions }) +
       '</div>' +
       '<div class="schema-access-field">' +
         '<span class="schema-access-label">Insert</span>' +
-        gsel.html({ id: "schema-access-insert", value: acc.insert || "owner", options: [
-          { value: "local", label: "local" }, { value: "owner", label: "owner" },
-          { value: "email", label: "email" }, { value: "group", label: "group" },
-          { value: "open", label: "open" },
-        ]}) +
+        gsel.html({ id: "schema-access-insert", value: acc.insert || "owner", options: accessOptions }) +
       '</div>' +
       '<div class="schema-access-field">' +
         '<span class="schema-access-label">Update</span>' +
-        gsel.html({ id: "schema-access-update", value: acc.update || "owner", options: [
-          { value: "local", label: "local" }, { value: "owner", label: "owner" },
-        ]}) +
+        gsel.html({ id: "schema-access-update", value: acc.update || "owner", options: accessOptions }) +
       '</div>' +
       '<div class="schema-access-field">' +
         '<span class="schema-access-label">Delete</span>' +
-        gsel.html({ id: "schema-access-delete", value: acc.delete || "owner", options: [
-          { value: "local", label: "local" }, { value: "owner", label: "owner" },
-        ]}) +
+        gsel.html({ id: "schema-access-delete", value: acc.delete || "owner", options: accessOptions }) +
       '</div>' +
     '</div>' +
   '</div>';
@@ -479,7 +472,10 @@ function bindSchemaColEvents() {
 
 function collectRoles() {
   var roles = {};
-  qsa("tr[data-role]", schemaRolesEditor).forEach(function(tr) {
+  var tbody = qs("tbody", schemaRolesEditor);
+  if (!tbody) return roles;
+  qsa("tr", tbody).forEach(function(tr) {
+    if (tr.classList.contains("schema-role-owner")) return;
     var nameInput = qs(".schema-role-name", tr);
     var roleName = nameInput ? nameInput.value.trim() : "";
     if (!roleName) return;

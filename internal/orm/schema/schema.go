@@ -14,9 +14,14 @@ type Row map[string]any
 // Access describes per-operation access policy for a table.
 type Access struct {
 	Read   string `json:"read,omitempty"`   // "local", "owner", "group", "open"
-	Insert string `json:"insert,omitempty"` // "local", "owner", "email", "group", "open"
-	Update string `json:"update,omitempty"` // "local", "owner"
-	Delete string `json:"delete,omitempty"` // "local", "owner"
+	Insert string `json:"insert,omitempty"` // "local", "owner", "group", "open"
+	Update string `json:"update,omitempty"` // "local", "owner", "group", "open"
+	Delete string `json:"delete,omitempty"` // "local", "owner", "group", "open"
+}
+
+// UsesGroup returns true if any operation uses the "group" access policy.
+func (a *Access) UsesGroup() bool {
+	return a.Read == "group" || a.Insert == "group" || a.Update == "group" || a.Delete == "group"
 }
 
 // DefaultAccess returns the default access policy (matches legacy "owner" insert_policy).
@@ -27,8 +32,6 @@ func DefaultAccess() Access {
 // AccessFromInsertPolicy synthesizes an Access struct from a legacy insert_policy string.
 func AccessFromInsertPolicy(policy string) Access {
 	switch policy {
-	case "email":
-		return Access{Read: "owner", Insert: "email", Update: "owner", Delete: "owner"}
 	case "open", "public":
 		return Access{Read: "open", Insert: "open", Update: "owner", Delete: "owner"}
 	case "group":
@@ -38,10 +41,11 @@ func AccessFromInsertPolicy(policy string) Access {
 	}
 }
 
-var validReadPolicies = map[string]bool{"local": true, "owner": true, "group": true, "open": true}
-var validInsertPolicies = map[string]bool{"local": true, "owner": true, "email": true, "group": true, "open": true}
-var validUpdatePolicies = map[string]bool{"local": true, "owner": true}
-var validDeletePolicies = map[string]bool{"local": true, "owner": true}
+var validAccessPolicies = map[string]bool{"local": true, "owner": true, "group": true, "open": true}
+var validReadPolicies = validAccessPolicies
+var validInsertPolicies = validAccessPolicies
+var validUpdatePolicies = validAccessPolicies
+var validDeletePolicies = validAccessPolicies
 
 // RoleAccess defines what data operations a group role can perform on a table.
 type RoleAccess struct {

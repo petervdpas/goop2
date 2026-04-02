@@ -20,5 +20,11 @@
     "insert": "group",
     "update": "owner",
     "delete": "owner"
+  },
+  "roles": {
+    "x": {},
+    "y": {
+      "insert": true
+    }
   }
 }

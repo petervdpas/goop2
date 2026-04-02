@@ -8,7 +8,7 @@
   ],
   "access": {
     "read": "owner",
-    "insert": "email",
+    "insert": "open",
     "update": "owner",
     "delete": "owner"
   }

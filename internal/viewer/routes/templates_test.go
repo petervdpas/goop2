@@ -40,7 +40,7 @@ func TestApplyBuiltinBlog(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := applyTemplateFiles(d, files, "", nil, "Blog", []string{"posts", "blog_config"}); err != nil {
+	if err := applyTemplateFiles(d, files, "", nil, "Blog", []string{"posts", "blog_config"}, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -89,7 +89,7 @@ func TestApplyBuiltinEnquete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := applyTemplateFiles(d, files, "", nil, "Enquete", []string{"responses"}); err != nil {
+	if err := applyTemplateFiles(d, files, "", nil, "Enquete", []string{"responses"}, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -98,8 +98,8 @@ func TestApplyBuiltinEnquete(t *testing.T) {
 	}
 
 	access := d.DB.GetAccess("responses")
-	if access.Insert != "email" {
-		t.Fatalf("responses access.insert = %q, want 'email'", access.Insert)
+	if access.Insert != "open" {
+		t.Fatalf("responses access.insert = %q, want 'open'", access.Insert)
 	}
 	if access.Read != "owner" {
 		t.Fatalf("responses access.read = %q, want 'owner'", access.Read)
@@ -114,7 +114,7 @@ func TestApplyBuiltinTictactoe(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := applyTemplateFiles(d, files, "", nil, "Tic-Tac-Toe", []string{"games"}); err != nil {
+	if err := applyTemplateFiles(d, files, "", nil, "Tic-Tac-Toe", []string{"games"}, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -136,7 +136,7 @@ func TestApplyBuiltinClubhouse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := applyTemplateFiles(d, files, "", nil, "Clubhouse", []string{"rooms"}); err != nil {
+	if err := applyTemplateFiles(d, files, "", nil, "Clubhouse", []string{"rooms"}, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -154,7 +154,7 @@ func TestApplyReplacesExistingTables(t *testing.T) {
 	d, _ := testDeps(t)
 
 	blogFiles, _ := sitetemplates.SiteFiles("blog")
-	if err := applyTemplateFiles(d, blogFiles, "", nil, "Blog", []string{"posts", "blog_config"}); err != nil {
+	if err := applyTemplateFiles(d, blogFiles, "", nil, "Blog", []string{"posts", "blog_config"}, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -163,7 +163,7 @@ func TestApplyReplacesExistingTables(t *testing.T) {
 	}
 
 	tttFiles, _ := sitetemplates.SiteFiles("tictactoe")
-	if err := applyTemplateFiles(d, tttFiles, "", nil, "Tic-Tac-Toe", []string{"games"}); err != nil {
+	if err := applyTemplateFiles(d, tttFiles, "", nil, "Tic-Tac-Toe", []string{"games"}, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -179,7 +179,7 @@ func TestApplyWritesSiteFiles(t *testing.T) {
 	d, dir := testDeps(t)
 
 	files, _ := sitetemplates.SiteFiles("blog")
-	if err := applyTemplateFiles(d, files, "", nil, "Blog", []string{"posts", "blog_config"}); err != nil {
+	if err := applyTemplateFiles(d, files, "", nil, "Blog", []string{"posts", "blog_config"}, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -314,7 +314,7 @@ func TestSeedFunctionCalled(t *testing.T) {
 		"lua/functions/seed.lua":  []byte("function call(req) return 'seeded' end"),
 	}
 
-	if err := applyTemplateFiles(d, files, "", nil, "Test", []string{"items"}); err != nil {
+	if err := applyTemplateFiles(d, files, "", nil, "Test", []string{"items"}, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -347,7 +347,7 @@ func TestSeedNotCalledWithoutSeedFile(t *testing.T) {
 		"lua/functions/other.lua":     []byte("function call(req) return 'ok' end"),
 	}
 
-	if err := applyTemplateFiles(d, files, "", nil, "Test", []string{"items"}); err != nil {
+	if err := applyTemplateFiles(d, files, "", nil, "Test", []string{"items"}, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -369,7 +369,7 @@ func TestLegacySchemaSQLStillWorks(t *testing.T) {
 
 	policies := map[string]string{"legacy": "open"}
 
-	if err := applyTemplateFiles(d, nil, sqlSchema, policies, "Legacy", nil); err != nil {
+	if err := applyTemplateFiles(d, nil, sqlSchema, policies, "Legacy", nil, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -397,7 +397,7 @@ func TestUserTablesSurviveTemplateApply(t *testing.T) {
 
 	// Apply blog template first
 	blogFiles, _ := sitetemplates.SiteFiles("blog")
-	if err := applyTemplateFiles(d, blogFiles, "", nil, "Blog", []string{"posts", "blog_config"}); err != nil {
+	if err := applyTemplateFiles(d, blogFiles, "", nil, "Blog", []string{"posts", "blog_config"}, false); err != nil {
 		t.Fatal(err)
 	}
 	if !d.DB.IsORM("posts") {
@@ -417,7 +417,7 @@ func TestUserTablesSurviveTemplateApply(t *testing.T) {
 
 	// Apply tictactoe — should drop blog tables but keep user table
 	tttFiles, _ := sitetemplates.SiteFiles("tictactoe")
-	if err := applyTemplateFiles(d, tttFiles, "", nil, "Tic-Tac-Toe", []string{"games"}); err != nil {
+	if err := applyTemplateFiles(d, tttFiles, "", nil, "Tic-Tac-Toe", []string{"games"}, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -448,7 +448,7 @@ func TestTemplateSwitchCleansOldSchemaFiles(t *testing.T) {
 	d, dir := testDeps(t)
 
 	blogFiles, _ := sitetemplates.SiteFiles("blog")
-	if err := applyTemplateFiles(d, blogFiles, "", nil, "Blog", []string{"posts", "blog_config"}); err != nil {
+	if err := applyTemplateFiles(d, blogFiles, "", nil, "Blog", []string{"posts", "blog_config"}, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -462,7 +462,7 @@ func TestTemplateSwitchCleansOldSchemaFiles(t *testing.T) {
 	}
 
 	tttFiles, _ := sitetemplates.SiteFiles("tictactoe")
-	if err := applyTemplateFiles(d, tttFiles, "", nil, "Tic-Tac-Toe", []string{"games"}); err != nil {
+	if err := applyTemplateFiles(d, tttFiles, "", nil, "Tic-Tac-Toe", []string{"games"}, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -513,7 +513,7 @@ func TestTemplateSwitchWithMockTemplates(t *testing.T) {
 	}
 
 	// Apply Alpha
-	if err := applyTemplateFiles(d, templateAlpha, "", nil, "Alpha", []string{"posts", "config"}); err != nil {
+	if err := applyTemplateFiles(d, templateAlpha, "", nil, "Alpha", []string{"posts", "config"}, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -536,7 +536,7 @@ func TestTemplateSwitchWithMockTemplates(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "schemas", "my_stuff.json"), userSchemaJSON, 0o644)
 
 	// Apply Beta — should drop Alpha tables+files, keep user table+file
-	if err := applyTemplateFiles(d, templateBeta, "", nil, "Beta", []string{"games"}); err != nil {
+	if err := applyTemplateFiles(d, templateBeta, "", nil, "Beta", []string{"games"}, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -603,7 +603,7 @@ func TestTemplateAtoB_backToA(t *testing.T) {
 	schemasDir := filepath.Join(dir, "schemas")
 
 	// 1. Apply A
-	if err := applyTemplateFiles(d, tplA, "", nil, "A", []string{"alpha_data"}); err != nil {
+	if err := applyTemplateFiles(d, tplA, "", nil, "A", []string{"alpha_data"}, false); err != nil {
 		t.Fatal(err)
 	}
 	if !d.DB.IsORM("alpha_data") {
@@ -614,7 +614,7 @@ func TestTemplateAtoB_backToA(t *testing.T) {
 	}
 
 	// 2. Apply B — A's table and schema file should be gone
-	if err := applyTemplateFiles(d, tplB, "", nil, "B", []string{"beta_data"}); err != nil {
+	if err := applyTemplateFiles(d, tplB, "", nil, "B", []string{"beta_data"}, false); err != nil {
 		t.Fatal(err)
 	}
 	if d.DB.IsORM("alpha_data") {
@@ -631,7 +631,7 @@ func TestTemplateAtoB_backToA(t *testing.T) {
 	}
 
 	// 3. Apply A again — B's table and schema file should be gone, A's restored
-	if err := applyTemplateFiles(d, tplA, "", nil, "A", []string{"alpha_data"}); err != nil {
+	if err := applyTemplateFiles(d, tplA, "", nil, "A", []string{"alpha_data"}, false); err != nil {
 		t.Fatal(err)
 	}
 	if d.DB.IsORM("beta_data") {
@@ -684,13 +684,13 @@ func TestTemplateFailoverSharedTableName(t *testing.T) {
 	schemasDir := filepath.Join(dir, "schemas")
 
 	// Apply A
-	if err := applyTemplateFiles(d, tplA, "", nil, "A", []string{"data", "a_only"}); err != nil {
+	if err := applyTemplateFiles(d, tplA, "", nil, "A", []string{"data", "a_only"}, false); err != nil {
 		t.Fatal(err)
 	}
 	d.DB.OrmInsert("data", "me", "", map[string]any{"val": "from_A"})
 
 	// Apply B — both share "data", B should get a fresh "data" table
-	if err := applyTemplateFiles(d, tplB, "", nil, "B", []string{"data", "b_only"}); err != nil {
+	if err := applyTemplateFiles(d, tplB, "", nil, "B", []string{"data", "b_only"}, false); err != nil {
 		t.Fatal(err)
 	}
 	if d.DB.IsORM("a_only") {
@@ -705,7 +705,7 @@ func TestTemplateFailoverSharedTableName(t *testing.T) {
 	}
 
 	// Apply A again — should work even though "data" exists from B
-	if err := applyTemplateFiles(d, tplA, "", nil, "A", []string{"data", "a_only"}); err != nil {
+	if err := applyTemplateFiles(d, tplA, "", nil, "A", []string{"data", "a_only"}, false); err != nil {
 		t.Fatalf("re-apply A should not fail: %v", err)
 	}
 	if !d.DB.IsORM("data") {
@@ -726,7 +726,7 @@ func TestTemplateTablesMetaTracking(t *testing.T) {
 	d, _ := testDeps(t)
 
 	blogFiles, _ := sitetemplates.SiteFiles("blog")
-	if err := applyTemplateFiles(d, blogFiles, "", nil, "Blog", []string{"posts", "blog_config"}); err != nil {
+	if err := applyTemplateFiles(d, blogFiles, "", nil, "Blog", []string{"posts", "blog_config"}, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -736,5 +736,102 @@ func TestTemplateTablesMetaTracking(t *testing.T) {
 	}
 	if !strings.Contains(meta, "posts") || !strings.Contains(meta, "blog_config") {
 		t.Fatalf("template_tables should contain posts and blog_config, got %q", meta)
+	}
+}
+
+func TestRequireEmailStoredInMeta(t *testing.T) {
+	d, _ := testDeps(t)
+
+	schema := &ormschema.Table{
+		Name:    "data",
+		Columns: []ormschema.Column{{Name: "id", Type: "integer", Key: true}},
+	}
+	schemaJSON, _ := json.Marshal(schema)
+	files := map[string][]byte{
+		"schemas/data.json": schemaJSON,
+	}
+
+	if err := applyTemplateFiles(d, files, "", nil, "Test", []string{"data"}, true); err != nil {
+		t.Fatal(err)
+	}
+	if d.DB.GetMeta("template_require_email") != "1" {
+		t.Fatal("template_require_email should be '1' when requireEmail=true")
+	}
+
+	if err := applyTemplateFiles(d, files, "", nil, "Test", []string{"data"}, false); err != nil {
+		t.Fatal(err)
+	}
+	if d.DB.GetMeta("template_require_email") != "" {
+		t.Fatal("template_require_email should be empty when requireEmail=false")
+	}
+}
+
+func TestNeedsGroupFromUpdateDeleteAccess(t *testing.T) {
+	d := testDepsWithGroups(t)
+
+	schema := &ormschema.Table{
+		Name:    "items",
+		Columns: []ormschema.Column{{Name: "id", Type: "integer", Key: true}},
+		Access:  &ormschema.Access{Read: "open", Insert: "owner", Update: "group", Delete: "owner"},
+	}
+	schemaJSON, _ := json.Marshal(schema)
+	files := map[string][]byte{
+		"schemas/items.json": schemaJSON,
+	}
+
+	if err := applyTemplateFiles(d, files, "", nil, "GroupUpdate", []string{"items"}, false); err != nil {
+		t.Fatal(err)
+	}
+
+	groupID := d.DB.GetMeta("template_group_id")
+	if groupID == "" {
+		t.Fatal("group should be created when update access is 'group'")
+	}
+}
+
+func TestNeedsGroupFromRolesMap(t *testing.T) {
+	d := testDepsWithGroups(t)
+
+	schema := &ormschema.Table{
+		Name:    "items",
+		Columns: []ormschema.Column{{Name: "id", Type: "integer", Key: true}},
+		Access:  &ormschema.Access{Read: "open", Insert: "owner", Update: "owner", Delete: "owner"},
+		Roles:   map[string]ormschema.RoleAccess{"editor": {Read: true, Insert: true}},
+	}
+	schemaJSON, _ := json.Marshal(schema)
+	files := map[string][]byte{
+		"schemas/items.json": schemaJSON,
+	}
+
+	if err := applyTemplateFiles(d, files, "", nil, "RolesOnly", []string{"items"}, false); err != nil {
+		t.Fatal(err)
+	}
+
+	groupID := d.DB.GetMeta("template_group_id")
+	if groupID == "" {
+		t.Fatal("group should be created when schema has roles defined")
+	}
+}
+
+func TestNoGroupWithoutGroupAccess(t *testing.T) {
+	d := testDepsWithGroups(t)
+
+	schema := &ormschema.Table{
+		Name:    "items",
+		Columns: []ormschema.Column{{Name: "id", Type: "integer", Key: true}},
+		Access:  &ormschema.Access{Read: "open", Insert: "owner", Update: "owner", Delete: "owner"},
+	}
+	schemaJSON, _ := json.Marshal(schema)
+	files := map[string][]byte{
+		"schemas/items.json": schemaJSON,
+	}
+
+	if err := applyTemplateFiles(d, files, "", nil, "NoGroup", []string{"items"}, false); err != nil {
+		t.Fatal(err)
+	}
+
+	groupID := d.DB.GetMeta("template_group_id")
+	if groupID != "" {
+		t.Fatal("group should NOT be created when no access uses 'group' and no roles defined")
 	}
 }

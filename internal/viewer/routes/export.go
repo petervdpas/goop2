@@ -18,12 +18,13 @@ import (
 
 // ExportManifest is written as manifest.json inside the export zip.
 type ExportManifest struct {
-	Version    int                          `json:"version"`
-	Label      string                       `json:"label"`
-	ExportedAt string                       `json:"exported_at"`
-	LuaEnabled bool                         `json:"lua_enabled"`
-	Tables     map[string]TablePolicyExport `json:"tables,omitempty"`
-	Schemas    []string                     `json:"schemas,omitempty"`
+	Version      int                          `json:"version"`
+	Label        string                       `json:"label"`
+	ExportedAt   string                       `json:"exported_at"`
+	LuaEnabled   bool                         `json:"lua_enabled"`
+	Tables       map[string]TablePolicyExport `json:"tables,omitempty"`
+	Schemas      []string                     `json:"schemas,omitempty"`
+	RequireEmail bool                         `json:"require_email,omitempty"`
 }
 
 // TablePolicyExport holds per-table policy in the export manifest.
@@ -60,10 +61,11 @@ func registerExportRoutes(mux *http.ServeMux, d Deps, csrf string) {
 
 		// Build manifest
 		manifest := ExportManifest{
-			Version:    1,
-			Label:      label,
-			ExportedAt: now.Format(time.RFC3339),
-			LuaEnabled: cfg.Lua.Enabled,
+			Version:      1,
+			Label:        label,
+			ExportedAt:   now.Format(time.RFC3339),
+			LuaEnabled:   cfg.Lua.Enabled,
+			RequireEmail: d.DB != nil && d.DB.GetMeta("template_require_email") == "1",
 		}
 
 		if d.DB != nil {
@@ -257,7 +259,7 @@ func registerExportRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 
 		// Reuse the existing template apply flow for site files + schema + policies
-		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies, manifest.Label, manifest.Schemas); err != nil {
+		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies, manifest.Label, manifest.Schemas, manifest.RequireEmail); err != nil {
 			http.Error(w, "failed to apply import: "+err.Error(), http.StatusInternalServerError)
 			return
 		}

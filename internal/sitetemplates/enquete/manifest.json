@@ -3,5 +3,6 @@
   "description": "A simple survey — peers answer 3 questions. Responses are stored per-peer.",
   "category": "community",
   "icon": "📋",
-  "schemas": ["responses"]
+  "schemas": ["responses"],
+  "require_email": true
 }

@@ -21,7 +21,7 @@ func TestTemplateGroupCreated(t *testing.T) {
 	d := testDepsWithGroups(t)
 
 	files, _ := sitetemplates.SiteFiles("blog")
-	if err := applyTemplateFiles(d, files, "", nil, "Blog", []string{"posts", "blog_config"}); err != nil {
+	if err := applyTemplateFiles(d, files, "", nil, "Blog", []string{"posts", "blog_config"}, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -56,7 +56,7 @@ func TestTemplateGroupReusedOnReapply(t *testing.T) {
 	d := testDepsWithGroups(t)
 
 	files, _ := sitetemplates.SiteFiles("blog")
-	if err := applyTemplateFiles(d, files, "", nil, "Blog", []string{"posts", "blog_config"}); err != nil {
+	if err := applyTemplateFiles(d, files, "", nil, "Blog", []string{"posts", "blog_config"}, false); err != nil {
 		t.Fatal(err)
 	}
 	firstGroupID := d.DB.GetMeta("template_group_id")
@@ -64,7 +64,7 @@ func TestTemplateGroupReusedOnReapply(t *testing.T) {
 		t.Fatal("template_group_id should be set")
 	}
 
-	if err := applyTemplateFiles(d, files, "", nil, "Blog", []string{"posts", "blog_config"}); err != nil {
+	if err := applyTemplateFiles(d, files, "", nil, "Blog", []string{"posts", "blog_config"}, false); err != nil {
 		t.Fatal(err)
 	}
 	secondGroupID := d.DB.GetMeta("template_group_id")
@@ -78,7 +78,7 @@ func TestTemplateGroupClosedOnSwitch(t *testing.T) {
 	d := testDepsWithGroups(t)
 
 	blogFiles, _ := sitetemplates.SiteFiles("blog")
-	if err := applyTemplateFiles(d, blogFiles, "", nil, "Blog", []string{"posts", "blog_config"}); err != nil {
+	if err := applyTemplateFiles(d, blogFiles, "", nil, "Blog", []string{"posts", "blog_config"}, false); err != nil {
 		t.Fatal(err)
 	}
 	blogGroupID := d.DB.GetMeta("template_group_id")
@@ -87,7 +87,7 @@ func TestTemplateGroupClosedOnSwitch(t *testing.T) {
 	}
 
 	tttFiles, _ := sitetemplates.SiteFiles("tictactoe")
-	if err := applyTemplateFiles(d, tttFiles, "", nil, "Tic-Tac-Toe", []string{"games"}); err != nil {
+	if err := applyTemplateFiles(d, tttFiles, "", nil, "Tic-Tac-Toe", []string{"games"}, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -129,7 +129,7 @@ func TestTemplateGroupNewOnDifferentGroupTemplate(t *testing.T) {
 		"schemas/tasks.json": otherJSON,
 	}
 
-	if err := applyTemplateFiles(d, tplA, "", nil, "Alpha", []string{"posts"}); err != nil {
+	if err := applyTemplateFiles(d, tplA, "", nil, "Alpha", []string{"posts"}, false); err != nil {
 		t.Fatal(err)
 	}
 	groupA := d.DB.GetMeta("template_group_id")
@@ -137,7 +137,7 @@ func TestTemplateGroupNewOnDifferentGroupTemplate(t *testing.T) {
 		t.Fatal("group should be created for Alpha")
 	}
 
-	if err := applyTemplateFiles(d, tplB, "", nil, "Beta", []string{"tasks"}); err != nil {
+	if err := applyTemplateFiles(d, tplB, "", nil, "Beta", []string{"tasks"}, false); err != nil {
 		t.Fatal(err)
 	}
 	groupB := d.DB.GetMeta("template_group_id")
@@ -161,7 +161,7 @@ func TestNoGroupTemplateNoGroupCreated(t *testing.T) {
 	d := testDepsWithGroups(t)
 
 	tttFiles, _ := sitetemplates.SiteFiles("tictactoe")
-	if err := applyTemplateFiles(d, tttFiles, "", nil, "Tic-Tac-Toe", []string{"games"}); err != nil {
+	if err := applyTemplateFiles(d, tttFiles, "", nil, "Tic-Tac-Toe", []string{"games"}, false); err != nil {
 		t.Fatal(err)
 	}
 

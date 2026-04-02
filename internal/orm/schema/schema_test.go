@@ -641,7 +641,6 @@ func TestAccessFromInsertPolicy(t *testing.T) {
 		want   Access
 	}{
 		{"owner", Access{Read: "open", Insert: "owner", Update: "owner", Delete: "owner"}},
-		{"email", Access{Read: "owner", Insert: "email", Update: "owner", Delete: "owner"}},
 		{"open", Access{Read: "open", Insert: "open", Update: "owner", Delete: "owner"}},
 		{"public", Access{Read: "open", Insert: "open", Update: "owner", Delete: "owner"}},
 		{"group", Access{Read: "open", Insert: "group", Update: "owner", Delete: "owner"}},
@@ -667,9 +666,8 @@ func TestAccess_Validate(t *testing.T) {
 	valid := []Access{
 		{Read: "local", Insert: "local", Update: "local", Delete: "local"},
 		{Read: "owner", Insert: "owner", Update: "owner", Delete: "owner"},
-		{Read: "group", Insert: "group"},
-		{Read: "open", Insert: "open"},
-		{Insert: "email"},
+		{Read: "group", Insert: "group", Update: "group", Delete: "group"},
+		{Read: "open", Insert: "open", Update: "open", Delete: "open"},
 		{},
 	}
 	for _, a := range valid {
@@ -682,10 +680,10 @@ func TestAccess_Validate(t *testing.T) {
 		access Access
 		field  string
 	}{
-		{Access{Read: "email"}, "read"},
+		{Access{Read: "bogus"}, "read"},
 		{Access{Insert: "bogus"}, "insert"},
-		{Access{Update: "open"}, "update"},
-		{Access{Delete: "group"}, "delete"},
+		{Access{Update: "bogus"}, "update"},
+		{Access{Delete: "bogus"}, "delete"},
 	}
 	for _, tt := range invalid {
 		err := tt.access.Validate()
@@ -746,5 +744,26 @@ func TestAccess_JSON_BackwardCompat(t *testing.T) {
 	}
 	if tbl.Access != nil {
 		t.Error("Access should be nil for old schema JSON without access field")
+	}
+}
+
+func TestAccess_UsesGroup(t *testing.T) {
+	tests := []struct {
+		access Access
+		want   bool
+	}{
+		{Access{Read: "group"}, true},
+		{Access{Insert: "group"}, true},
+		{Access{Update: "group"}, true},
+		{Access{Delete: "group"}, true},
+		{Access{Read: "group", Insert: "group", Update: "group", Delete: "group"}, true},
+		{Access{Read: "open", Insert: "owner", Update: "owner", Delete: "owner"}, false},
+		{Access{}, false},
+	}
+	for _, tt := range tests {
+		got := tt.access.UsesGroup()
+		if got != tt.want {
+			t.Errorf("UsesGroup(%+v) = %v, want %v", tt.access, got, tt.want)
+		}
 	}
 }

@@ -143,7 +143,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		}
 
-		if err := applyTemplateFiles(d, files, schema, tablePolicies, meta.Name, meta.Schemas); err != nil {
+		if err := applyTemplateFiles(d, files, schema, tablePolicies, meta.Name, meta.Schemas, meta.RequireEmail); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -254,7 +254,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		}
 
-		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies, manifest.Name, manifest.Schemas); err != nil {
+		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies, manifest.Name, manifest.Schemas, manifest.RequireEmail); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -361,7 +361,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		}
 
-		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies, manifest.Name, manifest.Schemas); err != nil {
+		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies, manifest.Name, manifest.Schemas, manifest.RequireEmail); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -381,6 +381,13 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 		}
 		writeJSON(w, resp)
 	})
+
+	handleGet(mux, "/api/template/settings", func(w http.ResponseWriter, r *http.Request) {
+		settings := map[string]bool{
+			"require_email": d.DB != nil && d.DB.GetMeta("template_require_email") == "1",
+		}
+		writeJSON(w, settings)
+	})
 }
 
 // applyTemplateFiles runs the apply flow:
@@ -392,8 +399,9 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 // 5b. Create ORM tables from schemas/*.json (primary path)
 // 6. Ensure Lua engine rescans if Lua files are present
 // 6b. Call seed function if present
-// 7. Auto-create a "template" group if any table uses "group" access policy
-func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePolicies map[string]string, templateName string, schemaNames []string) error {
+// 7. Auto-create a "template" group if any schema uses "group" access or has roles
+// 8. Store template settings (require_email) in _meta
+func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePolicies map[string]string, templateName string, schemaNames []string, requireEmail bool) error {
 	// 1. Drop previous template's tables and schema files (not user-created tables).
 	if d.DB != nil {
 		if err := dropTemplateTables(d.DB, d.PeerDir); err != nil {
@@ -526,8 +534,35 @@ func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePol
 	}
 
 	// 7. Manage template co-author group lifecycle.
-	// The group ID is tracked in _meta("template_group_id") so it can be
-	// cleaned up on re-apply or when switching to a different template.
+	// Derive needsGroup from the schemas that were just applied: if any schema
+	// uses "group" in its access policy or defines a roles map, a group is needed.
+	needsGroup := false
+	for rel, data := range files {
+		if !strings.HasPrefix(rel, "schemas/") || !strings.HasSuffix(rel, ".json") {
+			continue
+		}
+		var tbl ormschema.Table
+		if json.Unmarshal(data, &tbl) != nil {
+			continue
+		}
+		if tbl.Access != nil && tbl.Access.UsesGroup() {
+			needsGroup = true
+			break
+		}
+		if len(tbl.Roles) > 0 {
+			needsGroup = true
+			break
+		}
+	}
+	if !needsGroup {
+		for _, policy := range tablePolicies {
+			if policy == "group" {
+				needsGroup = true
+				break
+			}
+		}
+	}
+
 	if d.GroupManager != nil {
 		existingGroupID := ""
 		existingGroupTemplate := ""
@@ -536,8 +571,6 @@ func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePol
 			existingGroupTemplate = d.DB.GetMeta("template_group_name")
 		}
 
-		// Clean up any orphan template groups not matching the tracked ID
-		// (migration from before tracking was added).
 		if existing, err := d.GroupManager.ListHostedGroups(); err == nil {
 			for _, g := range existing {
 				if g.GroupType == "template" && g.ID != existingGroupID {
@@ -547,33 +580,10 @@ func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePol
 			}
 		}
 
-		// Check if the new template uses "group" policy.
-		hasGroupPolicy := false
-		for rel, data := range files {
-			if !strings.HasPrefix(rel, "schemas/") || !strings.HasSuffix(rel, ".json") {
-				continue
-			}
-			var tbl ormschema.Table
-			if json.Unmarshal(data, &tbl) == nil && tbl.Access != nil && tbl.Access.Insert == "group" {
-				hasGroupPolicy = true
-				break
-			}
-		}
-		if !hasGroupPolicy {
-			for _, policy := range tablePolicies {
-				if policy == "group" {
-					hasGroupPolicy = true
-					break
-				}
-			}
-		}
-
 		sameTemplate := existingGroupID != "" && existingGroupTemplate == templateName
-		if hasGroupPolicy && sameTemplate {
-			// Same template re-applied — keep the existing group and its members.
+		if needsGroup && sameTemplate {
 			log.Printf("template: reusing existing co-author group %s", existingGroupID)
 		} else {
-			// Close the tracked group (switching template or new template has no group policy).
 			if existingGroupID != "" {
 				_ = d.GroupManager.CloseGroup(existingGroupID)
 				log.Printf("template: closed previous co-author group %s", existingGroupID)
@@ -583,8 +593,7 @@ func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePol
 				d.DB.SetMeta("template_group_name", "")
 			}
 
-			// Create a new group if the new template needs one.
-			if hasGroupPolicy {
+			if needsGroup {
 				groupName := templateName + " Co-authors"
 				if templateName == "" {
 					groupName = "Co-authors"
@@ -603,6 +612,15 @@ func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePol
 					}
 				}
 			}
+		}
+	}
+
+	// 8. Store template settings in _meta.
+	if d.DB != nil {
+		if requireEmail {
+			d.DB.SetMeta("template_require_email", "1")
+		} else {
+			d.DB.SetMeta("template_require_email", "")
 		}
 	}
 

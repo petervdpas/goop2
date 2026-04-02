@@ -249,3 +249,42 @@ func TestOwnerStillRejectsGroupMember(t *testing.T) {
 		t.Fatal("goop.owner() should still reject group members")
 	}
 }
+
+func TestTemplateRequireEmailLua(t *testing.T) {
+	dir := t.TempDir()
+	funcDir := filepath.Join(dir, "site", "lua", "functions")
+	os.MkdirAll(funcDir, 0755)
+
+	src := `--- @rate_limit 0
+function call(req)
+    return { require_email = goop.template.require_email }
+end
+`
+	os.WriteFile(filepath.Join(funcDir, "tplcheck.lua"), []byte(src), 0644)
+
+	db, err := storage.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	db.SetMeta("template_require_email", "1")
+
+	cfg := testConfig()
+	peers := state.NewPeerTable()
+	e, err := NewEngine(cfg, dir, "self-peer-id", func() string { return "TestPeer" }, peers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.SetDB(db)
+	t.Cleanup(func() { e.Close() })
+
+	result, err := e.CallFunction(context.Background(), "self-peer-id", "tplcheck", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := result.(map[string]any)
+	if m["require_email"] != true {
+		t.Fatalf("goop.template.require_email should be true, got %v", m["require_email"])
+	}
+}
