@@ -43,38 +43,82 @@
   }
 
   // ── Designer (owner only) ──
+  var designerSidebar = null;
+
   function setupDesigner(cfg) {
     if (!canAdmin) return;
     var defaults = { layout: "list", blog_title: "My Blog", blog_subtitle: "Thoughts, stories & notes", accent: "#b44d2d", font: "serif", theme: "light" };
     for (var k in defaults) if (!cfg[k]) { cfg[k] = defaults[k]; blog("save_config", { key: k, value: defaults[k] }); }
 
-    document.getElementById("d-title").value = cfg.blog_title || "My Blog";
-    document.getElementById("d-subtitle").value = cfg.blog_subtitle || "";
     btnCustomize.classList.remove("hidden");
 
-    function bind(sel, attr, key) {
-      document.querySelectorAll(sel).forEach(function (b) {
-        b.addEventListener("click", function () { cfg[key] = b.dataset[attr]; applyConfig(cfg); blog("save_config", { key: key, value: cfg[key] }); });
-      });
-    }
-    bind(".layout-btn", "layout", "layout");
-    bind(".swatch", "color", "accent");
-    bind(".font-btn", "font", "font");
-    bind(".theme-btn", "theme", "theme");
+    designerSidebar = Goop.ui.sidebar({
+      title: "Design",
+      side: "right",
+      width: 280,
+      content: '<div class="designer-body">' +
+        '<label class="designer-field">Blog Title<input type="text" id="d-title" placeholder="My Blog"></label>' +
+        '<label class="designer-field">Subtitle<input type="text" id="d-subtitle" placeholder="Thoughts, stories &amp; notes"></label>' +
+        '<div class="designer-section">Layout</div><div id="d-layout"></div>' +
+        '<div class="designer-section">Font</div><div id="d-font"></div>' +
+        '<div class="designer-section">Theme</div><div id="d-theme"></div>' +
+        '<div class="designer-section">Accent Color</div><div id="d-accent"></div>' +
+        '</div>',
+    });
 
-    var titleInput = document.getElementById("d-title");
+    var body = designerSidebar.body;
+    body.querySelector("#d-title").value = cfg.blog_title || "My Blog";
+    body.querySelector("#d-subtitle").value = cfg.blog_subtitle || "";
+
+    Goop.ui.toolbar(body.querySelector("#d-layout"), {
+      active: cfg.layout || "list",
+      buttons: [
+        { id: "list", label: "\u2630 List" },
+        { id: "grid", label: "\u229E Grid" },
+        { id: "magazine", label: "\u25A4 Magazine" },
+      ],
+      onChange: function(v) { cfg.layout = v; applyConfig(cfg); blog("save_config", { key: "layout", value: v }); },
+    });
+
+    Goop.ui.toolbar(body.querySelector("#d-font"), {
+      active: cfg.font || "serif",
+      buttons: [
+        { id: "serif", label: "Aa Serif" },
+        { id: "sans", label: "Aa Sans" },
+        { id: "mono", label: "Aa Mono" },
+      ],
+      onChange: function(v) { cfg.font = v; applyConfig(cfg); blog("save_config", { key: "font", value: v }); },
+    });
+
+    Goop.ui.toolbar(body.querySelector("#d-theme"), {
+      active: cfg.theme || "light",
+      buttons: [
+        { id: "light", label: "Light" },
+        { id: "sepia", label: "Sepia" },
+        { id: "dark", label: "Dark" },
+      ],
+      onChange: function(v) { cfg.theme = v; applyConfig(cfg); blog("save_config", { key: "theme", value: v }); },
+    });
+
+    Goop.ui.colorpicker(body.querySelector("#d-accent"), {
+      value: cfg.accent || "#b44d2d",
+      colors: ["#b44d2d", "#2d6a9f", "#4a8f46", "#7c4a9f", "#c0882c", "#2d7a6a"],
+      showHex: false,
+      onChange: function(v) { cfg.accent = v; applyConfig(cfg); blog("save_config", { key: "accent", value: v }); },
+    });
+
+    var titleInput = body.querySelector("#d-title");
     titleInput.addEventListener("blur", function () {
       cfg.blog_title = titleInput.value.trim() || "My Blog"; titleInput.value = cfg.blog_title;
       applyConfig(cfg); blog("save_config", { key: "blog_title", value: cfg.blog_title });
     });
-    var subtitleInput = document.getElementById("d-subtitle");
+    var subtitleInput = body.querySelector("#d-subtitle");
     subtitleInput.addEventListener("blur", function () {
       cfg.blog_subtitle = subtitleInput.value.trim();
       applyConfig(cfg); blog("save_config", { key: "blog_subtitle", value: cfg.blog_subtitle });
     });
 
-    btnCustomize.addEventListener("click", function () { designerPanel.classList.toggle("hidden"); });
-    document.getElementById("btn-designer-close").addEventListener("click", function () { designerPanel.classList.add("hidden"); });
+    btnCustomize.addEventListener("click", function () { designerSidebar.open(); });
   }
 
   // ── Posts ──

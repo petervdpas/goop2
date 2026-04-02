@@ -7,11 +7,19 @@ The Goop2 SDK is a set of JavaScript modules that templates load to interact wit
 ```html
 <script src="/sdk/goop-data.js"></script>
 <script src="/sdk/goop-identity.js"></script>
-<script src="/sdk/goop-ui.js"></script>
+<script src="/sdk/goop-components.js"></script>
 <script src="app.js"></script>
 ```
 
-Load only the modules you need. The SDK auto-detects whether the template is running on the local peer (`/`) or viewing a remote peer (`/p/<peerID>/`), and routes API calls to the correct peer transparently.
+Load only the modules you need. `goop-components.js` loads the full component library (toast, dialogs, datepicker, select, etc.). For minimal builds, load individual components:
+
+```html
+<script src="/sdk/goop-component-base.js"></script>
+<script src="/sdk/goop-component-toast.js"></script>
+<script src="/sdk/goop-component-dialog.js"></script>
+```
+
+The SDK auto-detects whether the template is running on the local peer (`/`) or viewing a remote peer (`/p/<peerID>/`), and routes API calls to the correct peer transparently.
 
 ```mermaid
 graph LR
@@ -35,11 +43,40 @@ graph LR
 | `goop-call.js` | `Goop.call` | Audio/video calling |
 | `goop-api.js` | `Goop.api` | Virtual REST API over Lua data functions |
 | `goop-site.js` | `Goop.site` | File storage (read, upload, delete) |
-| `goop-ui.js` | `Goop.ui` | Toast, confirm, prompt dialogs |
+| `goop-components.js` | `Goop.ui` | Component library loader (loads all below) |
 | `goop-form.js` | `Goop.form` | JSON-driven form renderer |
 | `goop-forms.js` | `Goop.forms` | Auto-generated CRUD UI from schema |
 | `goop-drag.js` | `Goop.drag` | Drag-and-drop with sortable lists |
 | `goop-engine.js` | `GameLoop, Renderer, ...` | 2D game engine (Canvas) |
+
+## Component Library
+
+The component library is modular. Load everything with `goop-components.js`, or pick individual files:
+
+| Component file | Provides | Key options |
+|---|---|---|
+| `goop-component-base.js` | Theme detection, CSS vars, grid, toast enhancements | Required by all components |
+| `goop-component-toast.js` | `Goop.ui.toast()`, `.success()`, `.error()`, `.warning()`, `.info()` | message, title, duration |
+| `goop-component-dialog.js` | `Goop.ui.dialog()`, `.alert()`, `.confirm()`, `.prompt()`, `.confirmDanger()` | title, message, input, ok, cancel |
+| `goop-component-datepicker.js` | `Goop.ui.datepicker(el, opts)` | value, time, min, max, format, firstDay, disabled |
+| `goop-component-select.js` | `Goop.ui.select(el, opts)` | options, value, multi, searchable, clearable, disabled |
+| `goop-component-colorpicker.js` | `Goop.ui.colorpicker(el, opts)` | value, colors, showHex, disabled |
+| `goop-component-toggle.js` | `Goop.ui.toggle(el, opts)` | checked, label, disabled |
+| `goop-component-tabs.js` | `Goop.ui.tabs(el, opts)` | tabs[{id, label, content, disabled}], active |
+| `goop-component-accordion.js` | `Goop.ui.accordion(el, opts)` | sections[{id, label, content}], multi, open |
+| `goop-component-taginput.js` | `Goop.ui.taginput(el, opts)` | value, placeholder, max, suggestions, disabled |
+| `goop-component-stepper.js` | `Goop.ui.stepper(el, opts)` | value, min, max, step, disabled |
+| `goop-component-sidebar.js` | `Goop.ui.sidebar(opts)` | title, content, side, width, overlay, closeOnEscape |
+| `goop-component-carousel.js` | `Goop.ui.carousel(el, opts)` | slides, start, autoplay, loop, dots, arrows |
+| `goop-component-lightbox.js` | `Goop.ui.lightbox(opts)` | items, showCounter, loop |
+| `goop-component-toolbar.js` | `Goop.ui.toolbar(el, opts)` | buttons[{id, label, disabled}], active, multi |
+| `goop-component-badge.js` | `Goop.ui.badge(text, opts)` | variant (success/warning/danger/muted), dot |
+| `goop-component-progress.js` | `Goop.ui.progress(el, opts)` | value, max, variant, animated, height, format |
+| `goop-component-pagination.js` | `Goop.ui.pagination(el, opts)` | total, page, perPage, totalItems, maxButtons, showInfo |
+| `goop-component-tooltip.js` | `Goop.ui.tooltip(el, opts)` | text, position (top/bottom/left/right) |
+| `goop-component-panel.js` | `Goop.ui.panel()`, `.scrollbox()`, `.splitpane()` | collapsible, variant, maxHeight, direction |
+
+All components return a handle with `getValue()`, `setValue()`, `destroy()`, and `el`. All fire standard `change` and `input` DOM events. All support `--goop-*` CSS custom properties for theming.
 
 ## Goop.data
 
@@ -271,15 +308,25 @@ await Goop.site.remove("data.json");
 
 ## Goop.ui
 
-Portable UI helpers. Auto-injects minimal CSS.
+UI components — loaded via `goop-components.js` or individual component files.
 
 ```javascript
+// Toast
 Goop.ui.toast("Saved!");
-Goop.ui.toast({title: "Error", message: "Something failed", duration: 6000});
+Goop.ui.toast.success("Row inserted");
+Goop.ui.toast.error("Something failed");
 
-const ok = await Goop.ui.confirm("Delete this item?", "Confirm");
-const name = await Goop.ui.prompt("Enter your name:", "Default", "Title");
+// Dialogs
+const ok = await Goop.ui.confirm("Delete this item?");
+const name = await Goop.ui.prompt({ title: "Rename", message: "New name:" });
 const theme = Goop.ui.theme();  // "dark" or "light"
+
+// Components
+const dp = Goop.ui.datepicker(el, { value: "2026-01-15", time: true });
+const sel = Goop.ui.select(el, { options: ["A", "B", "C"], searchable: true });
+const tb = Goop.ui.tabs(el, { tabs: [{id: "a", label: "Tab A"}, {id: "b", label: "Tab B"}] });
+const sb = Goop.ui.sidebar({ title: "Settings", side: "right" });
+sb.open();
 ```
 
 ## Goop.form
@@ -304,7 +351,7 @@ await Goop.form.render(document.getElementById("form"), {
 
 ## Goop.forms
 
-Auto-generated CRUD UI from table schemas. Requires `goop-data.js` and `goop-ui.js`.
+Auto-generated CRUD UI from table schemas. Requires `goop-data.js` and `goop-component-dialog.js`.
 
 ```javascript
 // Full CRUD interface
