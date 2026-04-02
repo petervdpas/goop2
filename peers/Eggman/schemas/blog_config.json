@@ -1,5 +1,5 @@
 {
-  "name": "kanban_config",
+  "name": "blog_config",
   "system_key": true,
   "columns": [
     {"name": "key", "type": "text", "required": true},
