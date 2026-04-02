@@ -76,15 +76,23 @@ func RegisterSchema(mux *http.ServeMux, peerDir string, db *storage.DB, onSchema
 			http.Error(w, "name required", http.StatusBadRequest)
 			return
 		}
+		var tbl schema.Table
 		path := filepath.Join(schemasDir, req.Name+".json")
 		data, err := os.ReadFile(path)
-		if err != nil {
+		if err == nil && len(data) > 0 {
+			if err := json.Unmarshal(data, &tbl); err != nil {
+				http.Error(w, "invalid schema: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else if db != nil {
+			stored, err := db.GetSchema(req.Name)
+			if err != nil || stored == nil {
+				http.Error(w, "schema not found", http.StatusNotFound)
+				return
+			}
+			tbl = *stored
+		} else {
 			http.Error(w, "schema not found", http.StatusNotFound)
-			return
-		}
-		var tbl schema.Table
-		if err := json.Unmarshal(data, &tbl); err != nil {
-			http.Error(w, "invalid schema: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		writeJSON(w, tbl)
@@ -221,15 +229,23 @@ func RegisterSchema(mux *http.ServeMux, peerDir string, db *storage.DB, onSchema
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		var tbl schema.Table
 		path := filepath.Join(schemasDir, req.Name+".json")
 		data, err := os.ReadFile(path)
-		if err != nil {
+		if err == nil && len(data) > 0 {
+			if err := json.Unmarshal(data, &tbl); err != nil {
+				http.Error(w, "invalid schema: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else if db != nil {
+			stored, err := db.GetSchema(req.Name)
+			if err != nil || stored == nil {
+				http.Error(w, "schema not found", http.StatusNotFound)
+				return
+			}
+			tbl = *stored
+		} else {
 			http.Error(w, "schema not found", http.StatusNotFound)
-			return
-		}
-		var tbl schema.Table
-		if err := json.Unmarshal(data, &tbl); err != nil {
-			http.Error(w, "invalid schema: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		tbl.Access = &req.Access
@@ -247,5 +263,50 @@ func RegisterSchema(mux *http.ServeMux, peerDir string, db *storage.DB, onSchema
 		}
 		onSchemaChange()
 		writeJSON(w, map[string]any{"status": "updated", "access": req.Access})
+	})
+
+	handlePost(mux, "/api/data/schemas/set-roles", func(w http.ResponseWriter, r *http.Request, req struct {
+		Name  string                       `json:"name"`
+		Roles map[string]schema.RoleAccess `json:"roles"`
+	}) {
+		if req.Name == "" {
+			http.Error(w, "name required", http.StatusBadRequest)
+			return
+		}
+		// Try file first, fall back to ORM schema in DB
+		var tbl schema.Table
+		path := filepath.Join(schemasDir, req.Name+".json")
+		data, err := os.ReadFile(path)
+		if err == nil && len(data) > 0 {
+			if err := json.Unmarshal(data, &tbl); err != nil {
+				http.Error(w, "invalid schema: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else if db != nil {
+			stored, err := db.GetSchema(req.Name)
+			if err != nil || stored == nil {
+				http.Error(w, "schema not found", http.StatusNotFound)
+				return
+			}
+			tbl = *stored
+		} else {
+			http.Error(w, "schema not found", http.StatusNotFound)
+			return
+		}
+		tbl.Roles = req.Roles
+		out, err := json.MarshalIndent(tbl, "", "  ")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := os.WriteFile(path, append(out, '\n'), 0644); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if db != nil {
+			db.UpdateSchemaRoles(tbl.Name, req.Roles)
+		}
+		onSchemaChange()
+		writeJSON(w, map[string]any{"status": "updated", "roles": req.Roles})
 	})
 }

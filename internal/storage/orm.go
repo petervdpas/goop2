@@ -161,6 +161,22 @@ func (d *DB) UpdateSchemaAccess(tableName string, access *schema.Access) {
 	d.db.Exec(`UPDATE _orm_schemas SET schema_json = ? WHERE table_name = ?`, string(schemaJSON), tableName)
 }
 
+// UpdateSchemaRoles updates the roles map in a stored ORM schema.
+func (d *DB) UpdateSchemaRoles(tableName string, roles map[string]schema.RoleAccess) {
+	tbl, err := d.GetSchema(tableName)
+	if err != nil || tbl == nil {
+		return
+	}
+	tbl.Roles = roles
+	schemaJSON, err := json.Marshal(tbl)
+	if err != nil {
+		return
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.db.Exec(`UPDATE _orm_schemas SET schema_json = ? WHERE table_name = ?`, string(schemaJSON), tableName)
+}
+
 // DeleteSchemaORM removes the stored schema when an ORM table is deleted.
 func (d *DB) DeleteSchemaORM(tableName string) {
 	d.mu.Lock()

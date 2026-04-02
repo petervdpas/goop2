@@ -734,6 +734,43 @@
   color: var(--text-muted, #aaa);
 }
 
+/* Roles matrix table */
+.schema-roles-table{
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+.schema-roles-table th,
+.schema-roles-table td{
+  padding: 8px 12px;
+  text-align: center;
+  border-bottom: 1px solid var(--border, #333);
+}
+.schema-roles-table th:first-child,
+.schema-roles-table td:first-child{
+  text-align: left;
+  font-weight: 600;
+}
+.schema-roles-table th{
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted, #aaa);
+}
+.schema-role-owner td{
+  color: var(--text-muted, #888);
+}
+.schema-roles-actions{
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.form-hint{
+  font-size: 12px;
+  color: var(--text-muted, #aaa);
+  margin: 4px 0 8px;
+}
+
 /* Schema view panes (DDL / GraphQL full-panel views) */
 .schema-view-pane{
   flex: 1 1 0;

@@ -318,8 +318,8 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 			for _, m := range d.GroupManager.ClientGroupMembers(groupID) {
 				addPeer(m.PeerID)
 			}
-			for _, pid := range d.GroupManager.StoredGroupMembers(groupID) {
-				addPeer(pid)
+			for _, gm := range d.GroupManager.StoredGroupMembers(groupID) {
+				addPeer(gm.PeerID)
 			}
 
 			// Query each peer in parallel

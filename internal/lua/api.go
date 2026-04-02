@@ -609,35 +609,63 @@ func ownerFn(inv *invocationCtx) lua.LGFunction {
 	}
 }
 
-// groupIsMemberFn implements goop.group.is_member() — returns true if the
-// calling peer is a member of the template co-author group.
-func groupIsMemberFn(inv *invocationCtx, engine *Engine) lua.LGFunction {
+// groupMemberRoleFn implements goop.group.member.role — returns the calling
+// peer's role in the template group ("owner", "editor", "viewer", or "").
+func groupMemberRoleFn(inv *invocationCtx, engine *Engine) lua.LGFunction {
 	return func(L *lua.LState) int {
-		if inv.peerID == inv.selfID {
-			L.Push(lua.LTrue)
-			return 1
-		}
-		if engine.groups != nil && engine.groups.IsTemplateMember(inv.peerID) {
-			L.Push(lua.LTrue)
-			return 1
-		}
-		L.Push(lua.LFalse)
+		role := peerGroupRole(inv, engine)
+		L.Push(lua.LString(role))
 		return 1
 	}
 }
 
-// coauthorFn implements goop.coauthor(fn) — owner-or-group-member wrapper.
-// Returns a new function that errors if the caller is neither the site owner
-// nor a template group member, otherwise calls the wrapped function.
+// groupIsMemberFn implements goop.group.is_member() — returns true if the
+// calling peer is a member of the template group (any role).
+func groupIsMemberFn(inv *invocationCtx, engine *Engine) lua.LGFunction {
+	return func(L *lua.LState) int {
+		if peerGroupRole(inv, engine) != "" {
+			L.Push(lua.LTrue)
+		} else {
+			L.Push(lua.LFalse)
+		}
+		return 1
+	}
+}
+
+// groupOwnerFn implements goop.group.owner — returns the group owner's peer ID.
+func groupOwnerFn(inv *invocationCtx, engine *Engine) lua.LGFunction {
+	return func(L *lua.LState) int {
+		if engine.groups != nil {
+			L.Push(lua.LString(engine.groups.TemplateGroupOwner()))
+		} else {
+			L.Push(lua.LString(inv.selfID))
+		}
+		return 1
+	}
+}
+
+// peerGroupRole returns the calling peer's role in the template group.
+func peerGroupRole(inv *invocationCtx, engine *Engine) string {
+	if inv.peerID == inv.selfID {
+		return "owner"
+	}
+	if engine.groups != nil {
+		return engine.groups.TemplateMemberRole(inv.peerID)
+	}
+	return ""
+}
+
+// coauthorFn implements goop.coauthor(fn) — role-aware wrapper.
+// Returns a new function that errors if the caller has no role in
+// the template group, otherwise calls the wrapped function.
 func coauthorFn(inv *invocationCtx, engine *Engine) lua.LGFunction {
 	return func(L *lua.LState) int {
 		fn := L.CheckFunction(1)
 
 		wrapped := L.NewFunction(func(L *lua.LState) int {
-			isOwner := inv.peerID == inv.selfID
-			isMember := engine.groups != nil && engine.groups.IsTemplateMember(inv.peerID)
-			if !isOwner && !isMember {
-				L.RaiseError("only the site owner or co-authors can do this")
+			role := peerGroupRole(inv, engine)
+			if role == "" {
+				L.RaiseError("not a group member")
 				return 0
 			}
 			nArgs := L.GetTop()

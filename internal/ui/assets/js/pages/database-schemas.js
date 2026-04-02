@@ -21,6 +21,9 @@ var schemaTitleEl   = qs("#db-schema-title");
 var schemaActionsEl = qs("#db-schema-actions");
 var schemaEditorEl  = qs("#db-schema-editor");
 var schemaSubtabs    = qs("#db-schema-subtabs");
+var schemaRolesEl    = qs("#db-schema-roles");
+var schemaRolesEditor = qs("#db-schema-roles-editor");
+var schemaRolesTab   = qs("#schema-roles-tab");
 var schemaDdlEl      = qs("#db-schema-ddl");
 var schemaDdlCode    = qs("#db-schema-ddl-code");
 var schemaGqlEl      = qs("#db-schema-gql");
@@ -33,6 +36,7 @@ function switchSchemaView(view) {
     t.classList.toggle("active", t.dataset.schemaView === view);
   });
   setHidden(schemaEditorEl, view !== "edit");
+  setHidden(schemaRolesEl, view !== "roles");
   setHidden(schemaDdlEl, view !== "ddl");
   setHidden(schemaGqlEl, view !== "gql");
 }
@@ -210,10 +214,124 @@ function renderSchemaEditor(s) {
       loadSchemas(currentSchema);
     }).catch(function(err) { toast("Failed: " + err.message, true); });
   }
+  var cachedGroupOps = [];
+
+  function refreshGroupOps() {
+    var allOps = ["read", "insert", "update", "delete"];
+    var opIds = ["schema-access-read", "schema-access-insert", "schema-access-update", "schema-access-delete"];
+    cachedGroupOps = [];
+    for (var i = 0; i < allOps.length; i++) {
+      var el = qs("#" + opIds[i]);
+      if (el && gsel.val(el) === "group") cachedGroupOps.push(allOps[i]);
+    }
+  }
+
+  function updateRolesTabVisibility() {
+    refreshGroupOps();
+    setHidden(schemaRolesTab, cachedGroupOps.length === 0);
+    if (cachedGroupOps.length === 0) setHidden(schemaRolesEl, true);
+  }
+
+  function renderRolesEditor(roles) {
+    var groupOps = cachedGroupOps;
+
+    if (groupOps.length === 0) {
+      schemaRolesEditor.innerHTML = '';
+      return;
+    }
+
+    roles = roles || {};
+    var roleNames = Object.keys(roles);
+
+    var html = '<div class="db-tx-form">';
+    html += '<div class="form-group"><label>Role Access Matrix</label>';
+    html += '<p class="form-hint">Define custom roles and what they can do. Owner always has full access.</p>';
+    html += '<table class="schema-roles-table">';
+    html += '<thead><tr><th>Role</th>';
+    groupOps.forEach(function(op) { html += '<th>' + op.charAt(0).toUpperCase() + op.slice(1) + '</th>'; });
+    html += '<th></th></tr></thead><tbody>';
+
+    html += '<tr class="schema-role-owner"><td>owner</td>';
+    groupOps.forEach(function() { html += '<td><input type="checkbox" checked disabled /></td>'; });
+    html += '<td></td></tr>';
+
+    roleNames.forEach(function(role) {
+      var ra = roles[role] || {};
+      html += '<tr data-role="' + escapeHtml(role) + '">';
+      html += '<td><input type="text" class="form-input schema-role-name" value="' + escapeHtml(role) + '" /></td>';
+      groupOps.forEach(function(op) {
+        var checked = ra[op] ? ' checked' : '';
+        html += '<td><input type="checkbox" class="schema-role-check" data-op="' + op + '"' + checked + ' /></td>';
+      });
+      html += '<td><button class="db-col-remove schema-role-remove">x</button></td>';
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    html += '<div class="schema-roles-actions">';
+    html += '<button id="schema-add-role" class="db-action-btn">+ Role</button>';
+    html += '<button id="schema-save-roles" class="btn-primary">Save Roles</button>';
+    html += '</div>';
+    html += '</div></div>';
+    schemaRolesEditor.innerHTML = html;
+
+    bindRemoveButtons();
+
+    on(qs("#schema-save-roles"), "click", function() {
+      var p = saveRoles();
+      if (p) {
+        p.then(function() { toast("Roles saved"); })
+         .catch(function(err) { toast("Failed: " + err.message, true); });
+      }
+    });
+
+    on(qs("#schema-add-role"), "click", function() {
+      var groupOps = cachedGroupOps;
+      var tbody = qs("tbody", schemaRolesEditor);
+      if (!tbody) return;
+      var tr = document.createElement("tr");
+      var h = '<td><input type="text" class="form-input schema-role-name" value="" placeholder="role name" /></td>';
+      groupOps.forEach(function(op) {
+        h += '<td><input type="checkbox" class="schema-role-check" data-op="' + op + '" /></td>';
+      });
+      h += '<td><button class="db-col-remove schema-role-remove">x</button></td>';
+      tr.innerHTML = h;
+      tbody.appendChild(tr);
+      bindRemoveButtons();
+      qs(".schema-role-name", tr).focus();
+    });
+  }
+
+  function bindRemoveButtons() {
+    qsa(".schema-role-remove", schemaRolesEditor).forEach(function(btn) {
+      if (btn._bound) return;
+      btn._bound = true;
+      on(btn, "click", function() {
+        btn.closest("tr").remove();
+      });
+    });
+  }
+
+  function saveRoles() {
+    var name = (qs("#schema-name").value || "").trim();
+    if (!name) return;
+    var roles = collectRoles();
+    return schemaApi.setRoles({ name: name, roles: roles });
+  }
+
+  function onAccessChange() {
+    saveAccess();
+    updateRolesTabVisibility();
+    renderRolesEditor(collectRoles());
+  }
+
   ["schema-access-read", "schema-access-insert", "schema-access-update", "schema-access-delete"].forEach(function(id) {
     var el = qs("#" + id);
-    if (el) gsel.init(el, saveAccess);
+    if (el) gsel.init(el, onAccessChange);
   });
+
+  updateRolesTabVisibility();
+  renderRolesEditor(s.roles);
 
   on(qs("#schema-add-col"), "click", function() {
     var container = qs("#schema-columns");
@@ -359,6 +477,21 @@ function bindSchemaColEvents() {
   });
 }
 
+function collectRoles() {
+  var roles = {};
+  qsa("tr[data-role]", schemaRolesEditor).forEach(function(tr) {
+    var nameInput = qs(".schema-role-name", tr);
+    var roleName = nameInput ? nameInput.value.trim() : "";
+    if (!roleName) return;
+    var ra = {};
+    qsa(".schema-role-check", tr).forEach(function(cb) {
+      if (cb.checked) ra[cb.dataset.op] = true;
+    });
+    roles[roleName] = ra;
+  });
+  return roles;
+}
+
 function collectSchemaData() {
   var name = (qs("#schema-name").value || "").trim();
   var cols = [];
@@ -394,6 +527,8 @@ function collectSchemaData() {
       delete: gsel.val(qs("#schema-access-delete")) || "owner",
     };
   }
+  var roles = collectRoles();
+  if (Object.keys(roles).length > 0) data.roles = roles;
   return data;
 }
 

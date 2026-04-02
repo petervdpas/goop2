@@ -14,5 +14,9 @@
     "insert": "group",
     "update": "owner",
     "delete": "owner"
+  },
+  "roles": {
+    "editor": {"read": true, "insert": true, "update": true, "delete": true},
+    "viewer": {"read": true}
   }
 }

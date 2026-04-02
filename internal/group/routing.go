@@ -47,7 +47,7 @@ func (m *Manager) handleHostMessage(from string, hg *hostedGroup, groupID, msgTy
 				Message{Type: TypeError, Group: groupID, Payload: ErrorPayload{Code: "full", Message: "group is full"}})
 			return
 		}
-		hg.members[from] = &memberMeta{peerID: from, joinedAt: nowMillis()}
+		hg.members[from] = &memberMeta{peerID: from, role: "viewer", joinedAt: nowMillis()}
 		memberList := hg.memberList(m.selfID)
 		groupType := hg.info.GroupType
 		groupContext := hg.info.GroupContext
@@ -73,11 +73,7 @@ func (m *Manager) handleHostMessage(from string, hg *hostedGroup, groupID, msgTy
 		m.notifyListeners(&Event{Type: TypeMembers, Group: groupID, Payload: MembersPayload{Members: memberList}})
 
 		if !volatile && len(memberList) > 0 {
-			peerIDs := make([]string, len(memberList))
-			for i, mi := range memberList {
-				peerIDs[i] = mi.PeerID
-			}
-			_ = m.db.UpsertGroupMembers(groupID, peerIDs)
+			_ = m.db.UpsertGroupMembers(groupID, membersToStorage(memberList))
 		}
 
 		m.notifyListeners(&Event{Type: TypeJoin, Group: groupID, From: from})
@@ -100,11 +96,7 @@ func (m *Manager) handleHostMessage(from string, hg *hostedGroup, groupID, msgTy
 		m.notifyListeners(&Event{Type: TypeMembers, Group: groupID, From: from, Payload: MembersPayload{Members: members}})
 
 		if !volatile {
-			ids := make([]string, len(members))
-			for i, mi := range members {
-				ids[i] = mi.PeerID
-			}
-			_ = m.db.UpsertGroupMembers(groupID, ids)
+			_ = m.db.UpsertGroupMembers(groupID, membersToStorage(members))
 		}
 
 		m.notifyListeners(&Event{Type: TypeLeave, Group: groupID, From: from})
@@ -133,11 +125,7 @@ func (m *Manager) handleMemberMessage(from string, cc *clientConn, groupID, msgT
 					cc.members = mp.Members
 					cc.membersMu.Unlock()
 					if !cc.volatile {
-						peerIDs := make([]string, len(mp.Members))
-						for i, mi := range mp.Members {
-							peerIDs[i] = mi.PeerID
-						}
-						_ = m.db.UpsertGroupMembers(groupID, peerIDs)
+						_ = m.db.UpsertGroupMembers(groupID, membersToStorage(mp.Members))
 					}
 				}
 			}

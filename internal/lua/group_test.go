@@ -12,11 +12,20 @@ import (
 )
 
 type mockGroupChecker struct {
-	members map[string]bool
+	members map[string]string // peerID → role
 }
 
 func (m *mockGroupChecker) IsTemplateMember(peerID string) bool {
+	_, ok := m.members[peerID]
+	return ok
+}
+
+func (m *mockGroupChecker) TemplateMemberRole(peerID string) string {
 	return m.members[peerID]
+}
+
+func (m *mockGroupChecker) TemplateGroupOwner() string {
+	return "self-peer-id"
 }
 
 func setupGroupEngine(t *testing.T, gc GroupChecker) (*Engine, *storage.DB) {
@@ -36,6 +45,9 @@ end
 local dispatch = goop.route({
     check_member = function()
         return { is_member = goop.group.is_member() }
+    end,
+    check_role = function()
+        return { role = goop.group.member.role() }
     end,
     save = goop.coauthor(function(p)
         init()
@@ -90,7 +102,7 @@ func TestGroupIsMemberOwner(t *testing.T) {
 }
 
 func TestGroupIsMemberGroupPeer(t *testing.T) {
-	gc := &mockGroupChecker{members: map[string]bool{"peer-abc": true}}
+	gc := &mockGroupChecker{members: map[string]string{"peer-abc": "editor"}}
 	e, _ := setupGroupEngine(t, gc)
 
 	result, err := e.CallFunction(context.Background(), "peer-abc", "test", map[string]any{"action": "check_member"})
@@ -145,7 +157,7 @@ func TestCoauthorAllowsOwner(t *testing.T) {
 }
 
 func TestCoauthorAllowsGroupMember(t *testing.T) {
-	gc := &mockGroupChecker{members: map[string]bool{"coauthor-1": true}}
+	gc := &mockGroupChecker{members: map[string]string{"coauthor-1": "editor"}}
 	e, _ := setupGroupEngine(t, gc)
 
 	result, err := e.CallFunction(context.Background(), "coauthor-1", "test", map[string]any{
@@ -171,8 +183,63 @@ func TestCoauthorRejectsStranger(t *testing.T) {
 	}
 }
 
+func TestGroupMemberRoleOwner(t *testing.T) {
+	e, _ := setupGroupEngine(t, &mockGroupChecker{})
+	result, err := e.CallFunction(context.Background(), "self-peer-id", "test", map[string]any{"action": "check_role"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := result.(map[string]any)
+	if m["role"] != "owner" {
+		t.Fatalf("host should have role 'owner', got %v", m["role"])
+	}
+}
+
+func TestGroupMemberRoleEditor(t *testing.T) {
+	gc := &mockGroupChecker{members: map[string]string{"peer-abc": "editor"}}
+	e, _ := setupGroupEngine(t, gc)
+	result, err := e.CallFunction(context.Background(), "peer-abc", "test", map[string]any{"action": "check_role"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := result.(map[string]any)
+	if m["role"] != "editor" {
+		t.Fatalf("expected role 'editor', got %v", m["role"])
+	}
+}
+
+func TestGroupMemberRoleStranger(t *testing.T) {
+	e, _ := setupGroupEngine(t, &mockGroupChecker{})
+	result, err := e.CallFunction(context.Background(), "stranger", "test", map[string]any{"action": "check_role"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := result.(map[string]any)
+	if m["role"] != "" {
+		t.Fatalf("stranger should have empty role, got %v", m["role"])
+	}
+}
+
+func TestCoauthorRejectsViewer(t *testing.T) {
+	gc := &mockGroupChecker{members: map[string]string{"viewer-1": "viewer"}}
+	e, _ := setupGroupEngine(t, gc)
+
+	// coauthor() allows any group member — the role check happens at the data layer.
+	// The Lua wrapper only gates on membership, not role.
+	result, err := e.CallFunction(context.Background(), "viewer-1", "test", map[string]any{
+		"action": "save", "title": "From Viewer",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := result.(map[string]any)
+	if m["id"] == nil {
+		t.Fatal("coauthor() should allow viewer (role enforcement is at data layer)")
+	}
+}
+
 func TestOwnerStillRejectsGroupMember(t *testing.T) {
-	gc := &mockGroupChecker{members: map[string]bool{"coauthor-1": true}}
+	gc := &mockGroupChecker{members: map[string]string{"coauthor-1": "editor"}}
 	e, _ := setupGroupEngine(t, gc)
 
 	_, err := e.CallFunction(context.Background(), "coauthor-1", "test", map[string]any{

@@ -210,6 +210,27 @@ func (n *Node) getAccess(table string) schema.Access {
 	return n.db.GetAccess(table)
 }
 
+// checkGroupAccess verifies that callerID's group role permits the operation
+// on the given table. The table's Roles map defines what each role can do.
+// Returns an error message or "".
+func (n *Node) checkGroupAccess(callerID, table, op string) string {
+	if n.groupChecker == nil {
+		return op + " not allowed: no group system"
+	}
+	role := n.groupChecker.TemplateMemberRole(callerID)
+	if role == "" {
+		return op + " not allowed: not a group member"
+	}
+	tbl, err := n.db.GetSchema(table)
+	if err != nil || tbl == nil || tbl.Roles == nil {
+		return op + " not allowed: no role mapping for table"
+	}
+	if !schema.RoleCanDo(tbl.Roles, role, op) {
+		return op + " not allowed: insufficient role (" + role + ")"
+	}
+	return ""
+}
+
 func (n *Node) dataOpTables() DataResponse {
 	tables, err := n.db.ListTables()
 	if err != nil {
@@ -498,8 +519,8 @@ func (n *Node) dataOpQuery(callerID string, req DataRequest) DataResponse {
 	case "local":
 		return DataResponse{Error: "query not allowed: table is local-only"}
 	case "group":
-		if n.groupChecker == nil || !n.groupChecker.IsTemplateMember(callerID) {
-			return DataResponse{Error: "query not allowed: not a group member"}
+		if errMsg := n.checkGroupAccess(callerID, req.Table, "read"); errMsg != "" {
+			return DataResponse{Error: errMsg}
 		}
 	case "open":
 		// no restriction
@@ -565,8 +586,8 @@ func (n *Node) dataOpInsert(callerID string, req DataRequest) DataResponse {
 		}
 	case "group":
 		if !isLocal {
-			if n.groupChecker == nil || !n.groupChecker.IsTemplateMember(callerID) {
-				return DataResponse{Error: "insert not allowed: not a template group co-author"}
+			if errMsg := n.checkGroupAccess(callerID, req.Table, "insert"); errMsg != "" {
+				return DataResponse{Error: errMsg}
 			}
 		}
 	case "open":

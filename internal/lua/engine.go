@@ -54,9 +54,11 @@ type DataFunctionInfo struct {
 	Description string `json:"description"`
 }
 
-// GroupChecker verifies group membership for Lua scripts.
+// GroupChecker verifies group membership and roles for Lua scripts.
 type GroupChecker interface {
 	IsTemplateMember(peerID string) bool
+	TemplateMemberRole(peerID string) string
+	TemplateGroupOwner() string
 }
 
 // Engine manages Lua scripts, hot reload, and command dispatch.

@@ -14,5 +14,11 @@
       "required": true
     }
   ],
-  "context": true
+  "context": true,
+  "access": {
+    "read": "open",
+    "insert": "group",
+    "update": "owner",
+    "delete": "owner"
+  }
 }

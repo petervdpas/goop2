@@ -100,6 +100,7 @@
       <!-- Schema sub-tabs -->
       <div id="db-schema-subtabs" class="sub-tabs hidden">
         <div class="sub-tab active" data-schema-view="edit">Edit</div>
+        <div class="sub-tab hidden" data-schema-view="roles" id="schema-roles-tab">Roles</div>
         <div class="sub-tab" data-schema-view="ddl">DDL</div>
         <div class="sub-tab hidden" data-schema-view="gql" id="schema-gql-tab">GraphQL</div>
       </div>
@@ -107,6 +108,11 @@
       <!-- Edit view -->
       <div id="db-schema-editor" class="db-tx-editor scroll-pane">
         <p class="empty-state">Select a schema from the sidebar to edit it.</p>
+      </div>
+
+      <!-- Roles view -->
+      <div id="db-schema-roles" class="schema-view-pane scroll-pane hidden">
+        <div id="db-schema-roles-editor"></div>
       </div>
 
       <!-- DDL view -->

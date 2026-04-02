@@ -118,6 +118,11 @@ func injectGoopTable(L *lua.LState, inv *invocationCtx, kv *kvStore, engine *Eng
 	// goop.group
 	groupTbl := L.NewTable()
 	groupTbl.RawSetString("is_member", L.NewFunction(groupIsMemberFn(inv, engine)))
+	groupTbl.RawSetString("owner", L.NewFunction(groupOwnerFn(inv, engine)))
+	memberTbl := L.NewTable()
+	memberTbl.RawSetString("id", lua.LString(inv.peerID))
+	memberTbl.RawSetString("role", L.NewFunction(groupMemberRoleFn(inv, engine)))
+	groupTbl.RawSetString("member", memberTbl)
 	goop.RawSetString("group", groupTbl)
 
 	// goop.route / goop.owner / goop.coauthor / goop.expr

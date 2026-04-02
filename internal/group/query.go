@@ -49,6 +49,58 @@ func (m *Manager) IsGroupHost(groupID string) bool {
 	return exists
 }
 
+// TemplateMemberRole returns the role of peerID in the template group, or "" if not a member.
+func (m *Manager) TemplateMemberRole(peerID string) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	for _, hg := range m.groups {
+		if hg.info.GroupType != "template" {
+			continue
+		}
+		if peerID == m.selfID && hg.hostJoined {
+			return "owner"
+		}
+		hg.mu.RLock()
+		mm, ok := hg.members[peerID]
+		hg.mu.RUnlock()
+		if ok {
+			return mm.role
+		}
+	}
+	return ""
+}
+
+// TemplateGroupOwner returns the owner peer ID of the template group, or "".
+func (m *Manager) TemplateGroupOwner() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	for _, hg := range m.groups {
+		if hg.info.GroupType == "template" {
+			return hg.info.Owner
+		}
+	}
+	return ""
+}
+
+// TemplateGroupMembers returns the members of the template group with roles.
+func (m *Manager) TemplateGroupMembers() []MemberInfo {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	for _, hg := range m.groups {
+		if hg.info.GroupType != "template" {
+			continue
+		}
+		hg.mu.RLock()
+		members := hg.memberList(m.selfID)
+		hg.mu.RUnlock()
+		return members
+	}
+	return nil
+}
+
 // IsKnownGroupPeer returns true if remotePeer is a verified member of groupID.
 func (m *Manager) IsKnownGroupPeer(remotePeer, groupID string) bool {
 	m.mu.RLock()

@@ -57,6 +57,7 @@ type Manager struct {
 
 type memberMeta struct {
 	peerID   string
+	role     string
 	joinedAt int64
 }
 
@@ -242,6 +243,15 @@ func (m *Manager) groupTypeForGroupLocked(groupID string) string {
 	return ""
 }
 
+// membersToStorage converts MemberInfo slice to storage GroupMember slice.
+func membersToStorage(members []MemberInfo) []storage.GroupMember {
+	gm := make([]storage.GroupMember, len(members))
+	for i, mi := range members {
+		gm[i] = storage.GroupMember{PeerID: mi.PeerID, Role: mi.Role}
+	}
+	return gm
+}
+
 func shortID(id string) string {
 	if len(id) > 8 {
 		return id[:8]
@@ -254,12 +264,14 @@ func (g *hostedGroup) memberList(hostID string) []MemberInfo {
 	if g.hostJoined {
 		members = append(members, MemberInfo{
 			PeerID:   hostID,
+			Role:     "owner",
 			JoinedAt: g.hostJoinedAt,
 		})
 	}
 	for _, mm := range g.members {
 		members = append(members, MemberInfo{
 			PeerID:   mm.peerID,
+			Role:     mm.role,
 			JoinedAt: mm.joinedAt,
 		})
 	}

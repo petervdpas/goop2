@@ -94,11 +94,7 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 
 	// Persist member list for stable groups
 	if !wp.Volatile && len(wp.Members) > 0 {
-		peerIDs := make([]string, len(wp.Members))
-		for i, mi := range wp.Members {
-			peerIDs[i] = mi.PeerID
-		}
-		_ = m.db.UpsertGroupMembers(groupID, peerIDs)
+		_ = m.db.UpsertGroupMembers(groupID, membersToStorage(wp.Members))
 	}
 
 	// Volatile game groups: wipe stale subscriptions of the same type

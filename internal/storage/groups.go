@@ -9,7 +9,8 @@ import (
 type GroupRow struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
-	GroupType      string `json:"group_type"`
+	Owner        string `json:"owner"`
+	GroupType    string `json:"group_type"`
 	GroupContext  string `json:"group_context"`
 	MaxMembers   int    `json:"max_members"`
 	Volatile     bool   `json:"volatile"`
@@ -31,7 +32,7 @@ type SubscriptionRow struct {
 }
 
 // CreateGroup inserts a new group into _groups.
-func (d *DB) CreateGroup(id, name, groupType, groupContext string, maxMembers int, volatile bool) error {
+func (d *DB) CreateGroup(id, name, owner, groupType, groupContext string, maxMembers int, volatile bool) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -40,8 +41,8 @@ func (d *DB) CreateGroup(id, name, groupType, groupContext string, maxMembers in
 		v = 1
 	}
 	_, err := d.db.Exec(
-		`INSERT INTO _groups (id, name, group_type, group_context, max_members, volatile) VALUES (?, ?, ?, ?, ?, ?)`,
-		id, name, groupType, groupContext, maxMembers, v,
+		`INSERT INTO _groups (id, name, owner, group_type, group_context, max_members, volatile) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		id, name, owner, groupType, groupContext, maxMembers, v,
 	)
 	if err != nil {
 		return fmt.Errorf("create group: %w", err)
@@ -54,7 +55,7 @@ func (d *DB) ListGroups() ([]GroupRow, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	rows, err := d.db.Query(`SELECT id, name, group_type, COALESCE(group_context,''), max_members, COALESCE(volatile,0), host_joined, created_at FROM _groups ORDER BY created_at DESC`)
+	rows, err := d.db.Query(`SELECT id, name, COALESCE(owner,''), group_type, COALESCE(group_context,''), max_members, COALESCE(volatile,0), host_joined, created_at FROM _groups ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +65,7 @@ func (d *DB) ListGroups() ([]GroupRow, error) {
 	for rows.Next() {
 		var g GroupRow
 		var vol int
-		if err := rows.Scan(&g.ID, &g.Name, &g.GroupType, &g.GroupContext, &g.MaxMembers, &vol, &g.HostJoined, &g.CreatedAt); err != nil {
+		if err := rows.Scan(&g.ID, &g.Name, &g.Owner, &g.GroupType, &g.GroupContext, &g.MaxMembers, &vol, &g.HostJoined, &g.CreatedAt); err != nil {
 			return nil, err
 		}
 		g.Volatile = vol != 0
@@ -81,8 +82,8 @@ func (d *DB) GetGroup(id string) (GroupRow, error) {
 	var g GroupRow
 	var vol int
 	err := d.db.QueryRow(
-		`SELECT id, name, group_type, COALESCE(group_context,''), max_members, COALESCE(volatile,0), host_joined, created_at FROM _groups WHERE id = ?`, id,
-	).Scan(&g.ID, &g.Name, &g.GroupType, &g.GroupContext, &g.MaxMembers, &vol, &g.HostJoined, &g.CreatedAt)
+		`SELECT id, name, COALESCE(owner,''), group_type, COALESCE(group_context,''), max_members, COALESCE(volatile,0), host_joined, created_at FROM _groups WHERE id = ?`, id,
+	).Scan(&g.ID, &g.Name, &g.Owner, &g.GroupType, &g.GroupContext, &g.MaxMembers, &vol, &g.HostJoined, &g.CreatedAt)
 	if err != nil {
 		return g, fmt.Errorf("get group: %w", err)
 	}
@@ -173,10 +174,16 @@ func (d *DB) RemoveSubscription(hostPeerID, groupID string) error {
 	return err
 }
 
+// GroupMember represents a member in a group with their role.
+type GroupMember struct {
+	PeerID string `json:"peer_id"`
+	Role   string `json:"role"`
+}
+
 // UpsertGroupMembers replaces the stored member list for a group.
 // Called whenever a TypeMembers or TypeWelcome is received so the list
 // persists across disconnections and restarts.
-func (d *DB) UpsertGroupMembers(groupID string, peerIDs []string) error {
+func (d *DB) UpsertGroupMembers(groupID string, members []GroupMember) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -189,34 +196,38 @@ func (d *DB) UpsertGroupMembers(groupID string, peerIDs []string) error {
 	if _, err := tx.Exec(`DELETE FROM _group_members WHERE group_id = ?`, groupID); err != nil {
 		return err
 	}
-	for _, pid := range peerIDs {
-		if _, err := tx.Exec(`INSERT OR IGNORE INTO _group_members (group_id, peer_id) VALUES (?, ?)`, groupID, pid); err != nil {
+	for _, m := range members {
+		role := m.Role
+		if role == "" {
+			role = "viewer"
+		}
+		if _, err := tx.Exec(`INSERT OR IGNORE INTO _group_members (group_id, peer_id, role) VALUES (?, ?, ?)`, groupID, m.PeerID, role); err != nil {
 			return err
 		}
 	}
 	return tx.Commit()
 }
 
-// ListGroupMembers returns the persisted peer IDs for a group.
-func (d *DB) ListGroupMembers(groupID string) ([]string, error) {
+// ListGroupMembers returns the persisted members for a group.
+func (d *DB) ListGroupMembers(groupID string) ([]GroupMember, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	rows, err := d.db.Query(`SELECT peer_id FROM _group_members WHERE group_id = ?`, groupID)
+	rows, err := d.db.Query(`SELECT peer_id, COALESCE(role,'viewer') FROM _group_members WHERE group_id = ?`, groupID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var peers []string
+	var members []GroupMember
 	for rows.Next() {
-		var pid string
-		if err := rows.Scan(&pid); err != nil {
+		var m GroupMember
+		if err := rows.Scan(&m.PeerID, &m.Role); err != nil {
 			return nil, err
 		}
-		peers = append(peers, pid)
+		members = append(members, m)
 	}
-	return peers, rows.Err()
+	return members, rows.Err()
 }
 
 // DeleteGroupMembers removes all stored members for a group.

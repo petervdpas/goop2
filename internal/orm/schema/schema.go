@@ -43,6 +43,37 @@ var validInsertPolicies = map[string]bool{"local": true, "owner": true, "email":
 var validUpdatePolicies = map[string]bool{"local": true, "owner": true}
 var validDeletePolicies = map[string]bool{"local": true, "owner": true}
 
+// RoleAccess defines what data operations a group role can perform on a table.
+type RoleAccess struct {
+	Read   bool `json:"read,omitempty"`
+	Insert bool `json:"insert,omitempty"`
+	Update bool `json:"update,omitempty"`
+	Delete bool `json:"delete,omitempty"`
+}
+
+// RoleCanDo checks if a role permits an operation against this table's roles map.
+// The "owner" role always has full access.
+func RoleCanDo(roles map[string]RoleAccess, role, op string) bool {
+	if role == "owner" {
+		return true
+	}
+	ra, ok := roles[role]
+	if !ok {
+		return false
+	}
+	switch op {
+	case "read":
+		return ra.Read
+	case "insert":
+		return ra.Insert
+	case "update":
+		return ra.Update
+	case "delete":
+		return ra.Delete
+	}
+	return false
+}
+
 func (a *Access) Validate() error {
 	if a.Read != "" && !validReadPolicies[a.Read] {
 		return fmt.Errorf("schema: invalid read policy %q", a.Read)
@@ -61,11 +92,12 @@ func (a *Access) Validate() error {
 
 // Table describes a database table schema in a portable JSON format.
 type Table struct {
-	Name      string   `json:"name"`
-	Columns   []Column `json:"columns"`
-	Context   bool     `json:"context,omitempty"`
-	Access    *Access  `json:"access,omitempty"`
-	SystemKey bool     `json:"system_key,omitempty"` // true = _id is the key (no user key needed)
+	Name      string                `json:"name"`
+	Columns   []Column              `json:"columns"`
+	Context   bool                  `json:"context,omitempty"`
+	Access    *Access               `json:"access,omitempty"`
+	Roles     map[string]RoleAccess `json:"roles,omitempty"`
+	SystemKey bool                  `json:"system_key,omitempty"` // true = _id is the key (no user key needed)
 }
 
 // Column describes a single column in a table.

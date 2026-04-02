@@ -219,6 +219,7 @@
       apply:      function (p) { return _post('/api/data/schemas/apply', p); },
       setContext: function (p) { return _post('/api/data/schemas/set-context', p); },
       setAccess:  function (p) { return _post('/api/data/schemas/set-access', p); },
+      setRoles:   function (p) { return _post('/api/data/schemas/set-roles', p); },
     },
 
     // ── GraphQL ───────────────────────────────────────────────────────────

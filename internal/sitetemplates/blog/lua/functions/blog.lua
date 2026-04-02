@@ -23,8 +23,7 @@ end
 
 local function page()
     init()
-    local is_owner = goop.peer.id == goop.self.id
-    local is_coauthor = goop.group.is_member()
+    local role = goop.group.member.role()
     return {
         posts = posts:find({ where = "published = 1", order = "_id DESC", limit = 50 }) or {},
         config = {
@@ -32,8 +31,9 @@ local function page()
             blog_subtitle = cfg.blog_subtitle, accent = cfg.accent,
             font = cfg.font, theme = cfg.theme,
         },
-        can_write = is_owner or is_coauthor,
-        can_admin = is_owner,
+        role = role,
+        can_write = role == "owner" or role == "editor",
+        can_admin = role == "owner",
     }
 end
 

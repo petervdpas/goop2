@@ -46,7 +46,7 @@ func (m *Manager) CreateGroup(id, name, groupType, groupContext string, maxMembe
 		}
 	}
 
-	if err := m.db.CreateGroup(id, name, groupType, groupContext, maxMembers, volatile); err != nil {
+	if err := m.db.CreateGroup(id, name, m.selfID, groupType, groupContext, maxMembers, volatile); err != nil {
 		return err
 	}
 
@@ -195,11 +195,7 @@ func (m *Manager) KickMember(groupID, peerID string) error {
 	m.notifyListeners(&Event{Type: "leave", Group: groupID, From: peerID, Payload: MembersPayload{Members: members}})
 
 	if !volatile {
-		ids := make([]string, len(members))
-		for i, mi := range members {
-			ids[i] = mi.PeerID
-		}
-		_ = m.db.UpsertGroupMembers(groupID, ids)
+		_ = m.db.UpsertGroupMembers(groupID, membersToStorage(members))
 	}
 
 	log.Printf("GROUP: Kicked %s from %s", shortID(peerID), groupID)
@@ -279,9 +275,9 @@ func (m *Manager) HostedGroupMembers(groupID string) []MemberInfo {
 }
 
 // StoredGroupMembers returns the persisted member peer IDs for a group.
-func (m *Manager) StoredGroupMembers(groupID string) []string {
-	peers, _ := m.db.ListGroupMembers(groupID)
-	return peers
+func (m *Manager) StoredGroupMembers(groupID string) []storage.GroupMember {
+	members, _ := m.db.ListGroupMembers(groupID)
+	return members
 }
 
 // JoinOwnGroup adds the host as a member of their own hosted group.
@@ -448,11 +444,7 @@ func (m *Manager) removeMemberAndBroadcast(groupID, peerID string) {
 	m.notifyListeners(&Event{Type: TypeMembers, Group: groupID, From: peerID, Payload: MembersPayload{Members: members}})
 
 	if !volatile {
-		ids := make([]string, len(members))
-		for i, mi := range members {
-			ids[i] = mi.PeerID
-		}
-		_ = m.db.UpsertGroupMembers(groupID, ids)
+		_ = m.db.UpsertGroupMembers(groupID, membersToStorage(members))
 	}
 }
 

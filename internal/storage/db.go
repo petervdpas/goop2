@@ -97,6 +97,7 @@ func Open(configDir string) (*DB, error) {
 		CREATE TABLE IF NOT EXISTS _groups (
 			id            TEXT PRIMARY KEY,
 			name          TEXT NOT NULL,
+			owner         TEXT DEFAULT '',
 			group_type    TEXT DEFAULT '',
 			group_context TEXT DEFAULT '',
 			max_members   INTEGER DEFAULT 0,
@@ -117,6 +118,8 @@ func Open(configDir string) (*DB, error) {
 		db.Exec(`DELETE FROM _groups`)
 		db.Exec(`DELETE FROM _group_members`)
 	}
+	// Migration: add owner column to _groups
+	db.Exec(`ALTER TABLE _groups ADD COLUMN owner TEXT DEFAULT ''`)
 	// Migration: add group_context column — links group to what created it (template name, job ID, etc.)
 	db.Exec(`ALTER TABLE _groups ADD COLUMN group_context TEXT DEFAULT ''`)
 
@@ -181,12 +184,15 @@ func Open(configDir string) (*DB, error) {
 		CREATE TABLE IF NOT EXISTS _group_members (
 			group_id TEXT NOT NULL,
 			peer_id  TEXT NOT NULL,
+			role     TEXT DEFAULT 'viewer',
 			PRIMARY KEY (group_id, peer_id)
 		);
 	`); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("create group members table: %w", err)
 	}
+	// Migration: add role column to _group_members (existing databases)
+	db.Exec(`ALTER TABLE _group_members ADD COLUMN role TEXT DEFAULT 'viewer'`)
 
 	// Migration: drop the transient _peer_names table superseded by _peer_cache.
 	db.Exec(`DROP TABLE IF EXISTS _peer_names`)
