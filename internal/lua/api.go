@@ -655,33 +655,6 @@ func peerGroupRole(inv *invocationCtx, engine *Engine) string {
 	return ""
 }
 
-// coauthorFn implements goop.coauthor(fn) — role-aware wrapper.
-// Returns a new function that errors if the caller has no role in
-// the template group, otherwise calls the wrapped function.
-func coauthorFn(inv *invocationCtx, engine *Engine) lua.LGFunction {
-	return func(L *lua.LState) int {
-		fn := L.CheckFunction(1)
-
-		wrapped := L.NewFunction(func(L *lua.LState) int {
-			role := peerGroupRole(inv, engine)
-			if role == "" {
-				L.RaiseError("not a group member")
-				return 0
-			}
-			nArgs := L.GetTop()
-			top := nArgs
-			L.Push(fn)
-			for i := 1; i <= nArgs; i++ {
-				L.Push(L.Get(i))
-			}
-			L.Call(nArgs, lua.MultRet)
-			return L.GetTop() - top
-		})
-
-		L.Push(wrapped)
-		return 1
-	}
-}
 
 // ormFn implements goop.orm(table) — returns a schema-aware table handle.
 // The handle carries schema metadata (columns, access, system_key) and

@@ -269,7 +269,7 @@ type dataTableCreateResponse struct {
 // For ORM tables, insert_policy is derived from the schema Access.Insert field.
 type dataTableListEntry struct {
 	Name         string `json:"name"          example:"my_table"`
-	InsertPolicy string `json:"insert_policy" example:"owner"` // owner, email, open, group, local
+	InsertPolicy string `json:"insert_policy" example:"owner"` // owner, open, group, local
 	CreatedAt    string `json:"created_at"    example:"2026-03-21 00:00:00"`
 	Mode         string `json:"mode"          example:"orm"` // "orm" or "classic"
 }
@@ -353,7 +353,7 @@ type dataColumnRequest struct {
 // For ORM tables, updates the schema Access.Insert field directly.
 type dataPolicyRequest struct {
 	Table  string `json:"table"  example:"my_table"`
-	Policy string `json:"policy" example:"group"` // owner, email, open, group, local
+	Policy string `json:"policy" example:"group"` // owner, open, group, local
 }
 
 // dataRenameRequest is the body for POST /api/data/tables/rename.
@@ -2623,6 +2623,47 @@ type schemaSetAccessRequest struct {
 //	@Failure		404		{string}	string	"schema not found"
 //	@Router			/api/data/schemas/set-access [post]
 func swagSchemaSetAccess() {}
+
+// schemaSetRolesRequest is the body for POST /api/data/schemas/set-roles.
+type schemaSetRolesRequest struct {
+	Name  string                    `json:"name"  example:"posts"`
+	Roles map[string]ormSchemaRoles `json:"roles"`
+}
+
+// ormSchemaRoles describes per-operation permissions for a custom role.
+type ormSchemaRoles struct {
+	Read   bool `json:"read,omitempty"   example:"true"`
+	Insert bool `json:"insert,omitempty" example:"true"`
+	Update bool `json:"update,omitempty" example:"false"`
+	Delete bool `json:"delete,omitempty" example:"false"`
+}
+
+// swagSchemaSetRoles is a documentation stub for POST /api/data/schemas/set-roles.
+//
+//	@Summary		Update role access matrix for a stored schema
+//	@Tags			schema
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		schemaSetRolesRequest	true	"Schema name and roles map"
+//	@Success		200		{object}	statusOK
+//	@Failure		404		{string}	string	"schema not found"
+//	@Router			/api/data/schemas/set-roles [post]
+func swagSchemaSetRoles() {}
+
+// templateSettingsResponse is the body for GET /api/template/settings.
+type templateSettingsResponse struct {
+	RequireEmail bool `json:"require_email" example:"false"`
+}
+
+// swagTemplateSettings is a documentation stub for GET /api/template/settings.
+//
+//	@Summary		Get active template settings
+//	@Description	Returns settings stored by the currently applied template, such as whether email is required for viewers.
+//	@Tags			templates
+//	@Produce		json
+//	@Success		200	{object}	templateSettingsResponse
+//	@Router			/api/template/settings [get]
+func swagTemplateSettings() {}
 
 // ── GraphQL ─────────────────────────────────────────────────────────────────
 

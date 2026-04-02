@@ -112,6 +112,38 @@ See the [Executor Protocol](executor) page for the full binary contract and code
 
 The host submits jobs via the API or UI. Jobs have a type, payload, optional priority, timeout, and retry policy. The dispatcher assigns jobs to available workers and streams output back to the host.
 
+## Template groups
+
+When a template's schemas use `group` access policies or define a roles map, Goop2 automatically creates a co-author group on apply. Members join via the Groups page. The owner always has full access.
+
+### Role-based data access
+
+Each schema can define custom roles with per-operation permissions:
+
+```json
+{
+  "name": "posts",
+  "access": { "read": "open", "insert": "group", "update": "group", "delete": "owner" },
+  "roles": {
+    "editor": { "read": true, "insert": true, "update": true, "delete": true },
+    "viewer": { "read": true }
+  }
+}
+```
+
+When a remote peer performs a data operation on a `group`-policy table, the P2P data layer looks up the peer's role in the template group and checks it against the schema's roles map. Unknown roles are denied.
+
+Roles are managed through the Schema editor's **Roles** tab in the Database page.
+
+### Group lifecycle
+
+- **Apply template** -- group created if any schema needs it, owner auto-joins
+- **Re-apply same template** -- existing group and members preserved
+- **Switch to different template** -- old group closed, new one created if needed
+- **No group schemas** -- no group created
+
+The group ID is tracked in `_meta("template_group_id")`.
+
 ## JavaScript API
 
 Templates interact with groups through the `Goop.group` API:

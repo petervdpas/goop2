@@ -309,6 +309,27 @@ local dispatch = goop.route({
 })
 ```
 
+### goop.group
+
+Group membership and role information for the current template group:
+
+```lua
+local is_member = goop.group.is_member()    -- boolean
+local my_id     = goop.group.member.id      -- current peer's ID (string)
+local my_role   = goop.group.member.role()  -- "owner", "editor", "viewer", etc.
+local owner_id  = goop.group.owner()        -- group owner's peer ID
+```
+
+The owner always gets role `"owner"`. Other members get the role assigned when they joined (default `"viewer"`).
+
+### goop.template
+
+Template-level settings declared in the manifest:
+
+```lua
+local needs_email = goop.template.require_email  -- boolean
+```
+
 ### goop.db (legacy)
 
 Raw SQL database access. Still available but `goop.orm()` is preferred for new code:

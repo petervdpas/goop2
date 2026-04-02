@@ -134,10 +134,9 @@ func injectGoopTable(L *lua.LState, inv *invocationCtx, kv *kvStore, engine *Eng
 	templateTbl.RawSetString("require_email", lua.LBool(requireEmail))
 	goop.RawSetString("template", templateTbl)
 
-	// goop.route / goop.owner / goop.coauthor / goop.expr
+	// goop.route / goop.owner / goop.expr
 	goop.RawSetString("route", L.NewFunction(routeFn()))
 	goop.RawSetString("owner", L.NewFunction(ownerFn(inv)))
-	goop.RawSetString("coauthor", L.NewFunction(coauthorFn(inv, engine)))
 	goop.RawSetString("expr", L.NewFunction(exprFn()))
 
 	// goop.commands()

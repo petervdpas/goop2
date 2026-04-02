@@ -103,8 +103,8 @@ local dispatch = goop.route({
     list_posts = function() init(); return { posts = posts:find({ where = "published = 1", order = "_id DESC", limit = 50 }) or {} } end,
     get_config = get_config,
     save_config = goop.owner(save_config),
-    save_post = goop.coauthor(save_post),
-    delete_post = goop.coauthor(delete_post),
+    save_post = save_post,
+    delete_post = delete_post,
 })
 
 function call(req) return dispatch(req) end

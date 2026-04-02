@@ -299,6 +299,7 @@ The SDK auto-detects whether the template is running on the local peer (`/`) or 
 | `goop-realtime.js` | `Goop.realtime` | Virtual MQ-based channels |
 | `goop-call.js` | `Goop.call` | Audio/video calling |
 | `goop-api.js` | `Goop.api` | Virtual REST API over Lua data functions |
+| `goop-template.js` | `Goop.template` | Template settings (require_email, etc.) |
 | `goop-form.js` | `Goop.form` | JSON-driven form renderer |
 | `goop-forms.js` | `Goop.forms` | Auto-generated CRUD UI from schema |
 | `goop-engine.js` | `GameLoop, Renderer, ...` | 2D game engine (Canvas) |
@@ -473,6 +474,15 @@ var info  = await Goop.identity.get();    // {id, label, email}
 var myId  = await Goop.identity.id();     // peer ID string
 var name  = await Goop.identity.label();  // display name
 var email = await Goop.identity.email();  // email string
+```
+
+## Goop.template
+
+Template settings declared in the manifest and stored on the host peer.
+
+```javascript
+var settings = await Goop.template.get();           // {require_email: true/false}
+var needsEmail = await Goop.template.requireEmail(); // boolean
 ```
 
 ## Goop.site

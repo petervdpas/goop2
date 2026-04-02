@@ -31,21 +31,23 @@ These templates ship with every Goop2 peer and are always available:
 A personal blog where you and invited co-authors can write posts. Visitors see a read-only feed.
 
 - **Category**: Content
-- **Insert policy**: `group` for posts, `owner` for blog config
+- **Access**: `group` insert for posts, `owner` for blog config
+- **Roles**: `editor` (read, insert, update, delete), `viewer` (read)
 
 ### Enquete
 
-A simple survey application. Visitors answer questions and responses are collected in the owner's database.
+A simple survey application. Visitors answer questions and responses are collected in the owner's database. Requires viewers to have an email address configured.
 
 - **Category**: Community
-- **Insert policy**: `email` for responses
+- **Access**: `open` insert for responses
+- **Settings**: `require_email: true`
 
 ### Tic-Tac-Toe
 
 A multiplayer tic-tac-toe game with server-side Lua enforcing the rules. Visitors can challenge the host or play against the computer.
 
 - **Category**: Games
-- **Insert policy**: `open` for game creation
+- **Access**: `open` insert for game creation
 
 ### Clubhouse
 
@@ -107,28 +109,65 @@ The rendezvous server proxies these endpoints to the templates service (or serve
 | `/api/templates/<name>/manifest` | GET | Template metadata |
 | `/api/templates/<name>/bundle` | GET | Download template as tar.gz |
 
-## Insert policies
+## Access policies
 
-Templates define who can write data to each table:
+Each schema defines per-operation access policies for read, insert, update, and delete:
 
-| Policy | Who can insert |
+| Policy | Who is allowed |
 |--------|---------------|
+| `local` | Only the local node process. |
 | `owner` | Only the site owner. |
-| `email` | Any peer with a verified email. |
-| `group` | Members of an authorized group (e.g. blog co-authors). |
+| `group` | Group members, checked against the schema's role access matrix. |
 | `open` | Any peer. |
 
-The policy is defined per table in the template manifest:
+Access is defined in the schema JSON, not the manifest:
 
 ```json
 {
-  "tables": {
-    "posts": { "insert_policy": "group" },
-    "comments": { "insert_policy": "email" },
-    "games": { "insert_policy": "open" }
+  "name": "posts",
+  "access": {
+    "read": "open",
+    "insert": "group",
+    "update": "group",
+    "delete": "owner"
   }
 }
 ```
+
+### Roles
+
+When any access policy is set to `group`, the schema can define a roles map. Each role specifies which operations it permits. The owner always has full access.
+
+```json
+{
+  "name": "posts",
+  "access": { "read": "open", "insert": "group", "update": "group", "delete": "owner" },
+  "roles": {
+    "editor": { "read": true, "insert": true, "update": true, "delete": true },
+    "viewer": { "read": true }
+  }
+}
+```
+
+If any schema in a template uses `group` access or defines roles, Goop2 automatically creates a co-author group when the template is applied. Re-applying the same template preserves existing group members.
+
+### Template settings
+
+The manifest supports template-level settings that are separate from access policies:
+
+| Setting | Type | Description |
+|---------|------|-------------|
+| `require_email` | `bool` | Template requires viewers to have an email address configured. |
+
+```json
+{
+  "name": "Enquete",
+  "require_email": true,
+  "schemas": ["responses"]
+}
+```
+
+Template settings are available to both Lua (`goop.template.require_email`) and JS (`Goop.template.requireEmail()`).
 
 ## Remote data
 
