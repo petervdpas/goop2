@@ -30,7 +30,7 @@
   try {
     var result = await blog("get_post", { slug: slug });
     if (!result.found) {
-      Goop.render(articleEl, backLink(), Goop.ui.empty("Post not found"));
+      Goop.render(articleEl, backLink(), Goop.ui.empty("Post not found", { class: "empty-msg" }));
       return;
     }
     var p = result.post;
@@ -44,6 +44,6 @@
       h("div", { class: "article-body" }, p.body)
     );
   } catch (err) {
-    Goop.render(articleEl, backLink(), Goop.ui.empty(err.message));
+    Goop.render(articleEl, backLink(), Goop.ui.empty(err.message, { class: "empty-msg" }));
   }
 })();

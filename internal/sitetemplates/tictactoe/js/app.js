@@ -46,7 +46,7 @@
 
     var lobby;
     try { lobby = await db.call("ttt", { action: "lobby" }); }
-    catch (e) { Goop.render(root, Goop.ui.empty("Could not load lobby.")); return; }
+    catch (e) { Goop.render(root, Goop.ui.empty("Could not load lobby.", { class: "ttt-empty" })); return; }
 
     var games = lobby.games || [];
     var stats = lobby.stats || {};
@@ -132,7 +132,7 @@
       var state = await db.call("ttt", { action: "state", game_id: gameId });
       renderBoard(state);
       if (state.mode === "pvp" && (state.status === "playing" || state.status === "waiting")) startPolling(gameId);
-    } catch (e) { Goop.render(root, Goop.ui.empty("Could not load game.")); }
+    } catch (e) { Goop.render(root, Goop.ui.empty("Could not load game.", { class: "ttt-empty" })); }
   }
 
   function symbolChar(s) { return s === "X" ? "\u2715" : s === "O" ? "\u25CB" : ""; }

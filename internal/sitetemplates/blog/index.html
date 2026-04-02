@@ -12,6 +12,7 @@
   <script src="/sdk/goop-group.js"></script>
   <script src="/sdk/goop-component-base.js"></script>
   <script src="/sdk/goop-component-dialog.js"></script>
+  <script src="/sdk/goop-component-toolbar.js"></script>
   <script src="/sdk/goop-component-template.js"></script>
 </head>
 <body>
@@ -71,14 +72,14 @@
       </div>
 
       <div class="designer-section">Font</div>
-      <div class="option-picker">
+      <div id="font-picker" class="option-picker">
         <button class="layout-btn font-btn active" data-font="serif">Aa Serif</button>
         <button class="layout-btn font-btn" data-font="sans">Aa Sans</button>
         <button class="layout-btn font-btn" data-font="mono">Aa Mono</button>
       </div>
 
       <div class="designer-section">Theme</div>
-      <div class="option-picker">
+      <div id="theme-picker" class="option-picker">
         <button class="layout-btn theme-btn active" data-theme="light">Light</button>
         <button class="layout-btn theme-btn" data-theme="sepia">Sepia</button>
         <button class="layout-btn theme-btn" data-theme="dark">Dark</button>

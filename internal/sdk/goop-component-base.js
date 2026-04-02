@@ -109,11 +109,11 @@
       el.innerHTML = "";
       if (opts.empty) {
         if (typeof opts.empty === "string") {
-          el.appendChild(d("div", { class: "gc-empty" }, opts.empty));
+          el.appendChild(d("div", { class: opts.emptyClass || "" }, opts.empty));
         } else if (opts.empty instanceof Node) {
           el.appendChild(opts.empty);
         } else {
-          el.innerHTML = '<div class="gc-empty">' + opts.empty + '</div>';
+          el.innerHTML = '<div class="' + (opts.emptyClass || "") + '">' + opts.empty + '</div>';
         }
       }
       return;

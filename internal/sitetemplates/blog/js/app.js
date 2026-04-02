@@ -34,22 +34,18 @@
   };
 
   function applyConfig(cfg) {
-    var html = document.documentElement;
+    var root = document.documentElement;
     document.querySelector(".blog").className = "blog layout-" + (cfg.layout || "list");
-    document.querySelectorAll(".layout-btn").forEach(function (b) { b.classList.toggle("active", b.dataset.layout === (cfg.layout || "list")); });
     document.querySelector(".blog-title").textContent = cfg.blog_title || "My Blog";
     document.getElementById("blog-subtitle").textContent = cfg.blog_subtitle || "Thoughts, stories & notes";
     if (cfg.accent) {
-      html.className = html.className.replace(/\baccent-\d+\b/g, "").trim();
-      html.classList.add("accent-" + (accentToIdx[cfg.accent] || "1"));
-      document.querySelectorAll(".swatch").forEach(function (s) { s.classList.toggle("active", s.dataset.color === cfg.accent); });
+      root.className = root.className.replace(/\baccent-\d+\b/g, "").trim();
+      root.classList.add("accent-" + (accentToIdx[cfg.accent] || "1"));
     }
-    html.className = html.className.replace(/\bfont-\w+\b/g, "").trim();
-    html.classList.add("font-" + (cfg.font || "serif"));
-    document.querySelectorAll(".font-btn").forEach(function (b) { b.classList.toggle("active", b.dataset.font === (cfg.font || "serif")); });
-    html.className = html.className.replace(/\btheme-\w+\b/g, "").trim();
-    html.classList.add("theme-" + (cfg.theme || "light"));
-    document.querySelectorAll(".theme-btn").forEach(function (b) { b.classList.toggle("active", b.dataset.theme === (cfg.theme || "light")); });
+    root.className = root.className.replace(/\bfont-\w+\b/g, "").trim();
+    root.classList.add("font-" + (cfg.font || "serif"));
+    root.className = root.className.replace(/\btheme-\w+\b/g, "").trim();
+    root.classList.add("theme-" + (cfg.theme || "light"));
   }
 
   // ── Designer (owner only) ──
@@ -58,20 +54,37 @@
     var defaults = { layout: "list", blog_title: "My Blog", blog_subtitle: "Thoughts, stories & notes", accent: "#b44d2d", font: "serif", theme: "light" };
     for (var k in defaults) if (!cfg[k]) { cfg[k] = defaults[k]; blog("save_config", { key: k, value: defaults[k] }); }
 
-    var panel = document.getElementById("designer-panel");
     document.getElementById("d-title").value = cfg.blog_title || "My Blog";
     document.getElementById("d-subtitle").value = cfg.blog_subtitle || "";
     btnCustomize.classList.remove("hidden");
 
-    function bind(sel, attr, key) {
-      document.querySelectorAll(sel).forEach(function (b) {
-        b.addEventListener("click", function () { cfg[key] = b.dataset[attr]; applyConfig(cfg); blog("save_config", { key: key, value: cfg[key] }); });
-      });
-    }
-    bind(".layout-btn[data-layout]", "layout", "layout");
-    bind(".swatch", "color", "accent");
-    bind(".font-btn", "font", "font");
-    bind(".theme-btn", "theme", "theme");
+    Goop.ui.toolbar(document.querySelector(".layout-picker"), {
+      idAttr: "data-layout",
+      activeClass: "active",
+      active: cfg.layout || "list",
+      onChange: function(val) { cfg.layout = val; applyConfig(cfg); blog("save_config", { key: "layout", value: val }); },
+    });
+
+    Goop.ui.toolbar(document.getElementById("font-picker"), {
+      idAttr: "data-font",
+      activeClass: "active",
+      active: cfg.font || "serif",
+      onChange: function(val) { cfg.font = val; applyConfig(cfg); blog("save_config", { key: "font", value: val }); },
+    });
+
+    Goop.ui.toolbar(document.getElementById("theme-picker"), {
+      idAttr: "data-theme",
+      activeClass: "active",
+      active: cfg.theme || "light",
+      onChange: function(val) { cfg.theme = val; applyConfig(cfg); blog("save_config", { key: "theme", value: val }); },
+    });
+
+    Goop.ui.toolbar(document.querySelector(".color-swatches"), {
+      idAttr: "data-color",
+      activeClass: "active",
+      active: cfg.accent || "#b44d2d",
+      onChange: function(val) { cfg.accent = val; applyConfig(cfg); blog("save_config", { key: "accent", value: val }); },
+    });
 
     var titleInput = document.getElementById("d-title");
     titleInput.addEventListener("blur", function () {
@@ -84,8 +97,8 @@
       applyConfig(cfg); blog("save_config", { key: "blog_subtitle", value: cfg.blog_subtitle });
     });
 
-    btnCustomize.addEventListener("click", function () { panel.classList.toggle("hidden"); });
-    document.getElementById("btn-designer-close").addEventListener("click", function () { panel.classList.add("hidden"); });
+    btnCustomize.addEventListener("click", function () { designerPanel.classList.toggle("hidden"); });
+    document.getElementById("btn-designer-close").addEventListener("click", function () { designerPanel.classList.add("hidden"); });
   }
 
   // ── Posts ──
@@ -94,12 +107,12 @@
       return { _id: p._id, slug: p.slug || p._id, title: p.title, body: p.body, image: p.image, author_name: p.author_name, date: date(p._created_at) };
     });
     Goop.list(postsEl, postsData, "post-card", {
-      empty: "No posts yet." + (canWrite ? ' Click "+ New Post" to write your first one.' : "")
+      empty: "No posts yet." + (canWrite ? ' Click "+ New Post" to write your first one.' : ""),
+      emptyClass: "empty-msg"
     }).then(function() {
       if (!canWrite) return;
       postsEl.querySelectorAll("[data-id]").forEach(function(article) {
         var id = parseInt(article.dataset.id, 10);
-        var p = rows.find(function(r) { return r._id === id; });
         var actions = h("div", { class: "post-actions" },
           h("button", { onclick: function() { openEditor(id); } }, "Edit"),
           h("button", { onclick: async function() {

@@ -136,7 +136,7 @@
       if (!rows || rows.length === 0) {
         opts = opts || {};
         if (opts.empty) {
-          if (typeof opts.empty === "string") el.appendChild(toElement('<div class="gc-empty">' + esc(opts.empty) + '</div>'));
+          if (typeof opts.empty === "string") el.appendChild(toElement('<div class="' + (opts.emptyClass || "") + '">' + esc(opts.empty) + '</div>'));
           else if (opts.empty instanceof Node) el.appendChild(opts.empty);
         }
         return Promise.resolve();

@@ -1,5 +1,7 @@
 // Clubhouse app.js — real-time group chat rooms, ORM DSL
 (async function () {
+  var h = Goop.dom;
+
   var toast = Goop.ui.toast(document.getElementById("toasts"), {
     toastClass: "gc-toast",
     titleClass: "gc-toast-title",
@@ -17,6 +19,8 @@
     cancel: ".gc-dialog-cancel",
     hiddenClass: "hidden",
   });
+
+  var createOverlay = Goop.overlay("create-overlay");
 
   var esc = Goop.esc;
   var ctx = await Goop.peer();
@@ -37,12 +41,9 @@
   var msgInput = document.getElementById("msg-input");
   var btnSend = document.getElementById("btn-send");
 
-  var createOverlay = document.getElementById("create-overlay");
   var fName = document.getElementById("f-name");
   var fDesc = document.getElementById("f-desc");
   var fMax = document.getElementById("f-max");
-  var btnCreateCancel = document.getElementById("btn-create-cancel");
-  var btnCreateSave = document.getElementById("btn-create-save");
 
   // ── State ──
   var myId = ctx.myId;
@@ -88,13 +89,14 @@
       var rows = await rooms.find({ where: "status = 'open'", limit: 50 });
       renderRooms(rows || []);
     } catch (err) {
-      Goop.render(roomsEl, Goop.ui.empty("Could not load rooms."));
+      Goop.render(roomsEl, Goop.ui.empty("Could not load rooms.", { class: "empty-msg" }));
     }
   }
 
   function renderRooms(allRooms) {
     Goop.list(roomsEl, allRooms, "room-card", {
-      empty: "No rooms yet." + (isOwner ? " Create one with the button above!" : "")
+      empty: "No rooms yet." + (isOwner ? " Create one with the button above!" : ""),
+      emptyClass: "empty-msg"
     }).then(function() {
       roomsEl.querySelectorAll(".btn-join").forEach(function(btn) {
         var card = btn.closest(".room-card");
@@ -110,19 +112,14 @@
     fName.value = "";
     fDesc.value = "";
     fMax.value = "0";
-    createOverlay.classList.remove("hidden");
-    fName.focus();
+    createOverlay.open();
   });
 
-  btnCreateCancel.addEventListener("click", function () {
-    createOverlay.classList.add("hidden");
+  document.getElementById("btn-create-cancel").addEventListener("click", function () {
+    createOverlay.close();
   });
 
-  createOverlay.addEventListener("mousedown", function (e) {
-    if (e.target === createOverlay) createOverlay.classList.add("hidden");
-  });
-
-  btnCreateSave.addEventListener("click", async function () {
+  document.getElementById("btn-create-save").addEventListener("click", async function () {
     var name = fName.value.trim();
     if (!name) return;
     var desc = fDesc.value.trim();
@@ -137,7 +134,7 @@
         max_members: max,
         status: "open"
       });
-      createOverlay.classList.add("hidden");
+      createOverlay.close();
       toast("Room created!");
       loadRooms();
     } catch (err) {
@@ -163,21 +160,17 @@
     lobby.classList.add("hidden");
     chatView.classList.remove("hidden");
 
-    // Clean up any stale connection from a previous session
     try { await Goop.group.leave(); } catch (_) {}
 
-    // Subscribe to SSE first
     Goop.group.subscribe(handleGroupEvent);
 
     try {
       if (isOwner) {
         await Goop.group.joinOwn(room.group_id);
         labelMap[myId] = myLabel;
-        // Announce label to members already in the room
         Goop.group.send({ type: "presence", label: myLabel }, room.group_id).catch(function () {});
       } else {
         await Goop.group.join(hostPeerId, room.group_id);
-        // Announce our label so other members see a friendly name
         Goop.group.send({ type: "presence", label: myLabel }).catch(function () {});
       }
       appendSystem("You joined the room.");
@@ -245,12 +238,10 @@
     var payload = { type: "chat", text: text, label: myLabel };
 
     if (isOwner) {
-      // Owner: message comes back via SSE, displayed by event handler
       Goop.group.send(payload, currentRoom.group_id).catch(function (err) {
         appendSystem("Send failed: " + err.message);
       });
     } else {
-      // Visitor: message NOT echoed back — append locally first
       appendChat(myId, myLabel, text, true);
       Goop.group.send(payload).catch(function (err) {
         appendSystem("Send failed: " + err.message);
@@ -268,11 +259,6 @@
   });
 
   // ── SSE event handler ──
-  // Server sends: {type, group, from, payload}
-  // welcome payload: {group_name, members: [{peer_id, joined_at}]}
-  // members payload: {members: [{peer_id, joined_at}]}
-  // msg payload: the raw message object from the sender
-
   function extractMemberIds(payload) {
     var list = payload && payload.members;
     if (!Array.isArray(list)) return [];
@@ -297,31 +283,20 @@
           members = extractMemberIds(evt.payload);
           renderMembers();
           fetchPeerLabels();
-          if (members.length > oldCount) {
-            appendSystem("A new member joined.");
-          } else if (members.length < oldCount) {
-            appendSystem("A member left.");
-          }
+          if (members.length > oldCount) appendSystem("A new member joined.");
+          else if (members.length < oldCount) appendSystem("A member left.");
         }
         break;
 
       case "msg":
         if (!evt.payload) break;
-
-        // Track labels from any message that carries one
         if (evt.from && evt.payload.label) {
           labelMap[evt.from] = evt.payload.label;
           renderMembers();
         }
-
-        if (evt.payload.type === "presence") {
-          // Presence is label-only, no visible message
-          break;
-        }
-
+        if (evt.payload.type === "presence") break;
         if (evt.payload.type === "chat") {
           var isSelf = evt.from === myId;
-          // Visitors already appended their own messages locally
           if (!isOwner && isSelf) break;
           appendChat(evt.from, evt.payload.label, evt.payload.text, isSelf);
         }
@@ -341,7 +316,6 @@
         break;
 
       case "leave":
-        // A member left — members event will follow
         break;
 
       case "error":
@@ -354,7 +328,7 @@
   function renderMembers() {
     Goop.list(membersListEl, members, function(peerId) {
       return h("li", {},
-        Goop.ui.avatar(peerId, { size: 24 }),
+        Goop.ui.avatar(peerId, { size: 24, class: "member-avatar" }),
         h("span", { class: "member-dot" }),
         h("span", { class: peerId === myId ? "member-you" : "" }, displayName(peerId))
       );
@@ -363,8 +337,8 @@
 
   function timeStr() {
     var d = new Date();
-    var h = d.getHours(); var m = d.getMinutes();
-    return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
+    var hr = d.getHours(); var mn = d.getMinutes();
+    return (hr < 10 ? "0" : "") + hr + ":" + (mn < 10 ? "0" : "") + mn;
   }
 
   function appendChat(fromId, label, text, isSelf) {
@@ -400,18 +374,13 @@
   // ── Clean leave on page/tab close ──
   function doQuickLeave() {
     if (!currentRoom) return;
-    var url = isOwner
-      ? "/api/groups/leave-own"
-      : "/api/groups/leave";
-    var body = isOwner
-      ? JSON.stringify({ group_id: currentRoom.group_id })
-      : "{}";
-    // Use sendBeacon for reliability during unload
+    var url = isOwner ? "/api/groups/leave-own" : "/api/groups/leave";
+    var body = isOwner ? JSON.stringify({ group_id: currentRoom.group_id }) : "{}";
     if (navigator.sendBeacon) {
       navigator.sendBeacon(url, new Blob([body], { type: "application/json" }));
     } else {
       var xhr = new XMLHttpRequest();
-      xhr.open("POST", url, false); // sync
+      xhr.open("POST", url, false);
       xhr.setRequestHeader("Content-Type", "application/json");
       xhr.send(body);
     }
