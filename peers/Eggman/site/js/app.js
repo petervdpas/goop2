@@ -258,6 +258,7 @@
             ),
             h("span", { class: "column-count" }, cards.length + (cards.length === 1 ? " item" : " items")),
             isOwner ? h("span", { class: "column-actions" },
+              h("button", { class: "col-action-btn", title: "Rename column", onclick: function(e) { e.stopPropagation(); renameColumn(col._id, col.name); } }, "\u270E"),
               i > 0 ? h("button", { class: "col-action-btn", title: "Move left", onclick: function(e) { e.stopPropagation(); moveColumn(col._id, "left"); } }, "\u25C4") : null,
               i < columns.length - 1 ? h("button", { class: "col-action-btn", title: "Move right", onclick: function(e) { e.stopPropagation(); moveColumn(col._id, "right"); } }, "\u25BA") : null,
               h("button", { class: "col-action-btn", title: "Delete column", onclick: function(e) { e.stopPropagation(); deleteColumn(col._id); } }, "\u2715")
@@ -604,6 +605,18 @@
       loadBoard();
     } catch (e) {
       toast({ title: "Error", message: e.message || "Failed to delete column" });
+    }
+  }
+
+  async function renameColumn(columnId, currentName) {
+    var name = await Goop.ui.prompt({ title: "Rename Column", message: "Column name:", value: currentName });
+    if (!name || !name.trim() || name.trim() === currentName) return;
+    try {
+      var res = await db.call("kanban", { action: "update_column", column_id: columnId, name: name.trim() });
+      if (res.error) throw new Error(res.error);
+      loadBoard();
+    } catch (e) {
+      toast({ title: "Error", message: e.message || "Failed to rename column" });
     }
   }
 

@@ -18,6 +18,8 @@
     var captionEl = opts.caption ? el.querySelector(opts.caption) : null;
     var counterEl = opts.counter ? el.querySelector(opts.counter) : null;
 
+    var hiddenClass = opts.hiddenClass || "hidden";
+
     function show(idx) {
       if (!items.length) return;
       if (loop) current = ((idx % items.length) + items.length) % items.length;
@@ -30,6 +32,7 @@
         if (prevBtn) prevBtn.disabled = current <= 0;
         if (nextBtn) nextBtn.disabled = current >= items.length - 1;
       }
+      el.classList.remove(hiddenClass);
       if (openClass) el.classList.add(openClass);
       if (openAttr) el.setAttribute(openAttr, "");
       if (opts.onChange) opts.onChange(current);
@@ -38,6 +41,7 @@
     function hide() {
       if (openClass) el.classList.remove(openClass);
       if (openAttr) el.removeAttribute(openAttr);
+      el.classList.add(hiddenClass);
     }
 
     if (closeBtn) closeBtn.addEventListener("click", hide);
