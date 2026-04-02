@@ -154,12 +154,56 @@
 
   var SYS = { _id: 1, _owner: 1, _owner_email: 1, _created_at: 1, _updated_at: 1 };
 
+  var _ormComponents = [];
+
+  function ormFormCollect(el) {
+    var data = {};
+    el.querySelectorAll("[data-col]").forEach(function(inp) {
+      data[inp.getAttribute("data-col")] = inp.value;
+    });
+    for (var i = 0; i < _ormComponents.length; i++) {
+      var c = _ormComponents[i];
+      if (el.contains(c.el)) data[c.name] = c.instance.getValue();
+    }
+    return data;
+  }
+
+  function ormFormUpgrade(el, cols, values) {
+    var ui = window.Goop && window.Goop.ui;
+    if (!ui) return;
+    el.querySelectorAll("[data-goop-upgrade]").forEach(function(ph) {
+      var type = ph.getAttribute("data-goop-upgrade");
+      var name = ph.getAttribute("data-col");
+      var val = values[name] != null ? values[name] : "";
+      var col = null;
+      for (var i = 0; i < cols.length; i++) { if (cols[i].name === name) { col = cols[i]; break; } }
+      var inst = null;
+      if (type === "datepicker" && ui.datepicker) {
+        inst = ui.datepicker(ph, { value: val, name: name });
+      } else if (type === "select" && ui.select && col && col.values) {
+        inst = ui.select(ph, {
+          name: name,
+          value: val,
+          options: col.values.map(function(v) { return { value: v.key, label: v.label }; }),
+        });
+      } else if (type === "stepper" && ui.stepper) {
+        inst = ui.stepper(ph, { value: parseFloat(val) || 0, name: name });
+      } else if (type === "toggle" && ui.toggle) {
+        inst = ui.toggle(ph, { checked: val === "1" || val === 1 || val === true, name: name });
+      } else if (type === "colorpicker" && ui.colorpicker) {
+        inst = ui.colorpicker(ph, { value: val || "#7aa2ff", name: name });
+      }
+      if (inst) _ormComponents.push({ name: name, instance: inst, el: inst.el });
+    });
+  }
+
   function ormForm(el, cols, opts) {
     opts = opts || {};
     var esc = window.Goop.esc;
     var exclude = {};
     (opts.exclude || []).forEach(function(n) { exclude[n] = 1; });
     var values = opts.values || {};
+    var hasComponents = window.Goop && window.Goop.ui && window.Goop.ui.datepicker;
     var html = '<div class="orm-form">';
     for (var i = 0; i < cols.length; i++) {
       var c = cols[i];
@@ -169,17 +213,31 @@
       var req = c.required ? " required" : "";
       html += '<div class="orm-field">';
       html += '<label for="' + esc(id) + '">' + esc(opts.labels && opts.labels[c.name] || c.name) + '</label>';
-      if (c.values && c.values.length) {
-        html += '<select id="' + esc(id) + '" data-col="' + esc(c.name) + '"' + req + '>';
-        html += '<option value="">— select —</option>';
-        for (var j = 0; j < c.values.length; j++) {
-          var v = c.values[j];
-          var sel = String(val) === v.key ? " selected" : "";
-          html += '<option value="' + esc(v.key) + '"' + sel + '>' + esc(v.label) + '</option>';
+      if (hasComponents && (c.type === "date" || c.type === "datetime")) {
+        html += '<div data-goop-upgrade="datepicker" data-col="' + esc(c.name) + '"></div>';
+      } else if (hasComponents && c.type === "color") {
+        html += '<div data-goop-upgrade="colorpicker" data-col="' + esc(c.name) + '"></div>';
+      } else if (hasComponents && c.type === "boolean") {
+        html += '<div data-goop-upgrade="toggle" data-col="' + esc(c.name) + '"></div>';
+      } else if (c.values && c.values.length) {
+        if (hasComponents) {
+          html += '<div data-goop-upgrade="select" data-col="' + esc(c.name) + '"></div>';
+        } else {
+          html += '<select id="' + esc(id) + '" data-col="' + esc(c.name) + '"' + req + '>';
+          html += '<option value="">— select —</option>';
+          for (var j = 0; j < c.values.length; j++) {
+            var v = c.values[j];
+            var sel = String(val) === v.key ? " selected" : "";
+            html += '<option value="' + esc(v.key) + '"' + sel + '>' + esc(v.label) + '</option>';
+          }
+          html += '</select>';
         }
-        html += '</select>';
       } else if (c.type === "integer" || c.type === "real") {
-        html += '<input id="' + esc(id) + '" data-col="' + esc(c.name) + '" type="number" value="' + esc(val) + '"' + req + '>';
+        if (hasComponents) {
+          html += '<div data-goop-upgrade="stepper" data-col="' + esc(c.name) + '"></div>';
+        } else {
+          html += '<input id="' + esc(id) + '" data-col="' + esc(c.name) + '" type="number" value="' + esc(val) + '"' + req + '>';
+        }
       } else {
         html += '<input id="' + esc(id) + '" data-col="' + esc(c.name) + '" type="text" value="' + esc(val) + '"' + req + '>';
       }
@@ -191,14 +249,13 @@
     html += '</div>';
     el.innerHTML = html;
 
+    _ormComponents = _ormComponents.filter(function(c) { return document.body.contains(c.el); });
+    if (hasComponents) ormFormUpgrade(el, cols, values);
+
     if (opts.onSave) {
       var btn = el.querySelector(".orm-submit");
       if (btn) btn.addEventListener("click", function() {
-        var data = {};
-        el.querySelectorAll("[data-col]").forEach(function(inp) {
-          data[inp.getAttribute("data-col")] = inp.value;
-        });
-        opts.onSave(data);
+        opts.onSave(ormFormCollect(el));
       });
     }
   }

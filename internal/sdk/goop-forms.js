@@ -1,11 +1,12 @@
 //
 // Auto-generated CRUD forms from table schemas.
-// Depends on goop-data.js and goop-ui.js.
+// Depends on goop-data.js and goop-component-base.js (or goop-components.js).
 //
 // Usage:
 //
 //   <script src="/sdk/goop-data.js"></script>
-//   <script src="/sdk/goop-ui.js"></script>
+//   <script src="/sdk/goop-component-base.js"></script>
+//   <script src="/sdk/goop-component-dialog.js"></script>
 //   <script src="/sdk/goop-forms.js"></script>
 //
 //   // render a full CRUD interface for a table into an element
