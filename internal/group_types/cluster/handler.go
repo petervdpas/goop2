@@ -38,11 +38,11 @@ func (h *Handler) subscribe(fn func(from, topic string, payload any)) func() {
 	})
 }
 
-func (h *Handler) Flags() group.TypeFlags {
-	return group.TypeFlags{HostCanJoin: false}
+func (h *Handler) Flags() group.GroupTypeFlags {
+	return group.GroupTypeFlags{HostCanJoin: false, Volatile: true}
 }
 
-func (h *Handler) OnCreate(_, _ string, _ int, _ bool) error { return nil }
+func (h *Handler) OnCreate(_, _ string, _ int) error { return nil }
 
 func (h *Handler) OnJoin(groupID, peerID string, isHost bool) {
 	h.clusterMgr.HandleGroupEvent(&GroupEvent{

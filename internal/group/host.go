@@ -11,14 +11,19 @@ import (
 
 // CreateGroup creates a new hosted group. Source links the group to its creator
 // (e.g. the template name) for cleanup on re-apply.
-func (m *Manager) CreateGroup(id, name, groupType, groupContext string, maxMembers int, volatile bool) error {
-	// Volatile game groups: close any existing hosted group of the same type
+func (m *Manager) CreateGroup(id, name, groupType, groupContext string, maxMembers int) error {
+	volatile := false
+	if h := m.handlerForType(groupType); h != nil {
+		volatile = h.Flags().Volatile
+	}
+
+	// Volatile types: close any existing hosted group of the same type
 	if volatile {
 		m.mu.RLock()
 		var toClose []string
 		for gid, hg := range m.groups {
 			hg.mu.RLock()
-			if hg.info.Volatile && hg.info.GroupType == groupType {
+			if hg.info.GroupType == groupType {
 				toClose = append(toClose, gid)
 			}
 			hg.mu.RUnlock()
@@ -29,13 +34,13 @@ func (m *Manager) CreateGroup(id, name, groupType, groupContext string, maxMembe
 		}
 	}
 
-	// Enforce hosted group limit — volatile groups are excluded from the cap
+	// Enforce hosted group limit — volatile types are excluded from the cap
 	if !volatile {
 		m.mu.RLock()
 		stableCount := 0
 		for _, hg := range m.groups {
 			hg.mu.RLock()
-			if !hg.info.Volatile {
+			if !m.isVolatileType(hg.info.GroupType) {
 				stableCount++
 			}
 			hg.mu.RUnlock()
@@ -73,7 +78,7 @@ func (m *Manager) CreateGroup(id, name, groupType, groupContext string, maxMembe
 	log.Printf("GROUP: Created group %s (%s)", id, name)
 
 	if h := m.handlerForType(groupType); h != nil {
-		if err := h.OnCreate(id, name, maxMembers, volatile); err != nil {
+		if err := h.OnCreate(id, name, maxMembers); err != nil {
 			_ = m.CloseGroup(id)
 			return err
 		}
@@ -178,7 +183,7 @@ func (m *Manager) KickMember(groupID, peerID string) error {
 		delete(hg.members, peerID)
 	}
 	members := hg.memberList(m.selfID)
-	volatile := hg.info.Volatile
+	groupType := hg.info.GroupType
 	hg.mu.Unlock()
 
 	if !ok {
@@ -194,7 +199,7 @@ func (m *Manager) KickMember(groupID, peerID string) error {
 	m.broadcastToGroup(hg, groupID, TypeMembers, MembersPayload{Members: members}, "")
 	m.notifyListeners(&Event{Type: "leave", Group: groupID, From: peerID, Payload: MembersPayload{Members: members}})
 
-	if !volatile {
+	if !m.isVolatileType(groupType) {
 		_ = m.db.UpsertGroupMembers(groupID, membersToStorage(members))
 	}
 
@@ -331,10 +336,10 @@ func (m *Manager) SetMemberRole(groupID, peerID, role string) error {
 	}
 	mm.role = role
 	members := hg.memberList(m.selfID)
-	volatile := hg.info.Volatile
+	groupType := hg.info.GroupType
 	hg.mu.Unlock()
 
-	if !volatile {
+	if !m.isVolatileType(groupType) {
 		_ = m.db.SetMemberRole(groupID, peerID, role)
 		_ = m.db.UpsertGroupMembers(groupID, membersToStorage(members))
 	}
@@ -504,7 +509,7 @@ func (m *Manager) removeMemberAndBroadcast(groupID, peerID string) {
 		delete(hg.members, peerID)
 	}
 	members := hg.memberList(m.selfID)
-	volatile := hg.info.Volatile
+	groupType := hg.info.GroupType
 	hg.mu.Unlock()
 
 	if !wasMember {
@@ -514,7 +519,7 @@ func (m *Manager) removeMemberAndBroadcast(groupID, peerID string) {
 	m.broadcastToGroup(hg, groupID, TypeMembers, MembersPayload{Members: members}, "")
 	m.notifyListeners(&Event{Type: TypeMembers, Group: groupID, From: peerID, Payload: MembersPayload{Members: members}})
 
-	if !volatile {
+	if !m.isVolatileType(groupType) {
 		_ = m.db.UpsertGroupMembers(groupID, membersToStorage(members))
 	}
 }

@@ -44,7 +44,7 @@ func TestFlags(t *testing.T) {
 func TestOnCreateAndClose(t *testing.T) {
 	m := testManager(t)
 
-	if err := m.OnCreate("room1", "Test Room", 0, false); err != nil {
+	if err := m.OnCreate("room1", "Test Room", 0); err != nil {
 		t.Fatal(err)
 	}
 	if len(m.rooms) != 1 {
@@ -62,7 +62,7 @@ func TestOnCreateAndClose(t *testing.T) {
 
 func TestSendMessage(t *testing.T) {
 	m := testManager(t)
-	_ = m.OnCreate("room1", "Test Room", 0, false)
+	_ = m.OnCreate("room1", "Test Room", 0)
 
 	if err := m.SendMessage("room1", "self-peer-id", "hello"); err != nil {
 		t.Fatal(err)
@@ -95,7 +95,7 @@ func TestSendMessageUnknownRoom(t *testing.T) {
 
 func TestGetState(t *testing.T) {
 	m := testManager(t)
-	_ = m.OnCreate("room1", "Test Room", 0, false)
+	_ = m.OnCreate("room1", "Test Room", 0)
 	_ = m.SendMessage("room1", "self-peer-id", "msg1")
 	_ = m.SendMessage("room1", "self-peer-id", "msg2")
 
@@ -113,8 +113,8 @@ func TestGetState(t *testing.T) {
 
 func TestListRooms(t *testing.T) {
 	m := testManager(t)
-	_ = m.OnCreate("room1", "Room A", 0, false)
-	_ = m.OnCreate("room2", "Room B", 0, false)
+	_ = m.OnCreate("room1", "Room A", 0)
+	_ = m.OnCreate("room2", "Room B", 0)
 
 	rooms := m.ListRooms()
 	if len(rooms) != 2 {

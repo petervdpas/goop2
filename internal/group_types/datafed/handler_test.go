@@ -40,7 +40,7 @@ func TestFlags(t *testing.T) {
 func TestOnCreateAndClose(t *testing.T) {
 	m := testManager(t)
 
-	if err := m.OnCreate("g1", "Federation", 0, false); err != nil {
+	if err := m.OnCreate("g1", "Federation", 0); err != nil {
 		t.Fatal(err)
 	}
 	if len(m.groups) != 1 {
@@ -55,7 +55,7 @@ func TestOnCreateAndClose(t *testing.T) {
 
 func TestOnLeaveRemovesContribution(t *testing.T) {
 	m := testManager(t)
-	m.OnCreate("g1", "Fed", 0, false)
+	m.OnCreate("g1", "Fed", 0)
 
 	fg := m.groups["g1"]
 	fg.rwmu.Lock()
@@ -75,8 +75,8 @@ func TestOnLeaveRemovesContribution(t *testing.T) {
 
 func TestAllGroups(t *testing.T) {
 	m := testManager(t)
-	m.OnCreate("g1", "A", 0, false)
-	m.OnCreate("g2", "B", 0, false)
+	m.OnCreate("g1", "A", 0)
+	m.OnCreate("g2", "B", 0)
 
 	ids := m.AllGroups()
 	if len(ids) != 2 {

@@ -8,11 +8,11 @@ import (
 
 // TypeHandler interface implementation on Manager.
 
-func (m *Manager) Flags() group.TypeFlags {
-	return group.TypeFlags{HostCanJoin: true}
+func (m *Manager) Flags() group.GroupTypeFlags {
+	return group.GroupTypeFlags{HostCanJoin: true}
 }
 
-func (m *Manager) OnCreate(groupID, name string, _ int, _ bool) error {
+func (m *Manager) OnCreate(groupID, name string, _ int) error {
 	m.mu.Lock()
 	m.rooms[groupID] = &roomState{
 		info: Room{

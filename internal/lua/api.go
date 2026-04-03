@@ -670,7 +670,7 @@ func groupCreateFn(engine *Engine) lua.LGFunction {
 		groupContext := L.OptString(3, "")
 		maxMembers := L.OptInt(4, 0)
 		id := fmt.Sprintf("%x", time.Now().UnixNano())
-		if err := engine.groupMgr.CreateGroup(id, name, groupType, groupContext, maxMembers, false); err != nil {
+		if err := engine.groupMgr.CreateGroup(id, name, groupType, groupContext, maxMembers); err != nil {
 			L.RaiseError("create group: %s", err.Error())
 			return 0
 		}

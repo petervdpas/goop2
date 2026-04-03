@@ -70,7 +70,7 @@ type MQSubscriber interface {
 
 // GroupManager provides write operations on groups for Lua scripts.
 type GroupManager interface {
-	CreateGroup(id, name, groupType, groupContext string, maxMembers int, volatile bool) error
+	CreateGroup(id, name, groupType, groupContext string, maxMembers int) error
 	CloseGroup(groupID string) error
 	JoinOwnGroup(groupID string) error
 	KickMember(groupID, peerID string) error

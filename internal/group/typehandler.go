@@ -1,8 +1,9 @@
 package group
 
-// TypeFlags declares per-type rules for a group group_type.
-type TypeFlags struct {
+// GroupTypeFlags declares per-type rules for a group group_type.
+type GroupTypeFlags struct {
 	HostCanJoin bool // whether the host can join their own group as a member
+	Volatile    bool // ephemeral: no member persistence, excluded from group cap
 }
 
 // TypeHandler defines lifecycle hooks for a group group_type.
@@ -22,21 +23,29 @@ type TypeFlags struct {
 // Hooks should not block for extended periods — spawn goroutines for
 // long-running work.
 type TypeHandler interface {
-	Flags() TypeFlags
-	OnCreate(groupID, name string, maxMembers int, volatile bool) error
+	Flags() GroupTypeFlags
+	OnCreate(groupID, name string, maxMembers int) error
 	OnJoin(groupID, peerID string, isHost bool)
 	OnLeave(groupID, peerID string, isHost bool)
 	OnClose(groupID string)
 	OnEvent(evt *Event)
 }
 
-// TypeFlagsForGroup returns the TypeFlags for a group's group_type.
+// GroupTypeFlagsForGroup returns the GroupTypeFlags for a group's group_type.
 // Returns default flags (all true) if no handler is registered.
-func (m *Manager) TypeFlagsForGroup(groupID string) TypeFlags {
+func (m *Manager) GroupTypeFlagsForGroup(groupID string) GroupTypeFlags {
 	if h := m.handlerForGroup(groupID); h != nil {
 		return h.Flags()
 	}
-	return TypeFlags{HostCanJoin: true}
+	return GroupTypeFlags{HostCanJoin: true}
+}
+
+// isVolatileType returns whether the given group type has the Volatile flag set.
+func (m *Manager) isVolatileType(groupType string) bool {
+	if h := m.handlerForType(groupType); h != nil {
+		return h.Flags().Volatile
+	}
+	return false
 }
 
 // handlerForType returns the registered TypeHandler for the given group_type, or nil.

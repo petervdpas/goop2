@@ -43,7 +43,7 @@ func RegisterCluster(mux *http.ServeMux, cm *cluster.Manager, grpMgr *group.Mana
 				req.Name = "Cluster"
 			}
 			id = generateGroupID()
-			if err := grpMgr.CreateGroup(id, req.Name, "cluster", req.Name, req.MaxMembers, true); err != nil {
+			if err := grpMgr.CreateGroup(id, req.Name, "cluster", req.Name, req.MaxMembers); err != nil {
 				http.Error(w, fmt.Sprintf("create group: %v", err), http.StatusInternalServerError)
 				return
 			}

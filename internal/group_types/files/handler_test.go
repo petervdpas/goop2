@@ -32,11 +32,11 @@ func TestHandlerRegistration(t *testing.T) {
 
 	New(nil, grpMgr, store)
 
-	if err := grpMgr.CreateGroup("f1", "Docs", "files", "shared", 0, false); err != nil {
+	if err := grpMgr.CreateGroup("f1", "Docs", "files", "shared", 0); err != nil {
 		t.Fatal(err)
 	}
 
-	flags := grpMgr.TypeFlagsForGroup("f1")
+	flags := grpMgr.GroupTypeFlagsForGroup("f1")
 	if !flags.HostCanJoin {
 		t.Fatal("files group should allow host join via registered handler")
 	}

@@ -8,7 +8,7 @@ import (
 
 func TestPeerGoneSuspends(t *testing.T) {
 	m := testManager(t)
-	m.OnCreate("g1", "Fed", 0, false)
+	m.OnCreate("g1", "Fed", 0)
 
 	fg := m.groups["g1"]
 	fg.rwmu.Lock()
@@ -35,7 +35,7 @@ func TestPeerGoneSuspends(t *testing.T) {
 
 func TestPeerAnnounceRestores(t *testing.T) {
 	m := testManager(t)
-	m.OnCreate("g1", "Fed", 0, false)
+	m.OnCreate("g1", "Fed", 0)
 
 	fg := m.groups["g1"]
 	fg.rwmu.Lock()

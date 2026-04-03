@@ -61,7 +61,7 @@ func (m *Manager) Close() {
 // CreateRoom creates a new chat room backed by a hosted group.
 func (m *Manager) CreateRoom(name, description, context string, maxMembers int) (*Room, error) {
 	id := fmt.Sprintf("%x", time.Now().UnixNano())
-	if err := m.grp.CreateGroup(id, name, GroupTypeName, context, maxMembers, false); err != nil {
+	if err := m.grp.CreateGroup(id, name, GroupTypeName, context, maxMembers); err != nil {
 		return nil, err
 	}
 	if err := m.grp.JoinOwnGroup(id); err != nil {

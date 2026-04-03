@@ -15,12 +15,12 @@ func (m *Manager) sendControl(msg ControlMsg) {
 	_ = m.grp.SendControl(m.group.ID, "listen", msg)
 }
 
-func (m *Manager) Flags() group.TypeFlags {
-	return group.TypeFlags{HostCanJoin: true}
+func (m *Manager) Flags() group.GroupTypeFlags {
+	return group.GroupTypeFlags{HostCanJoin: true}
 }
 
 // OnCreate is called when a listen group is created.
-func (m *Manager) OnCreate(groupID, name string, _ int, _ bool) error {
+func (m *Manager) OnCreate(groupID, name string, _ int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

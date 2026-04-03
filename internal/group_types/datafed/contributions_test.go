@@ -8,7 +8,7 @@ import (
 
 func TestGroupContributions(t *testing.T) {
 	m := testManager(t)
-	m.OnCreate("g1", "Fed", 0, false)
+	m.OnCreate("g1", "Fed", 0)
 
 	fg := m.groups["g1"]
 	fg.rwmu.Lock()
@@ -41,7 +41,7 @@ func TestGroupContributionsUnknownGroup(t *testing.T) {
 
 func TestAllPeerSources(t *testing.T) {
 	m := testManager(t)
-	m.OnCreate("g1", "Fed", 0, false)
+	m.OnCreate("g1", "Fed", 0)
 
 	fg := m.groups["g1"]
 	fg.rwmu.Lock()
@@ -62,7 +62,7 @@ func TestAllPeerSources(t *testing.T) {
 
 func TestAllPeerSourcesExcludesSelf(t *testing.T) {
 	m := testManager(t)
-	m.OnCreate("g1", "Fed", 0, false)
+	m.OnCreate("g1", "Fed", 0)
 
 	fg := m.groups["g1"]
 	fg.rwmu.Lock()

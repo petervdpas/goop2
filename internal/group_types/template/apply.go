@@ -59,7 +59,7 @@ func (h *Handler) Apply(cfg ApplyConfig) string {
 		groupName = "Co-authors"
 	}
 	newID := generateGroupID()
-	if err := h.grpMgr.CreateGroup(newID, groupName, GroupTypeName, cfg.TemplateName, 0, false); err != nil {
+	if err := h.grpMgr.CreateGroup(newID, groupName, GroupTypeName, cfg.TemplateName, 0); err != nil {
 		log.Printf("TEMPLATE: failed to create group: %v", err)
 		return ""
 	}

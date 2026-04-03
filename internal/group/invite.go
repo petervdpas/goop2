@@ -62,8 +62,10 @@ func (m *Manager) handleInvite(from string, payload any) {
 
 	log.Printf("GROUP: Received invite for group %s from host %s", inv.GroupID, shortID(inv.HostPeerID))
 
-	// Volatile game groups: wipe stale subscriptions of the same type
-	if inv.Volatile {
+	vol := m.isVolatileType(inv.GroupType)
+
+	// Volatile types: wipe stale subscriptions of the same type
+	if vol {
 		if subs, err := m.db.ListSubscriptions(); err == nil {
 			for _, s := range subs {
 				if s.GroupType == inv.GroupType && s.GroupID != inv.GroupID {
@@ -74,7 +76,7 @@ func (m *Manager) handleInvite(from string, payload any) {
 		}
 	}
 
-	_ = m.db.AddSubscription(inv.HostPeerID, inv.GroupID, inv.GroupName, inv.GroupType, 0, inv.Volatile, "member", m.db.GetPeerName(inv.HostPeerID))
+	_ = m.db.AddSubscription(inv.HostPeerID, inv.GroupID, inv.GroupName, inv.GroupType, 0, vol, "member", m.db.GetPeerName(inv.HostPeerID))
 
 	evt := &Event{
 		Type:  "invite",

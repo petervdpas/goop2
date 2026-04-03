@@ -6,7 +6,7 @@ import (
 
 func TestSchemaWithdraw(t *testing.T) {
 	m := testManager(t)
-	m.OnCreate("g1", "Fed", 0, false)
+	m.OnCreate("g1", "Fed", 0)
 
 	fg := m.groups["g1"]
 	fg.rwmu.Lock()

@@ -25,7 +25,6 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 				GroupType    string `json:"group_type"`
 				GroupContext  string `json:"group_context"`
 				MaxMembers   int    `json:"max_members"`
-				Volatile     bool   `json:"volatile"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 				http.Error(w, "Invalid request", http.StatusBadRequest)
@@ -36,7 +35,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 				return
 			}
 			id := generateGroupID()
-			if err := grpMgr.CreateGroup(id, req.Name, req.GroupType, req.GroupContext, req.MaxMembers, req.Volatile); err != nil {
+			if err := grpMgr.CreateGroup(id, req.Name, req.GroupType, req.GroupContext, req.MaxMembers); err != nil {
 				http.Error(w, fmt.Sprintf("Failed to create group: %v", err), http.StatusInternalServerError)
 				return
 			}
@@ -73,7 +72,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 				for _, m := range raw {
 					named = append(named, memberWithName{MemberInfo: m, Name: peerName(m.PeerID)})
 				}
-				flags := grpMgr.TypeFlagsForGroup(g.ID)
+				flags := grpMgr.GroupTypeFlagsForGroup(g.ID)
 				result[i] = groupWithMembers{
 					GroupRow:    g,
 					MemberCount: len(named),

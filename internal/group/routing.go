@@ -55,7 +55,6 @@ func (m *Manager) handleHostMessage(from string, hg *hostedGroup, groupID, msgTy
 		memberList := hg.memberList(m.selfID)
 		groupType := hg.info.GroupType
 		groupContext := hg.info.GroupContext
-		volatile := hg.info.Volatile
 		name := hg.info.Name
 		maxMembers := hg.info.MaxMembers
 		hg.mu.Unlock()
@@ -68,7 +67,7 @@ func (m *Manager) handleHostMessage(from string, hg *hostedGroup, groupID, msgTy
 			GroupType:    groupType,
 			GroupContext: groupContext,
 			MaxMembers:  maxMembers,
-			Volatile:    volatile,
+			Volatile:    m.isVolatileType(groupType),
 			Members:     memberList,
 		})
 		cancel()
@@ -76,7 +75,7 @@ func (m *Manager) handleHostMessage(from string, hg *hostedGroup, groupID, msgTy
 		m.broadcastToGroup(hg, groupID, TypeMembers, MembersPayload{Members: memberList}, from)
 		m.notifyListeners(&Event{Type: TypeMembers, Group: groupID, Payload: MembersPayload{Members: memberList}})
 
-		if !volatile && len(memberList) > 0 {
+		if !m.isVolatileType(groupType) && len(memberList) > 0 {
 			_ = m.db.UpsertGroupMembers(groupID, membersToStorage(memberList))
 		}
 
@@ -90,7 +89,6 @@ func (m *Manager) handleHostMessage(from string, hg *hostedGroup, groupID, msgTy
 		hg.mu.Lock()
 		delete(hg.members, from)
 		members := hg.memberList(m.selfID)
-		volatile := hg.info.Volatile
 		groupType := hg.info.GroupType
 		hg.mu.Unlock()
 
@@ -99,7 +97,7 @@ func (m *Manager) handleHostMessage(from string, hg *hostedGroup, groupID, msgTy
 		m.broadcastToGroup(hg, groupID, TypeMembers, MembersPayload{Members: members}, "")
 		m.notifyListeners(&Event{Type: TypeMembers, Group: groupID, From: from, Payload: MembersPayload{Members: members}})
 
-		if !volatile {
+		if !m.isVolatileType(groupType) {
 			_ = m.db.UpsertGroupMembers(groupID, membersToStorage(members))
 		}
 
@@ -128,7 +126,7 @@ func (m *Manager) handleMemberMessage(from string, cc *clientConn, groupID, msgT
 					cc.membersMu.Lock()
 					cc.members = mp.Members
 					cc.membersMu.Unlock()
-					if !cc.volatile {
+					if !m.isVolatileType(cc.groupType) {
 						_ = m.db.UpsertGroupMembers(groupID, membersToStorage(mp.Members))
 					}
 				}
@@ -162,7 +160,7 @@ func (m *Manager) handleMemberMessage(from string, cc *clientConn, groupID, msgT
 			if b, err := json.Marshal(rawPayload); err == nil {
 				var mp MetaPayload
 				if json.Unmarshal(b, &mp) == nil && mp.GroupName != "" {
-					_ = m.db.AddSubscription(cc.hostPeerID, groupID, mp.GroupName, mp.GroupType, mp.MaxMembers, cc.volatile, "member", m.db.GetPeerName(cc.hostPeerID))
+					_ = m.db.AddSubscription(cc.hostPeerID, groupID, mp.GroupName, mp.GroupType, mp.MaxMembers, m.isVolatileType(cc.groupType), "member", m.db.GetPeerName(cc.hostPeerID))
 				}
 			}
 		}

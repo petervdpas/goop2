@@ -62,11 +62,11 @@ func (m *Manager) notifyChange() {
 	}
 }
 
-func (m *Manager) Flags() group.TypeFlags {
-	return group.TypeFlags{HostCanJoin: true}
+func (m *Manager) Flags() group.GroupTypeFlags {
+	return group.GroupTypeFlags{HostCanJoin: true}
 }
 
-func (m *Manager) OnCreate(groupID, name string, maxMembers int, volatile bool) error {
+func (m *Manager) OnCreate(groupID, name string, maxMembers int) error {
 	m.mu.Lock()
 	m.groups[groupID] = newFederatedGroup()
 	m.mu.Unlock()

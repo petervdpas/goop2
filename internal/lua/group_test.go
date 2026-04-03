@@ -31,7 +31,7 @@ func newMockGroupManager(selfID string) *mockGroupManager {
 	return &mockGroupManager{groups: make(map[string]*mockGroup), selfID: selfID}
 }
 
-func (m *mockGroupManager) CreateGroup(id, name, groupType, groupContext string, maxMembers int, volatile bool) error {
+func (m *mockGroupManager) CreateGroup(id, name, groupType, groupContext string, maxMembers int) error {
 	m.groups[id] = &mockGroup{name: name}
 	return nil
 }

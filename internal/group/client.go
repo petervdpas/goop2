@@ -80,11 +80,12 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 	}
 	wp := r.welcome
 
+	vol := m.isVolatileType(wp.GroupType)
+
 	cc := &clientConn{
 		hostPeerID: hostPeerID,
 		groupID:    groupID,
-		groupType:    wp.GroupType,
-		volatile:   wp.Volatile,
+		groupType:  wp.GroupType,
 		members:    wp.Members,
 	}
 
@@ -93,12 +94,12 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 	m.mu.Unlock()
 
 	// Persist member list for stable groups
-	if !wp.Volatile && len(wp.Members) > 0 {
+	if !vol && len(wp.Members) > 0 {
 		_ = m.db.UpsertGroupMembers(groupID, membersToStorage(wp.Members))
 	}
 
-	// Volatile game groups: wipe stale subscriptions of the same type
-	if wp.Volatile {
+	// Volatile types: wipe stale subscriptions of the same type
+	if vol {
 		if subs, err := m.db.ListSubscriptions(); err == nil {
 			for _, s := range subs {
 				if s.GroupType == wp.GroupType && s.GroupID != groupID {
@@ -111,14 +112,14 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 
 	// Store subscription with full metadata
 	hostName := m.db.GetPeerName(hostPeerID)
-	m.db.AddSubscription(hostPeerID, groupID, wp.GroupName, wp.GroupType, wp.MaxMembers, wp.Volatile, "member", hostName) //nolint:errcheck
+	m.db.AddSubscription(hostPeerID, groupID, wp.GroupName, wp.GroupType, wp.MaxMembers, vol, "member", hostName) //nolint:errcheck
 
 	m.notifyListeners(&Event{Type: TypeWelcome, Group: groupID, From: hostPeerID, Payload: map[string]any{
 		"group_name":    wp.GroupName,
 		"group_type":    wp.GroupType,
 		"group_context": wp.GroupContext,
 		"max_members":   wp.MaxMembers,
-		"volatile":      wp.Volatile,
+		"volatile":      vol,
 		"members":       wp.Members,
 	}})
 

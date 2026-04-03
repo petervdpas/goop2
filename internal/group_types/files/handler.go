@@ -22,11 +22,11 @@ func New(mqMgr *mq.Manager, grpMgr *group.Manager, store *Store) {
 	grpMgr.RegisterType("files", h)
 }
 
-func (h *Handler) Flags() group.TypeFlags {
-	return group.TypeFlags{HostCanJoin: true}
+func (h *Handler) Flags() group.GroupTypeFlags {
+	return group.GroupTypeFlags{HostCanJoin: true}
 }
 
-func (h *Handler) OnCreate(_, _ string, _ int, _ bool) error { return nil }
+func (h *Handler) OnCreate(_, _ string, _ int) error { return nil }
 func (h *Handler) OnJoin(_, _ string, _ bool)                {}
 func (h *Handler) OnLeave(_, _ string, _ bool)               {}
 func (h *Handler) OnEvent(_ *group.Event)                    {}

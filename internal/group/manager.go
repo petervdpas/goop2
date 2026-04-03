@@ -78,8 +78,7 @@ type hostedGroup struct {
 type clientConn struct {
 	hostPeerID string
 	groupID    string
-	groupType    string
-	volatile   bool
+	groupType  string
 	membersMu  sync.RWMutex
 	members    []MemberInfo // last known member list from host
 }
