@@ -431,6 +431,10 @@
       return request(apiBase + "/orm-schema");
     },
 
+    role: function(table) {
+      return post(apiBase + "/role", { table: table });
+    },
+
     // ── ORM DSL ──
 
     orm: async function(table) {

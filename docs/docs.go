@@ -1915,6 +1915,40 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/data/role": {
+            "post": {
+                "description": "Returns the calling peer's role in the template group and their permissions for the specified schema. Proxied through P2P for remote viewers. The host is the authority.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "data"
+                ],
+                "summary": "Get caller's role and permissions for a schema",
+                "parameters": [
+                    {
+                        "description": "Schema/table name",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.dataRoleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.dataRoleResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/data/schemas": {
             "get": {
                 "produces": [
@@ -2187,6 +2221,45 @@ const docTemplate = `{
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/routes.schemaSetContextRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    },
+                    "404": {
+                        "description": "schema not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/data/schemas/set-roles": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "schema"
+                ],
+                "summary": "Update role access matrix for a stored schema",
+                "parameters": [
+                    {
+                        "description": "Schema name and roles map",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.schemaSetRolesRequest"
                         }
                     }
                 ],
@@ -5151,6 +5224,26 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/template/settings": {
+            "get": {
+                "description": "Returns settings stored by the currently applied template, such as whether email is required for viewers.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "templates"
+                ],
+                "summary": "Get active template settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.templateSettingsResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/templates": {
             "get": {
                 "produces": [
@@ -6111,7 +6204,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "policy": {
-                    "description": "owner, email, open, group, local",
+                    "description": "owner, open, group, local",
                     "type": "string",
                     "example": "group"
                 },
@@ -6148,6 +6241,30 @@ const docTemplate = `{
                 "table": {
                     "type": "string",
                     "example": "my_table"
+                }
+            }
+        },
+        "routes.dataRoleRequest": {
+            "type": "object",
+            "properties": {
+                "table": {
+                    "type": "string",
+                    "example": "posts"
+                }
+            }
+        },
+        "routes.dataRoleResponse": {
+            "type": "object",
+            "properties": {
+                "permissions": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "boolean"
+                    }
+                },
+                "role": {
+                    "type": "string",
+                    "example": "coauthor"
                 }
             }
         },
@@ -6190,7 +6307,7 @@ const docTemplate = `{
                     "example": "2026-03-21 00:00:00"
                 },
                 "insert_policy": {
-                    "description": "owner, email, open, group, local",
+                    "description": "owner, open, group, local",
                     "type": "string",
                     "example": "owner"
                 },
@@ -7051,6 +7168,27 @@ const docTemplate = `{
                 }
             }
         },
+        "routes.ormSchemaRoles": {
+            "type": "object",
+            "properties": {
+                "delete": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "insert": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "read": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "update": {
+                    "type": "boolean",
+                    "example": false
+                }
+            }
+        },
         "routes.peerContentResponse": {
             "type": "object",
             "properties": {
@@ -7259,6 +7397,21 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "orders"
+                }
+            }
+        },
+        "routes.schemaSetRolesRequest": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "example": "posts"
+                },
+                "roles": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/routes.ormSchemaRoles"
+                    }
                 }
             }
         },
@@ -7518,6 +7671,15 @@ const docTemplate = `{
                 "template": {
                     "type": "string",
                     "example": "kanban"
+                }
+            }
+        },
+        "routes.templateSettingsResponse": {
+            "type": "object",
+            "properties": {
+                "require_email": {
+                    "type": "boolean",
+                    "example": false
                 }
             }
         },

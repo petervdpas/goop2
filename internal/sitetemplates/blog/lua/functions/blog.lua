@@ -32,7 +32,7 @@ local function page()
             font = cfg.font, theme = cfg.theme,
         },
         role = role,
-        can_write = role == "owner" or role == "editor",
+        can_write = role == "owner" or role == "coauthor",
         can_admin = role == "owner",
     }
 end

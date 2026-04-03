@@ -429,6 +429,7 @@ func RunPeer(p PeerParams) error {
 	if luaEngine != nil {
 		luaEngine.SetListen(listenMgr)
 		luaEngine.SetGroupChecker(grpMgr)
+		luaEngine.SetGroupManager(grpMgr)
 	}
 	setLuaListen = func() {
 		if luaEngine != nil {
@@ -438,6 +439,7 @@ func RunPeer(p PeerParams) error {
 	setLuaGroups = func() {
 		if luaEngine != nil {
 			luaEngine.SetGroupChecker(grpMgr)
+			luaEngine.SetGroupManager(grpMgr)
 		}
 	}
 	log.Printf("🎵 Listen room enabled")

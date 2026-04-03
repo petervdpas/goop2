@@ -10,7 +10,11 @@
   "access": {
     "read": "group",
     "insert": "group",
-    "update": "owner",
+    "update": "group",
     "delete": "owner"
+  },
+  "roles": {
+    "member": {"read": true, "insert": true, "update": true},
+    "viewer": {"read": true}
   }
 }

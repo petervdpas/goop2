@@ -135,6 +135,15 @@ When a remote peer performs a data operation on a `group`-policy table, the P2P 
 
 Roles are managed through the Schema editor's **Roles** tab in the Database page.
 
+A peer can ask the host for its role and permissions on any schema:
+
+```javascript
+var r = await Goop.data.role("posts");
+// r.role = "coauthor", r.permissions = {read: true, insert: true, ...}
+```
+
+This goes through the P2P data protocol — the host is the authority.
+
 ### Group lifecycle
 
 - **Apply template** -- group created if any schema needs it, owner auto-joins

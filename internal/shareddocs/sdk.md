@@ -87,6 +87,10 @@ var ctx = await Goop.peer();
 // ctx.myId    — viewer's peer ID
 // ctx.hostId  — site owner's peer ID
 
+var r = await Goop.data.role("posts");
+// r.role        — "owner", "coauthor", "viewer", or ""
+// r.permissions — {read: true, insert: true, update: true, delete: false}
+
 if (ctx.isOwner) document.getElementById("admin-panel").classList.remove("hidden");
 ```
 
@@ -313,7 +317,7 @@ var ctx = await Goop.peer();
 // ctx.myId    — this viewer's peer ID
 // ctx.hostId  — site owner's peer ID
 // ctx.isOwner — true when viewing your own site
-// ctx.isGroup — true when viewer is a subscribed group member
+// ctx.isGroup — true when viewer is a group member
 // ctx.label   — viewer's display name
 
 var formatted = Goop.date(timestamp);  // "April 2, 2026"

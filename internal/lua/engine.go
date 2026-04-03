@@ -15,6 +15,7 @@ import (
 
 	"github.com/petervdpas/goop2/internal/config"
 	"github.com/petervdpas/goop2/internal/content"
+	"github.com/petervdpas/goop2/internal/group"
 	"github.com/petervdpas/goop2/internal/group_types/listen"
 	"github.com/petervdpas/goop2/internal/state"
 	"github.com/petervdpas/goop2/internal/storage"
@@ -61,6 +62,18 @@ type GroupChecker interface {
 	TemplateGroupOwner() string
 }
 
+// GroupManager provides write operations on groups for Lua scripts.
+type GroupManager interface {
+	CreateGroup(id, name, groupType, groupContext string, maxMembers int, volatile bool) error
+	CloseGroup(groupID string) error
+	JoinOwnGroup(groupID string) error
+	KickMember(groupID, peerID string) error
+	HostedGroupMembers(groupID string) []group.MemberInfo
+	SendToGroupAsHost(groupID string, payload any) error
+	InvitePeer(ctx context.Context, peerID, groupID string) error
+	ListHostedGroups() ([]storage.GroupRow, error)
+}
+
 // Engine manages Lua scripts, hot reload, and command dispatch.
 type Engine struct {
 	mu           sync.RWMutex
@@ -73,6 +86,7 @@ type Engine struct {
 	content      *content.Store
 	listen       *listen.Manager
 	groups       GroupChecker
+	groupMgr     GroupManager
 	watcher      *fsnotify.Watcher
 	limiter      *rateLimiter
 	selfID       string
@@ -457,6 +471,10 @@ func (e *Engine) SetListen(lm *listen.Manager) {
 // SetGroupChecker sets the group checker for goop.group access in scripts.
 func (e *Engine) SetGroupChecker(gc GroupChecker) {
 	e.groups = gc
+}
+
+func (e *Engine) SetGroupManager(gm GroupManager) {
+	e.groupMgr = gm
 }
 
 // registryMaxSize derives a registry cap from the MaxMemoryMB config.

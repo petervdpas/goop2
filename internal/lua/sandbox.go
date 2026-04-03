@@ -123,6 +123,13 @@ func injectGoopTable(L *lua.LState, inv *invocationCtx, kv *kvStore, engine *Eng
 	memberTbl.RawSetString("id", lua.LString(inv.peerID))
 	memberTbl.RawSetString("role", L.NewFunction(groupMemberRoleFn(inv, engine)))
 	groupTbl.RawSetString("member", memberTbl)
+	groupTbl.RawSetString("create", L.NewFunction(groupCreateFn(engine)))
+	groupTbl.RawSetString("close", L.NewFunction(groupCloseFn(engine)))
+	groupTbl.RawSetString("add", L.NewFunction(groupAddFn(engine)))
+	groupTbl.RawSetString("remove", L.NewFunction(groupRemoveFn(engine)))
+	groupTbl.RawSetString("members", L.NewFunction(groupMembersFn(engine)))
+	groupTbl.RawSetString("send", L.NewFunction(groupSendFn(engine)))
+	groupTbl.RawSetString("list", L.NewFunction(groupListFn(engine)))
 	goop.RawSetString("group", groupTbl)
 
 	// goop.template

@@ -115,6 +115,8 @@ func mapSuffixToOp(suffix string) string {
 		return "upsert"
 	case "orm-schema":
 		return "orm-schema"
+	case "role":
+		return "role"
 	}
 	return ""
 }

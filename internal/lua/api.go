@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/petervdpas/goop2/internal/orm/schema"
 	"github.com/petervdpas/goop2/internal/storage"
@@ -655,6 +656,146 @@ func peerGroupRole(inv *invocationCtx, engine *Engine) string {
 	return ""
 }
 
+
+// groupCreateFn implements goop.group.create(name, type, max) → group_id
+func groupCreateFn(engine *Engine) lua.LGFunction {
+	return func(L *lua.LState) int {
+		if engine.groupMgr == nil {
+			L.RaiseError("group manager not available")
+			return 0
+		}
+		name := L.CheckString(1)
+		groupType := L.OptString(2, "template")
+		maxMembers := L.OptInt(3, 0)
+		id := fmt.Sprintf("%x", time.Now().UnixNano())
+		if err := engine.groupMgr.CreateGroup(id, name, groupType, "", maxMembers, false); err != nil {
+			L.RaiseError("create group: %s", err.Error())
+			return 0
+		}
+		if err := engine.groupMgr.JoinOwnGroup(id); err != nil {
+			log.Printf("LUA: group.create: auto-join failed: %v", err)
+		}
+		L.Push(lua.LString(id))
+		return 1
+	}
+}
+
+// groupCloseFn implements goop.group.close(group_id)
+func groupCloseFn(engine *Engine) lua.LGFunction {
+	return func(L *lua.LState) int {
+		if engine.groupMgr == nil {
+			L.RaiseError("group manager not available")
+			return 0
+		}
+		groupID := L.CheckString(1)
+		if err := engine.groupMgr.CloseGroup(groupID); err != nil {
+			L.RaiseError("close group: %s", err.Error())
+			return 0
+		}
+		L.Push(lua.LTrue)
+		return 1
+	}
+}
+
+// groupAddFn implements goop.group.add(group_id, peer_id)
+func groupAddFn(engine *Engine) lua.LGFunction {
+	return func(L *lua.LState) int {
+		if engine.groupMgr == nil {
+			L.RaiseError("group manager not available")
+			return 0
+		}
+		groupID := L.CheckString(1)
+		peerID := L.CheckString(2)
+		if err := engine.groupMgr.InvitePeer(context.Background(), peerID, groupID); err != nil {
+			L.RaiseError("add member: %s", err.Error())
+			return 0
+		}
+		L.Push(lua.LTrue)
+		return 1
+	}
+}
+
+// groupRemoveFn implements goop.group.remove(group_id, peer_id)
+func groupRemoveFn(engine *Engine) lua.LGFunction {
+	return func(L *lua.LState) int {
+		if engine.groupMgr == nil {
+			L.RaiseError("group manager not available")
+			return 0
+		}
+		groupID := L.CheckString(1)
+		peerID := L.CheckString(2)
+		if err := engine.groupMgr.KickMember(groupID, peerID); err != nil {
+			L.RaiseError("remove member: %s", err.Error())
+			return 0
+		}
+		L.Push(lua.LTrue)
+		return 1
+	}
+}
+
+// groupMembersFn implements goop.group.members(group_id) → table of {peer_id, role}
+func groupMembersFn(engine *Engine) lua.LGFunction {
+	return func(L *lua.LState) int {
+		if engine.groupMgr == nil {
+			L.Push(L.NewTable())
+			return 1
+		}
+		groupID := L.CheckString(1)
+		members := engine.groupMgr.HostedGroupMembers(groupID)
+		tbl := L.NewTable()
+		for i, m := range members {
+			entry := L.NewTable()
+			entry.RawSetString("peer_id", lua.LString(m.PeerID))
+			entry.RawSetString("role", lua.LString(m.Role))
+			tbl.RawSetInt(i+1, entry)
+		}
+		L.Push(tbl)
+		return 1
+	}
+}
+
+// groupSendFn implements goop.group.send(group_id, payload)
+func groupSendFn(engine *Engine) lua.LGFunction {
+	return func(L *lua.LState) int {
+		if engine.groupMgr == nil {
+			L.RaiseError("group manager not available")
+			return 0
+		}
+		groupID := L.CheckString(1)
+		payload := luaToGo(L.Get(2))
+		if err := engine.groupMgr.SendToGroupAsHost(groupID, payload); err != nil {
+			L.RaiseError("send to group: %s", err.Error())
+			return 0
+		}
+		L.Push(lua.LTrue)
+		return 1
+	}
+}
+
+// groupListFn implements goop.group.list() → table of hosted groups
+func groupListFn(engine *Engine) lua.LGFunction {
+	return func(L *lua.LState) int {
+		if engine.groupMgr == nil {
+			L.Push(L.NewTable())
+			return 1
+		}
+		rows, err := engine.groupMgr.ListHostedGroups()
+		if err != nil {
+			L.Push(L.NewTable())
+			return 1
+		}
+		tbl := L.NewTable()
+		for i, g := range rows {
+			entry := L.NewTable()
+			entry.RawSetString("id", lua.LString(g.ID))
+			entry.RawSetString("name", lua.LString(g.Name))
+			entry.RawSetString("group_type", lua.LString(g.GroupType))
+			tbl.RawSetInt(i+1, entry)
+		}
+		L.Push(tbl)
+		return 1
+	}
+}
 
 // ormFn implements goop.orm(table) — returns a schema-aware table handle.
 // The handle carries schema metadata (columns, access, system_key) and

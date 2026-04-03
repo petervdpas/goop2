@@ -31,8 +31,8 @@ These templates ship with every Goop2 peer and are always available:
 A personal blog where you and invited co-authors can write posts. Visitors see a read-only feed.
 
 - **Category**: Content
-- **Access**: `group` insert for posts, `owner` for blog config
-- **Roles**: `editor` (read, insert, update, delete), `viewer` (read)
+- **Access**: `group` read/insert/update/delete for posts, `owner` for blog config
+- **Roles**: `coauthor` (full CRUD on own posts), `viewer` (read only)
 
 ### Enquete
 

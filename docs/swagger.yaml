@@ -464,7 +464,7 @@ definitions:
   routes.dataPolicyRequest:
     properties:
       policy:
-        description: owner, email, open, group, local
+        description: owner, open, group, local
         example: group
         type: string
       table:
@@ -490,6 +490,22 @@ definitions:
         type: string
       table:
         example: my_table
+        type: string
+    type: object
+  routes.dataRoleRequest:
+    properties:
+      table:
+        example: posts
+        type: string
+    type: object
+  routes.dataRoleResponse:
+    properties:
+      permissions:
+        additionalProperties:
+          type: boolean
+        type: object
+      role:
+        example: coauthor
         type: string
     type: object
   routes.dataTableCreateRequest:
@@ -520,7 +536,7 @@ definitions:
         example: "2026-03-21 00:00:00"
         type: string
       insert_policy:
-        description: owner, email, open, group, local
+        description: owner, open, group, local
         example: owner
         type: string
       mode:
@@ -1113,6 +1129,21 @@ definitions:
           $ref: '#/definitions/routes.ormEnumValue'
         type: array
     type: object
+  routes.ormSchemaRoles:
+    properties:
+      delete:
+        example: false
+        type: boolean
+      insert:
+        example: true
+        type: boolean
+      read:
+        example: true
+        type: boolean
+      update:
+        example: false
+        type: boolean
+    type: object
   routes.peerContentResponse:
     properties:
       content:
@@ -1254,6 +1285,16 @@ definitions:
       name:
         example: orders
         type: string
+    type: object
+  routes.schemaSetRolesRequest:
+    properties:
+      name:
+        example: posts
+        type: string
+      roles:
+        additionalProperties:
+          $ref: '#/definitions/routes.ormSchemaRoles'
+        type: object
     type: object
   routes.serviceHealthEntry:
     properties:
@@ -1433,6 +1474,12 @@ definitions:
       template:
         example: kanban
         type: string
+    type: object
+  routes.templateSettingsResponse:
+    properties:
+      require_email:
+        example: false
+        type: boolean
     type: object
   routes.templateValidateLocalRequest:
     properties:
@@ -2900,6 +2947,30 @@ paths:
       summary: Query rows from a table
       tags:
       - data
+  /api/data/role:
+    post:
+      consumes:
+      - application/json
+      description: Returns the calling peer's role in the template group and their
+        permissions for the specified schema. Proxied through P2P for remote viewers.
+        The host is the authority.
+      parameters:
+      - description: Schema/table name
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.dataRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.dataRoleResponse'
+      summary: Get caller's role and permissions for a schema
+      tags:
+      - data
   /api/data/schemas:
     get:
       produces:
@@ -3087,6 +3158,31 @@ paths:
           schema:
             type: string
       summary: Toggle whether a schema is included in the GraphQL context
+      tags:
+      - schema
+  /api/data/schemas/set-roles:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Schema name and roles map
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.schemaSetRolesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+        "404":
+          description: schema not found
+          schema:
+            type: string
+      summary: Update role access matrix for a stored schema
       tags:
       - schema
   /api/data/tables:
@@ -5010,6 +5106,20 @@ paths:
       summary: Save a UI split pane preference (position 0-100)
       tags:
       - settings
+  /api/template/settings:
+    get:
+      description: Returns settings stored by the currently applied template, such
+        as whether email is required for viewers.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.templateSettingsResponse'
+      summary: Get active template settings
+      tags:
+      - templates
   /api/templates:
     get:
       produces:

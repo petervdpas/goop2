@@ -311,13 +311,25 @@ local dispatch = goop.route({
 
 ### goop.group
 
-Group membership and role information for the current template group:
+Group membership, role queries, and group management:
 
 ```lua
 local is_member = goop.group.is_member()    -- boolean
 local my_id     = goop.group.member.id      -- current peer's ID (string)
-local my_role   = goop.group.member.role()  -- "owner", "editor", "viewer", etc.
+local my_role   = goop.group.member.role()  -- "owner", "coauthor", "viewer", etc.
 local owner_id  = goop.group.owner()        -- group owner's peer ID
+```
+
+Group management (host-side operations):
+
+```lua
+local group_id = goop.group.create("Room A", "chat", 10)  -- name, type, max_members → id
+goop.group.add(group_id, peer_id)                          -- invite/add a peer
+goop.group.remove(group_id, peer_id)                       -- kick a peer
+goop.group.send(group_id, { type = "chat", text = "hi" })  -- broadcast to group
+local members = goop.group.members(group_id)                -- [{peer_id, role}, ...]
+local groups = goop.group.list()                            -- [{id, name, group_type}, ...]
+goop.group.close(group_id)                                  -- close and clean up
 ```
 
 The owner always gets role `"owner"`. Other members get the role assigned when they joined (default `"viewer"`).

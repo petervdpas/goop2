@@ -197,6 +197,8 @@ func (n *Node) dispatchDataOp(callerID string, req DataRequest) DataResponse {
 			return DataResponse{Error: "upsert not allowed for remote peers"}
 		}
 		return n.dataOpUpsertLocal(callerID, req)
+	case "role":
+		return n.dataOpRole(callerID, req)
 	case "lua-call":
 		return n.dataOpLuaCall(callerID, req)
 	case "lua-list":
@@ -229,6 +231,28 @@ func (n *Node) checkGroupAccess(callerID, table, op string) string {
 		return op + " not allowed: insufficient role (" + role + ")"
 	}
 	return ""
+}
+
+func (n *Node) dataOpRole(callerID string, req DataRequest) DataResponse {
+	if req.Table == "" {
+		return DataResponse{Error: "table name required"}
+	}
+	role := ""
+	if callerID == n.ID() {
+		role = "owner"
+	} else if n.groupChecker != nil {
+		role = n.groupChecker.TemplateMemberRole(callerID)
+	}
+	tbl, _ := n.db.GetSchema(req.Table)
+	var permissions map[string]bool
+	if tbl != nil && tbl.Roles != nil && role != "" {
+		if role == "owner" {
+			permissions = map[string]bool{"read": true, "insert": true, "update": true, "delete": true}
+		} else if ra, ok := tbl.Roles[role]; ok {
+			permissions = map[string]bool{"read": ra.Read, "insert": ra.Insert, "update": ra.Update, "delete": ra.Delete}
+		}
+	}
+	return DataResponse{OK: true, Data: map[string]any{"role": role, "permissions": permissions}}
 }
 
 func (n *Node) dataOpTables() DataResponse {
@@ -637,7 +661,7 @@ func (n *Node) dataOpUpdate(callerID string, req DataRequest) DataResponse {
 			return DataResponse{Error: "update not allowed: unknown table policy"}
 		}
 	}
-	if access.Update == "open" || access.Update == "group" {
+	if access.Update == "open" {
 		if err := n.db.UpdateRow(req.Table, req.ID, req.Data); err != nil {
 			return DataResponse{Error: err.Error()}
 		}
@@ -680,7 +704,7 @@ func (n *Node) dataOpDelete(callerID string, req DataRequest) DataResponse {
 			return DataResponse{Error: "delete not allowed: unknown table policy"}
 		}
 	}
-	if access.Delete == "open" || access.Delete == "group" {
+	if access.Delete == "open" {
 		if err := n.db.DeleteRow(req.Table, req.ID); err != nil {
 			return DataResponse{Error: err.Error()}
 		}

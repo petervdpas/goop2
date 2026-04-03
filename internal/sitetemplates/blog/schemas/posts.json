@@ -12,11 +12,11 @@
   "access": {
     "read": "open",
     "insert": "group",
-    "update": "owner",
-    "delete": "owner"
+    "update": "group",
+    "delete": "group"
   },
   "roles": {
-    "editor": {"read": true, "insert": true, "update": true, "delete": true},
+    "coauthor": {"read": true, "insert": true, "update": true, "delete": true},
     "viewer": {"read": true}
   }
 }

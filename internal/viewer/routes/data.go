@@ -66,6 +66,17 @@ func RegisterData(mux *http.ServeMux, db *storage.DB, selfID string, selfEmail f
 		writeJSON(w, schemas)
 	})
 
+	handlePost(mux, "/api/data/role", func(w http.ResponseWriter, r *http.Request, req struct {
+		Table string `json:"table"`
+	}) {
+		if req.Table == "" {
+			http.Error(w, "table name required", http.StatusBadRequest)
+			return
+		}
+		permissions := map[string]bool{"read": true, "insert": true, "update": true, "delete": true}
+		writeJSON(w, map[string]any{"role": "owner", "permissions": permissions})
+	})
+
 	// Create a new table (supports both classic ColumnDef and ORM schema formats)
 	handlePost(mux, "/api/data/tables/create", func(w http.ResponseWriter, r *http.Request, req struct {
 		Name    string              `json:"name"`

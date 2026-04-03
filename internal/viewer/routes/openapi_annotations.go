@@ -2650,6 +2650,29 @@ type ormSchemaRoles struct {
 //	@Router			/api/data/schemas/set-roles [post]
 func swagSchemaSetRoles() {}
 
+// dataRoleRequest is the body for POST /api/data/role.
+type dataRoleRequest struct {
+	Table string `json:"table" example:"posts"`
+}
+
+// dataRoleResponse is the body for POST /api/data/role.
+type dataRoleResponse struct {
+	Role        string          `json:"role"        example:"coauthor"`
+	Permissions map[string]bool `json:"permissions"`
+}
+
+// swagDataRole is a documentation stub for POST /api/data/role.
+//
+//	@Summary		Get caller's role and permissions for a schema
+//	@Description	Returns the calling peer's role in the template group and their permissions for the specified schema. Proxied through P2P for remote viewers. The host is the authority.
+//	@Tags			data
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		dataRoleRequest	true	"Schema/table name"
+//	@Success		200		{object}	dataRoleResponse
+//	@Router			/api/data/role [post]
+func swagDataRole() {}
+
 // templateSettingsResponse is the body for GET /api/template/settings.
 type templateSettingsResponse struct {
 	RequireEmail bool `json:"require_email" example:"false"`
