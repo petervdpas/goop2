@@ -626,12 +626,14 @@ func (e *Engine) CallFunction(ctx context.Context, callerID, function string, pa
 		return nil, fmt.Errorf("rate limit exceeded")
 	}
 
-	// Resolve peer label
+	// Resolve peer label and email
 	peerLabel := callerID
+	peerEmail := ""
 	if callerID == e.selfID {
 		peerLabel = e.selfLabel()
 	} else if sp, ok := e.peers.Get(callerID); ok {
 		peerLabel = sp.Content
+		peerEmail = sp.Email
 	}
 
 	// Execute with timeout
@@ -644,6 +646,7 @@ func (e *Engine) CallFunction(ctx context.Context, callerID, function string, pa
 		scriptName: function,
 		peerID:     callerID,
 		peerLabel:  peerLabel,
+		peerEmail:  peerEmail,
 		selfID:     e.selfID,
 		selfLabel:  e.selfLabel(),
 	}

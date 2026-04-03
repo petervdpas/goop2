@@ -81,6 +81,7 @@ func injectGoopTable(L *lua.LState, inv *invocationCtx, kv *kvStore, engine *Eng
 	peerTbl := L.NewTable()
 	peerTbl.RawSetString("id", lua.LString(inv.peerID))
 	peerTbl.RawSetString("label", lua.LString(inv.peerLabel))
+	peerTbl.RawSetString("email", lua.LString(inv.peerEmail))
 	goop.RawSetString("peer", peerTbl)
 
 	// goop.self (info about this node)

@@ -27,6 +27,7 @@ type invocationCtx struct {
 	scriptName string
 	peerID     string
 	peerLabel  string
+	peerEmail  string
 	selfID     string
 	selfLabel  string
 

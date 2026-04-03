@@ -1,0 +1,16 @@
+{
+  "name": "scores",
+  "system_key": true,
+  "columns": [
+    {"name": "score", "type": "integer", "default": 0},
+    {"name": "total", "type": "integer", "default": 0},
+    {"name": "peer_label", "type": "text", "default": ""},
+    {"name": "email", "type": "text", "default": ""}
+  ],
+  "access": {
+    "read": "open",
+    "insert": "open",
+    "update": "owner",
+    "delete": "owner"
+  }
+}

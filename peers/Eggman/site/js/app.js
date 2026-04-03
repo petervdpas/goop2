@@ -1,196 +1,142 @@
-// Blog app.js
+// Quiz app.js
 (async function () {
   var h = Goop.dom;
-  var site = Goop.site;
-  var date = Goop.date;
-  var blog = Goop.data.api("blog");
-  var editor = Goop.overlay("editor-overlay");
+  var db = Goop.data;
+  var ctx = await Goop.peer();
+  var questions = await db.orm("questions");
+  var scores = await db.orm("scores");
+  var root = document.getElementById("quiz-root");
 
-  Goop.ui.dialog(document.getElementById("confirm-dialog"), {
-    title: ".gc-dialog-title",
-    message: ".gc-dialog-message",
-    inputWrap: ".gc-dialog-input-wrap",
-    input: ".gc-dialog-input",
-    ok: ".gc-dialog-ok",
-    cancel: ".gc-dialog-cancel",
-    hiddenClass: "hidden",
-  });
+  if (ctx.isOwner) { await seed(); renderOwner(); }
+  else { renderQuiz(); }
 
-  var postsEl = document.getElementById("posts");
-  var btnNew = document.getElementById("btn-new");
-  var btnCustomize = document.getElementById("btn-customize");
-  var designerPanel = document.getElementById("designer-panel");
+  async function seed() {
+    var existing = await questions.find({ limit: 1 });
+    if (existing && existing.length > 0) return;
+    await questions.insert({ question: "What does HTML stand for?", option_a: "Hyper Text Markup Language", option_b: "High Tech Modern Language", option_c: "Home Tool Markup Language", option_d: "Hyperlink and Text Markup Language", correct: "a" });
+    await questions.insert({ question: "Which protocol does the web primarily use?", option_a: "FTP", option_b: "SMTP", option_c: "HTTP", option_d: "SSH", correct: "c" });
+    await questions.insert({ question: "What does CSS stand for?", option_a: "Computer Style Sheets", option_b: "Cascading Style Sheets", option_c: "Creative Style System", option_d: "Colorful Style Sheets", correct: "b" });
+  }
 
-  var editingId = null;
-  var editingImage = null;
-  var canWrite = false;
-  var canAdmin = false;
+  async function renderOwner() {
+    var qs = await questions.find() || [];
+    var sc = await scores.find({ limit: 50 }) || [];
 
-  // ── Config ──
+    Goop.render(root,
+      h("div", { class: "qz-manage" },
+        h("h2", {}, "Manage Questions"),
+        qs.length === 0
+          ? h("p", { class: "qz-empty" }, "No questions yet.")
+          : h("table", {},
+              h("thead", {}, h("tr", {}, h("th", {}, "#"), h("th", {}, "Question"), h("th", {}, "Answer"), h("th", {}))),
+              h("tbody", {}, qs.map(function(q, i) {
+                return h("tr", {},
+                  h("td", {}, String(i + 1)),
+                  h("td", {}, q.question),
+                  h("td", {}, q.correct.toUpperCase()),
+                  h("td", {}, h("button", { class: "btn-sm", onclick: async function() { await questions.remove(q._id); renderOwner(); } }, "Delete"))
+                );
+              }))
+            ),
+        h("button", { class: "qz-add-btn", onclick: showAddForm }, "+ Add Question")
+      ),
+      h("div", { class: "qz-manage qz-scores" },
+        h("h2", {}, "Scores"),
+        sc.length === 0
+          ? h("p", { class: "qz-empty" }, "No submissions yet.")
+          : h("table", {},
+              h("thead", {}, h("tr", {}, h("th", {}, "Peer"), h("th", {}, "Score"), h("th", {}, "Date"))),
+              h("tbody", {}, sc.map(function(s) {
+                return h("tr", {},
+                  h("td", {}, s.peer_label || s._owner.substring(0, 12) + "..."),
+                  h("td", {}, s.score + "/" + s.total),
+                  h("td", {}, s._created_at || "")
+                );
+              }))
+            )
+      )
+    );
+  }
 
-  var accentToIdx = {
-    "#b44d2d": "1", "#2d6a9f": "2", "#4a8f46": "3",
-    "#7c4a9f": "4", "#c0882c": "5", "#2d7a6a": "6",
-  };
+  function showAddForm() {
+    var form = h("div", { class: "qz-card qz-add-form" },
+      h("h3", {}, "New Question"),
+      h("div", { class: "qz-field" },
+        h("label", {}, "Question"),
+        h("textarea", { id: "nq", class: "qz-input qz-textarea", placeholder: "Type your question here...", rows: "2" })
+      ),
+      h("div", { class: "qz-options-grid" },
+        ["A", "B", "C", "D"].map(function(l, i) {
+          var v = l.toLowerCase();
+          return h("div", { class: "qz-option-field" },
+            h("label", {}, h("span", { class: "qz-option-letter" }, l)),
+            h("input", { id: "n" + v, class: "qz-input", placeholder: "Option " + l }),
+            h("input", { type: "radio", name: "ncorrect", value: v, class: "qz-correct-radio", checked: i === 0 ? "checked" : null })
+          );
+        })
+      ),
+      h("div", { class: "qz-form-hint" }, "Select the radio button next to the correct answer."),
+      h("div", { class: "qz-form-actions" },
+        h("button", { class: "qz-submit", onclick: async function() {
+          var q = document.getElementById("nq").value.trim();
+          if (!q) return;
+          var correct = root.querySelector('input[name="ncorrect"]:checked');
+          await questions.insert({
+            question: q,
+            option_a: document.getElementById("na").value.trim() || "Option A",
+            option_b: document.getElementById("nb").value.trim() || "Option B",
+            option_c: document.getElementById("nc").value.trim() || "Option C",
+            option_d: document.getElementById("nd").value.trim() || "Option D",
+            correct: correct ? correct.value : "a",
+          });
+          renderOwner();
+        } }, "Save Question"),
+        h("button", { class: "qz-cancel", onclick: function() { form.remove(); } }, "Cancel")
+      )
+    );
+    root.insertBefore(form, root.firstChild);
+  }
 
-  function applyConfig(cfg) {
-    var root = document.documentElement;
-    document.querySelector(".blog").className = "blog layout-" + (cfg.layout || "list");
-    document.querySelector(".blog-title").textContent = cfg.blog_title || "My Blog";
-    document.getElementById("blog-subtitle").textContent = cfg.blog_subtitle || "Thoughts, stories & notes";
-    if (cfg.accent) {
-      root.className = root.className.replace(/\baccent-\d+\b/g, "").trim();
-      root.classList.add("accent-" + (accentToIdx[cfg.accent] || "1"));
+  async function renderQuiz() {
+    var sc = await scores.find() || [];
+    for (var s = 0; s < sc.length; s++) {
+      if (sc[s]._owner === ctx.myId) { showResult(sc[s]); return; }
     }
-    root.className = root.className.replace(/\bfont-\w+\b/g, "").trim();
-    root.classList.add("font-" + (cfg.font || "serif"));
-    root.className = root.className.replace(/\btheme-\w+\b/g, "").trim();
-    root.classList.add("theme-" + (cfg.theme || "light"));
+    renderQuizForm();
   }
 
-  // ── Designer (owner only) ──
-  function setupDesigner(cfg) {
-    if (!canAdmin) return;
-    var defaults = { layout: "list", blog_title: "My Blog", blog_subtitle: "Thoughts, stories & notes", accent: "#b44d2d", font: "serif", theme: "light" };
-    for (var k in defaults) if (!cfg[k]) { cfg[k] = defaults[k]; blog("save_config", { key: k, value: defaults[k] }); }
+  async function renderQuizForm() {
+    var qs = await questions.find() || [];
+    if (qs.length === 0) { Goop.render(root, h("p", { class: "qz-empty" }, "No questions available yet.")); return; }
 
-    document.getElementById("d-title").value = cfg.blog_title || "My Blog";
-    document.getElementById("d-subtitle").value = cfg.blog_subtitle || "";
-    btnCustomize.classList.remove("hidden");
-
-    Goop.ui.toolbar(document.querySelector(".layout-picker"), {
-      idAttr: "data-layout",
-      activeClass: "active",
-      active: cfg.layout || "list",
-      onChange: function(val) { cfg.layout = val; applyConfig(cfg); blog("save_config", { key: "layout", value: val }); },
-    });
-
-    Goop.ui.toolbar(document.getElementById("font-picker"), {
-      idAttr: "data-font",
-      activeClass: "active",
-      active: cfg.font || "serif",
-      onChange: function(val) { cfg.font = val; applyConfig(cfg); blog("save_config", { key: "font", value: val }); },
-    });
-
-    Goop.ui.toolbar(document.getElementById("theme-picker"), {
-      idAttr: "data-theme",
-      activeClass: "active",
-      active: cfg.theme || "light",
-      onChange: function(val) { cfg.theme = val; applyConfig(cfg); blog("save_config", { key: "theme", value: val }); },
-    });
-
-    Goop.ui.toolbar(document.querySelector(".color-swatches"), {
-      idAttr: "data-color",
-      activeClass: "active",
-      active: cfg.accent || "#b44d2d",
-      onChange: function(val) { cfg.accent = val; applyConfig(cfg); blog("save_config", { key: "accent", value: val }); },
-    });
-
-    var titleInput = document.getElementById("d-title");
-    titleInput.addEventListener("blur", function () {
-      cfg.blog_title = titleInput.value.trim() || "My Blog"; titleInput.value = cfg.blog_title;
-      applyConfig(cfg); blog("save_config", { key: "blog_title", value: cfg.blog_title });
-    });
-    var subtitleInput = document.getElementById("d-subtitle");
-    subtitleInput.addEventListener("blur", function () {
-      cfg.blog_subtitle = subtitleInput.value.trim();
-      applyConfig(cfg); blog("save_config", { key: "blog_subtitle", value: cfg.blog_subtitle });
-    });
-
-    btnCustomize.addEventListener("click", function () { designerPanel.classList.toggle("hidden"); });
-    document.getElementById("btn-designer-close").addEventListener("click", function () { designerPanel.classList.add("hidden"); });
-  }
-
-  // ── Posts ──
-  function renderPosts(rows) {
-    var postsData = rows.map(function(p) {
-      return { _id: p._id, slug: p.slug || p._id, title: p.title, body: p.body, image: p.image, author_name: p.author_name, date: date(p._created_at) };
-    });
-    Goop.list(postsEl, postsData, "post-card", {
-      empty: "No posts yet." + (canWrite ? ' Click "+ New Post" to write your first one.' : ""),
-      emptyClass: "empty-msg"
-    }).then(function() {
-      if (!canWrite) return;
-      postsEl.querySelectorAll("[data-id]").forEach(function(article) {
-        var id = parseInt(article.dataset.id, 10);
-        var actions = h("div", { class: "post-actions" },
-          h("button", { onclick: function() { openEditor(id); } }, "Edit"),
-          h("button", { onclick: async function() {
-            if (!(await Goop.ui.confirm("Delete this post?"))) return;
-            var result = await blog("delete_post", { id: id });
-            if (result.image && canAdmin && site) { try { await site.remove("images/" + result.image); } catch (_) {} }
-            reload();
-          } }, "Delete")
-        );
-        article.appendChild(actions);
-      });
-    });
-  }
-
-  // ── Editor ──
-  async function openEditor(id) {
-    editingId = id || null;
-    editingImage = null;
-    document.getElementById("f-title").value = "";
-    document.getElementById("f-body").value = "";
-    document.getElementById("editor-heading").textContent = id ? "Edit Post" : "New Post";
-    document.getElementById("btn-save").textContent = id ? "Update" : "Publish";
-    var fImage = document.getElementById("f-image");
-    var fPreview = document.getElementById("f-image-preview");
-    if (fImage) fImage.value = "";
-    if (fPreview) { fPreview.src = ""; fPreview.classList.add("hidden"); }
-
-    if (id) {
-      try {
-        var r = await blog("get_post", { slug: String(id) });
-        if (r.found && r.post) {
-          document.getElementById("f-title").value = r.post.title;
-          document.getElementById("f-body").value = r.post.body;
-          if (r.post.image && fPreview) { editingImage = r.post.image; fPreview.src = "images/" + editingImage; fPreview.classList.remove("hidden"); }
+    var qData = qs.map(function(q, i) { return Object.assign({ num: i + 1 }, q); });
+    root.innerHTML = "";
+    for (var qi = 0; qi < qData.length; qi++) {
+      root.appendChild(await Goop.partial("question-card", qData[qi]));
+    }
+    root.appendChild(h("button", { class: "qz-submit", onclick: async function() {
+        this.disabled = true; this.textContent = "Scoring...";
+        var answers = {};
+        for (var i = 0; i < qs.length; i++) {
+          var sel = root.querySelector('input[name="q' + qs[i]._id + '"]:checked');
+          if (sel) answers[String(qs[i]._id)] = sel.value;
         }
-      } catch (_) {}
-    }
-    editor.open();
+        try { showResult(await db.call("score", { answers: answers })); }
+        catch (err) { Goop.render(root, h("p", { class: "qz-empty" }, "Error: " + err.message)); }
+      } }, "Submit Answers")
+    );
   }
 
-  btnNew.addEventListener("click", function () { openEditor(null); });
-  document.getElementById("btn-cancel").addEventListener("click", function () { editor.close(); });
-
-  document.getElementById("btn-save").addEventListener("click", async function () {
-    var title = document.getElementById("f-title").value.trim();
-    var body = document.getElementById("f-body").value.trim();
-    if (!title || !body) return;
-
-    var imageName = editingId ? (editingImage || "") : "";
-    var fImage = document.getElementById("f-image");
-    var imageFile = fImage && fImage.files && fImage.files[0];
-    if (imageFile && canAdmin && site) {
-      var ext = (imageFile.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
-      var safeName = Date.now() + "-" + imageFile.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 60) + "." + ext;
-      try {
-        await site.upload("images/" + safeName, imageFile);
-        if (editingImage) { try { await site.remove("images/" + editingImage); } catch (_) {} }
-        imageName = safeName;
-      } catch (_) {}
-    }
-
-    await blog("save_post", { id: editingId, title: title, body: body, image: imageName });
-    editor.close();
-    reload();
-  });
-
-  // ── Init ──
-  async function reload() {
-    var p = await blog("page");
-    renderPosts(p.posts || []);
+  function showResult(r) {
+    var pct = r.total > 0 ? Math.round((r.score / r.total) * 100) : 0;
+    var passed = r.passed !== undefined ? r.passed : r.score >= Math.ceil(r.total * 0.7);
+    Goop.render(root,
+      h("div", { class: "qz-result" },
+        h("div", { class: "score " + (passed ? "pass" : "fail") }, r.score + " / " + r.total),
+        h("div", { class: "label" }, pct + "% correct"),
+        h("div", { class: "msg" }, r.message || r.score + " out of " + r.total + " correct"),
+        h("button", { class: "qz-submit", onclick: function() { renderQuizForm(); } }, "Retake Quiz")
+      )
+    );
   }
-
-  var page = await blog("page");
-  canWrite = page.can_write;
-  canAdmin = page.can_admin;
-  if (canWrite) btnNew.classList.remove("hidden");
-  if (canAdmin) document.getElementById("editor-image-section").classList.remove("hidden");
-  applyConfig(page.config || {});
-  setupDesigner(page.config || {});
-  renderPosts(page.posts || []);
 })();

@@ -104,6 +104,7 @@ Every Lua invocation knows who's calling:
 ```lua
 goop.peer.id       -- the viewer's peer ID (who triggered this call)
 goop.peer.label    -- the viewer's display name
+goop.peer.email    -- the viewer's email address (empty if not configured)
 
 goop.self.id       -- the site owner's peer ID (whose site this is)
 goop.self.label    -- the site owner's display name
