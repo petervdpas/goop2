@@ -666,10 +666,13 @@ func groupCreateFn(engine *Engine) lua.LGFunction {
 			return 0
 		}
 		name := L.CheckString(1)
-		groupType := L.OptString(2, "template")
 		maxMembers := L.OptInt(3, 0)
 		id := fmt.Sprintf("%x", time.Now().UnixNano())
-		if err := engine.groupMgr.CreateGroup(id, name, groupType, "", maxMembers, false); err != nil {
+		groupContext := ""
+		if engine.db != nil {
+			groupContext = engine.db.GetMeta("template_group_name")
+		}
+		if err := engine.groupMgr.CreateGroup(id, name, "template", groupContext, maxMembers, false); err != nil {
 			L.RaiseError("create group: %s", err.Error())
 			return 0
 		}

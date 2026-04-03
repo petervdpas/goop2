@@ -176,9 +176,8 @@
 
           html += '<div class="groups-card-mgmt">';
 
-          // Settings toggle
-          html += '<div class="groups-settings-toggle grph-settings-btn" data-id="' + gid + '">&#9881; Settings</div>' +
-            '<div class="groups-settings hidden" data-id="' + gid + '">' +
+          html += '<div class="groups-settings-toggle section-toggle" data-panel-open="0" data-panel-remember="grp-' + gid + '">&#9881; Settings</div>' +
+            '<div class="groups-settings">' +
               '<div class="groups-settings-row">' +
                 '<span class="groups-settings-label">Max members</span>' +
                 '<input type="number" class="groups-maxmembers-input" data-id="' + gid + '" value="' + (g.max_members || 0) + '" min="0" title="0 = unlimited">' +
@@ -300,12 +299,7 @@
 
       // Bind management controls (groups page only)
       if (showMgmt) {
-        // Settings panel toggle
-        containerEl.querySelectorAll('.grph-settings-btn').forEach(function(trigger) {
-          var gid = trigger.getAttribute('data-id');
-          var content = containerEl.querySelector('.groups-settings[data-id="' + gid + '"]');
-          core.panel(trigger, content, { remember: 'grp-settings-' + gid });
-        });
+        Goop.panel.initAll(containerEl);
 
         // Max members — auto-save on change
         containerEl.querySelectorAll('.groups-maxmembers-input').forEach(function(input) {

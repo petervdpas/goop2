@@ -33,16 +33,6 @@ func (h *Handler) Apply(cfg ApplyConfig) string {
 		existingGroupTemplate = cfg.DB.GetMeta("template_group_name")
 	}
 
-	// Close orphan template groups
-	if existing, err := h.grpMgr.ListHostedGroups(); err == nil {
-		for _, g := range existing {
-			if g.GroupType == GroupTypeName && g.ID != existingGroupID {
-				_ = h.grpMgr.CloseGroup(g.ID)
-				log.Printf("TEMPLATE: closed orphan group %s", g.ID)
-			}
-		}
-	}
-
 	sameTemplate := existingGroupID != "" && existingGroupTemplate == cfg.TemplateName
 	if cfg.SchemaInfo.NeedsGroup && sameTemplate {
 		log.Printf("TEMPLATE: reusing existing group %s", existingGroupID)
@@ -50,10 +40,9 @@ func (h *Handler) Apply(cfg ApplyConfig) string {
 		return existingGroupID
 	}
 
-	// Close previous group if switching templates
-	if existingGroupID != "" {
-		_ = h.grpMgr.CloseGroup(existingGroupID)
-		log.Printf("TEMPLATE: closed previous group %s", existingGroupID)
+	// Switching templates — close ALL groups owned by the old template
+	if existingGroupTemplate != "" {
+		h.closeTemplateGroups(existingGroupTemplate)
 	}
 	if cfg.DB != nil {
 		cfg.DB.SetMeta("template_group_id", "")
@@ -88,6 +77,20 @@ func (h *Handler) Apply(cfg ApplyConfig) string {
 	}
 
 	return newID
+}
+
+// closeTemplateGroups closes all groups whose GroupContext matches the template name.
+func (h *Handler) closeTemplateGroups(templateName string) {
+	groups, err := h.grpMgr.ListHostedGroups()
+	if err != nil {
+		return
+	}
+	for _, g := range groups {
+		if g.GroupContext == templateName {
+			_ = h.grpMgr.CloseGroup(g.ID)
+			log.Printf("TEMPLATE: closed group %s (type=%s, context=%s)", g.ID, g.GroupType, g.GroupContext)
+		}
+	}
 }
 
 func (h *Handler) configureGroup(groupID, defaultRole string, roles []string) {

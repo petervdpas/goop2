@@ -1017,13 +1017,23 @@ input:checked + .slider::before {
   flex-shrink: 0;
 }
 
-/* Panel (collapsible expand/collapse — see core.js panel()) */
+/* Panel (collapsible expand/collapse — see panel.js) */
 .panel-arrow{
   display: inline-block;
   width: 12px;
   font-size: 11px;
   text-align: center;
-  transition: transform 0.15s;
+  margin-left: 4px;
+}
+
+.section-toggle{
+  cursor: pointer;
+  user-select: none;
+  justify-content: flex-start;
+}
+
+.section-toggle:hover .section-title{
+  color: var(--accent);
 }
 
 /* Progress bar */
