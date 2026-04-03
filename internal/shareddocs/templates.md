@@ -149,7 +149,7 @@ When any access policy is set to `group`, the schema can define a roles map. Eac
 }
 ```
 
-If any schema in a template uses `group` access or defines roles, Goop2 automatically creates a co-author group when the template is applied. Re-applying the same template preserves existing group members.
+If any schema in a template uses `group` access or defines roles, Goop2 automatically creates a template group when the template is applied. Re-applying the same template preserves existing group members. Switching to a different template closes all groups owned by the previous template.
 
 ### Template settings
 
@@ -158,16 +158,17 @@ The manifest supports template-level settings that are separate from access poli
 | Setting | Type | Description |
 |---------|------|-------------|
 | `require_email` | `bool` | Template requires viewers to have an email address configured. |
+| `default_role` | `string` | Role assigned to new group members on join (e.g. `"coauthor"`). Defaults to `"viewer"`. |
 
 ```json
 {
-  "name": "Enquete",
-  "require_email": true,
-  "schemas": ["responses"]
+  "name": "Blog",
+  "default_role": "coauthor",
+  "schemas": ["posts", "blog_config"]
 }
 ```
 
-Template settings are available to both Lua (`goop.template.require_email`) and JS (`Goop.template.requireEmail()`).
+The full manifest is available to Lua as `goop.template` (e.g. `goop.template.name`, `goop.template.default_role`) and to JS via `Goop.template.requireEmail()`.
 
 ## Remote data
 

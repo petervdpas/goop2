@@ -78,6 +78,7 @@ type GroupManager interface {
 	SendToGroupAsHost(groupID string, payload any) error
 	InvitePeer(ctx context.Context, peerID, groupID string) error
 	ListHostedGroups() ([]storage.GroupRow, error)
+	RegisteredTypes() []string
 }
 
 // Engine manages Lua scripts, hot reload, and command dispatch.

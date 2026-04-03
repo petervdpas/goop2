@@ -42,7 +42,7 @@ local function create_room(p)
     local desc = p.description or ""
     local max = tonumber(p.max_members) or 0
 
-    local group_id = goop.group.create(name, "clubhouse", max)
+    local group_id = goop.group.create(name, "template", goop.template.name, max)
 
     local id = rooms:insert({
         name = name,

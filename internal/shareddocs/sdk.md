@@ -304,7 +304,7 @@ The SDK auto-detects whether the template is running on the local peer (`/`) or 
 | `goop-realtime.js` | `Goop.realtime` | Virtual MQ-based channels |
 | `goop-call.js` | `Goop.call` | Audio/video calling |
 | `goop-api.js` | `Goop.api` | Virtual REST API over Lua data functions |
-| `goop-template.js` | `Goop.template` | Template settings (require_email, etc.) |
+| `goop-template.js` | `Goop.template` | Full manifest access (name, category, schemas, default_role, etc.) |
 | `goop-form.js` | `Goop.form` | JSON-driven form renderer |
 | `goop-forms.js` | `Goop.forms` | Auto-generated CRUD UI from schema |
 | `goop-engine.js` | `GameLoop, Renderer, ...` | 2D game engine (Canvas) |

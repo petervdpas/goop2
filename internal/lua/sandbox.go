@@ -1,6 +1,8 @@
 package lua
 
 import (
+	"encoding/json"
+
 	"github.com/petervdpas/goop2/internal/storage"
 
 	lua "github.com/yuin/gopher-lua"
@@ -131,16 +133,24 @@ func injectGoopTable(L *lua.LState, inv *invocationCtx, kv *kvStore, engine *Eng
 	groupTbl.RawSetString("set_role", L.NewFunction(groupSetRoleFn(engine)))
 	groupTbl.RawSetString("members", L.NewFunction(groupMembersFn(engine)))
 	groupTbl.RawSetString("send", L.NewFunction(groupSendFn(engine)))
+	groupTbl.RawSetString("grouptypes", L.NewFunction(groupTypesFn(engine)))
 	groupTbl.RawSetString("list", L.NewFunction(groupListFn(engine)))
 	goop.RawSetString("group", groupTbl)
 
-	// goop.template
+	// goop.template — expose the full manifest
 	templateTbl := L.NewTable()
-	requireEmail := false
 	if engine.db != nil {
-		requireEmail = engine.db.GetMeta("template_require_email") == "1"
+		raw := engine.db.GetMeta("template_manifest")
+		if raw != "" {
+			var manifest map[string]any
+			if json.Unmarshal([]byte(raw), &manifest) == nil {
+				for k, v := range manifest {
+					templateTbl.RawSetString(k, goToLua(L, v))
+				}
+			}
+		}
+		templateTbl.RawSetString("require_email", lua.LBool(engine.db.GetMeta("template_require_email") == "1"))
 	}
-	templateTbl.RawSetString("require_email", lua.LBool(requireEmail))
 	goop.RawSetString("template", templateTbl)
 
 	// goop.route / goop.owner / goop.expr

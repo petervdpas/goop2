@@ -86,9 +86,9 @@ func (h *Handler) closeTemplateGroups(templateName string) {
 		return
 	}
 	for _, g := range groups {
-		if g.GroupContext == templateName {
+		if g.GroupType == GroupTypeName && g.GroupContext == templateName {
 			_ = h.grpMgr.CloseGroup(g.ID)
-			log.Printf("TEMPLATE: closed group %s (type=%s, context=%s)", g.ID, g.GroupType, g.GroupContext)
+			log.Printf("TEMPLATE: closed group %s (context=%s)", g.ID, g.GroupContext)
 		}
 	}
 }

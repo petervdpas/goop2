@@ -324,16 +324,27 @@ local owner_id  = goop.group.owner()        -- group owner's peer ID
 Group management (host-side operations):
 
 ```lua
-local group_id = goop.group.create("Room A", "chat", 10)  -- name, type, max_members → id
-goop.group.add(group_id, peer_id)                          -- invite/add a peer
-goop.group.remove(group_id, peer_id)                       -- kick a peer
-goop.group.send(group_id, { type = "chat", text = "hi" })  -- broadcast to group
-local members = goop.group.members(group_id)                -- [{peer_id, role}, ...]
-local groups = goop.group.list()                            -- [{id, name, group_type}, ...]
-goop.group.close(group_id)                                  -- close and clean up
+local types = goop.group.grouptypes()  -- {"template", "files", "listen", ...}
+
+local gid = goop.group.create(
+    "Room A",              -- name
+    "template",            -- type (must be a registered group type)
+    goop.template.name,    -- context (identifies the owner, e.g. template name)
+    10                     -- max members (0 = unlimited)
+)
+
+goop.group.add(gid, peer_id)                          -- invite/add a peer
+goop.group.remove(gid, peer_id)                       -- kick a peer
+goop.group.set_role(gid, peer_id, "coauthor")         -- change a member's role
+goop.group.send(gid, { type = "chat", text = "hi" })  -- broadcast to group
+local members = goop.group.members(gid)                -- [{peer_id, role}, ...]
+local groups = goop.group.list()                       -- [{id, name, group_type}, ...]
+goop.group.close(gid)                                  -- close and clean up
 ```
 
-The owner always gets role `"owner"`. Other members get the role assigned when they joined (default `"viewer"`).
+The `context` parameter links the group to its creator. For template groups, use `goop.template.name` so the group is cleaned up when the template is switched. For other types, use whatever identifies the owner.
+
+The owner always gets role `"owner"`. Other members get the group's `default_role` (set in the manifest or via the API).
 
 ### Event handlers
 
@@ -357,10 +368,16 @@ Currently supported events:
 
 ### goop.template
 
-Template-level settings declared in the manifest:
+The full manifest is available as a Lua table:
 
 ```lua
-local needs_email = goop.template.require_email  -- boolean
+goop.template.name            -- "Clubhouse"
+goop.template.description     -- "A cozy real-time chat room..."
+goop.template.category        -- "community"
+goop.template.icon            -- "🏠"
+goop.template.schemas         -- {"rooms"}
+goop.template.require_email   -- false
+goop.template.default_role    -- "coauthor" (or nil if not set)
 ```
 
 ### goop.db (legacy)

@@ -658,7 +658,7 @@ func peerGroupRole(inv *invocationCtx, engine *Engine) string {
 }
 
 
-// groupCreateFn implements goop.group.create(name, type, max) → group_id
+// groupCreateFn implements goop.group.create(name, type, context, max) → group_id
 func groupCreateFn(engine *Engine) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if engine.groupMgr == nil {
@@ -666,13 +666,11 @@ func groupCreateFn(engine *Engine) lua.LGFunction {
 			return 0
 		}
 		name := L.CheckString(1)
-		maxMembers := L.OptInt(3, 0)
+		groupType := L.CheckString(2)
+		groupContext := L.OptString(3, "")
+		maxMembers := L.OptInt(4, 0)
 		id := fmt.Sprintf("%x", time.Now().UnixNano())
-		groupContext := ""
-		if engine.db != nil {
-			groupContext = engine.db.GetMeta("template_group_name")
-		}
-		if err := engine.groupMgr.CreateGroup(id, name, "template", groupContext, maxMembers, false); err != nil {
+		if err := engine.groupMgr.CreateGroup(id, name, groupType, groupContext, maxMembers, false); err != nil {
 			L.RaiseError("create group: %s", err.Error())
 			return 0
 		}
@@ -752,6 +750,23 @@ func groupSetRoleFn(engine *Engine) lua.LGFunction {
 			return 0
 		}
 		L.Push(lua.LTrue)
+		return 1
+	}
+}
+
+// groupTypesFn implements goop.group.types() → list of registered group type names
+func groupTypesFn(engine *Engine) lua.LGFunction {
+	return func(L *lua.LState) int {
+		if engine.groupMgr == nil {
+			L.Push(L.NewTable())
+			return 1
+		}
+		types := engine.groupMgr.RegisteredTypes()
+		tbl := L.NewTable()
+		for i, t := range types {
+			tbl.RawSetInt(i+1, lua.LString(t))
+		}
+		L.Push(tbl)
 		return 1
 	}
 }

@@ -183,6 +183,16 @@ func (m *Manager) RegisterType(groupType string, h TypeHandler) {
 	m.handlers[groupType] = h
 }
 
+// RegisteredTypes returns the list of registered group type names.
+func (m *Manager) RegisteredTypes() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	types := make([]string, 0, len(m.handlers))
+	for t := range m.handlers {
+		types = append(types, t)
+	}
+	return types
+}
 
 func (m *Manager) notifyListeners(evt *Event) {
 	if m.mq != nil {

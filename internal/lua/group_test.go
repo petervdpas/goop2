@@ -99,6 +99,10 @@ func (m *mockGroupManager) InvitePeer(ctx context.Context, peerID, groupID strin
 	return nil
 }
 
+func (m *mockGroupManager) RegisteredTypes() []string {
+	return []string{"template", "clubhouse", "files", "listen"}
+}
+
 func (m *mockGroupManager) ListHostedGroups() ([]storage.GroupRow, error) {
 	var rows []storage.GroupRow
 	for id, g := range m.groups {
@@ -305,7 +309,7 @@ func TestGroupCreateAndMembers(t *testing.T) {
 	src := `--- @rate_limit 0
 local dispatch = goop.route({
     create_room = function()
-        local gid = goop.group.create("TestRoom", "clubhouse", 10)
+        local gid = goop.group.create("TestRoom", "template", "test", 10)
         return { group_id = gid }
     end,
     get_members = function(p)
@@ -383,7 +387,7 @@ func TestGroupSetRole(t *testing.T) {
 	src := `--- @rate_limit 0
 local dispatch = goop.route({
     create_room = function()
-        local gid = goop.group.create("TestRoom", "clubhouse", 10)
+        local gid = goop.group.create("TestRoom", "template", "test", 10)
         return { group_id = gid }
     end,
     set_role = function(p)

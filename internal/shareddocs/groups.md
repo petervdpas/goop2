@@ -114,7 +114,7 @@ The host submits jobs via the API or UI. Jobs have a type, payload, optional pri
 
 ## Template groups
 
-When a template's schemas use `group` access policies or define a roles map, Goop2 automatically creates a co-author group on apply. Members join via the Groups page. The owner always has full access.
+When a template's schemas use `group` access policies or define a roles map, Goop2 automatically creates a template group on apply. Lua scripts can create additional groups of any registered type via `goop.group.create()`. Groups with `group_type = "template"` and `group_context` matching the template name are cleaned up when the template is switched. Members join via the Groups page. The owner always has full access.
 
 ### Role-based data access
 
@@ -133,7 +133,25 @@ Each schema can define custom roles with per-operation permissions:
 
 When a remote peer performs a data operation on a `group`-policy table, the P2P data layer looks up the peer's role in the template group and checks it against the schema's roles map. Unknown roles are denied.
 
-Roles are managed through the Schema editor's **Roles** tab in the Database page.
+### Default role
+
+The manifest `default_role` field controls what role new members receive when they join. Without it, members join as `"viewer"`. The blog template sets `"default_role": "coauthor"` so invited members can post immediately.
+
+### Group roles
+
+Each group has a configurable list of available roles and a default role for new members. These can be managed via the API:
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/groups/set-role` | Change a member's role (`group_id`, `peer_id`, `role`) |
+| `POST /api/groups/set-default-role` | Set the default role for new joiners (`group_id`, `default_role`) |
+| `POST /api/groups/set-roles` | Set the available roles list (`group_id`, `roles[]`) |
+
+Roles are also managed through the Schema editor's **Roles** tab in the Database page, and via Lua:
+
+```lua
+goop.group.set_role(group_id, peer_id, "coauthor")
+```
 
 A peer can ask the host for its role and permissions on any schema:
 
@@ -148,10 +166,10 @@ This goes through the P2P data protocol — the host is the authority.
 
 - **Apply template** -- group created if any schema needs it, owner auto-joins
 - **Re-apply same template** -- existing group and members preserved
-- **Switch to different template** -- old group closed, new one created if needed
+- **Switch to different template** -- all groups owned by the old template are closed, new ones created if needed
 - **No group schemas** -- no group created
 
-The group ID is tracked in `_meta("template_group_id")`.
+All template groups are identified by `group_context` matching the template name. Groups are never auto-deleted on startup — only the template apply flow manages their lifecycle.
 
 ## JavaScript API
 

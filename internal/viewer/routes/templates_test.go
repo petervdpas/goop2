@@ -766,3 +766,31 @@ func TestRequireEmailStoredInMeta(t *testing.T) {
 	}
 }
 
+func TestTemplateManifestStored(t *testing.T) {
+	d, _ := testDeps(t)
+	files, _ := sitetemplates.SiteFiles("blog")
+	meta, _ := sitetemplates.GetMeta("blog")
+
+	if b, err := json.Marshal(meta); err == nil {
+		d.DB.SetMeta("template_manifest", string(b))
+	}
+	if err := applyTemplateFiles(d, files, "", nil, meta.Name, meta.Schemas, meta.RequireEmail, meta.DefaultRole); err != nil {
+		t.Fatal(err)
+	}
+
+	raw := d.DB.GetMeta("template_manifest")
+	if raw == "" {
+		t.Fatal("template_manifest should be set")
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		t.Fatal(err)
+	}
+	if m["name"] != "Blog" {
+		t.Fatalf("name = %v, want Blog", m["name"])
+	}
+	if m["default_role"] != "coauthor" {
+		t.Fatalf("default_role = %v, want coauthor", m["default_role"])
+	}
+}
+

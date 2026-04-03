@@ -144,6 +144,12 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		}
 
+		if d.DB != nil {
+			if b, err := json.Marshal(meta); err == nil {
+				d.DB.SetMeta("template_manifest", string(b))
+			}
+		}
+
 		if err := applyTemplateFiles(d, files, schema, tablePolicies, meta.Name, meta.Schemas, meta.RequireEmail, meta.DefaultRole); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -255,6 +261,11 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		}
 
+		if d.DB != nil {
+			if b, err := json.Marshal(manifest); err == nil {
+				d.DB.SetMeta("template_manifest", string(b))
+			}
+		}
 		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies, manifest.Name, manifest.Schemas, manifest.RequireEmail, manifest.DefaultRole); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -362,6 +373,11 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		}
 
+		if d.DB != nil {
+			if b, err := json.Marshal(manifest); err == nil {
+				d.DB.SetMeta("template_manifest", string(b))
+			}
+		}
 		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies, manifest.Name, manifest.Schemas, manifest.RequireEmail, manifest.DefaultRole); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -384,10 +400,22 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 	})
 
 	handleGet(mux, "/api/template/settings", func(w http.ResponseWriter, r *http.Request) {
-		settings := map[string]bool{
-			"require_email": d.DB != nil && d.DB.GetMeta("template_require_email") == "1",
+		if d.DB == nil {
+			writeJSON(w, map[string]any{})
+			return
 		}
-		writeJSON(w, settings)
+		raw := d.DB.GetMeta("template_manifest")
+		if raw != "" {
+			var manifest map[string]any
+			if json.Unmarshal([]byte(raw), &manifest) == nil {
+				manifest["require_email"] = d.DB.GetMeta("template_require_email") == "1"
+				writeJSON(w, manifest)
+				return
+			}
+		}
+		writeJSON(w, map[string]any{
+			"require_email": d.DB.GetMeta("template_require_email") == "1",
+		})
 	})
 }
 

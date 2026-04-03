@@ -2729,13 +2729,19 @@ func swagDataRole() {}
 
 // templateSettingsResponse is the body for GET /api/template/settings.
 type templateSettingsResponse struct {
-	RequireEmail bool `json:"require_email" example:"false"`
+	Name         string   `json:"name"          example:"Blog"`
+	Description  string   `json:"description"   example:"A personal blog"`
+	Category     string   `json:"category"      example:"content"`
+	Icon         string   `json:"icon"          example:"📝"`
+	Schemas      []string `json:"schemas"       example:"[\"posts\",\"blog_config\"]"`
+	RequireEmail bool     `json:"require_email" example:"false"`
+	DefaultRole  string   `json:"default_role"  example:"coauthor"`
 }
 
 // swagTemplateSettings is a documentation stub for GET /api/template/settings.
 //
-//	@Summary		Get active template settings
-//	@Description	Returns settings stored by the currently applied template, such as whether email is required for viewers.
+//	@Summary		Get active template manifest
+//	@Description	Returns the full manifest of the currently applied template, including name, category, schemas, default_role, and require_email.
 //	@Tags			templates
 //	@Produce		json
 //	@Success		200	{object}	templateSettingsResponse
