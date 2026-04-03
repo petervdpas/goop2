@@ -307,6 +307,7 @@ The SDK auto-detects whether the template is running on the local peer (`/`) or 
 | `goop-template.js` | `Goop.template` | Full manifest access (name, category, schemas, default_role, etc.) |
 | `goop-form.js` | `Goop.form` | JSON-driven form renderer |
 | `goop-forms.js` | `Goop.forms` | Auto-generated CRUD UI from schema |
+| `goop-router.js` | `Goop.router` | Client-side page router (query-parameter based navigation) |
 | `goop-engine.js` | `GameLoop, Renderer, ...` | 2D game engine (Canvas) |
 
 ## Utilities (from goop-data.js)
@@ -355,6 +356,8 @@ Each component is a separate JS + CSS file pair. Load `goop-component-base.js` f
 | `goop-component-progress.js` | `Goop.ui.progress(el, opts)` | value, max, variant, animated |
 | `goop-component-pagination.js` | `Goop.ui.pagination(el, opts)` | total, page, perPage |
 | `goop-component-tooltip.js` | `Goop.ui.tooltip(el, opts)` | text, position |
+| `goop-component-toggle.js` | `Goop.ui.toggle(el, opts)` | value, onChange, label |
+| `goop-component-elements.js` | `Goop.button()`, `Goop.card()`, `Goop.table()` | Pre-built DOM elements (buttons, cards, data tables) |
 | `goop-component-panel.js` | `Goop.ui.panel()`, `.scrollbox()`, `.splitpane()` | collapsible, variant |
 
 ### Goop.dom (from base.js)
@@ -495,11 +498,16 @@ var email = await Goop.identity.email();  // email string
 
 ## Goop.template
 
-Template settings declared in the manifest and stored on the host peer.
+The full manifest of the active template, fetched from the host peer.
 
 ```javascript
-var settings = await Goop.template.get();           // {require_email: true/false}
-var needsEmail = await Goop.template.requireEmail(); // boolean
+var manifest = await Goop.template.get();
+// manifest.name, manifest.description, manifest.category, manifest.icon
+// manifest.schemas, manifest.require_email, manifest.default_role
+
+var needsEmail = await Goop.template.requireEmail(); // boolean shorthand
+
+Goop.template.refresh(); // clear cache, re-fetch on next get()
 ```
 
 ## Goop.site

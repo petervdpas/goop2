@@ -5321,14 +5321,14 @@
         },
         "/api/template/settings": {
             "get": {
-                "description": "Returns settings stored by the currently applied template, such as whether email is required for viewers.",
+                "description": "Returns the full manifest of the currently applied template, including name, category, schemas, default_role, and require_email.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "templates"
                 ],
-                "summary": "Get active template settings",
+                "summary": "Get active template manifest",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -7835,9 +7835,39 @@
         "routes.templateSettingsResponse": {
             "type": "object",
             "properties": {
+                "category": {
+                    "type": "string",
+                    "example": "content"
+                },
+                "default_role": {
+                    "type": "string",
+                    "example": "coauthor"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "A personal blog"
+                },
+                "icon": {
+                    "type": "string",
+                    "example": "📝"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Blog"
+                },
                 "require_email": {
                     "type": "boolean",
                     "example": false
+                },
+                "schemas": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "[\"posts\"",
+                        "\"blog_config\"]"
+                    ]
                 }
             }
         },

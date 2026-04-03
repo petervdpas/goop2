@@ -1521,9 +1521,31 @@ definitions:
     type: object
   routes.templateSettingsResponse:
     properties:
+      category:
+        example: content
+        type: string
+      default_role:
+        example: coauthor
+        type: string
+      description:
+        example: A personal blog
+        type: string
+      icon:
+        example: "\U0001F4DD"
+        type: string
+      name:
+        example: Blog
+        type: string
       require_email:
         example: false
         type: boolean
+      schemas:
+        example:
+        - '["posts"'
+        - '"blog_config"]'
+        items:
+          type: string
+        type: array
     type: object
   routes.templateValidateLocalRequest:
     properties:
@@ -5215,8 +5237,8 @@ paths:
       - settings
   /api/template/settings:
     get:
-      description: Returns settings stored by the currently applied template, such
-        as whether email is required for viewers.
+      description: Returns the full manifest of the currently applied template, including
+        name, category, schemas, default_role, and require_email.
       produces:
       - application/json
       responses:
@@ -5224,7 +5246,7 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/routes.templateSettingsResponse'
-      summary: Get active template settings
+      summary: Get active template manifest
       tags:
       - templates
   /api/templates:

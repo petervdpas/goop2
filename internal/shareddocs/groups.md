@@ -17,19 +17,46 @@ This model works naturally because the host already serves the site, stores data
 
 ## Group types
 
-| Type | App type | Lifecycle | Use case |
-|------|----------|-----------|----------|
-| **Ephemeral** | varies | Auto-dissolves when activity ends | Games, quizzes |
-| **Persistent** | varies | Exists until explicitly closed | Study groups, teams |
-| **Open** | varies | Any peer can join | Community chat |
-| **Invite-only** | varies | Requires invitation | Private projects |
-| **Files** | `files` | Persistent | Shared file storage |
-| **Cluster** | `cluster` | Volatile | Distributed compute |
-| **Listen** | `listen` | Varies | Audio listening sessions |
+Every group has a `group_type` that determines its behavior. Each type is backed by a `TypeHandler` that manages lifecycle hooks (create, join, leave, close, event). The registered types are:
+
+| Type | Package | Use case | Volatile |
+|------|---------|----------|----------|
+| `template` | `group_types/template` | Groups owned by the active template (chat rooms, co-author access). Cleaned up on template switch. | No |
+| `files` | `group_types/files` | Shared file storage between group members. Each peer owns their files. | No |
+| `listen` | `group_types/listen` | Live audio streaming sessions. Host streams, members listen. | No |
+| `cluster` | `group_types/cluster` | Distributed compute. Host dispatches jobs, workers execute. | Yes |
+| `data-federation` | `group_types/datafed` | GraphQL schema federation across peers. | No |
+
+Groups also carry a `group_context` that identifies the owner or purpose (e.g. template name, cluster job name).
+
+Groups without a registered handler (e.g. `general`, `message`) still work — they just have no lifecycle hooks.
 
 ## Creating a group
 
-Groups are created by the host peer through the viewer's **Groups** page or programmatically through the API. The group is stored in the host's SQLite database and made available to visitors.
+Groups are created through the **Groups** page, programmatically via the HTTP API, or from Lua via `goop.group.create()`. The group is stored in the host's SQLite database.
+
+### HTTP API
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/groups` | Create a group (`name`, `group_type`, `group_context`, `max_members`, `volatile`) |
+| `GET /api/groups` | List all hosted groups with members, roles, and settings |
+| `POST /api/groups/close` | Close a group and disconnect all members |
+| `POST /api/groups/join-own` | Host joins their own group as a member |
+| `POST /api/groups/leave-own` | Host leaves their own group |
+| `POST /api/groups/invite` | Invite a peer to a group (`group_id`, `peer_id`) |
+| `POST /api/groups/kick` | Remove a member from a group |
+| `POST /api/groups/join` | Join a remote group (`host_peer_id`, `group_id`) |
+| `POST /api/groups/leave` | Leave a remote group |
+| `POST /api/groups/rejoin` | Reconnect to a previously joined group |
+| `POST /api/groups/send` | Send a message to a group |
+| `POST /api/groups/meta` | Update group name and max members |
+| `POST /api/groups/max-members` | Update max member limit |
+| `POST /api/groups/set-role` | Change a member's role (`group_id`, `peer_id`, `role`) |
+| `POST /api/groups/set-default-role` | Set the default role for new joiners |
+| `POST /api/groups/set-roles` | Set the available roles list for a group |
+| `GET /api/groups/subscriptions` | List remote groups you've joined |
+| `POST /api/groups/subscriptions/remove` | Remove a subscription |
 
 ## Joining a group
 
@@ -61,7 +88,7 @@ File groups let peers share documents within a group. Any member can upload file
 
 ### Creating a file group
 
-Create a group with app type `files` from the **Groups** page. File groups are persistent by default.
+Create a group with type `files` from the **Groups** page.
 
 ### Uploading files
 
@@ -139,15 +166,7 @@ The manifest `default_role` field controls what role new members receive when th
 
 ### Group roles
 
-Each group has a configurable list of available roles and a default role for new members. These can be managed via the API:
-
-| Endpoint | Description |
-|----------|-------------|
-| `POST /api/groups/set-role` | Change a member's role (`group_id`, `peer_id`, `role`) |
-| `POST /api/groups/set-default-role` | Set the default role for new joiners (`group_id`, `default_role`) |
-| `POST /api/groups/set-roles` | Set the available roles list (`group_id`, `roles[]`) |
-
-Roles are also managed through the Schema editor's **Roles** tab in the Database page, and via Lua:
+Each group has a configurable list of available roles and a default role for new members. These are managed via the HTTP API (see above), the Schema editor's **Roles** tab, or via Lua:
 
 ```lua
 goop.group.set_role(group_id, peer_id, "coauthor")
