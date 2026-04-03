@@ -30,6 +30,9 @@ const (
 	TopicChat          = "chat"
 	TopicChatBroadcast = "chat.broadcast"
 
+	// Chat rooms — group-bounded message broadcast.
+	TopicChatRoomPrefix = "chat.room:" // + groupID + ":" + type
+
 	// Internal MQ event log — published locally by mq.logMQEvent.
 	TopicLogMQ = "log:mq"
 )

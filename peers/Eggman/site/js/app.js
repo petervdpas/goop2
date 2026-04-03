@@ -1,8 +1,5 @@
+// Tic-Tac-Toe app.js — PvP and PvE with server-side validation via Lua
 (async function () {
-  var h = Goop.dom;
-  var db = Goop.data;
-  var club = db.api("clubhouse");
-
   var toast = Goop.ui.toast(document.getElementById("toasts"), {
     toastClass: "gc-toast",
     titleClass: "gc-toast-title",
@@ -11,299 +8,212 @@
     exitClass: "gc-toast-exit",
   });
 
-  Goop.ui.dialog(document.getElementById("confirm-dialog"), {
-    title: ".gc-dialog-title",
-    message: ".gc-dialog-message",
-    inputWrap: ".gc-dialog-input-wrap",
-    input: ".gc-dialog-input",
-    ok: ".gc-dialog-ok",
-    cancel: ".gc-dialog-cancel",
-    hiddenClass: "hidden",
-  });
+  var h = Goop.dom;
+  var db = Goop.data;
+  var root = document.getElementById("ttt-root");
+  var subtitle = document.getElementById("subtitle");
+  var isOwner = false;
+  var myId = await Goop.identity.id();
+  var myLabel = await Goop.identity.label();
+  var pollTimer = null;
+  var currentGameId = null;
 
-  var createOverlay = Goop.overlay("create-overlay");
+  var match = window.location.pathname.match(/\/p\/([^/]+)/);
+  if (!match || match[1] === myId) isOwner = true;
 
-  var ctx = await Goop.peer();
-  var myId = ctx.myId;
-  var hostId = ctx.hostId;
-  var myLabel = ctx.label || (myId ? myId.slice(-6) : "???");
-  var isOwner = ctx.isOwner;
-  var currentRoom = null;
+  subtitle.textContent = isOwner
+    ? "Challenge visitors or play against the computer."
+    : "Challenge the host or play against the computer.";
 
-  var lobby = document.getElementById("lobby");
-  var roomsEl = document.getElementById("rooms");
-  var btnNewRoom = document.getElementById("btn-new-room");
-  var chatView = document.getElementById("chat-view");
-  var chatRoomName = document.getElementById("chat-room-name");
-  var chatRoomDesc = document.getElementById("chat-room-desc");
-  var btnBack = document.getElementById("btn-back");
-  var btnCloseRoom = document.getElementById("btn-close-room");
-  var membersListEl = document.getElementById("members-list");
-  var messagesEl = document.getElementById("messages");
-  var msgInput = document.getElementById("msg-input");
-  var btnSend = document.getElementById("btn-send");
+  showLobby();
 
-  if (isOwner) btnNewRoom.classList.remove("hidden");
-
-  function shortId(id) { return id ? id.slice(-6) : "???"; }
-
-  function timeStr() {
-    var d = new Date();
-    var hr = d.getHours(); var mn = d.getMinutes();
-    return (hr < 10 ? "0" : "") + hr + ":" + (mn < 10 ? "0" : "") + mn;
+  function startPolling(gameId) {
+    stopPolling();
+    pollTimer = setInterval(async function () {
+      try {
+        var state = await db.call("ttt", { action: "state", game_id: gameId });
+        renderBoard(state);
+        if (state.status !== "playing" && state.status !== "waiting") stopPolling();
+      } catch (e) {}
+    }, 2000);
   }
 
-  var labelMap = {};
-  function displayName(peerId) {
-    if (peerId === myId) return "You";
-    if (labelMap[peerId]) return labelMap[peerId];
-    return shortId(peerId);
-  }
+  function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
 
-  async function loadRooms() {
-    try {
-      var result = await club("rooms");
-      renderRooms(result.rooms || []);
-    } catch (err) {
-      Goop.render(roomsEl, Goop.ui.empty("Could not load rooms.", { class: "empty-msg" }));
-    }
-  }
+  async function showLobby() {
+    stopPolling();
+    currentGameId = null;
 
-  function renderRooms(allRooms) {
-    Goop.list(roomsEl, allRooms, "room-card", {
-      empty: "No rooms yet." + (isOwner ? " Create one with the button above!" : ""),
-      emptyClass: "empty-msg"
-    }).then(function() {
-      roomsEl.querySelectorAll(".btn-join").forEach(function(btn) {
-        var card = btn.closest(".room-card");
-        var id = parseInt(card.getAttribute("data-room-id"), 10);
-        var room = allRooms.find(function(r) { return r._id === id; });
-        btn.addEventListener("click", function() { if (room) joinRoom(room); });
-      });
-    });
-  }
+    var lobby;
+    try { lobby = await db.call("ttt", { action: "lobby" }); }
+    catch (e) { Goop.render(root, Goop.ui.empty("Could not load lobby.", { class: "ttt-empty" })); return; }
 
-  btnNewRoom.addEventListener("click", function () {
-    document.getElementById("f-name").value = "";
-    document.getElementById("f-desc").value = "";
-    document.getElementById("f-max").value = "0";
-    createOverlay.open();
-  });
+    var games = lobby.games || [];
+    var stats = lobby.stats || {};
 
-  document.getElementById("btn-create-cancel").addEventListener("click", function () {
-    createOverlay.close();
-  });
-
-  document.getElementById("btn-create-save").addEventListener("click", async function () {
-    var name = document.getElementById("f-name").value.trim();
-    if (!name) return;
-    var desc = document.getElementById("f-desc").value.trim();
-    var max = parseInt(document.getElementById("f-max").value, 10) || 0;
-
-    try {
-      await club("create", { name: name, description: desc, max_members: max });
-      createOverlay.close();
-      toast("Room created!");
-      loadRooms();
-    } catch (err) {
-      toast({ title: "Error", message: err.message });
-    }
-  });
-
-  async function joinRoom(room) {
-    try {
-      var result = await club("join", { room_id: room._id });
-      currentRoom = { _id: room._id, name: room.name, description: room.description, group_id: result.group_id };
-
-      Goop.group.subscribe(handleGroupEvent);
-
-      if (!isOwner) {
-        await Goop.group.join(hostId, currentRoom.group_id);
-      }
-
-      enterChat();
-    } catch (err) {
-      toast({ title: "Error", message: err.message });
-    }
-  }
-
-  function enterChat() {
-    messagesEl.innerHTML = "";
-    chatRoomName.textContent = currentRoom.name;
-    chatRoomDesc.textContent = currentRoom.description || "";
-    btnCloseRoom.classList.toggle("hidden", !isOwner);
-    lobby.classList.add("hidden");
-    chatView.classList.remove("hidden");
-    appendSystem("You joined the room.");
-    fetchMembers();
-    startMemberPolling();
-
-    if (!isOwner) {
-      Goop.group.send({ type: "presence", label: myLabel }, currentRoom.group_id).catch(function() {});
-    }
-    msgInput.focus();
-  }
-
-  var memberPollTimer = null;
-  function startMemberPolling() {
-    stopMemberPolling();
-    memberPollTimer = setInterval(fetchMembers, 5000);
-  }
-  function stopMemberPolling() {
-    if (memberPollTimer) { clearInterval(memberPollTimer); memberPollTimer = null; }
-  }
-  function fetchMembers() {
-    if (!currentRoom) return;
-    club("members", { room_id: currentRoom._id }).then(function(result) {
-      renderMembers(result.members || []);
-    }).catch(function() {});
-  }
-
-  function handleGroupEvent(evt) {
-    switch (evt.type) {
-      case "welcome":
-        if (evt.payload) {
-          renderMembersFromPayload(evt.payload);
-        }
-        break;
-
-      case "members":
-        if (evt.payload) {
-          renderMembersFromPayload(evt.payload);
-        }
-        break;
-
-      case "msg":
-        if (!evt.payload) break;
-        if (evt.from && evt.payload.label) {
-          labelMap[evt.from] = evt.payload.label;
-        }
-        if (evt.payload.type === "presence") break;
-        if (evt.payload.type === "chat") {
-          var isSelf = evt.from === myId;
-          if (isSelf) break;
-          appendChat(evt.from, evt.payload.label, evt.payload.text, false);
-        }
-        break;
-
-      case "close":
-        appendSystem("Room was closed by the host.");
-        setTimeout(function() { doLeave(); }, 2000);
-        break;
-    }
-  }
-
-  function renderMembers(members) {
-    if (!membersListEl) return;
-    membersListEl.innerHTML = "";
-    members.forEach(function(m) {
-      var peerId = m.peer_id || m;
-      var li = document.createElement("li");
-      li.innerHTML = '<span class="member-dot"></span><span>' + Goop.esc(displayName(peerId)) + '</span>';
-      membersListEl.appendChild(li);
-    });
-  }
-
-  function renderMembersFromPayload(payload) {
-    var list = payload.members;
-    if (!Array.isArray(list)) return;
-    membersListEl.innerHTML = "";
-    list.forEach(function(m) {
-      var peerId = typeof m === "string" ? m : m.peer_id;
-      var li = document.createElement("li");
-      li.innerHTML = '<span class="member-dot"></span><span>' + Goop.esc(displayName(peerId)) + '</span>';
-      membersListEl.appendChild(li);
-    });
-  }
-
-  function sendMessage() {
-    var text = msgInput.value.trim();
-    if (!text || !currentRoom) return;
-    msgInput.value = "";
-
-    appendChat(myId, myLabel, text, true);
-
-    Goop.group.send({ type: "chat", text: text, label: myLabel }, currentRoom.group_id).catch(function(err) {
-      appendSystem("Send failed: " + err.message);
-    });
-  }
-
-  btnSend.addEventListener("click", sendMessage);
-  msgInput.addEventListener("keydown", function(e) {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-  });
-
-  async function doLeave() {
-    if (!currentRoom) return;
-    stopMemberPolling();
-    try { await Goop.group.leave(); } catch (_) {}
-    try { await club("leave", { room_id: currentRoom._id }); } catch (_) {}
-    Goop.group.unsubscribe();
-    currentRoom = null;
-    labelMap = {};
-    chatView.classList.add("hidden");
-    lobby.classList.remove("hidden");
-    loadRooms();
-  }
-
-  btnBack.addEventListener("click", doLeave);
-
-  btnCloseRoom.addEventListener("click", async function() {
-    if (!currentRoom) return;
-    var ok = await Goop.ui.confirm("Close this room? All members will be disconnected.");
-    if (!ok) return;
-    stopMemberPolling();
-    try {
-      await club("close", { room_id: currentRoom._id });
-      toast("Room closed.");
-    } catch (err) {
-      toast({ title: "Error", message: err.message });
-    }
-    Goop.group.unsubscribe();
-    currentRoom = null;
-    labelMap = {};
-    chatView.classList.add("hidden");
-    lobby.classList.remove("hidden");
-    loadRooms();
-  });
-
-  function appendChat(fromId, label, text, isSelf) {
-    Goop.partial("message", {
-      msgClass: isSelf ? "msg-self" : "msg-other",
-      fromLabel: isSelf ? "You" : (label || shortId(fromId)),
-      text: text,
-      time: timeStr()
-    }).then(function(el) {
-      messagesEl.appendChild(el);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
-    });
-  }
-
-  function appendSystem(text) {
-    var div = document.createElement("div");
-    div.className = "msg-system";
-    div.textContent = text;
-    messagesEl.appendChild(div);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-  }
-
-  window.addEventListener("beforeunload", function() {
-    if (!currentRoom) return;
-    var body = JSON.stringify({ function: "clubhouse", params: { action: "leave", room_id: currentRoom._id } });
-    if (navigator.sendBeacon) {
-      navigator.sendBeacon("/api/data/lua/call", new Blob([body], { type: "application/json" }));
-    }
-  });
-
-  Goop.mq.subscribe(function(evt) {
-    if (!evt || !evt.msg || !evt.msg.topic) return;
-    var parts = evt.msg.topic.split(":");
-    if (parts.length === 3 && parts[0] === "group" && parts[2] === "close") {
-      if (!currentRoom) {
-        loadRooms();
+    for (var i = 0; i < games.length; i++) {
+      var g = games[i];
+      if (isOwner && g.status === "waiting" && g.mode === "pvp") continue;
+      if ((g.status === "playing" || g.status === "waiting") && (g._owner === myId || g.challenger === myId)) {
+        showGame(g._id);
+        return;
       }
     }
-  });
 
-  loadRooms();
+    var pending = isOwner ? games.filter(function(g) { return g.status === "waiting" && g.mode === "pvp"; }) : [];
+    var finished = games.filter(function(g) { return g.status !== "waiting" && g.status !== "playing"; }).slice(0, 10);
+
+    Goop.render(root, h("div", { class: "ttt-lobby" },
+      h("div", { class: "ttt-actions" },
+        !isOwner ? h("button", { class: "btn btn-primary", onclick: async function() {
+          this.disabled = true;
+          try {
+            var result = await db.call("ttt", { action: "new" });
+            if (result.error) { toast(result.error); if (result.game_id) { showGame(result.game_id); return; } this.disabled = false; }
+            else showGame(result.game_id);
+          } catch (e) { toast(e.message); this.disabled = false; }
+        } }, "Challenge Host") : null,
+        h("button", { class: "btn " + (isOwner ? "btn-primary" : "btn-secondary"), onclick: async function() {
+          this.disabled = true;
+          try {
+            var result = await db.call("ttt", { action: "new_pve" });
+            if (result.error) { toast(result.error); this.disabled = false; }
+            else { currentGameId = result.game_id; renderBoard(result); }
+          } catch (e) { toast(e.message); this.disabled = false; }
+        } }, "Play vs Computer")
+      ),
+
+      h("div", { class: "ttt-stats" },
+        h("span", {}, h("span", { class: "stat-val" }, String(stats.wins || 0)), " wins"),
+        h("span", {}, h("span", { class: "stat-val" }, String(stats.losses || 0)), " losses"),
+        h("span", {}, h("span", { class: "stat-val" }, String(stats.draws || 0)), " draws")
+      ),
+
+      pending.length > 0 ? h("div", { class: "ttt-panel" },
+        h("h2", {}, "Pending Challenges"),
+        h("ul", { class: "ttt-challenges" }, pending.map(function(pg) {
+          return h("li", { class: "ttt-challenge-item" },
+            h("span", {}, h("span", { class: "name" }, pg.challenger_label || pg.challenger.substring(0, 12) + "..."), h("span", { class: "time" }, Goop.ui.time(pg._created_at))),
+            h("button", { class: "btn-sm", onclick: async function() {
+              this.disabled = true;
+              try { await db.call("ttt", { action: "accept", game_id: pg._id }); } catch (e) {}
+              showGame(pg._id);
+            } }, "Play")
+          );
+        }))
+      ) : null,
+
+      h("div", { class: "ttt-panel" },
+        h("h2", {}, "Recent Games"),
+        finished.length === 0
+          ? h("p", { class: "ttt-empty" }, "No games played yet.")
+          : h("table", { class: "ttt-history" },
+              h("thead", {}, h("tr", {}, h("th", {}, "Opponent"), h("th", {}, "Result"), h("th", {}, "Mode"), h("th", {}))),
+              h("tbody", {}, finished.map(function(fg) {
+                var opponent = fg.mode === "pve" ? "Computer" : (fg.challenger_label || fg.challenger.substring(0, 12) + "...");
+                var result = fg.status === "draw" || fg.status === "cancelled" ? (fg.status === "cancelled" ? "cancelled" : "draw") : (fg.winner === myId ? "won" : "lost");
+                var resultCls = fg.winner === myId ? "result-win" : (result === "draw" || result === "cancelled" ? "result-draw" : "result-loss");
+                return h("tr", {},
+                  h("td", {}, opponent),
+                  h("td", { class: resultCls }, result),
+                  h("td", {}, fg.mode === "pve" ? "vs AI" : "PvP"),
+                  h("td", {}, Goop.ui.time(fg._created_at))
+                );
+              }))
+            )
+      )
+    ));
+  }
+
+  async function showGame(gameId) {
+    stopPolling();
+    currentGameId = gameId;
+    try {
+      var state = await db.call("ttt", { action: "state", game_id: gameId });
+      renderBoard(state);
+      if (state.mode === "pvp" && (state.status === "playing" || state.status === "waiting")) startPolling(gameId);
+    } catch (e) { Goop.render(root, Goop.ui.empty("Could not load game.", { class: "ttt-empty" })); }
+  }
+
+  function symbolChar(s) { return s === "X" ? "\u2715" : s === "O" ? "\u25CB" : ""; }
+
+  function renderBoard(state) {
+    var board = state.board || "---------";
+    var yourSymbol = state.your_symbol;
+    var isYourTurn = (state.status === "playing" && state.turn === yourSymbol);
+    var gameOver = (state.status !== "playing" && state.status !== "waiting");
+    var winCells = {};
+    if (state.win_line) state.win_line.forEach(function(w) { winCells[w] = true; });
+
+    if (state.status === "waiting") {
+      Goop.render(root, h("div", { class: "ttt-game" },
+        h("div", { class: "ttt-waiting" },
+          h("div", { class: "spinner" }),
+          h("p", {}, "Waiting for host to accept\u2026"),
+          h("button", { class: "btn btn-secondary btn-sm", onclick: async function() { await db.call("ttt", { action: "cancel", game_id: state.game_id }); showLobby(); } }, "Cancel")
+        )
+      ));
+      return;
+    }
+
+    var statusEl;
+    if (gameOver) {
+      var cls = "draw", msg = "Draw!";
+      if (state.status === "cancelled") msg = "Cancelled";
+      else if (state.winner === myId) { cls = "win"; msg = "You won!"; }
+      else if (state.winner) { cls = "loss"; msg = (state.mode === "pve" ? "Computer" : "Opponent") + " won!"; }
+      statusEl = h("div", { class: "ttt-result " + cls }, msg);
+    } else {
+      var opLabel = state.mode === "pve" ? "Computer" : "Opponent";
+      statusEl = h("div", { class: "ttt-status" },
+        "You: ", h("span", { class: yourSymbol === "X" ? "symbol-x" : "symbol-o" }, symbolChar(yourSymbol)),
+        " \u2014 " + (isYourTurn ? "Your turn" : opLabel + "'s turn")
+      );
+    }
+
+    var cells = [];
+    for (var i = 0; i < 9; i++) {
+      var ch = board.charAt(i);
+      var cls = "ttt-cell";
+      if (ch === "X") cls += " taken x";
+      else if (ch === "O") cls += " taken o";
+      if (winCells[i]) cls += " win-cell";
+      if (gameOver || !isYourTurn || ch !== "-") cls += " disabled";
+
+      cells.push(h("div", {
+        class: cls,
+        data: { pos: i },
+        onclick: (!gameOver && isYourTurn && ch === "-") ? (function(pos) {
+          return async function() {
+            this.classList.add("disabled");
+            try {
+              var gameId = state.game_id || currentGameId;
+              var result = await db.call("move", { game_id: gameId, position: pos });
+              if (result.error) { toast(result.error); renderBoard(state); return; }
+              if (!result.game_id) result.game_id = gameId;
+              if (!result.challenger_label) result.challenger_label = state.challenger_label;
+              renderBoard(result);
+              if (result.mode === "pvp" && result.status === "playing") startPolling(result.game_id);
+            } catch (e) { toast(e.message); renderBoard(state); }
+          };
+        })(i) : null,
+      }, ch !== "-" ? symbolChar(ch) : ""));
+    }
+
+    Goop.render(root, h("div", { class: "ttt-game" },
+      statusEl,
+      h("div", { class: "ttt-board" }, cells),
+      gameOver ? h("div", { class: "ttt-game-actions" },
+        state.mode === "pve" ? h("button", { class: "btn btn-primary", onclick: async function() {
+          this.disabled = true;
+          try {
+            var result = await db.call("ttt", { action: "new_pve" });
+            if (result.error) { toast(result.error); this.disabled = false; }
+            else { currentGameId = result.game_id; renderBoard(result); }
+          } catch (e) { toast(e.message); this.disabled = false; }
+        } }, "Play Again") : null,
+        h("button", { class: "btn btn-secondary", onclick: function() { showLobby(); } }, "Back to Lobby")
+      ) : null
+    ));
+  }
 })();

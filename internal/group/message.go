@@ -52,6 +52,7 @@ type MetaPayload struct {
 // MemberInfo describes a group member.
 type MemberInfo struct {
 	PeerID   string `json:"peer_id"`
+	Name     string `json:"name,omitempty"`
 	Role     string `json:"role"`
 	JoinedAt int64  `json:"joined_at"`
 }

@@ -1308,6 +1308,128 @@ func swagListenStream() {}
 //	@Router		/api/listen/state [get]
 func swagListenState() {}
 
+// ── Chat Rooms ──────────────────────────────────────────────────────────────
+
+// chatRoomMember describes a chat room member.
+type chatRoomMember struct {
+	PeerID string `json:"peer_id" example:"12D3KooWXxx..."`
+	Name   string `json:"name"    example:"Alice"`
+}
+
+// chatRoomMessage describes a chat message.
+type chatRoomMessage struct {
+	ID        string `json:"id"        example:"1709136000000-12D3KooW"`
+	From      string `json:"from"      example:"12D3KooWXxx..."`
+	FromName  string `json:"from_name" example:"Alice"`
+	Text      string `json:"text"      example:"Hello everyone!"`
+	Timestamp int64  `json:"timestamp" example:"1709136000000"`
+}
+
+// chatRoomInfo describes a chat room.
+type chatRoomInfo struct {
+	ID          string            `json:"id"                    example:"1a2b3c4d5e6f"`
+	Name        string            `json:"name"                  example:"General"`
+	Description string            `json:"description,omitempty" example:"A friendly chat room"`
+	Members     []chatRoomMember  `json:"members,omitempty"`
+}
+
+// chatRoomStateResponse is the body for GET /api/chat/rooms/state.
+type chatRoomStateResponse struct {
+	Room     *chatRoomInfo     `json:"room"`
+	Messages []chatRoomMessage `json:"messages"`
+}
+
+// chatRoomCreateRequest is the body for POST /api/chat/rooms/create.
+type chatRoomCreateRequest struct {
+	Name        string `json:"name"                  example:"General"`
+	Description string `json:"description,omitempty" example:"A friendly chat room"`
+	Context     string `json:"context,omitempty"     example:"Clubhouse"`
+	MaxMembers  int    `json:"max_members,omitempty" example:"10"`
+}
+
+// chatRoomGroupIDRequest is the body for POST /api/chat/rooms/close and /leave.
+type chatRoomGroupIDRequest struct {
+	GroupID string `json:"group_id" example:"1a2b3c4d5e6f"`
+}
+
+// chatRoomJoinRequest is the body for POST /api/chat/rooms/join.
+type chatRoomJoinRequest struct {
+	HostPeerID string `json:"host_peer_id" example:"12D3KooWXxx..."`
+	GroupID    string `json:"group_id"     example:"1a2b3c4d5e6f"`
+}
+
+// chatRoomSendRequest is the body for POST /api/chat/rooms/send.
+type chatRoomSendRequest struct {
+	GroupID string `json:"group_id" example:"1a2b3c4d5e6f"`
+	Text    string `json:"text"     example:"Hello everyone!"`
+}
+
+// swagChatRoomCreate is a documentation stub for POST /api/chat/rooms/create.
+//
+//	@Summary	Create a chat room
+//	@Tags		chat-rooms
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		chatRoomCreateRequest	true	"Create request"
+//	@Success	200		{object}	chatRoomInfo
+//	@Router		/api/chat/rooms/create [post]
+func swagChatRoomCreate() {}
+
+// swagChatRoomClose is a documentation stub for POST /api/chat/rooms/close.
+//
+//	@Summary	Close a chat room
+//	@Tags		chat-rooms
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		chatRoomGroupIDRequest	true	"Close request"
+//	@Success	200		{object}	statusOK
+//	@Router		/api/chat/rooms/close [post]
+func swagChatRoomClose() {}
+
+// swagChatRoomJoin is a documentation stub for POST /api/chat/rooms/join.
+//
+//	@Summary	Join a remote chat room
+//	@Tags		chat-rooms
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		chatRoomJoinRequest	true	"Join request"
+//	@Success	200		{object}	statusOK
+//	@Router		/api/chat/rooms/join [post]
+func swagChatRoomJoin() {}
+
+// swagChatRoomLeave is a documentation stub for POST /api/chat/rooms/leave.
+//
+//	@Summary	Leave a chat room
+//	@Tags		chat-rooms
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		chatRoomGroupIDRequest	true	"Leave request"
+//	@Success	200		{object}	statusOK
+//	@Router		/api/chat/rooms/leave [post]
+func swagChatRoomLeave() {}
+
+// swagChatRoomSend is a documentation stub for POST /api/chat/rooms/send.
+//
+//	@Summary	Send a message to a chat room
+//	@Description	Broadcasts the message to all room members via the chat.room MQ topic.
+//	@Tags		chat-rooms
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		chatRoomSendRequest	true	"Send request"
+//	@Success	200		{object}	statusOK
+//	@Router		/api/chat/rooms/send [post]
+func swagChatRoomSend() {}
+
+// swagChatRoomState is a documentation stub for GET /api/chat/rooms/state.
+//
+//	@Summary	Get chat room state (members + recent messages)
+//	@Tags		chat-rooms
+//	@Produce	json
+//	@Param		group_id	query		string	true	"Group ID"
+//	@Success	200			{object}	chatRoomStateResponse
+//	@Router		/api/chat/rooms/state [get]
+func swagChatRoomState() {}
+
 // ── Peers ────────────────────────────────────────────────────────────────────
 
 // swagPeersList is a documentation stub for GET /api/peers.

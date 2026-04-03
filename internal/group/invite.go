@@ -91,7 +91,7 @@ func (m *Manager) handleInvite(from string, payload any) {
 	m.mq.PublishLocal("group.invite", "", evt)
 
 	// Auto-join for app types that require it
-	if inv.GroupType == "realtime" || inv.GroupType == "template" || inv.GroupType == "files" {
+	if inv.GroupType == "realtime" || inv.GroupType == "template" || inv.GroupType == "files" || inv.GroupType == "chat" {
 		go func() {
 			if err := m.JoinRemoteGroup(context.Background(), inv.HostPeerID, inv.GroupID); err != nil {
 				log.Printf("GROUP: Auto-join %s group %s failed: %v", inv.GroupType, inv.GroupID, err)

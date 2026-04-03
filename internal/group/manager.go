@@ -227,6 +227,17 @@ func membersToStorage(members []MemberInfo) []storage.GroupMember {
 	return gm
 }
 
+// resolveMemberNames enriches a MemberInfo slice with peer display names.
+func (m *Manager) resolveMemberNames(members []MemberInfo) {
+	for i := range members {
+		if members[i].PeerID == m.selfID {
+			members[i].Name = m.db.GetPeerName(m.selfID)
+		} else {
+			members[i].Name = m.db.GetPeerName(members[i].PeerID)
+		}
+	}
+}
+
 func shortID(id string) string {
 	if len(id) > 8 {
 		return id[:8]

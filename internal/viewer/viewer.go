@@ -7,6 +7,7 @@ import (
 	"github.com/petervdpas/goop2/internal/avatar"
 	"github.com/petervdpas/goop2/internal/call"
 	"github.com/petervdpas/goop2/internal/chat"
+	chatType "github.com/petervdpas/goop2/internal/group_types/chat"
 	"github.com/petervdpas/goop2/internal/group_types/cluster"
 	"github.com/petervdpas/goop2/internal/config"
 	"github.com/petervdpas/goop2/internal/group_types/datafed"
@@ -39,7 +40,8 @@ type Viewer struct {
 	Content *content.Store
 	MQ      *mq.Manager
 	Groups  *group.Manager
-	Listen  *listen.Manager
+	Listen    *listen.Manager
+	ChatRooms *chatType.Manager
 	DB      *storage.DB  // SQLite database for peer data
 	Docs    *files.Store // shared documents store
 
@@ -209,6 +211,21 @@ func Start(addr string, v Viewer) error {
 	// Register listen room endpoints if listen manager is available
 	if v.Listen != nil {
 		routes.RegisterListen(mux, v.Listen, func(id string) string {
+			if v.Peers != nil {
+				if sp, ok := v.Peers.Snapshot()[id]; ok && sp.Content != "" {
+					return sp.Content
+				}
+			}
+			if v.DB != nil {
+				return v.DB.GetPeerName(id)
+			}
+			return ""
+		})
+	}
+
+	// Register chat room endpoints if chat manager is available
+	if v.ChatRooms != nil {
+		routes.RegisterChatRooms(mux, v.ChatRooms, func(id string) string {
 			if v.Peers != nil {
 				if sp, ok := v.Peers.Snapshot()[id]; ok && sp.Content != "" {
 					return sp.Content

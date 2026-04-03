@@ -1,5 +1,4 @@
 (async function () {
-  var h = Goop.dom;
   var db = Goop.data;
   var club = db.api("clubhouse");
 
@@ -29,6 +28,7 @@
   var myLabel = ctx.label || (myId ? myId.slice(-6) : "???");
   var isOwner = ctx.isOwner;
   var currentRoom = null;
+  var chatUnsub = null;
 
   var lobby = document.getElementById("lobby");
   var roomsEl = document.getElementById("rooms");
@@ -45,19 +45,16 @@
 
   if (isOwner) btnNewRoom.classList.remove("hidden");
 
-  function shortId(id) { return id ? id.slice(-6) : "???"; }
-
   function timeStr() {
     var d = new Date();
     var hr = d.getHours(); var mn = d.getMinutes();
     return (hr < 10 ? "0" : "") + hr + ":" + (mn < 10 ? "0" : "") + mn;
   }
 
-  var labelMap = {};
-  function displayName(peerId) {
+  function displayName(peerId, name) {
     if (peerId === myId) return "You";
-    if (labelMap[peerId]) return labelMap[peerId];
-    return shortId(peerId);
+    if (name) return name;
+    return peerId ? peerId.slice(-6) : "???";
   }
 
   async function loadRooms() {
@@ -112,18 +109,21 @@
 
   async function joinRoom(room) {
     try {
-      var result = await club("join", { room_id: room._id });
-      currentRoom = { _id: room._id, name: room.name, description: room.description, group_id: result.group_id };
-
-      Goop.group.subscribe(handleGroupEvent);
+      currentRoom = { _id: room._id, name: room.name, description: room.description, group_id: room.group_id };
 
       if (!isOwner) {
-        await Goop.group.join(hostId, currentRoom.group_id);
+        await Goop.chatroom.join(hostId, currentRoom.group_id);
       }
+
+      chatUnsub = Goop.chatroom.subscribe(function(groupId, action, data) {
+        if (groupId !== currentRoom.group_id) return;
+        handleChatEvent(action, data);
+      });
 
       enterChat();
     } catch (err) {
       toast({ title: "Error", message: err.message });
+      currentRoom = null;
     }
   }
 
@@ -135,60 +135,39 @@
     lobby.classList.add("hidden");
     chatView.classList.remove("hidden");
     appendSystem("You joined the room.");
-    fetchMembers();
-    startMemberPolling();
 
-    if (!isOwner) {
-      Goop.group.send({ type: "presence", label: myLabel }, currentRoom.group_id).catch(function() {});
-    }
+    Goop.chatroom.state(currentRoom.group_id).then(function(result) {
+      if (result.room && result.room.members) renderMembers(result.room.members);
+      if (result.messages) {
+        result.messages.forEach(function(m) {
+          appendChat(m.from, m.from_name, m.text, m.from === myId);
+        });
+      }
+    }).catch(function() {});
+
     msgInput.focus();
   }
 
-  var memberPollTimer = null;
-  function startMemberPolling() {
-    stopMemberPolling();
-    memberPollTimer = setInterval(fetchMembers, 5000);
-  }
-  function stopMemberPolling() {
-    if (memberPollTimer) { clearInterval(memberPollTimer); memberPollTimer = null; }
-  }
-  function fetchMembers() {
-    if (!currentRoom) return;
-    club("members", { room_id: currentRoom._id }).then(function(result) {
-      renderMembers(result.members || []);
-    }).catch(function() {});
-  }
+  function handleChatEvent(action, data) {
+    switch (action) {
+      case "msg":
+        if (data.message) {
+          var m = data.message;
+          if (m.from === myId) break;
+          appendChat(m.from, m.from_name, m.text, false);
+        }
+        break;
 
-  function handleGroupEvent(evt) {
-    switch (evt.type) {
-      case "welcome":
-        if (evt.payload) {
-          renderMembersFromPayload(evt.payload);
+      case "history":
+        if (data.messages) {
+          data.messages.forEach(function(m) {
+            appendChat(m.from, m.from_name, m.text, m.from === myId);
+          });
         }
         break;
 
       case "members":
-        if (evt.payload) {
-          renderMembersFromPayload(evt.payload);
-        }
-        break;
-
-      case "msg":
-        if (!evt.payload) break;
-        if (evt.from && evt.payload.label) {
-          labelMap[evt.from] = evt.payload.label;
-        }
-        if (evt.payload.type === "presence") break;
-        if (evt.payload.type === "chat") {
-          var isSelf = evt.from === myId;
-          if (isSelf) break;
-          appendChat(evt.from, evt.payload.label, evt.payload.text, false);
-        }
-        break;
-
-      case "close":
-        appendSystem("Room was closed by the host.");
-        setTimeout(function() { doLeave(); }, 2000);
+        if (data.members) renderMembers(data.members);
         break;
     }
   }
@@ -197,21 +176,8 @@
     if (!membersListEl) return;
     membersListEl.innerHTML = "";
     members.forEach(function(m) {
-      var peerId = m.peer_id || m;
       var li = document.createElement("li");
-      li.innerHTML = '<span class="member-dot"></span><span>' + Goop.esc(displayName(peerId)) + '</span>';
-      membersListEl.appendChild(li);
-    });
-  }
-
-  function renderMembersFromPayload(payload) {
-    var list = payload.members;
-    if (!Array.isArray(list)) return;
-    membersListEl.innerHTML = "";
-    list.forEach(function(m) {
-      var peerId = typeof m === "string" ? m : m.peer_id;
-      var li = document.createElement("li");
-      li.innerHTML = '<span class="member-dot"></span><span>' + Goop.esc(displayName(peerId)) + '</span>';
+      li.innerHTML = '<span class="member-dot"></span><span>' + Goop.esc(displayName(m.peer_id, m.name)) + '</span>';
       membersListEl.appendChild(li);
     });
   }
@@ -223,7 +189,7 @@
 
     appendChat(myId, myLabel, text, true);
 
-    Goop.group.send({ type: "chat", text: text, label: myLabel }, currentRoom.group_id).catch(function(err) {
+    Goop.chatroom.send(currentRoom.group_id, text).catch(function(err) {
       appendSystem("Send failed: " + err.message);
     });
   }
@@ -235,12 +201,9 @@
 
   async function doLeave() {
     if (!currentRoom) return;
-    stopMemberPolling();
-    try { await Goop.group.leave(); } catch (_) {}
-    try { await club("leave", { room_id: currentRoom._id }); } catch (_) {}
-    Goop.group.unsubscribe();
+    if (chatUnsub) { chatUnsub(); chatUnsub = null; }
+    try { await Goop.chatroom.leave(currentRoom.group_id); } catch (_) {}
     currentRoom = null;
-    labelMap = {};
     chatView.classList.add("hidden");
     lobby.classList.remove("hidden");
     loadRooms();
@@ -252,16 +215,14 @@
     if (!currentRoom) return;
     var ok = await Goop.ui.confirm("Close this room? All members will be disconnected.");
     if (!ok) return;
-    stopMemberPolling();
     try {
       await club("close", { room_id: currentRoom._id });
       toast("Room closed.");
     } catch (err) {
       toast({ title: "Error", message: err.message });
     }
-    Goop.group.unsubscribe();
+    if (chatUnsub) { chatUnsub(); chatUnsub = null; }
     currentRoom = null;
-    labelMap = {};
     chatView.classList.add("hidden");
     lobby.classList.remove("hidden");
     loadRooms();
@@ -270,7 +231,7 @@
   function appendChat(fromId, label, text, isSelf) {
     Goop.partial("message", {
       msgClass: isSelf ? "msg-self" : "msg-other",
-      fromLabel: isSelf ? "You" : (label || shortId(fromId)),
+      fromLabel: isSelf ? "You" : (label || (fromId ? fromId.slice(-6) : "???")),
       text: text,
       time: timeStr()
     }).then(function(el) {
@@ -289,19 +250,8 @@
 
   window.addEventListener("beforeunload", function() {
     if (!currentRoom) return;
-    var body = JSON.stringify({ function: "clubhouse", params: { action: "leave", room_id: currentRoom._id } });
     if (navigator.sendBeacon) {
-      navigator.sendBeacon("/api/data/lua/call", new Blob([body], { type: "application/json" }));
-    }
-  });
-
-  Goop.mq.subscribe(function(evt) {
-    if (!evt || !evt.msg || !evt.msg.topic) return;
-    var parts = evt.msg.topic.split(":");
-    if (parts.length === 3 && parts[0] === "group" && parts[2] === "close") {
-      if (!currentRoom) {
-        loadRooms();
-      }
+      navigator.sendBeacon("/api/chat/rooms/leave", new Blob([JSON.stringify({ group_id: currentRoom.group_id })], { type: "application/json" }));
     }
   });
 

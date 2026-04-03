@@ -91,6 +91,9 @@ func (h *Handler) closeTemplateGroups(templateName string) {
 			log.Printf("TEMPLATE: closed group %s (context=%s)", g.ID, g.GroupContext)
 		}
 	}
+	for _, c := range h.cleaners {
+		c.CloseByContext(templateName)
+	}
 }
 
 func (h *Handler) configureGroup(groupID, defaultRole string, roles []string) {

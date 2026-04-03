@@ -301,6 +301,7 @@ The SDK auto-detects whether the template is running on the local peer (`/`) or 
 | `goop-mq.js` | `Goop.mq` | General MQ bus subscription (SSE) |
 | `goop-peers.js` | `Goop.peers` | Peer discovery and status polling |
 | `goop-chat.js` | `Goop.chat` | Direct and broadcast chat over MQ |
+| `goop-chatroom.js` | `Goop.chatroom` | Group chat rooms (create, join, send, subscribe) |
 | `goop-realtime.js` | `Goop.realtime` | Virtual MQ-based channels |
 | `goop-call.js` | `Goop.call` | Audio/video calling |
 | `goop-api.js` | `Goop.api` | Virtual REST API over Lua data functions |
@@ -571,6 +572,24 @@ Goop.peers.unsubscribe();
 await Goop.chat.send(peerId, "Hello!");
 await Goop.chat.broadcast("Server restarting");
 Goop.chat.subscribe(function(msg) { /* msg: {from, content, type, timestamp} */ });
+```
+
+## Goop.chatroom
+
+Group-bounded chat rooms with message history. Uses the `chat.room:` MQ topic namespace.
+
+```javascript
+var room = await Goop.chatroom.create("Room Name", "description", 10, "MyTemplate");
+await Goop.chatroom.join(hostPeerId, groupId);
+await Goop.chatroom.send(groupId, "Hello!");
+var state = await Goop.chatroom.state(groupId);
+await Goop.chatroom.leave(groupId);
+await Goop.chatroom.close(groupId);
+
+var unsub = Goop.chatroom.subscribe(function(groupId, action, data) {
+  // action: "msg" | "history" | "members"
+});
+unsub();
 ```
 
 ## Goop.realtime

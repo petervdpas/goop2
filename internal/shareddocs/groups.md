@@ -21,7 +21,8 @@ Every group has a `group_type` that determines its behavior. Each type is backed
 
 | Type | Package | Use case | Volatile |
 |------|---------|----------|----------|
-| `template` | `group_types/template` | Groups owned by the active template (chat rooms, co-author access). Cleaned up on template switch. | No |
+| `template` | `group_types/template` | Groups owned by the active template (co-author access). Cleaned up on template switch. | No |
+| `chat` | `group_types/chat` | Bounded group chat rooms with message history. MQ topic: `chat.room:{groupID}:*`. Cleaned up by context on template switch. | No |
 | `files` | `group_types/files` | Shared file storage between group members. Each peer owns their files. | No |
 | `listen` | `group_types/listen` | Live audio streaming sessions. Host streams, members listen. | No |
 | `cluster` | `group_types/cluster` | Distributed compute. Host dispatches jobs, workers execute. | Yes |

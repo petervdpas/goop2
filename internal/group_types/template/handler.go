@@ -8,9 +8,15 @@ import (
 
 const GroupTypeName = "template"
 
+// ContextCleaner can close resources owned by a template context.
+type ContextCleaner interface {
+	CloseByContext(context string)
+}
+
 // Handler implements group.TypeHandler for template groups.
 type Handler struct {
-	grpMgr *group.Manager
+	grpMgr   *group.Manager
+	cleaners []ContextCleaner
 }
 
 // New creates a template handler and registers it with the group manager.
@@ -18,6 +24,11 @@ func New(grpMgr *group.Manager) *Handler {
 	h := &Handler{grpMgr: grpMgr}
 	grpMgr.RegisterType(GroupTypeName, h)
 	return h
+}
+
+// AddCleaner registers a ContextCleaner that is called on template switch.
+func (h *Handler) AddCleaner(c ContextCleaner) {
+	h.cleaners = append(h.cleaners, c)
 }
 
 func (h *Handler) Flags() group.TypeFlags {

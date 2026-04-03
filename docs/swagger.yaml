@@ -92,6 +92,97 @@ definitions:
       disabled:
         type: boolean
     type: object
+  routes.chatRoomCreateRequest:
+    properties:
+      context:
+        example: Clubhouse
+        type: string
+      description:
+        example: A friendly chat room
+        type: string
+      max_members:
+        example: 10
+        type: integer
+      name:
+        example: General
+        type: string
+    type: object
+  routes.chatRoomGroupIDRequest:
+    properties:
+      group_id:
+        example: 1a2b3c4d5e6f
+        type: string
+    type: object
+  routes.chatRoomInfo:
+    properties:
+      description:
+        example: A friendly chat room
+        type: string
+      id:
+        example: 1a2b3c4d5e6f
+        type: string
+      members:
+        items:
+          $ref: '#/definitions/routes.chatRoomMember'
+        type: array
+      name:
+        example: General
+        type: string
+    type: object
+  routes.chatRoomJoinRequest:
+    properties:
+      group_id:
+        example: 1a2b3c4d5e6f
+        type: string
+      host_peer_id:
+        example: 12D3KooWXxx...
+        type: string
+    type: object
+  routes.chatRoomMember:
+    properties:
+      name:
+        example: Alice
+        type: string
+      peer_id:
+        example: 12D3KooWXxx...
+        type: string
+    type: object
+  routes.chatRoomMessage:
+    properties:
+      from:
+        example: 12D3KooWXxx...
+        type: string
+      from_name:
+        example: Alice
+        type: string
+      id:
+        example: 1709136000000-12D3KooW
+        type: string
+      text:
+        example: Hello everyone!
+        type: string
+      timestamp:
+        example: 1709136000000
+        type: integer
+    type: object
+  routes.chatRoomSendRequest:
+    properties:
+      group_id:
+        example: 1a2b3c4d5e6f
+        type: string
+      text:
+        example: Hello everyone!
+        type: string
+    type: object
+  routes.chatRoomStateResponse:
+    properties:
+      messages:
+        items:
+          $ref: '#/definitions/routes.chatRoomMessage'
+        type: array
+      room:
+        $ref: '#/definitions/routes.chatRoomInfo'
+    type: object
   routes.clientLogRequest:
     properties:
       level:
@@ -2170,6 +2261,131 @@ paths:
       summary: Get chat history with a peer
       tags:
       - chat
+  /api/chat/rooms/close:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Close request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.chatRoomGroupIDRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+      summary: Close a chat room
+      tags:
+      - chat-rooms
+  /api/chat/rooms/create:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Create request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.chatRoomCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.chatRoomInfo'
+      summary: Create a chat room
+      tags:
+      - chat-rooms
+  /api/chat/rooms/join:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Join request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.chatRoomJoinRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+      summary: Join a remote chat room
+      tags:
+      - chat-rooms
+  /api/chat/rooms/leave:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Leave request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.chatRoomGroupIDRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+      summary: Leave a chat room
+      tags:
+      - chat-rooms
+  /api/chat/rooms/send:
+    post:
+      consumes:
+      - application/json
+      description: Broadcasts the message to all room members via the chat.room MQ
+        topic.
+      parameters:
+      - description: Send request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.chatRoomSendRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+      summary: Send a message to a chat room
+      tags:
+      - chat-rooms
+  /api/chat/rooms/state:
+    get:
+      parameters:
+      - description: Group ID
+        in: query
+        name: group_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.chatRoomStateResponse'
+      summary: Get chat room state (members + recent messages)
+      tags:
+      - chat-rooms
   /api/cluster/binary:
     post:
       consumes:

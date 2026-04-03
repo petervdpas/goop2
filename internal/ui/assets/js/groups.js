@@ -187,11 +187,12 @@
             html += '<div class="groups-settings-row">' +
                 '<span class="groups-settings-label">Default role</span>' +
                 (roleOpts.length > 0
-                  ? '<select class="groups-default-role-select" data-id="' + gid + '">' +
-                      roleOpts.map(function(r) {
-                        return '<option value="' + r + '"' + (r === escapeHtml(g.default_role || 'viewer') ? ' selected' : '') + '>' + r + '</option>';
-                      }).join('') +
-                    '</select>'
+                  ? Goop.select.html({
+                      id: 'groups-default-role-' + gid,
+                      className: 'groups-default-role-gsel',
+                      value: escapeHtml(g.default_role || 'viewer'),
+                      options: roleOpts.map(function(r) { return { value: r, label: r }; })
+                    })
                   : '<input type="text" class="groups-default-role-input" data-id="' + gid + '" value="' + escapeHtml(g.default_role || 'viewer') + '" placeholder="viewer">') +
               '</div>' +
               '<div class="groups-settings-row">' +
@@ -220,11 +221,11 @@
                   if (isSelf) {
                     roleCell = '<td class="gmt-role"><span class="badge badge-role">' + escapeHtml(m.role || 'owner') + '</span></td>';
                   } else if (roleOpts.length > 0) {
-                    roleCell = '<td class="gmt-role"><select class="groups-member-role-select" data-group="' + gid + '" data-peer="' + escapeHtml(m.peer_id) + '">' +
-                      roleOpts.map(function(r) {
-                        return '<option value="' + r + '"' + (r === escapeHtml(m.role || '') ? ' selected' : '') + '>' + r + '</option>';
-                      }).join('') +
-                    '</select></td>';
+                    roleCell = '<td class="gmt-role">' + Goop.select.html({
+                      className: 'groups-member-role-gsel',
+                      value: escapeHtml(m.role || ''),
+                      options: roleOpts.map(function(r) { return { value: r, label: r }; })
+                    }).replace('<div ', '<div data-group="' + gid + '" data-peer="' + escapeHtml(m.peer_id) + '" ') + '</td>';
                   } else {
                     roleCell = '<td class="gmt-role"><span class="badge badge-role">' + escapeHtml(m.role || 'viewer') + '</span></td>';
                   }
@@ -313,9 +314,10 @@
         });
 
         // Default role — auto-save on change
-        containerEl.querySelectorAll('.groups-default-role-select').forEach(function(sel) {
-          on(sel, 'change', function() {
-            Goop.api.groups.setDefaultRole({ group_id: sel.getAttribute('data-id'), default_role: sel.value }).catch(function(err) { toast('Update failed: ' + err.message, true); });
+        containerEl.querySelectorAll('.groups-default-role-gsel').forEach(function(el) {
+          var gid = el.id.replace('groups-default-role-', '');
+          Goop.select.init(el, function(val) {
+            Goop.api.groups.setDefaultRole({ group_id: gid, default_role: val }).catch(function(err) { toast('Update failed: ' + err.message, true); });
           });
         });
         containerEl.querySelectorAll('.groups-default-role-input').forEach(function(input) {
@@ -365,9 +367,11 @@
         });
 
         // Member role — auto-save on change
-        containerEl.querySelectorAll('.groups-member-role-select').forEach(function(sel) {
-          on(sel, 'change', function() {
-            Goop.api.groups.setRole({ group_id: sel.getAttribute('data-group'), peer_id: sel.getAttribute('data-peer'), role: sel.value }).then(function() {
+        containerEl.querySelectorAll('.groups-member-role-gsel').forEach(function(el) {
+          var gid = el.getAttribute('data-group');
+          var peerId = el.getAttribute('data-peer');
+          Goop.select.init(el, function(val) {
+            Goop.api.groups.setRole({ group_id: gid, peer_id: peerId, role: val }).then(function() {
               toast('Role updated');
             }).catch(function(err) { toast('Set role failed: ' + err.message, true); });
           });

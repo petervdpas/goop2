@@ -637,6 +637,200 @@
                 }
             }
         },
+        "/api/chat/rooms/close": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat-rooms"
+                ],
+                "summary": "Close a chat room",
+                "parameters": [
+                    {
+                        "description": "Close request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.chatRoomGroupIDRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/chat/rooms/create": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat-rooms"
+                ],
+                "summary": "Create a chat room",
+                "parameters": [
+                    {
+                        "description": "Create request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.chatRoomCreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.chatRoomInfo"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/chat/rooms/join": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat-rooms"
+                ],
+                "summary": "Join a remote chat room",
+                "parameters": [
+                    {
+                        "description": "Join request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.chatRoomJoinRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/chat/rooms/leave": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat-rooms"
+                ],
+                "summary": "Leave a chat room",
+                "parameters": [
+                    {
+                        "description": "Leave request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.chatRoomGroupIDRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/chat/rooms/send": {
+            "post": {
+                "description": "Broadcasts the message to all room members via the chat.room MQ topic.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat-rooms"
+                ],
+                "summary": "Send a message to a chat room",
+                "parameters": [
+                    {
+                        "description": "Send request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.chatRoomSendRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/chat/rooms/state": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "chat-rooms"
+                ],
+                "summary": "Get chat room state (members + recent messages)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Group ID",
+                        "name": "group_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.chatRoomStateResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/cluster/binary": {
             "post": {
                 "description": "Sets the local binary that will execute jobs for this cluster. The binary is a child process that speaks the goop2 cluster JSON protocol over stdin/stdout. Mode can be \"oneshot\" (started per job) or \"daemon\" (long-running). Setting the binary resets the verified flag — the host must re-verify via check-job before dispatching work.",
@@ -5765,6 +5959,137 @@
             "properties": {
                 "disabled": {
                     "type": "boolean"
+                }
+            }
+        },
+        "routes.chatRoomCreateRequest": {
+            "type": "object",
+            "properties": {
+                "context": {
+                    "type": "string",
+                    "example": "Clubhouse"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "A friendly chat room"
+                },
+                "max_members": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "name": {
+                    "type": "string",
+                    "example": "General"
+                }
+            }
+        },
+        "routes.chatRoomGroupIDRequest": {
+            "type": "object",
+            "properties": {
+                "group_id": {
+                    "type": "string",
+                    "example": "1a2b3c4d5e6f"
+                }
+            }
+        },
+        "routes.chatRoomInfo": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "A friendly chat room"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "1a2b3c4d5e6f"
+                },
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/routes.chatRoomMember"
+                    }
+                },
+                "name": {
+                    "type": "string",
+                    "example": "General"
+                }
+            }
+        },
+        "routes.chatRoomJoinRequest": {
+            "type": "object",
+            "properties": {
+                "group_id": {
+                    "type": "string",
+                    "example": "1a2b3c4d5e6f"
+                },
+                "host_peer_id": {
+                    "type": "string",
+                    "example": "12D3KooWXxx..."
+                }
+            }
+        },
+        "routes.chatRoomMember": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "example": "Alice"
+                },
+                "peer_id": {
+                    "type": "string",
+                    "example": "12D3KooWXxx..."
+                }
+            }
+        },
+        "routes.chatRoomMessage": {
+            "type": "object",
+            "properties": {
+                "from": {
+                    "type": "string",
+                    "example": "12D3KooWXxx..."
+                },
+                "from_name": {
+                    "type": "string",
+                    "example": "Alice"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "1709136000000-12D3KooW"
+                },
+                "text": {
+                    "type": "string",
+                    "example": "Hello everyone!"
+                },
+                "timestamp": {
+                    "type": "integer",
+                    "example": 1709136000000
+                }
+            }
+        },
+        "routes.chatRoomSendRequest": {
+            "type": "object",
+            "properties": {
+                "group_id": {
+                    "type": "string",
+                    "example": "1a2b3c4d5e6f"
+                },
+                "text": {
+                    "type": "string",
+                    "example": "Hello everyone!"
+                }
+            }
+        },
+        "routes.chatRoomStateResponse": {
+            "type": "object",
+            "properties": {
+                "messages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/routes.chatRoomMessage"
+                    }
+                },
+                "room": {
+                    "$ref": "#/definitions/routes.chatRoomInfo"
                 }
             }
         },

@@ -270,8 +270,10 @@ func (m *Manager) HostedGroupMembers(groupID string) []MemberInfo {
 	}
 
 	hg.mu.RLock()
-	defer hg.mu.RUnlock()
-	return hg.memberList(m.selfID)
+	members := hg.memberList(m.selfID)
+	hg.mu.RUnlock()
+	m.resolveMemberNames(members)
+	return members
 }
 
 // SetDefaultRole updates the default role assigned to new members of a hosted group.

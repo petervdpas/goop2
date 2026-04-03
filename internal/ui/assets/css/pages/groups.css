@@ -481,14 +481,9 @@
 }
 
 /* Member role select */
-.groups-member-role-select{
-  padding: 2px 6px;
-  font-size: 12px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background: var(--field-bg);
-  color: var(--text);
-}
+.groups-member-role-gsel{ display:inline-block; font-size:12px; min-width:80px; }
+.groups-member-role-gsel .gsel-trigger{ padding:2px 6px; }
+.groups-default-role-gsel{ display:inline-block; font-size:13px; min-width:90px; }
 
 /* Member table */
 .groups-member-table{

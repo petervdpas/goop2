@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/petervdpas/goop2/internal/group"
 	"github.com/petervdpas/goop2/internal/mq"
@@ -147,16 +148,19 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 			HostReachable bool `json:"host_reachable"`
 			MemberCount   int  `json:"member_count"`
 		}
-		enriched := make([]subWithCount, len(subs))
-		for i, s := range subs {
+		var enriched []subWithCount
+		for _, s := range subs {
+			if s.Volatile {
+				continue
+			}
 			if live := peerName(s.HostPeerID); live != "" {
 				s.HostName = live
 			}
-			enriched[i] = subWithCount{
+			enriched = append(enriched, subWithCount{
 				SubscriptionRow: s,
 				HostReachable:   peerReachable(s.HostPeerID),
 				MemberCount:     len(grpMgr.StoredGroupMembers(s.GroupID)),
-			}
+			})
 		}
 
 		writeJSON(w, map[string]any{
@@ -385,6 +389,65 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 			return
 		}
 		writeJSON(w, map[string]string{"status": "ok"})
+	})
+
+	// GET /api/groups/events — SSE shim for SDK and templates.
+	// Reads from the unified MQ event stream and re-emits group events in the
+	// original wire format: "event: {type}\ndata: {json}\n\n".
+	handleGet(mux, "/api/groups/events", func(w http.ResponseWriter, r *http.Request) {
+		if mqMgr == nil {
+			http.Error(w, "not available", http.StatusServiceUnavailable)
+			return
+		}
+		sseHeaders(w)
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming not supported", http.StatusInternalServerError)
+			return
+		}
+
+		evtCh, cancel := mqMgr.Subscribe()
+		defer cancel()
+
+		fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"ok\"}\n\n")
+		flusher.Flush()
+
+		ctx := r.Context()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case evt, ok := <-evtCh:
+				if !ok {
+					return
+				}
+				if evt.Type != "message" || evt.Msg == nil {
+					continue
+				}
+				topic := evt.Msg.Topic
+				var evtType string
+				if topic == "group.invite" {
+					evtType = "invite"
+				} else if strings.HasPrefix(topic, "group:") {
+					parts := strings.SplitN(topic, ":", 3)
+					if len(parts) != 3 {
+						continue
+					}
+					evtType = parts[2]
+				} else {
+					continue
+				}
+				if evtType == group.TypePing || evtType == group.TypePong || evtType == group.TypeMeta {
+					continue
+				}
+				data, err := json.Marshal(evt.Msg.Payload)
+				if err != nil {
+					continue
+				}
+				fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evtType, data)
+				flusher.Flush()
+			}
+		}
 	})
 
 }

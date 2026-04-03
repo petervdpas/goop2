@@ -441,6 +441,18 @@ local content, err = goop.site.read("config.json")
 local config = goop.json.decode(content)
 ```
 
+### goop.chat
+
+Group chat room management. Messages are broadcast via the `chat.room:` MQ topic.
+
+```lua
+local room, err = goop.chat.create("Room Name", "description", 10, goop.template.name)
+goop.chat.send(group_id, "Hello everyone!")
+local room, err = goop.chat.state(group_id)   -- room + members + messages
+local rooms = goop.chat.rooms()               -- all active rooms
+goop.chat.close(group_id)
+```
+
 ### goop.listen
 
 Audio listening session control:

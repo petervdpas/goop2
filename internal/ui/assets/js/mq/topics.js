@@ -55,6 +55,7 @@
     LISTEN_PREFIX:         "listen:",        // + groupID + ":state"
     CHAT:                  "chat",
     CHAT_BROADCAST:        "chat.broadcast",
+    CHATROOM_PREFIX:       "chat.room:",       // + groupID + ":" + type
     LOG_MQ:                "log:mq",
     LOG_CALL:              "log:call",
     RELAY_STATUS:          "relay:status",
@@ -116,6 +117,9 @@
 
   /** chat.broadcast — broadcast message to all peers */
   mq.onChatBroadcast = function (fn) { return mq.subscribe(mq.TOPICS.CHAT_BROADCAST, fn); };
+
+  /** chatroom:{groupID}:{type} — chat room messages */
+  mq.onChatRoom = function (fn) { return mq.subscribe(mq.TOPICS.CHATROOM_PREFIX + "*", fn); };
 
   /** log:mq — MQ event log entry from Go */
   mq.onLogMQ = function (fn) { return mq.subscribe(mq.TOPICS.LOG_MQ, fn); };

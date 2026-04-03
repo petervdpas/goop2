@@ -22,6 +22,7 @@ import (
 	"github.com/petervdpas/goop2/internal/orm/gql"
 	filesType "github.com/petervdpas/goop2/internal/group_types/files"
 	"github.com/petervdpas/goop2/internal/group_types/listen"
+	chatType "github.com/petervdpas/goop2/internal/group_types/chat"
 	templateType "github.com/petervdpas/goop2/internal/group_types/template"
 	luapkg "github.com/petervdpas/goop2/internal/lua"
 	"github.com/petervdpas/goop2/internal/mq"
@@ -427,8 +428,19 @@ func RunPeer(p PeerParams) error {
 	}
 	defer listenMgr.Close()
 	grpMgr.RegisterType("listen", listenMgr)
+
+	// ── Chat group type (chat rooms)
+	chatRoomMgr := chatType.New(grpMgr, mqMgr, node.ID(), func(id string) string {
+		if sp, ok := peers.Get(id); ok && sp.Content != "" {
+			return sp.Content
+		}
+		return db.GetPeerName(id)
+	})
+	defer chatRoomMgr.Close()
+
 	if luaEngine != nil {
 		luaEngine.SetListen(listenMgr)
+		luaEngine.SetChatRooms(chatRoomMgr)
 		luaEngine.SetGroupChecker(grpMgr)
 		luaEngine.SetGroupManager(grpMgr)
 		luaEngine.SetMQ(mqMgr)
@@ -436,6 +448,7 @@ func RunPeer(p PeerParams) error {
 	setLuaListen = func() {
 		if luaEngine != nil {
 			luaEngine.SetListen(listenMgr)
+			luaEngine.SetChatRooms(chatRoomMgr)
 		}
 	}
 	setLuaGroups = func() {
@@ -486,6 +499,8 @@ func RunPeer(p PeerParams) error {
 
 	// ── Template group type
 	tplHandler := templateType.New(grpMgr)
+	tplHandler.AddCleaner(chatRoomMgr)
+
 
 
 	publish := func(pctx context.Context, typ string) {
@@ -575,6 +590,7 @@ func RunPeer(p PeerParams) error {
 			MQ:          mqMgr,
 			Groups:      grpMgr,
 			Listen:      listenMgr,
+			ChatRooms:   chatRoomMgr,
 			DB:          db,
 			Docs:        docStore,
 			BaseURL:     url,

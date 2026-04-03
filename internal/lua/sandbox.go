@@ -161,6 +161,15 @@ func injectGoopTable(L *lua.LState, inv *invocationCtx, kv *kvStore, engine *Eng
 	// goop.commands()
 	goop.RawSetString("commands", L.NewFunction(commandsFn(engine)))
 
+	// goop.chat (chat rooms)
+	chatTbl := L.NewTable()
+	chatTbl.RawSetString("create", L.NewFunction(chatRoomCreateFn(engine)))
+	chatTbl.RawSetString("close", L.NewFunction(chatRoomCloseFn(engine)))
+	chatTbl.RawSetString("send", L.NewFunction(chatRoomSendFn(inv, engine)))
+	chatTbl.RawSetString("state", L.NewFunction(chatRoomStateFn(engine)))
+	chatTbl.RawSetString("rooms", L.NewFunction(chatRoomListFn(engine)))
+	goop.RawSetString("chat", chatTbl)
+
 	// goop.listen
 	listenTbl := L.NewTable()
 	listenTbl.RawSetString("state", L.NewFunction(listenStateFn(engine)))

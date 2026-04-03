@@ -771,7 +771,7 @@ func groupTypesFn(engine *Engine) lua.LGFunction {
 	}
 }
 
-// groupMembersFn implements goop.group.members(group_id) → table of {peer_id, role}
+// groupMembersFn implements goop.group.members(group_id) → table of {peer_id, name, role}
 func groupMembersFn(engine *Engine) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if engine.groupMgr == nil {
@@ -785,6 +785,15 @@ func groupMembersFn(engine *Engine) lua.LGFunction {
 			entry := L.NewTable()
 			entry.RawSetString("peer_id", lua.LString(m.PeerID))
 			entry.RawSetString("role", lua.LString(m.Role))
+			name := ""
+			if m.PeerID == engine.selfID {
+				name = engine.selfLabel()
+			} else if sp, ok := engine.peers.Get(m.PeerID); ok && sp.Content != "" {
+				name = sp.Content
+			}
+			if name != "" {
+				entry.RawSetString("name", lua.LString(name))
+			}
 			tbl.RawSetInt(i+1, entry)
 		}
 		L.Push(tbl)
