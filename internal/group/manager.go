@@ -183,41 +183,6 @@ func (m *Manager) RegisterType(groupType string, h TypeHandler) {
 	m.handlers[groupType] = h
 }
 
-// PurgeInvalid removes any persisted group that fails validation.
-// Call this after all type handlers are registered.
-// Groups are purged if they have no registered handler (unless their type is
-// in the skip set) or if they are missing a GroupContext.
-// Types managed outside the handler system (e.g. "template") should be skipped
-// here and validated by their own lifecycle code.
-func (m *Manager) PurgeInvalid(skip map[string]bool) int {
-	groups, err := m.db.ListGroups()
-	if err != nil {
-		return 0
-	}
-
-	m.mu.RLock()
-	handlers := m.handlers
-	m.mu.RUnlock()
-
-	removed := 0
-	for _, g := range groups {
-		if skip[g.GroupType] {
-			continue
-		}
-		if _, hasHandler := handlers[g.GroupType]; !hasHandler {
-			_ = m.CloseGroup(g.ID)
-			log.Printf("GROUP: Purged orphan group %s (unregistered type %q)", g.ID, g.GroupType)
-			removed++
-			continue
-		}
-		if g.GroupContext == "" {
-			_ = m.CloseGroup(g.ID)
-			log.Printf("GROUP: Purged group %s (type %q, missing context)", g.ID, g.GroupType)
-			removed++
-		}
-	}
-	return removed
-}
 
 func (m *Manager) notifyListeners(evt *Event) {
 	if m.mq != nil {

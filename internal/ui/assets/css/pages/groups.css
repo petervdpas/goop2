@@ -371,20 +371,107 @@
   color: var(--danger, #e55);
 }
 
-.groups-role-btn{
+/* Settings panel */
+.groups-settings-toggle{
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 4px 0;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.groups-settings-toggle:hover{ color: var(--text); }
+
+.groups-settings{
+  padding: 6px 0 2px;
+}
+
+.groups-settings-row{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.groups-settings-label{
+  color: var(--muted);
+  min-width: 90px;
+  flex-shrink: 0;
+}
+
+.groups-settings-row input[type="number"]{
+  width: 60px;
+  padding: 3px 6px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--field-bg);
+  color: var(--text);
+}
+
+.groups-settings-row select,
+.groups-settings-row input[type="text"]{
+  padding: 3px 6px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--field-bg);
+  color: var(--text);
+}
+
+/* Role tags */
+.groups-role-tags{
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.groups-role-tag{
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.groups-role-tag-rm{
   background: none;
   border: none;
   cursor: pointer;
   color: var(--muted);
-  padding: 0 2px;
-  font-size: 11px;
+  font-size: 10px;
+  padding: 0 1px;
   line-height: 1;
 }
 
-.groups-role-btn:hover{
-  color: var(--accent, #6af);
+.groups-role-tag-rm:hover{ color: var(--danger, #e55); }
+
+.groups-role-tag-add{
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  outline: none;
+  width: 60px;
 }
 
+.groups-role-tag-add:focus{
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* Badge */
 .badge-role{
   font-size: 10px;
   padding: 1px 6px;
@@ -393,51 +480,37 @@
   color: var(--accent, #6af);
 }
 
-.groups-default-role-input,
-.groups-roles-input{
-  width: 140px;
-  padding: 2px 6px;
-  font-size: 12px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background: var(--bg-input, var(--bg-secondary));
-  color: var(--text);
-}
-
-.groups-default-role-select,
+/* Member role select */
 .groups-member-role-select{
   padding: 2px 6px;
   font-size: 12px;
   border-radius: 4px;
   border: 1px solid var(--border);
-  background: var(--bg-input, var(--bg-secondary));
+  background: var(--field-bg);
   color: var(--text);
 }
 
+/* Member table */
 .groups-member-table{
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
-  margin-top: 8px;
-}
-
-.groups-member-table th{
-  text-align: left;
-  font-weight: 500;
-  color: var(--muted);
-  font-size: 11px;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--border);
+  margin-top: 6px;
 }
 
 .groups-member-table td{
-  padding: 4px 8px;
+  padding: 5px 6px;
   vertical-align: middle;
 }
 
 .groups-member-table tr:not(:last-child) td{
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 }
+
+.gmt-avatar{ width: 28px; }
+.gmt-name{ font-weight: 500; }
+.gmt-role{ width: 1%; white-space: nowrap; }
+.gmt-actions{ width: 1%; white-space: nowrap; text-align: right; }
 
 .groups-member-avatar{
   width: 22px;
@@ -446,6 +519,7 @@
   object-fit: cover;
   vertical-align: middle;
 }
+
 
 .glisten-queue-num{
   color: var(--muted);

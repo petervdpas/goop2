@@ -1017,6 +1017,15 @@ input:checked + .slider::before {
   flex-shrink: 0;
 }
 
+/* Panel (collapsible expand/collapse — see core.js panel()) */
+.panel-arrow{
+  display: inline-block;
+  width: 12px;
+  font-size: 11px;
+  text-align: center;
+  transition: transform 0.15s;
+}
+
 /* Progress bar */
 .progress-bar {
   height: 6px;

@@ -171,54 +171,70 @@
           var selfId = document.body.dataset.selfId || '';
           var roles = g.roles || [];
           var roleOpts = roles.map(function(r) { return escapeHtml(r); });
+          var hasRoles = g.group_type === 'template' || g.group_type === 'general' || g.group_type === '' || g.group_type === 'message';
+          var gid = escapeHtml(g.id);
 
-          html += '<div class="groups-card-mgmt">' +
-            '<div class="groups-mgmt-row">' +
-              '<label class="groups-mgmt-label">Max <span class="muted small">(0=unlimited)</span></label>' +
-              '<input type="number" class="groups-maxmembers-input" data-id="' + escapeHtml(g.id) + '" value="' + (g.max_members || 0) + '" min="0">' +
-              '<button class="groups-action-btn grph-maxmembers-btn" data-id="' + escapeHtml(g.id) + '">Set</button>' +
-            '</div>' +
-            '<div class="groups-mgmt-row">' +
-              '<label class="groups-mgmt-label">Roles</label>' +
-              '<input type="text" class="groups-roles-input" data-id="' + escapeHtml(g.id) + '" value="' + escapeHtml(roles.join(', ')) + '" placeholder="viewer, editor, admin">' +
-              '<button class="groups-action-btn grph-roles-btn" data-id="' + escapeHtml(g.id) + '">Set</button>' +
-            '</div>' +
-            '<div class="groups-mgmt-row">' +
-              '<label class="groups-mgmt-label">Default role</label>' +
-              (roleOpts.length > 0
-                ? '<select class="groups-default-role-select" data-id="' + escapeHtml(g.id) + '">' +
-                    roleOpts.map(function(r) {
-                      return '<option value="' + r + '"' + (r === escapeHtml(g.default_role || 'viewer') ? ' selected' : '') + '>' + r + '</option>';
-                    }).join('') +
-                  '</select>'
-                : '<input type="text" class="groups-default-role-input" data-id="' + escapeHtml(g.id) + '" value="' + escapeHtml(g.default_role || 'viewer') + '" placeholder="viewer">') +
-              '<button class="groups-action-btn grph-default-role-btn" data-id="' + escapeHtml(g.id) + '">Set</button>' +
-            '</div>';
+          html += '<div class="groups-card-mgmt">';
 
+          // Settings toggle
+          html += '<div class="groups-settings-toggle grph-settings-btn" data-id="' + gid + '">&#9881; Settings</div>' +
+            '<div class="groups-settings hidden" data-id="' + gid + '">' +
+              '<div class="groups-settings-row">' +
+                '<span class="groups-settings-label">Max members</span>' +
+                '<input type="number" class="groups-maxmembers-input" data-id="' + gid + '" value="' + (g.max_members || 0) + '" min="0" title="0 = unlimited">' +
+              '</div>';
+
+          if (hasRoles) {
+            html += '<div class="groups-settings-row">' +
+                '<span class="groups-settings-label">Default role</span>' +
+                (roleOpts.length > 0
+                  ? '<select class="groups-default-role-select" data-id="' + gid + '">' +
+                      roleOpts.map(function(r) {
+                        return '<option value="' + r + '"' + (r === escapeHtml(g.default_role || 'viewer') ? ' selected' : '') + '>' + r + '</option>';
+                      }).join('') +
+                    '</select>'
+                  : '<input type="text" class="groups-default-role-input" data-id="' + gid + '" value="' + escapeHtml(g.default_role || 'viewer') + '" placeholder="viewer">') +
+              '</div>' +
+              '<div class="groups-settings-row">' +
+                '<span class="groups-settings-label">Roles</span>' +
+                '<div class="groups-role-tags" data-id="' + gid + '">' +
+                  roles.map(function(r) {
+                    return '<span class="groups-role-tag">' + escapeHtml(r) +
+                      '<button class="groups-role-tag-rm" data-id="' + gid + '" data-role="' + escapeHtml(r) + '">&#10005;</button></span>';
+                  }).join('') +
+                  '<input class="groups-role-tag-add" data-id="' + gid + '" placeholder="+ add" size="6">' +
+                '</div>' +
+              '</div>';
+          }
+
+          html += '</div>';
+
+          // Members
           if (g.members && g.members.length > 0) {
             html += '<table class="groups-member-table">' +
-              '<thead><tr><th></th><th>Name</th><th>Role</th><th></th></tr></thead>' +
               '<tbody>' +
               g.members.map(function(m) {
                 var isSelf = m.peer_id === selfId;
                 var label = m.name || shortId(m.peer_id);
-                var roleCell;
-                if (isSelf) {
-                  roleCell = '<span class="badge badge-role">' + escapeHtml(m.role || 'owner') + '</span>';
-                } else if (roleOpts.length > 0) {
-                  roleCell = '<select class="groups-member-role-select" data-group="' + escapeHtml(g.id) + '" data-peer="' + escapeHtml(m.peer_id) + '">' +
-                    roleOpts.map(function(r) {
-                      return '<option value="' + r + '"' + (r === escapeHtml(m.role || '') ? ' selected' : '') + '>' + r + '</option>';
-                    }).join('') +
-                  '</select>';
-                } else {
-                  roleCell = '<span class="badge badge-role">' + escapeHtml(m.role || 'viewer') + '</span>';
+                var roleCell = '';
+                if (hasRoles) {
+                  if (isSelf) {
+                    roleCell = '<td class="gmt-role"><span class="badge badge-role">' + escapeHtml(m.role || 'owner') + '</span></td>';
+                  } else if (roleOpts.length > 0) {
+                    roleCell = '<td class="gmt-role"><select class="groups-member-role-select" data-group="' + gid + '" data-peer="' + escapeHtml(m.peer_id) + '">' +
+                      roleOpts.map(function(r) {
+                        return '<option value="' + r + '"' + (r === escapeHtml(m.role || '') ? ' selected' : '') + '>' + r + '</option>';
+                      }).join('') +
+                    '</select></td>';
+                  } else {
+                    roleCell = '<td class="gmt-role"><span class="badge badge-role">' + escapeHtml(m.role || 'viewer') + '</span></td>';
+                  }
                 }
                 return '<tr>' +
-                  '<td><img class="groups-member-avatar" src="/api/avatar/peer/' + encodeURIComponent(m.peer_id) + '"></td>' +
-                  '<td>' + escapeHtml(label) + '</td>' +
-                  '<td>' + roleCell + '</td>' +
-                  '<td>' + (!isSelf ? '<button class="groups-kick-btn" data-group="' + escapeHtml(g.id) + '" data-peer="' + escapeHtml(m.peer_id) + '" title="Remove">&#10005;</button>' : '') + '</td>' +
+                  '<td class="gmt-avatar"><img class="groups-member-avatar" src="/api/avatar/peer/' + encodeURIComponent(m.peer_id) + '"></td>' +
+                  '<td class="gmt-name">' + escapeHtml(label) + '</td>' +
+                  roleCell +
+                  '<td class="gmt-actions">' + (!isSelf ? '<button class="groups-kick-btn" data-group="' + gid + '" data-peer="' + escapeHtml(m.peer_id) + '" title="Remove">&#10005;</button>' : '') + '</td>' +
                 '</tr>';
               }).join('') +
               '</tbody></table>';
@@ -284,26 +300,77 @@
 
       // Bind management controls (groups page only)
       if (showMgmt) {
-        containerEl.querySelectorAll('.grph-maxmembers-btn').forEach(function(btn) {
-          on(btn, 'click', function() {
-            var groupId = btn.getAttribute('data-id');
-            var input = containerEl.querySelector('.groups-maxmembers-input[data-id="' + groupId + '"]');
-            var max = input ? parseInt(input.value, 10) : 0;
+        // Settings panel toggle
+        containerEl.querySelectorAll('.grph-settings-btn').forEach(function(trigger) {
+          var gid = trigger.getAttribute('data-id');
+          var content = containerEl.querySelector('.groups-settings[data-id="' + gid + '"]');
+          core.panel(trigger, content, { remember: 'grp-settings-' + gid });
+        });
+
+        // Max members — auto-save on change
+        containerEl.querySelectorAll('.groups-maxmembers-input').forEach(function(input) {
+          on(input, 'change', function() {
+            var max = parseInt(input.value, 10);
             if (isNaN(max) || max < 0) max = 0;
-            Goop.api.groups.setMaxMembers({ group_id: groupId, max_members: max }).then(function() {
+            Goop.api.groups.setMaxMembers({ group_id: input.getAttribute('data-id'), max_members: max }).then(function() {
               toast('Max members updated');
+            }).catch(function(err) { toast('Update failed: ' + err.message, true); });
+          });
+        });
+
+        // Default role — auto-save on change
+        containerEl.querySelectorAll('.groups-default-role-select').forEach(function(sel) {
+          on(sel, 'change', function() {
+            Goop.api.groups.setDefaultRole({ group_id: sel.getAttribute('data-id'), default_role: sel.value }).catch(function(err) { toast('Update failed: ' + err.message, true); });
+          });
+        });
+        containerEl.querySelectorAll('.groups-default-role-input').forEach(function(input) {
+          on(input, 'change', function() {
+            var role = input.value.trim();
+            if (!role) return;
+            Goop.api.groups.setDefaultRole({ group_id: input.getAttribute('data-id'), default_role: role }).catch(function(err) { toast('Update failed: ' + err.message, true); });
+          });
+        });
+
+        // Role tags — remove
+        containerEl.querySelectorAll('.groups-role-tag-rm').forEach(function(btn) {
+          on(btn, 'click', function() {
+            var gid = btn.getAttribute('data-id');
+            var role = btn.getAttribute('data-role');
+            var tagsEl = containerEl.querySelector('.groups-role-tags[data-id="' + gid + '"]');
+            var current = [];
+            tagsEl.querySelectorAll('.groups-role-tag').forEach(function(t) {
+              var r = t.textContent.replace('\u2715', '').trim();
+              if (r && r !== role) current.push(r);
+            });
+            Goop.api.groups.setGroupRoles({ group_id: gid, roles: current }).then(function() {
               renderHostedGroups(containerEl, opts);
             }).catch(function(err) { toast('Update failed: ' + err.message, true); });
           });
         });
-        containerEl.querySelectorAll('.groups-kick-btn').forEach(function(btn) {
-          on(btn, 'click', function() {
-            Goop.api.groups.kick({ group_id: btn.getAttribute('data-group'), peer_id: btn.getAttribute('data-peer') }).then(function() {
-              toast('Member removed');
+
+        // Role tags — add on Enter
+        containerEl.querySelectorAll('.groups-role-tag-add').forEach(function(input) {
+          on(input, 'keydown', function(e) {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            var role = input.value.trim();
+            if (!role) return;
+            var gid = input.getAttribute('data-id');
+            var tagsEl = containerEl.querySelector('.groups-role-tags[data-id="' + gid + '"]');
+            var current = [];
+            tagsEl.querySelectorAll('.groups-role-tag').forEach(function(t) {
+              current.push(t.textContent.replace('\u2715', '').trim());
+            });
+            if (current.indexOf(role) !== -1) { input.value = ''; return; }
+            current.push(role);
+            Goop.api.groups.setGroupRoles({ group_id: gid, roles: current }).then(function() {
               renderHostedGroups(containerEl, opts);
-            }).catch(function(err) { toast('Kick failed: ' + err.message, true); });
+            }).catch(function(err) { toast('Update failed: ' + err.message, true); });
           });
         });
+
+        // Member role — auto-save on change
         containerEl.querySelectorAll('.groups-member-role-select').forEach(function(sel) {
           on(sel, 'change', function() {
             Goop.api.groups.setRole({ group_id: sel.getAttribute('data-group'), peer_id: sel.getAttribute('data-peer'), role: sel.value }).then(function() {
@@ -311,29 +378,14 @@
             }).catch(function(err) { toast('Set role failed: ' + err.message, true); });
           });
         });
-        containerEl.querySelectorAll('.grph-roles-btn').forEach(function(btn) {
+
+        // Kick
+        containerEl.querySelectorAll('.groups-kick-btn').forEach(function(btn) {
           on(btn, 'click', function() {
-            var groupId = btn.getAttribute('data-id');
-            var input = containerEl.querySelector('.groups-roles-input[data-id="' + groupId + '"]');
-            var raw = input ? input.value.trim() : '';
-            var roles = raw.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
-            Goop.api.groups.setGroupRoles({ group_id: groupId, roles: roles }).then(function() {
-              toast('Roles updated');
+            Goop.api.groups.kick({ group_id: btn.getAttribute('data-group'), peer_id: btn.getAttribute('data-peer') }).then(function() {
+              toast('Member removed');
               renderHostedGroups(containerEl, opts);
-            }).catch(function(err) { toast('Update failed: ' + err.message, true); });
-          });
-        });
-        containerEl.querySelectorAll('.grph-default-role-btn').forEach(function(btn) {
-          on(btn, 'click', function() {
-            var groupId = btn.getAttribute('data-id');
-            var sel = containerEl.querySelector('.groups-default-role-select[data-id="' + groupId + '"]');
-            var input = containerEl.querySelector('.groups-default-role-input[data-id="' + groupId + '"]');
-            var role = sel ? sel.value : (input ? input.value.trim() : '');
-            if (!role) { toast('Role cannot be empty', true); return; }
-            Goop.api.groups.setDefaultRole({ group_id: groupId, default_role: role }).then(function() {
-              toast('Default role updated');
-              renderHostedGroups(containerEl, opts);
-            }).catch(function(err) { toast('Update failed: ' + err.message, true); });
+            }).catch(function(err) { toast('Kick failed: ' + err.message, true); });
           });
         });
       }

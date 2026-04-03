@@ -31,7 +31,7 @@
     if (groupType === 'listen' && window.Goop && window.Goop.listen) {
       p = window.Goop.listen.create(name);
     } else {
-      p = Goop.api.groups.create({ name: name, group_type: groupType, max_members: maxMembers });
+      p = Goop.api.groups.create({ name: name, group_type: groupType, group_context: name, max_members: maxMembers });
     }
 
     p.then(function() {

@@ -188,6 +188,45 @@
     });
   }
 
+  // ── Panel: collapsible expand/collapse ───────────────────────────────────
+  // Usage: Goop.core.panel(triggerEl, contentEl, opts)
+  //   opts.open       — initial state (default false)
+  //   opts.icon       — show arrow indicator (default true)
+  //   opts.onToggle   — callback(isOpen)
+  //   opts.remember   — sessionStorage key to persist state
+  // Returns { toggle(), open(), close(), isOpen() }
+  function panel(triggerEl, contentEl, opts) {
+    if (!triggerEl || !contentEl) return null;
+    opts = opts || {};
+    var isOpen = !!opts.open;
+    if (opts.remember) {
+      var stored = sessionStorage.getItem('panel:' + opts.remember);
+      if (stored !== null) isOpen = stored === '1';
+    }
+    var arrow = null;
+    if (opts.icon !== false) {
+      arrow = document.createElement('span');
+      arrow.className = 'panel-arrow';
+      arrow.textContent = '\u25B8';
+      triggerEl.insertBefore(arrow, triggerEl.firstChild);
+    }
+    function apply() {
+      contentEl.classList.toggle('hidden', !isOpen);
+      if (arrow) arrow.textContent = isOpen ? '\u25BE' : '\u25B8';
+      triggerEl.classList.toggle('panel-open', isOpen);
+      if (opts.remember) sessionStorage.setItem('panel:' + opts.remember, isOpen ? '1' : '0');
+      if (opts.onToggle) opts.onToggle(isOpen);
+    }
+    apply();
+    on(triggerEl, 'click', function() { isOpen = !isOpen; apply(); });
+    return {
+      toggle: function() { isOpen = !isOpen; apply(); },
+      open: function() { isOpen = true; apply(); },
+      close: function() { isOpen = false; apply(); },
+      isOpen: function() { return isOpen; },
+    };
+  }
+
   window.Goop = window.Goop || {};
   window.Goop.core = {
     onReady,
@@ -208,5 +247,6 @@
     validateInput,
     validateJSON,
     bindValidation,
+    panel,
   };
 })();

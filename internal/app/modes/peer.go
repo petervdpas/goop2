@@ -487,11 +487,6 @@ func RunPeer(p PeerParams) error {
 	// ── Template group type
 	tplHandler := templateType.New(grpMgr)
 
-	// All group type handlers are now registered — purge any stale groups
-	// that lack a handler or context.
-	if n := grpMgr.PurgeInvalid(nil); n > 0 {
-		log.Printf("👥 Purged %d invalid group(s)", n)
-	}
 
 	publish := func(pctx context.Context, typ string) {
 		node.Publish(pctx, typ)
