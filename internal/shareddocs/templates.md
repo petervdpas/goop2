@@ -143,7 +143,7 @@ When any access policy is set to `group`, the schema can define a roles map. Eac
   "name": "posts",
   "access": { "read": "open", "insert": "group", "update": "group", "delete": "owner" },
   "roles": {
-    "editor": { "read": true, "insert": true, "update": true, "delete": true },
+    "coauthor": { "read": true, "insert": true, "update": true, "delete": true },
     "viewer": { "read": true }
   }
 }
@@ -218,7 +218,7 @@ flowchart TD
     HTML --> JS --> SDK
     SDK -->|"db.call('api', ...)"| LUA
     LUA -->|"goop.site.read"| CFG
-    LUA -->|"goop.schema.find / insert / update / delete"| DB
+    LUA -->|"goop.orm() find / insert / update / delete"| DB
     SCHEMA -->|"applied on install"| DB
 ```
 
@@ -242,4 +242,4 @@ The `api.json` file declares which tables are exposed and how:
 }
 ```
 
-Without `api.json`, the API falls back to exposing all tables with default CRUD. See the SDK documentation for `Goop.api` and the Lua scripting page for `goop.schema.find`.
+Without `api.json`, the API falls back to exposing all tables with default CRUD. See the SDK documentation for `Goop.api` and the Lua scripting page for `goop.orm()`.

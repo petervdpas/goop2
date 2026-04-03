@@ -2,6 +2,7 @@
   var h = Goop.dom;
   var db = Goop.data;
   var club = db.api("clubhouse");
+  var rooms = await db.orm("rooms");
 
   var toast = Goop.ui.toast(document.getElementById("toasts"), {
     toastClass: "gc-toast",
@@ -25,10 +26,10 @@
 
   var ctx = await Goop.peer();
   var myId = ctx.myId;
+  var hostId = ctx.hostId;
   var myLabel = ctx.label || (myId ? myId.slice(-6) : "???");
   var isOwner = ctx.isOwner;
   var currentRoom = null;
-  var pollTimer = null;
 
   var lobby = document.getElementById("lobby");
   var roomsEl = document.getElementById("rooms");
@@ -53,10 +54,17 @@
     return (hr < 10 ? "0" : "") + hr + ":" + (mn < 10 ? "0" : "") + mn;
   }
 
+  var labelMap = {};
+  function displayName(peerId) {
+    if (peerId === myId) return "You";
+    if (labelMap[peerId]) return labelMap[peerId];
+    return shortId(peerId);
+  }
+
   async function loadRooms() {
     try {
-      var result = await club("rooms");
-      renderRooms(result.rooms || []);
+      var rows = await rooms.find({ where: "status = 'open'", order: "_id DESC", limit: 50 });
+      renderRooms(rows || []);
     } catch (err) {
       Goop.render(roomsEl, Goop.ui.empty("Could not load rooms.", { class: "empty-msg" }));
     }
@@ -106,7 +114,16 @@
   async function joinRoom(room) {
     try {
       var result = await club("join", { room_id: room._id });
-      currentRoom = { _id: room._id, name: result.name, description: result.description, group_id: result.group_id };
+      currentRoom = { _id: room._id, name: room.name, description: room.description, group_id: result.group_id };
+
+      Goop.group.subscribe(handleGroupEvent);
+
+      if (isOwner) {
+        await Goop.group.join(myId, currentRoom.group_id);
+      } else {
+        await Goop.group.join(hostId, currentRoom.group_id);
+      }
+
       enterChat();
     } catch (err) {
       toast({ title: "Error", message: err.message });
@@ -121,35 +138,53 @@
     lobby.classList.add("hidden");
     chatView.classList.remove("hidden");
     appendSystem("You joined the room.");
-    startPolling();
+
+    Goop.group.send({ type: "presence", label: myLabel }, currentRoom.group_id).catch(function() {});
     msgInput.focus();
   }
 
-  function startPolling() {
-    stopPolling();
-    pollTimer = setInterval(async function() {
-      if (!currentRoom) return;
-      try {
-        var result = await club("members", { room_id: currentRoom._id });
-        renderMembers(result.members || []);
-      } catch (_) {}
-    }, 5000);
-    club("members", { room_id: currentRoom._id }).then(function(result) {
-      renderMembers(result.members || []);
-    }).catch(function() {});
+  function handleGroupEvent(evt) {
+    switch (evt.type) {
+      case "welcome":
+        if (evt.payload) {
+          renderMembersFromPayload(evt.payload);
+        }
+        break;
+
+      case "members":
+        if (evt.payload) {
+          renderMembersFromPayload(evt.payload);
+        }
+        break;
+
+      case "msg":
+        if (!evt.payload) break;
+        if (evt.from && evt.payload.label) {
+          labelMap[evt.from] = evt.payload.label;
+        }
+        if (evt.payload.type === "presence") break;
+        if (evt.payload.type === "chat") {
+          var isSelf = evt.from === myId;
+          if (isSelf) break;
+          appendChat(evt.from, evt.payload.label, evt.payload.text, false);
+        }
+        break;
+
+      case "close":
+        appendSystem("Room was closed by the host.");
+        setTimeout(function() { doLeave(); }, 2000);
+        break;
+    }
   }
 
-  function stopPolling() {
-    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-  }
-
-  function renderMembers(members) {
-    if (!membersListEl) return;
+  function renderMembersFromPayload(payload) {
+    var list = payload.members;
+    if (!Array.isArray(list)) return;
     membersListEl.innerHTML = "";
-    members.forEach(function(m) {
+    list.forEach(function(m) {
+      var peerId = typeof m === "string" ? m : m.peer_id;
       var li = document.createElement("li");
-      var name = m.peer_id === myId ? "You" : shortId(m.peer_id);
-      li.innerHTML = '<span class="member-dot"></span><span>' + Goop.esc(name) + '</span>';
+      li.innerHTML = '<span class="member-dot"></span><span>' + Goop.esc(displayName(peerId)) + '</span>';
       membersListEl.appendChild(li);
     });
   }
@@ -161,7 +196,7 @@
 
     appendChat(myId, myLabel, text, true);
 
-    club("send_message", { room_id: currentRoom._id, text: text }).catch(function(err) {
+    Goop.group.send({ type: "chat", text: text, label: myLabel }, currentRoom.group_id).catch(function(err) {
       appendSystem("Send failed: " + err.message);
     });
   }
@@ -171,30 +206,33 @@
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   });
 
-  async function leaveRoom() {
+  async function doLeave() {
     if (!currentRoom) return;
-    stopPolling();
+    try { await Goop.group.leave(); } catch (_) {}
     try { await club("leave", { room_id: currentRoom._id }); } catch (_) {}
+    Goop.group.unsubscribe();
     currentRoom = null;
+    labelMap = {};
     chatView.classList.add("hidden");
     lobby.classList.remove("hidden");
     loadRooms();
   }
 
-  btnBack.addEventListener("click", leaveRoom);
+  btnBack.addEventListener("click", doLeave);
 
   btnCloseRoom.addEventListener("click", async function() {
     if (!currentRoom) return;
     var ok = await Goop.ui.confirm("Close this room? All members will be disconnected.");
     if (!ok) return;
-    stopPolling();
     try {
       await club("close", { room_id: currentRoom._id });
       toast("Room closed.");
     } catch (err) {
       toast({ title: "Error", message: err.message });
     }
+    Goop.group.unsubscribe();
     currentRoom = null;
+    labelMap = {};
     chatView.classList.add("hidden");
     lobby.classList.remove("hidden");
     loadRooms();
@@ -221,12 +259,10 @@
   }
 
   window.addEventListener("beforeunload", function() {
-    if (currentRoom) {
-      var url = "/api/data/lua/call";
-      var body = JSON.stringify({ function: "clubhouse", params: { action: "leave", room_id: currentRoom._id } });
-      if (navigator.sendBeacon) {
-        navigator.sendBeacon(url, new Blob([body], { type: "application/json" }));
-      }
+    if (!currentRoom) return;
+    var body = JSON.stringify({ function: "clubhouse", params: { action: "leave", room_id: currentRoom._id } });
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon("/api/data/lua/call", new Blob([body], { type: "application/json" }));
     }
   });
 

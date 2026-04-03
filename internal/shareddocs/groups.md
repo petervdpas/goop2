@@ -125,7 +125,7 @@ Each schema can define custom roles with per-operation permissions:
   "name": "posts",
   "access": { "read": "open", "insert": "group", "update": "group", "delete": "owner" },
   "roles": {
-    "editor": { "read": true, "insert": true, "update": true, "delete": true },
+    "coauthor": { "read": true, "insert": true, "update": true, "delete": true },
     "viewer": { "read": true }
   }
 }

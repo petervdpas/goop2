@@ -1621,7 +1621,7 @@ func swagDataTablesDropColumn() {}
 
 // swagDataTablesSetPolicy is a documentation stub for POST /api/data/tables/set-policy.
 //
-//	@Summary	Set insert policy for a table (owner, email, open, group, local)
+//	@Summary	Set insert policy for a table (owner, open, group, local)
 //	@Tags		data
 //	@Accept		json
 //	@Produce	json

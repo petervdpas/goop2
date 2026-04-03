@@ -24,12 +24,14 @@
 
   var ctx = await Goop.peer();
   var isOwner = ctx.isOwner;
-  var canWrite = isOwner || ctx.isGroup;
+  var r = isOwner ? { role: "owner", permissions: { read: true, insert: true, update: true, delete: true } } : await db.role("todos");
+  var canRead = isOwner || (r.permissions && r.permissions.read);
+  var canWrite = isOwner || (r.permissions && r.permissions.insert);
   var todos = [];
   var sortable = null;
 
-  if (canWrite) {
-    subtitle.textContent = "Shared task list";
+  if (canRead) {
+    subtitle.textContent = canWrite ? "Shared task list" : "View only";
     document.getElementById("todo-main").classList.remove("hidden");
     load();
   } else {
@@ -133,6 +135,9 @@
   }
 
   var input = document.getElementById("new-todo");
+  if (!canWrite) {
+    document.getElementById("input-row").classList.add("hidden");
+  }
   document.getElementById("btn-add").addEventListener("click", addTodo);
   input.addEventListener("keydown", function (e) { if (e.key === "Enter") addTodo(); });
 

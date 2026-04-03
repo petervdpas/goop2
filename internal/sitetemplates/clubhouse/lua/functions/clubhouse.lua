@@ -105,31 +105,13 @@ local function room_members(p)
     return { members = goop.group.members(room.group_id) }
 end
 
-local function send_message(p)
-    init()
-    local room_id = tonumber(p.room_id)
-    if not room_id then error("room_id required") end
-
-    local room = rooms:get(room_id)
-    if not room then error("room not found") end
-
-    goop.group.send(room.group_id, {
-        type = "chat",
-        text = p.text or "",
-        from = goop.peer.id,
-        label = goop.peer.label or "",
-    })
-    return { ok = true }
-end
-
 local dispatch = goop.route({
-    rooms        = list_rooms,
-    create       = goop.owner(create_room),
-    join         = join_room,
-    leave        = leave_room,
-    close        = goop.owner(close_room),
-    members      = room_members,
-    send_message = send_message,
+    rooms   = list_rooms,
+    create  = goop.owner(create_room),
+    join    = join_room,
+    leave   = leave_room,
+    close   = goop.owner(close_room),
+    members = room_members,
 })
 
 function call(req) return dispatch(req) end

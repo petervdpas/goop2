@@ -431,6 +431,18 @@ await posts.upsert("slug", { slug: "hello", title: "Hello" });
 
 The ORM handle also exposes `posts.columns`, `posts.access`, `posts.canInsert`, `posts.canUpdate`, `posts.canDelete`, `posts.validate(data)`, `posts.form(el, opts)`, and `posts.table(el, rows, opts)`.
 
+### Role query
+
+Ask the host for your role and permissions on a specific schema:
+
+```javascript
+var r = await db.role("posts");
+// r.role        — "owner", "coauthor", "viewer", or "" (not a member)
+// r.permissions — {read: true, insert: true, update: true, delete: false}
+```
+
+The host is the authority — it looks up the caller's role in the template group and checks it against the schema's roles map. Use this for UI gating (show/hide buttons based on what the caller can actually do).
+
 ### Calling Lua functions (for business logic)
 
 ```javascript
@@ -502,17 +514,18 @@ await Goop.site.remove("images/old.jpg");
 
 ## Goop.group
 
+MQ messaging for real-time group communication. Group management (create, close, add/remove members) is done server-side through Lua via `goop.group.*`.
+
 ```javascript
-await Goop.group.create("My Room", "realtime", 10);
-var groups = await Goop.group.list();
 var subs = await Goop.group.subscriptions();
 await Goop.group.join(hostPeerId, groupId);
-await Goop.group.send({ action: "move", x: 5 }, groupId);
+await Goop.group.send({ type: "chat", text: "hello" }, groupId);
 await Goop.group.leave();
 
 var es = Goop.group.subscribe(function(evt) {
   // evt.type: "welcome", "members", "msg", "state", "leave", "close", "invite"
 });
+Goop.group.unsubscribe();
 ```
 
 ## Goop.peers
