@@ -297,7 +297,8 @@ The SDK auto-detects whether the template is running on the local peer (`/`) or 
 | `goop-data.js` | `Goop.data` | Database CRUD, ORM, Lua calls, config, overlays |
 | `goop-identity.js` | `Goop.identity` | Peer ID, display name, email |
 | `goop-site.js` | `Goop.site` | File storage (read, upload, delete) |
-| `goop-group.js` | `Goop.group` | Group membership, subscriptions |
+| `goop-group.js` | `Goop.group` | Group MQ messaging (join, send, subscribe) |
+| `goop-mq.js` | `Goop.mq` | General MQ bus subscription (SSE) |
 | `goop-peers.js` | `Goop.peers` | Peer discovery and status polling |
 | `goop-chat.js` | `Goop.chat` | Direct and broadcast chat over MQ |
 | `goop-realtime.js` | `Goop.realtime` | Virtual MQ-based channels |
@@ -526,6 +527,22 @@ var es = Goop.group.subscribe(function(evt) {
   // evt.type: "welcome", "members", "msg", "state", "leave", "close", "invite"
 });
 Goop.group.unsubscribe();
+```
+
+## Goop.mq
+
+General MQ bus subscription via SSE. Receives all MQ events including group lifecycle, chat broadcasts, and custom topics.
+
+```javascript
+Goop.mq.subscribe(function(evt) {
+  // evt.type — "message" or "delivered"
+  // evt.msg  — {topic, payload, id, seq}
+  // evt.from — sender peer ID
+  if (evt.msg && evt.msg.topic.startsWith("group:") && evt.msg.topic.endsWith(":close")) {
+    loadRooms();
+  }
+});
+Goop.mq.unsubscribe();
 ```
 
 ## Goop.peers

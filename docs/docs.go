@@ -2550,7 +2550,7 @@ const docTemplate = `{
                 "tags": [
                     "data"
                 ],
-                "summary": "Set insert policy for a table (owner, email, open, group, local)",
+                "summary": "Set insert policy for a table (owner, open, group, local)",
                 "parameters": [
                     {
                         "description": "Policy request",

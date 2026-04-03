@@ -2,10 +2,12 @@ package lua
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/petervdpas/goop2/internal/group"
 	"github.com/petervdpas/goop2/internal/orm/schema"
 	"github.com/petervdpas/goop2/internal/state"
 	"github.com/petervdpas/goop2/internal/storage"
@@ -13,6 +15,82 @@ import (
 
 type mockGroupChecker struct {
 	members map[string]string // peerID → role
+}
+
+type mockGroupManager struct {
+	groups  map[string]*mockGroup
+	selfID  string
+}
+
+type mockGroup struct {
+	name    string
+	members []group.MemberInfo
+}
+
+func newMockGroupManager(selfID string) *mockGroupManager {
+	return &mockGroupManager{groups: make(map[string]*mockGroup), selfID: selfID}
+}
+
+func (m *mockGroupManager) CreateGroup(id, name, groupType, groupContext string, maxMembers int, volatile bool) error {
+	m.groups[id] = &mockGroup{name: name}
+	return nil
+}
+
+func (m *mockGroupManager) CloseGroup(groupID string) error {
+	delete(m.groups, groupID)
+	return nil
+}
+
+func (m *mockGroupManager) JoinOwnGroup(groupID string) error {
+	g, ok := m.groups[groupID]
+	if !ok {
+		return fmt.Errorf("group not found")
+	}
+	g.members = append(g.members, group.MemberInfo{PeerID: m.selfID, Role: "owner"})
+	return nil
+}
+
+func (m *mockGroupManager) KickMember(groupID, peerID string) error {
+	g, ok := m.groups[groupID]
+	if !ok {
+		return fmt.Errorf("group not found")
+	}
+	for i, mem := range g.members {
+		if mem.PeerID == peerID {
+			g.members = append(g.members[:i], g.members[i+1:]...)
+			return nil
+		}
+	}
+	return nil
+}
+
+func (m *mockGroupManager) HostedGroupMembers(groupID string) []group.MemberInfo {
+	g, ok := m.groups[groupID]
+	if !ok {
+		return nil
+	}
+	return g.members
+}
+
+func (m *mockGroupManager) SendToGroupAsHost(groupID string, payload any) error {
+	return nil
+}
+
+func (m *mockGroupManager) InvitePeer(ctx context.Context, peerID, groupID string) error {
+	g, ok := m.groups[groupID]
+	if !ok {
+		return fmt.Errorf("group not found")
+	}
+	g.members = append(g.members, group.MemberInfo{PeerID: peerID, Role: "viewer"})
+	return nil
+}
+
+func (m *mockGroupManager) ListHostedGroups() ([]storage.GroupRow, error) {
+	var rows []storage.GroupRow
+	for id, g := range m.groups {
+		rows = append(rows, storage.GroupRow{ID: id, Name: g.name, GroupType: "clubhouse"})
+	}
+	return rows, nil
 }
 
 func (m *mockGroupChecker) IsTemplateMember(peerID string) bool {
@@ -202,6 +280,84 @@ func TestOwnerRejectsGroupMember(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("goop.owner() should reject group members")
+	}
+}
+
+func TestGroupCreateAndMembers(t *testing.T) {
+	dir := t.TempDir()
+	funcDir := filepath.Join(dir, "site", "lua", "functions")
+	os.MkdirAll(funcDir, 0755)
+
+	src := `--- @rate_limit 0
+local dispatch = goop.route({
+    create_room = function()
+        local gid = goop.group.create("TestRoom", "clubhouse", 10)
+        return { group_id = gid }
+    end,
+    get_members = function(p)
+        local members = goop.group.members(p.group_id)
+        return { members = members, count = #members }
+    end,
+})
+function call(req) return dispatch(req) end
+`
+	os.WriteFile(filepath.Join(funcDir, "rooms.lua"), []byte(src), 0644)
+
+	db, err := storage.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	cfg := testConfig()
+	peers := state.NewPeerTable()
+	e, err := NewEngine(cfg, dir, "self-peer-id", func() string { return "TestPeer" }, peers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.SetDB(db)
+
+	mgr := newMockGroupManager("self-peer-id")
+	e.SetGroupManager(mgr)
+	t.Cleanup(func() { e.Close() })
+
+	result, err := e.CallFunction(context.Background(), "self-peer-id", "rooms", map[string]any{"action": "create_room"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := result.(map[string]any)
+	groupID, ok := m["group_id"].(string)
+	if !ok || groupID == "" {
+		t.Fatalf("expected group_id string, got %v", m["group_id"])
+	}
+
+	g := mgr.groups[groupID]
+	if g == nil {
+		t.Fatal("group should exist in mock manager")
+	}
+	if len(g.members) != 1 {
+		t.Fatalf("expected 1 member (host auto-joined), got %d", len(g.members))
+	}
+	if g.members[0].PeerID != "self-peer-id" {
+		t.Fatalf("expected host peer, got %s", g.members[0].PeerID)
+	}
+
+	result2, err := e.CallFunction(context.Background(), "self-peer-id", "rooms", map[string]any{"action": "get_members", "group_id": groupID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m2 := result2.(map[string]any)
+	count := m2["count"]
+	if count != float64(1) {
+		t.Fatalf("expected 1 member from Lua, got %v", count)
+	}
+	members := m2["members"].([]any)
+	mem := members[0].(map[string]any)
+	if mem["peer_id"] != "self-peer-id" {
+		t.Fatalf("expected self-peer-id, got %v", mem["peer_id"])
+	}
+	if mem["role"] != "owner" {
+		t.Fatalf("expected role owner, got %v", mem["role"])
 	}
 }
 

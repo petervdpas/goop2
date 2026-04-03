@@ -2,7 +2,6 @@
   var h = Goop.dom;
   var db = Goop.data;
   var club = db.api("clubhouse");
-  var rooms = await db.orm("rooms");
 
   var toast = Goop.ui.toast(document.getElementById("toasts"), {
     toastClass: "gc-toast",
@@ -63,8 +62,8 @@
 
   async function loadRooms() {
     try {
-      var rows = await rooms.find({ where: "status = 'open'", order: "_id DESC", limit: 50 });
-      renderRooms(rows || []);
+      var result = await club("rooms");
+      renderRooms(result.rooms || []);
     } catch (err) {
       Goop.render(roomsEl, Goop.ui.empty("Could not load rooms.", { class: "empty-msg" }));
     }
@@ -118,9 +117,7 @@
 
       Goop.group.subscribe(handleGroupEvent);
 
-      if (isOwner) {
-        await Goop.group.join(myId, currentRoom.group_id);
-      } else {
+      if (!isOwner) {
         await Goop.group.join(hostId, currentRoom.group_id);
       }
 
@@ -138,9 +135,28 @@
     lobby.classList.add("hidden");
     chatView.classList.remove("hidden");
     appendSystem("You joined the room.");
+    fetchMembers();
+    startMemberPolling();
 
-    Goop.group.send({ type: "presence", label: myLabel }, currentRoom.group_id).catch(function() {});
+    if (!isOwner) {
+      Goop.group.send({ type: "presence", label: myLabel }, currentRoom.group_id).catch(function() {});
+    }
     msgInput.focus();
+  }
+
+  var memberPollTimer = null;
+  function startMemberPolling() {
+    stopMemberPolling();
+    memberPollTimer = setInterval(fetchMembers, 5000);
+  }
+  function stopMemberPolling() {
+    if (memberPollTimer) { clearInterval(memberPollTimer); memberPollTimer = null; }
+  }
+  function fetchMembers() {
+    if (!currentRoom) return;
+    club("members", { room_id: currentRoom._id }).then(function(result) {
+      renderMembers(result.members || []);
+    }).catch(function() {});
   }
 
   function handleGroupEvent(evt) {
@@ -177,6 +193,17 @@
     }
   }
 
+  function renderMembers(members) {
+    if (!membersListEl) return;
+    membersListEl.innerHTML = "";
+    members.forEach(function(m) {
+      var peerId = m.peer_id || m;
+      var li = document.createElement("li");
+      li.innerHTML = '<span class="member-dot"></span><span>' + Goop.esc(displayName(peerId)) + '</span>';
+      membersListEl.appendChild(li);
+    });
+  }
+
   function renderMembersFromPayload(payload) {
     var list = payload.members;
     if (!Array.isArray(list)) return;
@@ -208,6 +235,7 @@
 
   async function doLeave() {
     if (!currentRoom) return;
+    stopMemberPolling();
     try { await Goop.group.leave(); } catch (_) {}
     try { await club("leave", { room_id: currentRoom._id }); } catch (_) {}
     Goop.group.unsubscribe();
@@ -224,6 +252,7 @@
     if (!currentRoom) return;
     var ok = await Goop.ui.confirm("Close this room? All members will be disconnected.");
     if (!ok) return;
+    stopMemberPolling();
     try {
       await club("close", { room_id: currentRoom._id });
       toast("Room closed.");
@@ -263,6 +292,16 @@
     var body = JSON.stringify({ function: "clubhouse", params: { action: "leave", room_id: currentRoom._id } });
     if (navigator.sendBeacon) {
       navigator.sendBeacon("/api/data/lua/call", new Blob([body], { type: "application/json" }));
+    }
+  });
+
+  Goop.mq.subscribe(function(evt) {
+    if (!evt || !evt.msg || !evt.msg.topic) return;
+    var parts = evt.msg.topic.split(":");
+    if (parts.length === 3 && parts[0] === "group" && parts[2] === "close") {
+      if (!currentRoom) {
+        loadRooms();
+      }
     }
   });
 

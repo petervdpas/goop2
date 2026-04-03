@@ -62,6 +62,11 @@ type GroupChecker interface {
 	TemplateGroupOwner() string
 }
 
+// MQSubscriber allows the engine to subscribe to MQ bus topics.
+type MQSubscriber interface {
+	SubscribeTopic(prefix string, fn func(from, topic string, payload any)) func()
+}
+
 // GroupManager provides write operations on groups for Lua scripts.
 type GroupManager interface {
 	CreateGroup(id, name, groupType, groupContext string, maxMembers int, volatile bool) error
@@ -87,6 +92,8 @@ type Engine struct {
 	listen       *listen.Manager
 	groups       GroupChecker
 	groupMgr     GroupManager
+	mqSub        MQSubscriber
+	mqUnsub      func()
 	watcher      *fsnotify.Watcher
 	limiter      *rateLimiter
 	selfID       string
@@ -477,6 +484,24 @@ func (e *Engine) SetGroupManager(gm GroupManager) {
 	e.groupMgr = gm
 }
 
+func (e *Engine) SetMQ(mq MQSubscriber) {
+	if e.mqUnsub != nil {
+		e.mqUnsub()
+	}
+	e.mqSub = mq
+	if mq == nil {
+		return
+	}
+	e.mqUnsub = mq.SubscribeTopic("group:", func(from, topic string, payload any) {
+		rest := topic[len("group:"):]
+		groupID, msgType, ok := strings.Cut(rest, ":")
+		if !ok || msgType != "close" {
+			return
+		}
+		e.callEventHandler("on_group_close", groupID)
+	})
+}
+
 // registryMaxSize derives a registry cap from the MaxMemoryMB config.
 // Each registry slot is roughly 48 bytes; this gives a proportional bound.
 func (e *Engine) registryMaxSize() int {
@@ -536,6 +561,53 @@ func (e *Engine) ListDataFunctions() any {
 
 // CallFunction executes a script's call(request) entry point.
 // This is the Phase 2 data function interface.
+// callEventHandler calls a well-known event function (e.g. "on_group_close")
+// across all loaded data-function scripts. The function receives a single
+// string argument. Scripts that don't define the handler are skipped.
+func (e *Engine) callEventHandler(funcName, arg string) {
+	e.mu.RLock()
+	type target struct {
+		name  string
+		proto *lua.FunctionProto
+	}
+	var targets []target
+	for name, meta := range e.scripts {
+		if meta.isFunction {
+			targets = append(targets, target{name, meta.proto})
+		}
+	}
+	e.mu.RUnlock()
+
+	for _, t := range targets {
+		go func(name string, proto *lua.FunctionProto) {
+			inv := &invocationCtx{
+				ctx:        context.Background(),
+				scriptName: name,
+				peerID:     e.selfID,
+				peerLabel:  e.selfLabel(),
+				selfID:     e.selfID,
+				selfLabel:  e.selfLabel(),
+			}
+			L := newSandboxedDataVM(inv, e.kv, e, e.db)
+			defer L.Close()
+
+			lfn := L.NewFunctionFromProto(proto)
+			L.Push(lfn)
+			if err := L.PCall(0, lua.MultRet, nil); err != nil {
+				return
+			}
+
+			handler := L.GetGlobal(funcName)
+			if handler == lua.LNil {
+				return
+			}
+			if err := L.CallByParam(lua.P{Fn: handler, NRet: 0, Protect: true}, lua.LString(arg)); err != nil {
+				log.Printf("LUA: %s(%s) in %s: %v", funcName, arg, name, err)
+			}
+		}(t.name, t.proto)
+	}
+}
+
 func (e *Engine) CallFunction(ctx context.Context, callerID, function string, params map[string]any) (any, error) {
 	// Lookup script
 	e.mu.RLock()
@@ -670,6 +742,9 @@ func mapToInterface(m map[string]any) interface{} {
 // Close shuts down the engine.
 func (e *Engine) Close() {
 	close(e.closed)
+	if e.mqUnsub != nil {
+		e.mqUnsub()
+	}
 	e.watcher.Close()
 	log.Printf("LUA: engine stopped")
 }

@@ -334,6 +334,26 @@ goop.group.close(group_id)                                  -- close and clean u
 
 The owner always gets role `"owner"`. Other members get the role assigned when they joined (default `"viewer"`).
 
+### Event handlers
+
+Scripts can define well-known global functions that the engine calls when MQ bus events fire:
+
+```lua
+function on_group_close(group_id)
+    local rooms = goop.orm("rooms")
+    local rows = rooms:find({ where = "group_id = ? AND status = 'open'", args = { group_id } }) or {}
+    for _, r in ipairs(rows) do
+        rooms:update(r._id, { status = "closed" })
+    end
+end
+```
+
+Currently supported events:
+
+| Function | Trigger | Argument |
+|----------|---------|----------|
+| `on_group_close(group_id)` | Group closed (via MQ bus) | The closed group's ID |
+
 ### goop.template
 
 Template-level settings declared in the manifest:
