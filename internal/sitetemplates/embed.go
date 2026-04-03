@@ -27,6 +27,7 @@ type TemplateMeta struct {
 	Tables       map[string]TablePolicy `json:"tables"`        // legacy: table name → policy
 	Schemas      []string               `json:"schemas"`       // ORM table names owned by this template
 	RequireEmail bool                   `json:"require_email,omitempty"`
+	DefaultRole  string                 `json:"default_role,omitempty"`
 }
 
 // List returns metadata for all available templates.

@@ -3,5 +3,6 @@
   "description": "A personal blog. You and invited co-authors can write posts — visitors see a read-only feed.",
   "category": "content",
   "icon": "📝",
-  "schemas": ["posts", "blog_config"]
+  "schemas": ["posts", "blog_config"],
+  "default_role": "coauthor"
 }

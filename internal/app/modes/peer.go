@@ -22,6 +22,7 @@ import (
 	"github.com/petervdpas/goop2/internal/orm/gql"
 	filesType "github.com/petervdpas/goop2/internal/group_types/files"
 	"github.com/petervdpas/goop2/internal/group_types/listen"
+	templateType "github.com/petervdpas/goop2/internal/group_types/template"
 	luapkg "github.com/petervdpas/goop2/internal/lua"
 	"github.com/petervdpas/goop2/internal/mq"
 	"github.com/petervdpas/goop2/internal/p2p"
@@ -483,11 +484,12 @@ func RunPeer(p PeerParams) error {
 	dataFedMgr := datafed.New(mqMgr, grpMgr, node.ID(), gqlEngine.ContextTables)
 	log.Printf("🔗 Data federation enabled (GraphQL)")
 
+	// ── Template group type
+	tplHandler := templateType.New(grpMgr)
+
 	// All group type handlers are now registered — purge any stale groups
-	// that lack a handler or context. Template groups are managed by the
-	// template apply flow, so they're allowed here (they have a handler via
-	// the template code path, but no TypeHandler — allow them explicitly).
-	if n := grpMgr.PurgeInvalid(map[string]bool{"template": true}); n > 0 {
+	// that lack a handler or context.
+	if n := grpMgr.PurgeInvalid(nil); n > 0 {
 		log.Printf("👥 Purged %d invalid group(s)", n)
 	}
 
@@ -595,9 +597,10 @@ func RunPeer(p PeerParams) error {
 				return luaEngine.CallFunction(ctx, node.ID(), function, params)
 			},
 			Call: callMgr,
-			Cluster:     clusterMgr,
-			GQL:         gqlEngine,
-			DataFed:     dataFedMgr,
+			Cluster:         clusterMgr,
+			GQL:             gqlEngine,
+			DataFed:         dataFedMgr,
+			TemplateHandler: tplHandler,
 		})
 	}
 

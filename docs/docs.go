@@ -4004,6 +4004,105 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/groups/set-default-role": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "groups"
+                ],
+                "summary": "Set the default role assigned to new members of a hosted group",
+                "parameters": [
+                    {
+                        "description": "Set default role request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.groupSetDefaultRoleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/groups/set-role": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "groups"
+                ],
+                "summary": "Set a member's role in a hosted group",
+                "parameters": [
+                    {
+                        "description": "Set role request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.groupSetRoleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/groups/set-roles": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "groups"
+                ],
+                "summary": "Set the available roles for a hosted group",
+                "parameters": [
+                    {
+                        "description": "Set roles request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/routes.groupSetRolesListRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/routes.statusOK"
+                        }
+                    }
+                }
+            }
+        },
         "/api/groups/subscriptions": {
             "get": {
                 "produces": [
@@ -6748,12 +6847,65 @@ const docTemplate = `{
                 "payload": {}
             }
         },
+        "routes.groupSetDefaultRoleRequest": {
+            "type": "object",
+            "properties": {
+                "default_role": {
+                    "type": "string",
+                    "example": "coauthor"
+                },
+                "group_id": {
+                    "type": "string",
+                    "example": "a1b2c3d4e5f6a1b2"
+                }
+            }
+        },
+        "routes.groupSetRoleRequest": {
+            "type": "object",
+            "properties": {
+                "group_id": {
+                    "type": "string",
+                    "example": "a1b2c3d4e5f6a1b2"
+                },
+                "peer_id": {
+                    "type": "string",
+                    "example": "12D3KooWXxx..."
+                },
+                "role": {
+                    "type": "string",
+                    "example": "coauthor"
+                }
+            }
+        },
+        "routes.groupSetRolesListRequest": {
+            "type": "object",
+            "properties": {
+                "group_id": {
+                    "type": "string",
+                    "example": "a1b2c3d4e5f6a1b2"
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "[\"viewer\"",
+                        "\"coauthor\"]"
+                    ]
+                }
+            }
+        },
         "routes.hostedGroupInfo": {
             "type": "object",
             "properties": {
                 "created_at": {
                     "type": "string",
                     "example": "2026-03-08T12:00:00Z"
+                },
+                "default_role": {
+                    "type": "string",
+                    "example": "viewer"
                 },
                 "group_context": {
                     "type": "string",
@@ -6790,6 +6942,16 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "My Group"
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "[\"viewer\"",
+                        "\"coauthor\"]"
+                    ]
                 },
                 "volatile": {
                     "type": "boolean"

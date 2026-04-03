@@ -9,6 +9,7 @@ import (
 	"github.com/petervdpas/goop2/internal/content"
 	"github.com/petervdpas/goop2/internal/group"
 	"github.com/petervdpas/goop2/internal/group_types/files"
+	templateType "github.com/petervdpas/goop2/internal/group_types/template"
 	"github.com/petervdpas/goop2/internal/p2p"
 	"github.com/petervdpas/goop2/internal/rendezvous"
 	"github.com/petervdpas/goop2/internal/state"
@@ -53,6 +54,9 @@ type Deps struct {
 	// Document sharing
 	DocsStore    *files.Store
 	GroupManager *group.Manager
+
+	// Template group handler
+	TemplateHandler *templateType.Handler
 
 	// EnsureLua is called when a template with Lua files is applied.
 	// It starts the Lua engine (if not already running) and rescans the

@@ -454,9 +454,9 @@ end
 - **Description**: First `---` line becomes the script's description, shown in command listings and the Lua Scripts tab.
 - **`@rate_limit N`**: Override per-peer rate limit. `0` = unlimited. Without this, the global `rate_limit_per_peer` config applies.
 
-## Complete example: todo list backend
+## Complete example: task list backend
 
-A minimal but complete Lua backend for a todo list template:
+A minimal but complete Lua backend for a task list template:
 
 ```lua
 --- Todo list operations

@@ -32,11 +32,11 @@ my-template/
 
 ```mermaid
 graph TD
-  HTML["index.html<br/>IDs + classes + SDK scripts"]
-  CSS["style.css<br/>:root variables + layout"]
-  JS["app.js<br/>Goop.data / Goop.ui / Goop.partial"]
-  LUA["lua/functions/*.lua<br/>goop.orm() / goop.route()"]
-  DB[("SQLite<br/>schemas/*.json")]
+  HTML["index.html\nIDs + classes + SDK scripts"]
+  CSS["style.css\n:root variables + layout"]
+  JS["app.js\nGoop.data / Goop.ui / Goop.partial"]
+  LUA["lua/functions/*.lua\ngoop.orm() / goop.route()"]
+  DB[("SQLite\nschemas/*.json")]
 
   HTML --> JS
   CSS --> HTML

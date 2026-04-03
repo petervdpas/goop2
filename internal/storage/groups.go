@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"encoding/json"
 	"fmt"
 )
 
@@ -13,7 +14,9 @@ type GroupRow struct {
 	GroupType    string `json:"group_type"`
 	GroupContext  string `json:"group_context"`
 	MaxMembers   int    `json:"max_members"`
-	Volatile     bool   `json:"volatile"`
+	DefaultRole  string   `json:"default_role"`
+	Roles        []string `json:"roles,omitempty"`
+	Volatile     bool     `json:"volatile"`
 	HostJoined   bool   `json:"host_joined"`
 	CreatedAt    string `json:"created_at"`
 }
@@ -55,7 +58,7 @@ func (d *DB) ListGroups() ([]GroupRow, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	rows, err := d.db.Query(`SELECT id, name, COALESCE(owner,''), group_type, COALESCE(group_context,''), max_members, COALESCE(volatile,0), host_joined, created_at FROM _groups ORDER BY created_at DESC`)
+	rows, err := d.db.Query(`SELECT id, name, COALESCE(owner,''), group_type, COALESCE(group_context,''), max_members, COALESCE(default_role,'viewer'), COALESCE(roles,'[]'), COALESCE(volatile,0), host_joined, created_at FROM _groups ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -65,10 +68,12 @@ func (d *DB) ListGroups() ([]GroupRow, error) {
 	for rows.Next() {
 		var g GroupRow
 		var vol int
-		if err := rows.Scan(&g.ID, &g.Name, &g.Owner, &g.GroupType, &g.GroupContext, &g.MaxMembers, &vol, &g.HostJoined, &g.CreatedAt); err != nil {
+		var rolesJSON string
+		if err := rows.Scan(&g.ID, &g.Name, &g.Owner, &g.GroupType, &g.GroupContext, &g.MaxMembers, &g.DefaultRole, &rolesJSON, &vol, &g.HostJoined, &g.CreatedAt); err != nil {
 			return nil, err
 		}
 		g.Volatile = vol != 0
+		_ = json.Unmarshal([]byte(rolesJSON), &g.Roles)
 		groups = append(groups, g)
 	}
 	return groups, rows.Err()
@@ -81,13 +86,15 @@ func (d *DB) GetGroup(id string) (GroupRow, error) {
 
 	var g GroupRow
 	var vol int
+	var rolesJSON string
 	err := d.db.QueryRow(
-		`SELECT id, name, COALESCE(owner,''), group_type, COALESCE(group_context,''), max_members, COALESCE(volatile,0), host_joined, created_at FROM _groups WHERE id = ?`, id,
-	).Scan(&g.ID, &g.Name, &g.Owner, &g.GroupType, &g.GroupContext, &g.MaxMembers, &vol, &g.HostJoined, &g.CreatedAt)
+		`SELECT id, name, COALESCE(owner,''), group_type, COALESCE(group_context,''), max_members, COALESCE(default_role,'viewer'), COALESCE(roles,'[]'), COALESCE(volatile,0), host_joined, created_at FROM _groups WHERE id = ?`, id,
+	).Scan(&g.ID, &g.Name, &g.Owner, &g.GroupType, &g.GroupContext, &g.MaxMembers, &g.DefaultRole, &rolesJSON, &vol, &g.HostJoined, &g.CreatedAt)
 	if err != nil {
 		return g, fmt.Errorf("get group: %w", err)
 	}
 	g.Volatile = vol != 0
+	_ = json.Unmarshal([]byte(rolesJSON), &g.Roles)
 	return g, nil
 }
 
@@ -115,6 +122,37 @@ func (d *DB) UpdateGroup(groupID, name string, maxMembers int) error {
 	defer d.mu.Unlock()
 
 	_, err := d.db.Exec(`UPDATE _groups SET name = ?, max_members = ? WHERE id = ?`, name, maxMembers, groupID)
+	return err
+}
+
+// SetGroupRoles updates the available roles for a group.
+func (d *DB) SetGroupRoles(groupID string, roles []string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	b, err := json.Marshal(roles)
+	if err != nil {
+		return err
+	}
+	_, err = d.db.Exec(`UPDATE _groups SET roles = ? WHERE id = ?`, string(b), groupID)
+	return err
+}
+
+// SetDefaultRole updates the default_role for a group.
+func (d *DB) SetDefaultRole(groupID, role string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	_, err := d.db.Exec(`UPDATE _groups SET default_role = ? WHERE id = ?`, role, groupID)
+	return err
+}
+
+// SetMemberRole updates the role of a specific member in a group.
+func (d *DB) SetMemberRole(groupID, peerID, role string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	_, err := d.db.Exec(`UPDATE _group_members SET role = ? WHERE group_id = ? AND peer_id = ?`, role, groupID, peerID)
 	return err
 }
 

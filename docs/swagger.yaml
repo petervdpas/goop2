@@ -840,10 +840,47 @@ definitions:
         type: string
       payload: {}
     type: object
+  routes.groupSetDefaultRoleRequest:
+    properties:
+      default_role:
+        example: coauthor
+        type: string
+      group_id:
+        example: a1b2c3d4e5f6a1b2
+        type: string
+    type: object
+  routes.groupSetRoleRequest:
+    properties:
+      group_id:
+        example: a1b2c3d4e5f6a1b2
+        type: string
+      peer_id:
+        example: 12D3KooWXxx...
+        type: string
+      role:
+        example: coauthor
+        type: string
+    type: object
+  routes.groupSetRolesListRequest:
+    properties:
+      group_id:
+        example: a1b2c3d4e5f6a1b2
+        type: string
+      roles:
+        example:
+        - '["viewer"'
+        - '"coauthor"]'
+        items:
+          type: string
+        type: array
+    type: object
   routes.hostedGroupInfo:
     properties:
       created_at:
         example: "2026-03-08T12:00:00Z"
+        type: string
+      default_role:
+        example: viewer
         type: string
       group_context:
         example: Friday Jams
@@ -871,6 +908,13 @@ definitions:
       name:
         example: My Group
         type: string
+      roles:
+        example:
+        - '["viewer"'
+        - '"coauthor"]'
+        items:
+          type: string
+        type: array
       volatile:
         type: boolean
     type: object
@@ -4305,6 +4349,69 @@ paths:
           schema:
             $ref: '#/definitions/routes.statusOK'
       summary: Send a payload to a group (host broadcasts, member sends to host)
+      tags:
+      - groups
+  /api/groups/set-default-role:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Set default role request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.groupSetDefaultRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+      summary: Set the default role assigned to new members of a hosted group
+      tags:
+      - groups
+  /api/groups/set-role:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Set role request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.groupSetRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+      summary: Set a member's role in a hosted group
+      tags:
+      - groups
+  /api/groups/set-roles:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Set roles request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/routes.groupSetRolesListRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.statusOK'
+      summary: Set the available roles for a hosted group
       tags:
       - groups
   /api/groups/subscriptions:

@@ -47,7 +47,11 @@ func (m *Manager) handleHostMessage(from string, hg *hostedGroup, groupID, msgTy
 				Message{Type: TypeError, Group: groupID, Payload: ErrorPayload{Code: "full", Message: "group is full"}})
 			return
 		}
-		hg.members[from] = &memberMeta{peerID: from, role: "viewer", joinedAt: nowMillis()}
+		role := hg.info.DefaultRole
+		if role == "" {
+			role = "viewer"
+		}
+		hg.members[from] = &memberMeta{peerID: from, role: role, joinedAt: nowMillis()}
 		memberList := hg.memberList(m.selfID)
 		groupType := hg.info.GroupType
 		groupContext := hg.info.GroupContext

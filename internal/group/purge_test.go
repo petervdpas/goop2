@@ -106,6 +106,27 @@ func TestPurgeInvalidSkipsType(t *testing.T) {
 	}
 }
 
+func TestPurgeValidTemplateWithHandler(t *testing.T) {
+	dir := t.TempDir()
+	db, err := storage.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	m := NewTestManager(db, "self")
+	m.RegisterType("template", &stubHandler{})
+
+	if err := m.CreateGroup("g1", "Blog Co-authors", "template", "Blog", 0, false); err != nil {
+		t.Fatal(err)
+	}
+
+	n := m.PurgeInvalid(nil)
+	if n != 0 {
+		t.Fatalf("expected 0 purged (template has handler), got %d", n)
+	}
+}
+
 type stubHandler struct{}
 
 func (s *stubHandler) Flags() TypeFlags                                     { return TypeFlags{HostCanJoin: true} }

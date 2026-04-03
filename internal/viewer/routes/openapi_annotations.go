@@ -133,6 +133,25 @@ type groupMetaRequest struct {
 	MaxMembers int    `json:"max_members,omitempty" example:"20"`
 }
 
+// groupSetRoleRequest is the body for POST /api/groups/set-role.
+type groupSetRoleRequest struct {
+	GroupID string `json:"group_id" example:"a1b2c3d4e5f6a1b2"`
+	PeerID  string `json:"peer_id"  example:"12D3KooWXxx..."`
+	Role    string `json:"role"     example:"coauthor"`
+}
+
+// groupSetDefaultRoleRequest is the body for POST /api/groups/set-default-role.
+type groupSetDefaultRoleRequest struct {
+	GroupID     string `json:"group_id"     example:"a1b2c3d4e5f6a1b2"`
+	DefaultRole string `json:"default_role" example:"coauthor"`
+}
+
+// groupSetRolesListRequest is the body for POST /api/groups/set-roles.
+type groupSetRolesListRequest struct {
+	GroupID string   `json:"group_id" example:"a1b2c3d4e5f6a1b2"`
+	Roles   []string `json:"roles"    example:"[\"viewer\",\"coauthor\"]"`
+}
+
 // groupSendRequest is the body for /api/groups/send.
 type groupSendRequest struct {
 	GroupID string `json:"group_id" example:"a1b2c3d4e5f6a1b2"`
@@ -383,6 +402,8 @@ type hostedGroupInfo struct {
 	GroupType    string            `json:"group_type"     example:"listen"`
 	GroupContext string            `json:"group_context"  example:"Friday Jams"`
 	MaxMembers   int               `json:"max_members"    example:"20"`
+	DefaultRole  string            `json:"default_role"   example:"viewer"`
+	Roles        []string          `json:"roles"          example:"[\"viewer\",\"coauthor\"]"`
 	Volatile     bool              `json:"volatile"`
 	HostJoined   bool              `json:"host_joined"`
 	CreatedAt    string            `json:"created_at"     example:"2026-03-08T12:00:00Z"`
@@ -1159,6 +1180,39 @@ func swagGroupsMeta() {}
 //	@Success	200		{object}	statusOK
 //	@Router		/api/groups/send [post]
 func swagGroupsSend() {}
+
+// swagGroupsSetRole is a documentation stub for POST /api/groups/set-role.
+//
+//	@Summary	Set a member's role in a hosted group
+//	@Tags		groups
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		groupSetRoleRequest	true	"Set role request"
+//	@Success	200		{object}	statusOK
+//	@Router		/api/groups/set-role [post]
+func swagGroupsSetRole() {}
+
+// swagGroupsSetDefaultRole is a documentation stub for POST /api/groups/set-default-role.
+//
+//	@Summary	Set the default role assigned to new members of a hosted group
+//	@Tags		groups
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		groupSetDefaultRoleRequest	true	"Set default role request"
+//	@Success	200		{object}	statusOK
+//	@Router		/api/groups/set-default-role [post]
+func swagGroupsSetDefaultRole() {}
+
+// swagGroupsSetRolesList is a documentation stub for POST /api/groups/set-roles.
+//
+//	@Summary	Set the available roles for a hosted group
+//	@Tags		groups
+//	@Accept		json
+//	@Produce	json
+//	@Param		body	body		groupSetRolesListRequest	true	"Set roles request"
+//	@Success	200		{object}	statusOK
+//	@Router		/api/groups/set-roles [post]
+func swagGroupsSetRolesList() {}
 
 // ── Listen ───────────────────────────────────────────────────────────────────
 

@@ -169,26 +169,62 @@
 
         if (showMgmt) {
           var selfId = document.body.dataset.selfId || '';
+          var roles = g.roles || [];
+          var roleOpts = roles.map(function(r) { return escapeHtml(r); });
+
           html += '<div class="groups-card-mgmt">' +
             '<div class="groups-mgmt-row">' +
               '<label class="groups-mgmt-label">Max <span class="muted small">(0=unlimited)</span></label>' +
               '<input type="number" class="groups-maxmembers-input" data-id="' + escapeHtml(g.id) + '" value="' + (g.max_members || 0) + '" min="0">' +
               '<button class="groups-action-btn grph-maxmembers-btn" data-id="' + escapeHtml(g.id) + '">Set</button>' +
             '</div>' +
-            (g.members && g.members.length > 0
-              ? '<div class="groups-member-list">' +
-                  g.members.map(function(m) {
-                    var isSelf = m.peer_id === selfId;
-                    var label = m.name || shortId(m.peer_id);
-                    return '<span class="avatar-chip">' +
-                      '<img src="/api/avatar/peer/' + encodeURIComponent(m.peer_id) + '">' +
-                      '<span>' + escapeHtml(label) + '</span>' +
-                      (!isSelf ? '<button class="groups-kick-btn" data-group="' + escapeHtml(g.id) + '" data-peer="' + escapeHtml(m.peer_id) + '" title="Remove">&#10005;</button>' : '') +
-                    '</span>';
-                  }).join('') +
-                '</div>'
-              : '') +
-          '</div>';
+            '<div class="groups-mgmt-row">' +
+              '<label class="groups-mgmt-label">Roles</label>' +
+              '<input type="text" class="groups-roles-input" data-id="' + escapeHtml(g.id) + '" value="' + escapeHtml(roles.join(', ')) + '" placeholder="viewer, editor, admin">' +
+              '<button class="groups-action-btn grph-roles-btn" data-id="' + escapeHtml(g.id) + '">Set</button>' +
+            '</div>' +
+            '<div class="groups-mgmt-row">' +
+              '<label class="groups-mgmt-label">Default role</label>' +
+              (roleOpts.length > 0
+                ? '<select class="groups-default-role-select" data-id="' + escapeHtml(g.id) + '">' +
+                    roleOpts.map(function(r) {
+                      return '<option value="' + r + '"' + (r === escapeHtml(g.default_role || 'viewer') ? ' selected' : '') + '>' + r + '</option>';
+                    }).join('') +
+                  '</select>'
+                : '<input type="text" class="groups-default-role-input" data-id="' + escapeHtml(g.id) + '" value="' + escapeHtml(g.default_role || 'viewer') + '" placeholder="viewer">') +
+              '<button class="groups-action-btn grph-default-role-btn" data-id="' + escapeHtml(g.id) + '">Set</button>' +
+            '</div>';
+
+          if (g.members && g.members.length > 0) {
+            html += '<table class="groups-member-table">' +
+              '<thead><tr><th></th><th>Name</th><th>Role</th><th></th></tr></thead>' +
+              '<tbody>' +
+              g.members.map(function(m) {
+                var isSelf = m.peer_id === selfId;
+                var label = m.name || shortId(m.peer_id);
+                var roleCell;
+                if (isSelf) {
+                  roleCell = '<span class="badge badge-role">' + escapeHtml(m.role || 'owner') + '</span>';
+                } else if (roleOpts.length > 0) {
+                  roleCell = '<select class="groups-member-role-select" data-group="' + escapeHtml(g.id) + '" data-peer="' + escapeHtml(m.peer_id) + '">' +
+                    roleOpts.map(function(r) {
+                      return '<option value="' + r + '"' + (r === escapeHtml(m.role || '') ? ' selected' : '') + '>' + r + '</option>';
+                    }).join('') +
+                  '</select>';
+                } else {
+                  roleCell = '<span class="badge badge-role">' + escapeHtml(m.role || 'viewer') + '</span>';
+                }
+                return '<tr>' +
+                  '<td><img class="groups-member-avatar" src="/api/avatar/peer/' + encodeURIComponent(m.peer_id) + '"></td>' +
+                  '<td>' + escapeHtml(label) + '</td>' +
+                  '<td>' + roleCell + '</td>' +
+                  '<td>' + (!isSelf ? '<button class="groups-kick-btn" data-group="' + escapeHtml(g.id) + '" data-peer="' + escapeHtml(m.peer_id) + '" title="Remove">&#10005;</button>' : '') + '</td>' +
+                '</tr>';
+              }).join('') +
+              '</tbody></table>';
+          }
+
+          html += '</div>';
         }
 
         if (isListen) {
@@ -266,6 +302,38 @@
               toast('Member removed');
               renderHostedGroups(containerEl, opts);
             }).catch(function(err) { toast('Kick failed: ' + err.message, true); });
+          });
+        });
+        containerEl.querySelectorAll('.groups-member-role-select').forEach(function(sel) {
+          on(sel, 'change', function() {
+            Goop.api.groups.setRole({ group_id: sel.getAttribute('data-group'), peer_id: sel.getAttribute('data-peer'), role: sel.value }).then(function() {
+              toast('Role updated');
+            }).catch(function(err) { toast('Set role failed: ' + err.message, true); });
+          });
+        });
+        containerEl.querySelectorAll('.grph-roles-btn').forEach(function(btn) {
+          on(btn, 'click', function() {
+            var groupId = btn.getAttribute('data-id');
+            var input = containerEl.querySelector('.groups-roles-input[data-id="' + groupId + '"]');
+            var raw = input ? input.value.trim() : '';
+            var roles = raw.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+            Goop.api.groups.setGroupRoles({ group_id: groupId, roles: roles }).then(function() {
+              toast('Roles updated');
+              renderHostedGroups(containerEl, opts);
+            }).catch(function(err) { toast('Update failed: ' + err.message, true); });
+          });
+        });
+        containerEl.querySelectorAll('.grph-default-role-btn').forEach(function(btn) {
+          on(btn, 'click', function() {
+            var groupId = btn.getAttribute('data-id');
+            var sel = containerEl.querySelector('.groups-default-role-select[data-id="' + groupId + '"]');
+            var input = containerEl.querySelector('.groups-default-role-input[data-id="' + groupId + '"]');
+            var role = sel ? sel.value : (input ? input.value.trim() : '');
+            if (!role) { toast('Role cannot be empty', true); return; }
+            Goop.api.groups.setDefaultRole({ group_id: groupId, default_role: role }).then(function() {
+              toast('Default role updated');
+              renderHostedGroups(containerEl, opts);
+            }).catch(function(err) { toast('Update failed: ' + err.message, true); });
           });
         });
       }

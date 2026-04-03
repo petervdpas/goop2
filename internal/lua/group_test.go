@@ -64,6 +64,20 @@ func (m *mockGroupManager) KickMember(groupID, peerID string) error {
 	return nil
 }
 
+func (m *mockGroupManager) SetMemberRole(groupID, peerID, role string) error {
+	g, ok := m.groups[groupID]
+	if !ok {
+		return fmt.Errorf("group not found")
+	}
+	for i, mem := range g.members {
+		if mem.PeerID == peerID {
+			g.members[i].Role = role
+			return nil
+		}
+	}
+	return fmt.Errorf("peer not in group")
+}
+
 func (m *mockGroupManager) HostedGroupMembers(groupID string) []group.MemberInfo {
 	g, ok := m.groups[groupID]
 	if !ok {
@@ -358,6 +372,68 @@ function call(req) return dispatch(req) end
 	}
 	if mem["role"] != "owner" {
 		t.Fatalf("expected role owner, got %v", mem["role"])
+	}
+}
+
+func TestGroupSetRole(t *testing.T) {
+	dir := t.TempDir()
+	funcDir := filepath.Join(dir, "site", "lua", "functions")
+	os.MkdirAll(funcDir, 0755)
+
+	src := `--- @rate_limit 0
+local dispatch = goop.route({
+    create_room = function()
+        local gid = goop.group.create("TestRoom", "clubhouse", 10)
+        return { group_id = gid }
+    end,
+    set_role = function(p)
+        goop.group.set_role(p.group_id, p.peer_id, p.role)
+        return { ok = true }
+    end,
+    get_members = function(p)
+        local members = goop.group.members(p.group_id)
+        return { members = members }
+    end,
+})
+function call(req) return dispatch(req) end
+`
+	os.WriteFile(filepath.Join(funcDir, "roles.lua"), []byte(src), 0644)
+
+	db, err := storage.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	cfg := testConfig()
+	peers := state.NewPeerTable()
+	e, err := NewEngine(cfg, dir, "self-peer-id", func() string { return "TestPeer" }, peers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.SetDB(db)
+
+	mgr := newMockGroupManager("self-peer-id")
+	e.SetGroupManager(mgr)
+	t.Cleanup(func() { e.Close() })
+
+	result, err := e.CallFunction(context.Background(), "self-peer-id", "roles", map[string]any{"action": "create_room"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	groupID := result.(map[string]any)["group_id"].(string)
+
+	mgr.groups[groupID].members = append(mgr.groups[groupID].members, group.MemberInfo{PeerID: "peer-abc", Role: "viewer"})
+
+	_, err = e.CallFunction(context.Background(), "self-peer-id", "roles", map[string]any{
+		"action": "set_role", "group_id": groupID, "peer_id": "peer-abc", "role": "coauthor",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if mgr.groups[groupID].members[1].Role != "coauthor" {
+		t.Fatalf("expected role 'coauthor', got %q", mgr.groups[groupID].members[1].Role)
 	}
 }
 

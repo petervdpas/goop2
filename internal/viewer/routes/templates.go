@@ -17,6 +17,7 @@ import (
 	"log"
 
 	"github.com/petervdpas/goop2/internal/config"
+	templateType "github.com/petervdpas/goop2/internal/group_types/template"
 	ormschema "github.com/petervdpas/goop2/internal/orm/schema"
 	"github.com/petervdpas/goop2/internal/rendezvous"
 	"github.com/petervdpas/goop2/internal/sitetemplates"
@@ -143,7 +144,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		}
 
-		if err := applyTemplateFiles(d, files, schema, tablePolicies, meta.Name, meta.Schemas, meta.RequireEmail); err != nil {
+		if err := applyTemplateFiles(d, files, schema, tablePolicies, meta.Name, meta.Schemas, meta.RequireEmail, meta.DefaultRole); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -254,7 +255,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		}
 
-		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies, manifest.Name, manifest.Schemas, manifest.RequireEmail); err != nil {
+		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies, manifest.Name, manifest.Schemas, manifest.RequireEmail, manifest.DefaultRole); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -361,7 +362,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 			}
 		}
 
-		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies, manifest.Name, manifest.Schemas, manifest.RequireEmail); err != nil {
+		if err := applyTemplateFiles(d, siteFiles, schema, tablePolicies, manifest.Name, manifest.Schemas, manifest.RequireEmail, manifest.DefaultRole); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -401,7 +402,7 @@ func registerTemplateRoutes(mux *http.ServeMux, d Deps, csrf string) {
 // 6b. Call seed function if present
 // 7. Auto-create a "template" group if any schema uses "group" access or has roles
 // 8. Store template settings (require_email) in _meta
-func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePolicies map[string]string, templateName string, schemaNames []string, requireEmail bool) error {
+func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePolicies map[string]string, templateName string, schemaNames []string, requireEmail bool, defaultRole string) error {
 	// 1. Drop previous template's tables and schema files (not user-created tables).
 	if d.DB != nil {
 		if err := dropTemplateTables(d.DB, d.PeerDir); err != nil {
@@ -534,85 +535,15 @@ func applyTemplateFiles(d Deps, files map[string][]byte, schema string, tablePol
 	}
 
 	// 7. Manage template co-author group lifecycle.
-	// Derive needsGroup from the schemas that were just applied: if any schema
-	// uses "group" in its access policy or defines a roles map, a group is needed.
-	needsGroup := false
-	for rel, data := range files {
-		if !strings.HasPrefix(rel, "schemas/") || !strings.HasSuffix(rel, ".json") {
-			continue
-		}
-		var tbl ormschema.Table
-		if json.Unmarshal(data, &tbl) != nil {
-			continue
-		}
-		if tbl.Access != nil && tbl.Access.UsesGroup() {
-			needsGroup = true
-			break
-		}
-		if len(tbl.Roles) > 0 {
-			needsGroup = true
-			break
-		}
-	}
-	if !needsGroup {
-		for _, policy := range tablePolicies {
-			if policy == "group" {
-				needsGroup = true
-				break
-			}
-		}
-	}
-
-	if d.GroupManager != nil {
-		existingGroupID := ""
-		existingGroupTemplate := ""
-		if d.DB != nil {
-			existingGroupID = d.DB.GetMeta("template_group_id")
-			existingGroupTemplate = d.DB.GetMeta("template_group_name")
-		}
-
-		if existing, err := d.GroupManager.ListHostedGroups(); err == nil {
-			for _, g := range existing {
-				if g.GroupType == "template" && g.ID != existingGroupID {
-					_ = d.GroupManager.CloseGroup(g.ID)
-					log.Printf("template: closed orphan template group %s", g.ID)
-				}
-			}
-		}
-
-		sameTemplate := existingGroupID != "" && existingGroupTemplate == templateName
-		if needsGroup && sameTemplate {
-			log.Printf("template: reusing existing co-author group %s", existingGroupID)
-		} else {
-			if existingGroupID != "" {
-				_ = d.GroupManager.CloseGroup(existingGroupID)
-				log.Printf("template: closed previous co-author group %s", existingGroupID)
-			}
-			if d.DB != nil {
-				d.DB.SetMeta("template_group_id", "")
-				d.DB.SetMeta("template_group_name", "")
-			}
-
-			if needsGroup {
-				groupName := templateName + " Co-authors"
-				if templateName == "" {
-					groupName = "Co-authors"
-				}
-				groupID := generateGroupID()
-				if err := d.GroupManager.CreateGroup(groupID, groupName, "template", templateName, 0, false); err != nil {
-					log.Printf("template: failed to create co-author group: %v", err)
-				} else {
-					log.Printf("template: created co-author group %q (%s)", groupName, groupID)
-					if err := d.GroupManager.JoinOwnGroup(groupID); err != nil {
-						log.Printf("template: failed to auto-join co-author group: %v", err)
-					}
-					if d.DB != nil {
-						d.DB.SetMeta("template_group_id", groupID)
-						d.DB.SetMeta("template_group_name", templateName)
-					}
-				}
-			}
-		}
+	// 7. Template group lifecycle — delegate to the template type handler.
+	if d.TemplateHandler != nil {
+		info := templateType.AnalyzeSchemas(files, tablePolicies)
+		d.TemplateHandler.Apply(templateType.ApplyConfig{
+			DB:           d.DB,
+			TemplateName: templateName,
+			DefaultRole:  defaultRole,
+			SchemaInfo:   info,
+		})
 	}
 
 	// 8. Store template settings in _meta.

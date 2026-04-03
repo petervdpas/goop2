@@ -734,6 +734,25 @@ func groupRemoveFn(engine *Engine) lua.LGFunction {
 	}
 }
 
+// groupSetRoleFn implements goop.group.set_role(group_id, peer_id, role)
+func groupSetRoleFn(engine *Engine) lua.LGFunction {
+	return func(L *lua.LState) int {
+		if engine.groupMgr == nil {
+			L.RaiseError("group manager not available")
+			return 0
+		}
+		groupID := L.CheckString(1)
+		peerID := L.CheckString(2)
+		role := L.CheckString(3)
+		if err := engine.groupMgr.SetMemberRole(groupID, peerID, role); err != nil {
+			L.RaiseError("set role: %s", err.Error())
+			return 0
+		}
+		L.Push(lua.LTrue)
+		return 1
+	}
+}
+
 // groupMembersFn implements goop.group.members(group_id) → table of {peer_id, role}
 func groupMembersFn(engine *Engine) lua.LGFunction {
 	return func(L *lua.LState) int {

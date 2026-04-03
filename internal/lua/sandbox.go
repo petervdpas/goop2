@@ -128,6 +128,7 @@ func injectGoopTable(L *lua.LState, inv *invocationCtx, kv *kvStore, engine *Eng
 	groupTbl.RawSetString("close", L.NewFunction(groupCloseFn(engine)))
 	groupTbl.RawSetString("add", L.NewFunction(groupAddFn(engine)))
 	groupTbl.RawSetString("remove", L.NewFunction(groupRemoveFn(engine)))
+	groupTbl.RawSetString("set_role", L.NewFunction(groupSetRoleFn(engine)))
 	groupTbl.RawSetString("members", L.NewFunction(groupMembersFn(engine)))
 	groupTbl.RawSetString("send", L.NewFunction(groupSendFn(engine)))
 	groupTbl.RawSetString("list", L.NewFunction(groupListFn(engine)))

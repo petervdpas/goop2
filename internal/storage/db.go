@@ -122,6 +122,10 @@ func Open(configDir string) (*DB, error) {
 	db.Exec(`ALTER TABLE _groups ADD COLUMN owner TEXT DEFAULT ''`)
 	// Migration: add group_context column — links group to what created it (template name, job ID, etc.)
 	db.Exec(`ALTER TABLE _groups ADD COLUMN group_context TEXT DEFAULT ''`)
+	// Migration: add default_role column — role assigned to new members on join
+	db.Exec(`ALTER TABLE _groups ADD COLUMN default_role TEXT DEFAULT 'viewer'`)
+	// Migration: add roles column — JSON array of available role names
+	db.Exec(`ALTER TABLE _groups ADD COLUMN roles TEXT DEFAULT '[]'`)
 
 	// Create group subscriptions table
 	if _, err := db.Exec(`

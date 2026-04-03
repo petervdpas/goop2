@@ -1,7 +1,6 @@
 package datafed
 
 import (
-	"context"
 	"encoding/json"
 	"log"
 	"sync"
@@ -13,28 +12,6 @@ import (
 
 const GroupTypeName = "data-federation"
 
-type Relationship struct {
-	FromTable  string `json:"from_table"`
-	FromColumn string `json:"from_column"`
-	ToTable    string `json:"to_table"`
-	ToColumn   string `json:"to_column"`
-}
-
-type SchemaOffer struct {
-	Tables        []schema.Table `json:"tables"`
-	Relationships []Relationship `json:"relationships"`
-}
-
-type SchemaAccept struct {
-	Accepted []string `json:"accepted"`
-}
-
-type PeerContribution struct {
-	PeerID        string
-	Tables        []schema.Table
-	Relationships []Relationship
-}
-
 type Manager struct {
 	mu      sync.RWMutex
 	mqMgr   *mq.Manager
@@ -44,12 +21,6 @@ type Manager struct {
 
 	groups   map[string]*federatedGroup
 	onChange func()
-}
-
-type federatedGroup struct {
-	rwmu          sync.RWMutex
-	contributions map[string]*PeerContribution
-	suspended     map[string]*PeerContribution
 }
 
 func New(mqMgr *mq.Manager, grpMgr *group.Manager, selfID string, schemas func() []*schema.Table) *Manager {
@@ -97,10 +68,7 @@ func (m *Manager) Flags() group.TypeFlags {
 
 func (m *Manager) OnCreate(groupID, name string, maxMembers int, volatile bool) error {
 	m.mu.Lock()
-	m.groups[groupID] = &federatedGroup{
-		contributions: make(map[string]*PeerContribution),
-		suspended:     make(map[string]*PeerContribution),
-	}
+	m.groups[groupID] = newFederatedGroup()
 	m.mu.Unlock()
 	log.Printf("DATA-FED: Group %s created (%s)", groupID, name)
 	return nil
@@ -110,10 +78,7 @@ func (m *Manager) OnJoin(groupID, peerID string, isHost bool) {
 	m.mu.Lock()
 	fg, ok := m.groups[groupID]
 	if !ok {
-		fg = &federatedGroup{
-			contributions: make(map[string]*PeerContribution),
-			suspended:     make(map[string]*PeerContribution),
-		}
+		fg = newFederatedGroup()
 		m.groups[groupID] = fg
 	}
 	m.mu.Unlock()
@@ -181,94 +146,6 @@ func (m *Manager) OnEvent(evt *group.Event) {
 	}
 }
 
-type controlMsg struct {
-	Action string `json:"action"`
-}
-
-type schemaOfferMsg struct {
-	Action        string         `json:"action"`
-	Tables        []schema.Table `json:"tables"`
-	Relationships []Relationship `json:"relationships"`
-}
-
-type schemaSyncMsg struct {
-	Action        string                      `json:"action"`
-	Contributions map[string][]schema.Table    `json:"contributions"`
-	Relationships map[string][]Relationship    `json:"relationships"`
-}
-
-func (m *Manager) handleSchemaOffer(groupID, from string, raw json.RawMessage) {
-	var offer schemaOfferMsg
-	if json.Unmarshal(raw, &offer) != nil {
-		return
-	}
-
-	m.mu.RLock()
-	fg, ok := m.groups[groupID]
-	m.mu.RUnlock()
-	if !ok {
-		return
-	}
-
-	fg.rwmu.Lock()
-	fg.contributions[from] = &PeerContribution{
-		PeerID:        from,
-		Tables:        offer.Tables,
-		Relationships: offer.Relationships,
-	}
-	fg.rwmu.Unlock()
-
-	m.publishSync(groupID)
-	m.notifyChange()
-	log.Printf("DATA-FED: %s offered %d tables to group %s", from, len(offer.Tables), groupID)
-}
-
-func (m *Manager) handleSchemaWithdraw(groupID, from string) {
-	m.mu.RLock()
-	fg, ok := m.groups[groupID]
-	m.mu.RUnlock()
-	if !ok {
-		return
-	}
-
-	fg.rwmu.Lock()
-	delete(fg.contributions, from)
-	fg.rwmu.Unlock()
-
-	m.publishSync(groupID)
-	m.notifyChange()
-	log.Printf("DATA-FED: %s withdrew from group %s", from, groupID)
-}
-
-func (m *Manager) publishSync(groupID string) {
-	m.mu.RLock()
-	fg, ok := m.groups[groupID]
-	m.mu.RUnlock()
-	if !ok {
-		return
-	}
-
-	sync := schemaSyncMsg{
-		Action:        "schema-sync",
-		Contributions: make(map[string][]schema.Table),
-		Relationships: make(map[string][]Relationship),
-	}
-
-	fg.rwmu.RLock()
-	for peerID, c := range fg.contributions {
-		sync.Contributions[peerID] = c.Tables
-		if len(c.Relationships) > 0 {
-			sync.Relationships[peerID] = c.Relationships
-		}
-	}
-	fg.rwmu.RUnlock()
-
-	ctx, cancel := context.WithTimeout(context.Background(), group.BroadcastTimeout)
-	defer cancel()
-	_ = m.grpMgr.SendControl(groupID, GroupTypeName, sync)
-	_ = ctx
-}
-
 func (m *Manager) contextTables() []schema.Table {
 	ptrs := m.schemas()
 	tables := make([]schema.Table, 0, len(ptrs))
@@ -279,24 +156,6 @@ func (m *Manager) contextTables() []schema.Table {
 		tables = append(tables, *t)
 	}
 	return tables
-}
-
-func (m *Manager) GroupContributions(groupID string) map[string]*PeerContribution {
-	m.mu.RLock()
-	fg, ok := m.groups[groupID]
-	m.mu.RUnlock()
-	if !ok {
-		return nil
-	}
-
-	fg.rwmu.RLock()
-	defer fg.rwmu.RUnlock()
-
-	result := make(map[string]*PeerContribution, len(fg.contributions))
-	for k, v := range fg.contributions {
-		result[k] = v
-	}
-	return result
 }
 
 func (m *Manager) ContextTablesForNames(names []string) []schema.Table {
@@ -314,171 +173,6 @@ func (m *Manager) ContextTablesForNames(names []string) []schema.Table {
 	return result
 }
 
-func (m *Manager) OfferTables(groupID string, tables []schema.Table, rels []Relationship) {
-	m.mu.RLock()
-	fg, ok := m.groups[groupID]
-	m.mu.RUnlock()
-	if !ok {
-		return
-	}
-
-	fg.rwmu.Lock()
-	fg.contributions[m.selfID] = &PeerContribution{
-		PeerID:        m.selfID,
-		Tables:        tables,
-		Relationships: rels,
-	}
-	fg.rwmu.Unlock()
-
-	m.publishSync(groupID)
-
-	msg := schemaOfferMsg{
-		Action:        "schema-offer",
-		Tables:        tables,
-		Relationships: rels,
-	}
-	_ = m.grpMgr.SendControl(groupID, GroupTypeName, msg)
-}
-
-func (m *Manager) WithdrawTables(groupID string) {
-	m.mu.RLock()
-	fg, ok := m.groups[groupID]
-	m.mu.RUnlock()
-	if !ok {
-		return
-	}
-
-	fg.rwmu.Lock()
-	delete(fg.contributions, m.selfID)
-	fg.rwmu.Unlock()
-
-	m.publishSync(groupID)
-
-	_ = m.grpMgr.SendControl(groupID, GroupTypeName, controlMsg{Action: "schema-withdraw"})
-}
-
-func (m *Manager) handlePeerGone(from string, payload any) {
-	peerID := extractPeerID(payload)
-	if peerID == "" || peerID == m.selfID {
-		return
-	}
-
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	changed := false
-	for groupID, fg := range m.groups {
-		fg.rwmu.Lock()
-		if c, ok := fg.contributions[peerID]; ok {
-			if fg.suspended == nil {
-				fg.suspended = make(map[string]*PeerContribution)
-			}
-			fg.suspended[peerID] = c
-			delete(fg.contributions, peerID)
-			changed = true
-			log.Printf("DATA-FED: suspended %s from group %s (peer gone)", peerID, groupID)
-		}
-		fg.rwmu.Unlock()
-	}
-
-	if changed {
-		for groupID := range m.groups {
-			m.publishSync(groupID)
-		}
-		m.notifyChange()
-	}
-}
-
-func (m *Manager) handlePeerAnnounce(from string, payload any) {
-	peerID := extractPeerID(payload)
-	if peerID == "" || peerID == m.selfID {
-		return
-	}
-
-	if isOffline(payload) {
-		return
-	}
-
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	changed := false
-	for groupID, fg := range m.groups {
-		fg.rwmu.Lock()
-		if c, ok := fg.suspended[peerID]; ok {
-			fg.contributions[peerID] = c
-			delete(fg.suspended, peerID)
-			changed = true
-			log.Printf("DATA-FED: restored %s to group %s (peer back)", peerID, groupID)
-		}
-		fg.rwmu.Unlock()
-	}
-
-	if changed {
-		for groupID := range m.groups {
-			m.publishSync(groupID)
-		}
-		m.notifyChange()
-	}
-}
-
-func extractPeerID(payload any) string {
-	switch p := payload.(type) {
-	case map[string]any:
-		if id, ok := p["peerID"].(string); ok {
-			return id
-		}
-	}
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return ""
-	}
-	var obj struct {
-		PeerID string `json:"peerID"`
-	}
-	if json.Unmarshal(data, &obj) == nil {
-		return obj.PeerID
-	}
-	return ""
-}
-
-func isOffline(payload any) bool {
-	switch p := payload.(type) {
-	case map[string]any:
-		if offline, ok := p["offline"].(bool); ok {
-			return offline
-		}
-	}
-	return false
-}
-
-func (m *Manager) AllPeerSources() map[string][]schema.Table {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	result := make(map[string][]schema.Table)
-	for _, fg := range m.groups {
-		fg.rwmu.RLock()
-		for peerID, c := range fg.contributions {
-			if peerID == m.selfID {
-				continue
-			}
-			existing := result[peerID]
-			seen := make(map[string]bool, len(existing))
-			for _, t := range existing {
-				seen[t.Name] = true
-			}
-			for _, t := range c.Tables {
-				if !seen[t.Name] {
-					result[peerID] = append(result[peerID], t)
-				}
-			}
-		}
-		fg.rwmu.RUnlock()
-	}
-	return result
-}
-
 func (m *Manager) AllGroups() []string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -488,4 +182,3 @@ func (m *Manager) AllGroups() []string {
 	}
 	return ids
 }
-

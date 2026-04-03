@@ -274,6 +274,75 @@ func (m *Manager) HostedGroupMembers(groupID string) []MemberInfo {
 	return hg.memberList(m.selfID)
 }
 
+// SetDefaultRole updates the default role assigned to new members of a hosted group.
+func (m *Manager) SetDefaultRole(groupID, role string) error {
+	m.mu.RLock()
+	hg, exists := m.groups[groupID]
+	m.mu.RUnlock()
+	if !exists {
+		return fmt.Errorf("group not found: %s", groupID)
+	}
+
+	if err := m.db.SetDefaultRole(groupID, role); err != nil {
+		return err
+	}
+
+	hg.mu.Lock()
+	hg.info.DefaultRole = role
+	hg.mu.Unlock()
+	return nil
+}
+
+// SetGroupRoles updates the available roles for a hosted group.
+func (m *Manager) SetGroupRoles(groupID string, roles []string) error {
+	m.mu.RLock()
+	hg, exists := m.groups[groupID]
+	m.mu.RUnlock()
+	if !exists {
+		return fmt.Errorf("group not found: %s", groupID)
+	}
+
+	if err := m.db.SetGroupRoles(groupID, roles); err != nil {
+		return err
+	}
+
+	hg.mu.Lock()
+	hg.info.Roles = roles
+	hg.mu.Unlock()
+	return nil
+}
+
+// SetMemberRole updates a member's role in a hosted group, persists it, and broadcasts the change.
+func (m *Manager) SetMemberRole(groupID, peerID, role string) error {
+	m.mu.RLock()
+	hg, exists := m.groups[groupID]
+	m.mu.RUnlock()
+	if !exists {
+		return fmt.Errorf("group not found: %s", groupID)
+	}
+
+	hg.mu.Lock()
+	mm, ok := hg.members[peerID]
+	if !ok {
+		hg.mu.Unlock()
+		return fmt.Errorf("peer %s not in group %s", peerID, groupID)
+	}
+	mm.role = role
+	members := hg.memberList(m.selfID)
+	volatile := hg.info.Volatile
+	hg.mu.Unlock()
+
+	if !volatile {
+		_ = m.db.SetMemberRole(groupID, peerID, role)
+		_ = m.db.UpsertGroupMembers(groupID, membersToStorage(members))
+	}
+
+	m.broadcastToGroup(hg, groupID, TypeMembers, MembersPayload{Members: members}, "")
+	m.notifyListeners(&Event{Type: TypeMembers, Group: groupID, Payload: MembersPayload{Members: members}})
+
+	return nil
+}
+
 // StoredGroupMembers returns the persisted member peer IDs for a group.
 func (m *Manager) StoredGroupMembers(groupID string) []storage.GroupMember {
 	members, _ := m.db.ListGroupMembers(groupID)

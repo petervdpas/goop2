@@ -11,6 +11,7 @@ type StoreMeta struct {
 	Tables       map[string]TablePolicy `json:"tables,omitempty"`  // legacy
 	Schemas      []string               `json:"schemas,omitempty"` // ORM table names owned by this template
 	RequireEmail bool                   `json:"require_email,omitempty"`
+	DefaultRole  string                 `json:"default_role,omitempty"`
 }
 
 // TablePolicy holds per-table configuration from a template manifest (legacy).

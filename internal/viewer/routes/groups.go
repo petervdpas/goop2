@@ -338,6 +338,55 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 		writeJSON(w, map[string]string{"status": "sent"})
 	})
 
+	// POST /api/groups/set-role — set a member's role in a hosted group
+	handlePost(mux, "/api/groups/set-role", func(w http.ResponseWriter, r *http.Request, req struct {
+		GroupID string `json:"group_id"`
+		PeerID  string `json:"peer_id"`
+		Role    string `json:"role"`
+	}) {
+		if req.GroupID == "" || req.PeerID == "" || req.Role == "" {
+			http.Error(w, "missing group_id, peer_id, or role", http.StatusBadRequest)
+			return
+		}
+		if err := grpMgr.SetMemberRole(req.GroupID, req.PeerID, req.Role); err != nil {
+			http.Error(w, fmt.Sprintf("set role failed: %v", err), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, map[string]string{"status": "ok"})
+	})
+
+	// POST /api/groups/set-default-role — set the default role for new members
+	handlePost(mux, "/api/groups/set-default-role", func(w http.ResponseWriter, r *http.Request, req struct {
+		GroupID     string `json:"group_id"`
+		DefaultRole string `json:"default_role"`
+	}) {
+		if req.GroupID == "" || req.DefaultRole == "" {
+			http.Error(w, "missing group_id or default_role", http.StatusBadRequest)
+			return
+		}
+		if err := grpMgr.SetDefaultRole(req.GroupID, req.DefaultRole); err != nil {
+			http.Error(w, fmt.Sprintf("set default role failed: %v", err), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, map[string]string{"status": "ok"})
+	})
+
+	// POST /api/groups/set-roles — set the available roles for a group
+	handlePost(mux, "/api/groups/set-roles", func(w http.ResponseWriter, r *http.Request, req struct {
+		GroupID string   `json:"group_id"`
+		Roles   []string `json:"roles"`
+	}) {
+		if req.GroupID == "" {
+			http.Error(w, "missing group_id", http.StatusBadRequest)
+			return
+		}
+		if err := grpMgr.SetGroupRoles(req.GroupID, req.Roles); err != nil {
+			http.Error(w, fmt.Sprintf("set roles failed: %v", err), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, map[string]string{"status": "ok"})
+	})
+
 }
 
 // generateGroupID returns a random 8-byte hex string (16 chars).

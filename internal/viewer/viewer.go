@@ -15,6 +15,7 @@ import (
 	"github.com/petervdpas/goop2/internal/group"
 	"github.com/petervdpas/goop2/internal/group_types/files"
 	"github.com/petervdpas/goop2/internal/group_types/listen"
+	templateType "github.com/petervdpas/goop2/internal/group_types/template"
 	"github.com/petervdpas/goop2/internal/mq"
 	"github.com/petervdpas/goop2/internal/p2p"
 	"github.com/petervdpas/goop2/internal/rendezvous"
@@ -76,6 +77,9 @@ type Viewer struct {
 
 	// Data federation manager (nil when not available).
 	DataFed *datafed.Manager
+
+	// Template group handler.
+	TemplateHandler *templateType.Handler
 }
 
 func Start(addr string, v Viewer) error {
@@ -116,9 +120,10 @@ func Start(addr string, v Viewer) error {
 		RVClients:    v.RVClients,
 		BridgeURL:    v.BridgeURL,
 		DocsStore:    v.Docs,
-		GroupManager: v.Groups,
-		EnsureLua:    v.EnsureLua,
-		LuaCall:      v.LuaCall,
+		GroupManager:    v.Groups,
+		TemplateHandler: v.TemplateHandler,
+		EnsureLua:       v.EnsureLua,
+		LuaCall:         v.LuaCall,
 	}
 	routes.Register(mux, deps)
 

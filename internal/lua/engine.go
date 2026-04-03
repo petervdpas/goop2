@@ -73,6 +73,7 @@ type GroupManager interface {
 	CloseGroup(groupID string) error
 	JoinOwnGroup(groupID string) error
 	KickMember(groupID, peerID string) error
+	SetMemberRole(groupID, peerID, role string) error
 	HostedGroupMembers(groupID string) []group.MemberInfo
 	SendToGroupAsHost(groupID string, payload any) error
 	InvitePeer(ctx context.Context, peerID, groupID string) error
