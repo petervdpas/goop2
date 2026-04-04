@@ -85,11 +85,11 @@
 
     subscribe(callback) {
       if (!window.Goop || !window.Goop.mq) return function() {};
-      return Goop.mq.onChatRoom(function(from, topic, payload, ack) {
+      var PREFIX = "chat.room:";
+      return Goop.mq.subscribe(PREFIX + "*", function(from, topic, payload, ack) {
         ack();
         if (!payload) return;
-        var prefix = Goop.mq.TOPICS.CHATROOM_PREFIX;
-        var rest = topic.slice(prefix.length);
+        var rest = topic.slice(PREFIX.length);
         var idx = rest.lastIndexOf(":");
         if (idx < 0) return;
         var groupId = rest.substring(0, idx);
