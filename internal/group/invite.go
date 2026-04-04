@@ -90,7 +90,9 @@ func (m *Manager) handleInvite(from string, payload any) {
 			"group_context": inv.GroupContext,
 		},
 	}
-	m.mq.PublishLocal("group.invite", "", evt)
+	if m.mq != nil {
+		m.mq.PublishLocal("group.invite", "", evt)
+	}
 
 	// Auto-join for app types that require it
 	if inv.GroupType == "realtime" || inv.GroupType == "template" || inv.GroupType == "files" || inv.GroupType == "chat" {

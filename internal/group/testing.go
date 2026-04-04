@@ -14,3 +14,49 @@ func NewTestManager(db *storage.DB, selfID string) *Manager {
 		handlers:     make(map[string]TypeHandler),
 	}
 }
+
+// SimulateInvite processes an invite payload as if it arrived via MQ.
+func (m *Manager) SimulateInvite(from string, payload any) {
+	m.handleInvite(from, payload)
+}
+
+// SimulateJoin processes a join as if a remote peer sent TypeJoin via MQ.
+func (m *Manager) SimulateJoin(peerID, groupID string) {
+	m.mu.RLock()
+	hg := m.groups[groupID]
+	m.mu.RUnlock()
+	if hg != nil {
+		m.handleHostMessage(peerID, hg, groupID, TypeJoin, nil)
+	}
+}
+
+// SimulateLeave processes a leave as if a remote peer sent TypeLeave via MQ.
+func (m *Manager) SimulateLeave(peerID, groupID string) {
+	m.mu.RLock()
+	hg := m.groups[groupID]
+	m.mu.RUnlock()
+	if hg != nil {
+		m.handleHostMessage(peerID, hg, groupID, TypeLeave, nil)
+	}
+}
+
+// SimulateHostClose processes a close as if the host sent TypeClose to a client.
+func (m *Manager) SimulateHostClose(groupID string) {
+	m.mu.RLock()
+	cc := m.activeConns[groupID]
+	m.mu.RUnlock()
+	if cc != nil {
+		m.handleMemberMessage(cc.hostPeerID, cc, groupID, TypeClose, nil)
+	}
+}
+
+// SetActiveConn sets up a fake client connection for testing.
+func (m *Manager) SetActiveConn(groupID, hostPeerID, groupType string) {
+	m.mu.Lock()
+	m.activeConns[groupID] = &clientConn{
+		hostPeerID: hostPeerID,
+		groupID:    groupID,
+		groupType:  groupType,
+	}
+	m.mu.Unlock()
+}
