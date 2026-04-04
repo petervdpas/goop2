@@ -156,10 +156,10 @@ func runCLIPeer(peerDirArg string) {
 
 	// Run peer
 	if err := app.Run(ctx, app.Options{
-		PeerDir: absDir,
-		CfgPath: cfgPath,
-		Cfg:     cfg,
-		Version: appVersion,
+		PeerDir:           absDir,
+		CfgPath:           cfgPath,
+		Cfg:               cfg,
+		GoopClientVersion: appVersion,
 	}); err != nil {
 		log.Fatalf("Peer failed: %v", err)
 	}
@@ -200,10 +200,10 @@ func runCLIRendezvous(peerDirArg string) {
 	}()
 
 	if err := app.Run(ctx, app.Options{
-		PeerDir: absDir,
-		CfgPath: cfgPath,
-		Cfg:     cfg,
-		Version: appVersion,
+		PeerDir:           absDir,
+		CfgPath:           cfgPath,
+		Cfg:               cfg,
+		GoopClientVersion: appVersion,
 	}); err != nil {
 		log.Fatalf("Rendezvous server failed: %v", err)
 	}

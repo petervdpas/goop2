@@ -313,12 +313,12 @@ func (a *App) StartPeer(peerName string) error {
 
 	go func() {
 		if err := goopapp.Run(a.ctx, goopapp.Options{
-			PeerDir:   peerDir,
-			CfgPath:   cfgPath,
-			Cfg:       cfg,
-			BridgeURL: a.GetBridgeURL(),
-			Version:   appVersion,
-			Progress:  progress,
+			PeerDir:           peerDir,
+			CfgPath:           cfgPath,
+			Cfg:               cfg,
+			BridgeURL:         a.GetBridgeURL(),
+			GoopClientVersion: appVersion,
+			Progress:          progress,
 		}); err != nil {
 			log.Fatal(err)
 		}

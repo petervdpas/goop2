@@ -135,6 +135,7 @@ type PeerAnnouncePayload struct {
 	PublicKey            string `json:"publicKey,omitempty"`
 	EncryptionSupported bool   `json:"encryptionSupported,omitempty"`
 	Verified            bool   `json:"verified,omitempty"`
+	GoopClientVersion   string `json:"goopClientVersion,omitempty"`
 	Reachable      bool      `json:"reachable"`
 	Offline        bool      `json:"offline"`
 	LastSeen       int64     `json:"lastSeen"` // Unix milliseconds

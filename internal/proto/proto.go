@@ -55,8 +55,9 @@ type PresenceMsg struct {
 	Addrs             []string `json:"addrs,omitempty"`             // Multiaddresses for WAN connectivity
 	VerificationToken string   `json:"verificationToken,omitempty"` // Set by client, validated + stripped by server
 	PublicKey            string   `json:"publicKey,omitempty"`            // NaCl public key for peer-to-peer encryption
-	EncryptionSupported bool     `json:"encryptionSupported,omitempty"` // Peer supports E2E encrypted protocols
-	TS                  int64    `json:"ts"`
+	EncryptionSupported  bool     `json:"encryptionSupported,omitempty"` // Peer supports E2E encrypted protocols
+	GoopClientVersion   string   `json:"goopClientVersion,omitempty"`
+	TS                   int64    `json:"ts"`
 	Verified          bool     `json:"verified,omitempty"` // Set by rendezvous server (email verified)
 }
 

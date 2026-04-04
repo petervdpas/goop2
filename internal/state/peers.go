@@ -15,6 +15,7 @@ type SeenPeer struct {
 	PublicKey            string
 	EncryptionSupported bool
 	Verified            bool
+	GoopClientVersion   string
 	Reachable      bool
 	LastSeen       time.Time
 	OfflineSince   time.Time
@@ -47,7 +48,7 @@ func NewPeerTable() *PeerTable {
 	}
 }
 
-func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled bool, activeTemplate string, publicKey string, encryptionSupported bool, verified bool) {
+func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled bool, activeTemplate string, publicKey string, encryptionSupported bool, verified bool, goopClientVersion string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	reachable := false
@@ -68,6 +69,9 @@ func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled 
 		if !encryptionSupported {
 			encryptionSupported = existing.EncryptionSupported
 		}
+		if goopClientVersion == "" {
+			goopClientVersion = existing.GoopClientVersion
+		}
 	}
 	peer := SeenPeer{
 		Content:             content,
@@ -78,6 +82,7 @@ func (t *PeerTable) Upsert(id, content, email, avatarHash string, videoDisabled 
 		PublicKey:            publicKey,
 		EncryptionSupported: encryptionSupported,
 		Verified:            verified,
+		GoopClientVersion:   goopClientVersion,
 		Reachable:           reachable,
 		LastSeen:            time.Now(),
 		Favorite:            favorite,

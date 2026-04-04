@@ -19,12 +19,12 @@ import (
 )
 
 type Options struct {
-	PeerDir   string
-	CfgPath   string
-	Cfg       config.Config
-	BridgeURL string
-	Version   string
-	Progress  func(step, total int, label string)
+	PeerDir           string
+	CfgPath           string
+	Cfg               config.Config
+	BridgeURL         string
+	GoopClientVersion string
+	Progress          func(step, total int, label string)
 }
 
 func Run(ctx context.Context, opt Options) error {
@@ -34,11 +34,11 @@ func Run(ctx context.Context, opt Options) error {
 	logBanner(opt.PeerDir, opt.CfgPath)
 
 	mo := shared.ModeOpts{
-		PeerDir:   opt.PeerDir,
-		CfgPath:   opt.CfgPath,
-		Logs:      logBuf,
-		BridgeURL: opt.BridgeURL,
-		Version:   opt.Version,
+		PeerDir:           opt.PeerDir,
+		CfgPath:           opt.CfgPath,
+		Logs:              logBuf,
+		BridgeURL:         opt.BridgeURL,
+		GoopClientVersion: opt.GoopClientVersion,
 	}
 	return runPeer(ctx, mo, opt.Cfg, opt.Progress)
 }

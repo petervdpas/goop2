@@ -61,9 +61,6 @@ type Viewer struct {
 	// Wails bridge URL for native dialogs (empty when not running in Wails)
 	BridgeURL string
 
-	// App version from build ldflags
-	Version string
-
 	// EnsureLua starts the Lua engine if needed and rescans functions.
 	EnsureLua func()
 
@@ -124,7 +121,6 @@ func Start(addr string, v Viewer) error {
 		PeerDir:      v.PeerDir,
 		RVClients:    v.RVClients,
 		BridgeURL:    v.BridgeURL,
-		Version:      v.Version,
 		DocsStore:    v.Docs,
 		GroupManager:    v.Groups,
 		TemplateHandler: v.TemplateHandler,

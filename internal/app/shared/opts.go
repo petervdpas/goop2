@@ -8,11 +8,11 @@ import (
 
 // ModeOpts holds the common options passed to each run mode.
 type ModeOpts struct {
-	PeerDir   string
-	CfgPath   string
-	Logs      *viewer.LogBuffer
-	BridgeURL string
-	Version   string
+	PeerDir           string
+	CfgPath           string
+	Logs              *viewer.LogBuffer
+	BridgeURL         string
+	GoopClientVersion string
 }
 
 // NormalizeLocalViewer ensures the viewer only binds to localhost

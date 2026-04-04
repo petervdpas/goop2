@@ -133,6 +133,9 @@ type Node struct {
 	// Optional encryptor for stream protocol payloads.
 	enc StreamEncryptor
 
+	// GoopClientVersion is announced to peers in presence messages.
+	goopClientVersion string
+
 	// Probe cooldown: prevents hammering an unreachable peer with repeated probes.
 	probeMu       sync.Mutex
 	probeLastFail map[string]time.Time // peerID → last failed probe time
@@ -147,6 +150,11 @@ type StreamEncryptor interface {
 // SetEncryptor sets the optional payload encryptor for stream protocols.
 func (n *Node) SetEncryptor(e StreamEncryptor) {
 	n.enc = e
+}
+
+// SetGoopClientVersion sets the version announced in presence messages.
+func (n *Node) SetGoopClientVersion(v string) {
+	n.goopClientVersion = v
 }
 
 type mdnsNotifee struct {
@@ -811,6 +819,7 @@ func (n *Node) Publish(ctx context.Context, typ string) {
 		msg.VideoDisabled = n.selfVideoDisabled()
 		msg.ActiveTemplate = n.selfActiveTemplate()
 		msg.EncryptionSupported = n.enc != nil
+		msg.GoopClientVersion = n.goopClientVersion
 		msg.Addrs = n.WanAddrs()
 	}
 
@@ -946,7 +955,7 @@ func (n *Node) RunPresenceLoop(ctx context.Context, onEvent func(msg proto.Prese
 				// Preserve the Verified flag set by the rendezvous server — P2P gossip
 				// is not an authority on email verification.
 				existing, _ := n.peers.Get(pm.PeerID)
-				n.peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.PublicKey, pm.EncryptionSupported, existing.Verified)
+				n.peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.PublicKey, pm.EncryptionSupported, existing.Verified, pm.GoopClientVersion)
 				n.AddPeerAddrs(pm.PeerID, pm.Addrs)
 			case proto.TypeOffline:
 				n.peers.MarkOffline(pm.PeerID)

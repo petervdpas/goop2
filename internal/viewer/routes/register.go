@@ -58,9 +58,6 @@ type Deps struct {
 	// Template group handler
 	TemplateHandler *templateType.Handler
 
-	// App version from build ldflags
-	Version string
-
 	// EnsureLua is called when a template with Lua files is applied.
 	// It starts the Lua engine (if not already running) and rescans the
 	// functions directory so scripts are available immediately.

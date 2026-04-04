@@ -176,6 +176,9 @@ func RunPeer(p PeerParams) error {
 		node.SetEncryptor(enc)
 		log.Printf("🔐 E2E encryption enabled (NaCl box)")
 	}
+	if o.GoopClientVersion != "" {
+		node.SetGoopClientVersion(o.GoopClientVersion)
+	}
 
 	node.EnableSite(util.ResolvePath(o.PeerDir, cfg.Paths.SiteRoot))
 
@@ -247,7 +250,7 @@ func RunPeer(p PeerParams) error {
 				}
 				log.Printf("[online] %s (%s) — %d addrs", pm.PeerID[:min(16, len(pm.PeerID))], name, len(pm.Addrs))
 			}
-			peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.PublicKey, pm.EncryptionSupported, pm.Verified)
+			peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.PublicKey, pm.EncryptionSupported, pm.Verified, pm.GoopClientVersion)
 			go db.UpsertCachedPeer(storage.CachedPeer{
 				PeerID:         pm.PeerID,
 				Content:        pm.Content,
@@ -310,6 +313,7 @@ func RunPeer(p PeerParams) error {
 						PublicKey:            evt.Peer.PublicKey,
 						EncryptionSupported: evt.Peer.EncryptionSupported,
 						Verified:            evt.Peer.Verified,
+						GoopClientVersion:   evt.Peer.GoopClientVersion,
 						Reachable:           evt.Peer.Reachable,
 						Offline:             !evt.Peer.OfflineSince.IsZero(),
 						LastSeen:            evt.Peer.LastSeen.UnixMilli(),
@@ -517,6 +521,7 @@ func RunPeer(p PeerParams) error {
 			PublicKey:           selfPublicKey(),
 			EncryptionSupported: enc != nil,
 			VerificationToken:   selfVerificationToken(),
+			GoopClientVersion:   o.GoopClientVersion,
 			Addrs:               addrs,
 			TS:                  proto.NowMillis(),
 		}
@@ -599,7 +604,6 @@ func RunPeer(p PeerParams) error {
 			PeerDir:     o.PeerDir,
 			RVClients:   rvClients,
 			BridgeURL:   o.BridgeURL,
-			Version:     o.Version,
 			Chat:        chatMgr,
 			EnsureLua:   ensureLua,
 			LuaCall: func(ctx context.Context, function string, params map[string]any) (any, error) {

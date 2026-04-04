@@ -59,7 +59,7 @@ func RunBridge(ctx context.Context, o shared.ModeOpts, cfg config.Config, selfCo
 		switch pm.Type {
 		case proto.TypeOnline, proto.TypeUpdate:
 			existing, _ := peers.Get(pm.PeerID)
-			peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.PublicKey, pm.EncryptionSupported, existing.Verified)
+			peers.Upsert(pm.PeerID, pm.Content, pm.Email, pm.AvatarHash, pm.VideoDisabled, pm.ActiveTemplate, pm.PublicKey, pm.EncryptionSupported, existing.Verified, pm.GoopClientVersion)
 			peers.SetReachable(pm.PeerID, true)
 		case proto.TypeOffline:
 			peers.MarkOffline(pm.PeerID)

@@ -31,7 +31,4 @@ type BaseVM struct {
 
 	// Split pane positions — JSON string hydrated into data attribute
 	SplitPrefs string
-
-	// App version from build ldflags
-	Version string
 }
