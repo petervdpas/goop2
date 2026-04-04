@@ -60,3 +60,15 @@ func (m *Manager) SetActiveConn(groupID, hostPeerID, groupType string) {
 	}
 	m.mu.Unlock()
 }
+
+// SetActiveConnMembers sets the member list on a fake client connection.
+func (m *Manager) SetActiveConnMembers(groupID string, members []MemberInfo) {
+	m.mu.RLock()
+	cc := m.activeConns[groupID]
+	m.mu.RUnlock()
+	if cc != nil {
+		cc.membersMu.Lock()
+		cc.members = members
+		cc.membersMu.Unlock()
+	}
+}

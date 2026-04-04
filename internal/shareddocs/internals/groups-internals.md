@@ -2,60 +2,123 @@
 
 ## Manager
 
-<!-- STUB: internal/group/manager.go -->
-<!-- In-memory state: groups map[string]*hostedGroup, activeConns map[string]*clientConn -->
-<!-- DB persistence: _groups, _group_members tables -->
-<!-- MQ wiring: subscribes to group:, group.invite, peer:announce topics -->
-<!-- Restored from DB on startup: existing groups loaded into memory -->
+`internal/group/manager.go`
+
+In-memory state:
+
+- `groups map[string]*hostedGroup` — groups this peer hosts
+- `activeConns map[string]*clientConn` — outbound connections to remote group hosts
+- `pendingJoins map[string]chan joinResult` — pending join handshakes
+- `handlers map[string]TypeHandler` — registered type-specific lifecycle handlers
+
+DB persistence: `_groups`, `_group_members`, `_group_subscriptions` tables.
+
+MQ subscriptions on startup:
+
+- `group:` prefix — group protocol messages
+- `group.invite` — group invitation delivery
+- `peer:announce` — triggers `reconnectSubscriptions` for previously joined groups
 
 ## TypeHandler interface
 
-<!-- STUB: internal/group/typehandler.go -->
-<!-- Flags() TypeFlags — HostCanJoin bool -->
-<!-- OnCreate(groupID, name, maxMembers, volatile) error -->
-<!-- OnJoin(groupID, peerID, isHost) -->
-<!-- OnLeave(groupID, peerID, isHost) -->
-<!-- OnClose(groupID) -->
-<!-- OnEvent(evt *Event) -->
-<!-- Registered via manager.RegisterType(groupType, handler) -->
-<!-- TypeFlagsForGroup returns default flags if no handler registered -->
+`internal/group/typehandler.go`
+
+```
+Flags() GroupTypeFlags
+  HostCanJoin bool  — whether the host can join their own group as a member
+  Volatile    bool  — ephemeral: no member persistence, excluded from group cap
+
+OnCreate(groupID, name string, maxMembers int) error
+OnJoin(groupID, peerID string, isHost bool)
+OnLeave(groupID, peerID string, isHost bool)
+OnClose(groupID string)
+OnEvent(evt *Event)
+```
+
+All hooks are called on the HOST side only. Hooks are called outside the manager's locks so handlers can safely call read methods back on Manager.
+
+Registered via `manager.RegisterType(groupType, handler)`. If no handler is registered for a type, `GroupTypeFlagsForGroup` returns defaults (HostCanJoin: true).
 
 ## Group type implementations
 
-<!-- STUB: internal/group_types/ -->
-<!-- template/ — handler.go (lifecycle), schema.go (AnalyzeSchemas), apply.go (Apply: create/reuse/close) -->
-<!-- files/ — handler.go (lifecycle), store.go (Save/Read/Delete/List, 50MB limit, sha256 hash) -->
-<!-- listen/ — manager.go (audio state), events.go (lifecycle + control messages), queue.go (playlist persistence), host.go (streaming), client.go, stream.go -->
-<!-- cluster/ — manager.go, handler.go, dispatcher.go, worker.go, queue.go (job queue with priority), exec.go, types.go, messages.go -->
-<!-- datafed/ — handler.go (lifecycle), contributions.go (peer contributions, AllPeerSources), sync.go (schema offer/withdraw/sync), peers.go (gone/announce suspend/restore) -->
+`internal/group_types/`:
+
+| Type | Package | Handler | Volatile | HostCanJoin |
+| -- | -- | -- | -- | -- |
+| `chat` | `chat/` | Chat room lifecycle, message history, member broadcast | No | Yes |
+| `template` | `template/` | Schema analysis, template apply/close, co-author access | No | Yes |
+| `files` | `files/` | Shared file storage (50MB limit, sha256 hash) | No | Yes |
+| `listen` | `listen/` | Audio streaming: host streams, members listen | No | Yes |
+| `cluster` | `cluster/` | Job queue with priority, worker dispatch, progress tracking | Yes | No |
+| `datafed` | `datafed/` | Data federation: schema offer/withdraw/sync, peer contributions | No | Yes |
+
+## Message types
+
+`internal/group/message.go`:
+
+| Type | Direction | Purpose |
+| -- | -- | -- |
+| `join` | client → host | Request to join a group |
+| `welcome` | host → client | Join accepted, includes group name, type, member list |
+| `error` | host → client | Join rejected (e.g., group full) |
+| `members` | host → all | Updated member list broadcast |
+| `msg` | any → host | Application message (relayed by host) |
+| `state` | any → host | State update (relayed by host) |
+| `leave` | client → host | Member leaving |
+| `close` | host → all | Group closed by host |
+| `ping` | host → member | Keepalive probe |
+| `pong` | member → host | Keepalive response |
+| `meta` | host → all | Group metadata update (name, maxMembers, roles) |
 
 ## Message routing
 
-<!-- STUB: Host-relayed model -->
-<!-- broadcastToGroup sends to all members except sender -->
-<!-- SendControl wraps payload with group_type key for type-specific dispatch -->
-<!-- ExtractControl/ParseControl extract type-specific payloads from generic messages -->
+`internal/group/routing.go`
+
+Host-relayed model:
+
+- All messages go through the host — no direct member-to-member communication
+- `broadcastToGroup` sends to all members except the sender
+- Group topic format: `group:{groupID}:{type}`
+
+Host message flow (`handleHostMessage`):
+
+1. `join` → add member, send `welcome`, broadcast `members`, call `OnJoin`
+2. `leave` → remove member, broadcast `members`, call `OnLeave`
+3. `ping` → respond with `pong`
+4. `msg`/`state` → relay to all other members, notify local listeners
+
+Client message flow (`handleMemberMessage`):
+
+1. `welcome` → deliver to pending join channel
+2. `error` → deliver error to pending join channel
+3. `members` → update `clientConn.members`
+4. `close` → remove subscription, call `OnClose`
+5. `meta` → update subscription metadata
 
 ## Member management
 
-<!-- STUB: -->
-<!-- Members stored in hostedGroup.members map[string]*memberMeta -->
-<!-- memberMeta: peerID, role, joinedAt -->
-<!-- Default role on join comes from hostedGroup.info.DefaultRole -->
-<!-- Roles persisted in _group_members table -->
-<!-- SetMemberRole: updates in-memory + DB + broadcasts updated member list -->
+Members stored in `hostedGroup.members map[string]*memberMeta`:
+
+- `memberMeta`: peerID, role, joinedAt
+- Default role on join comes from `hostedGroup.info.DefaultRole` (default: "viewer")
+- Roles persisted in `_group_members` table
+- `SetMemberRole`: updates in-memory + DB + broadcasts updated member list
 
 ## Client-side (joining remote groups)
 
-<!-- STUB: -->
-<!-- activeConns: outbound connections to remote group hosts -->
-<!-- Subscriptions persisted in _group_subscriptions for reconnection -->
-<!-- reconnectSubscriptions runs on startup to rejoin previously connected groups -->
-<!-- handleMemberMessage processes members, close, meta, ping, msg, state events -->
+`internal/group/client.go`
+
+- `activeConns`: outbound connections keyed by groupID
+- `clientConn`: holds hostPeerID, groupID, groupType, and last known members list
+- `JoinRemoteGroup`: sends `TypeJoin`, waits for `TypeWelcome` (timeout: 10s), creates subscription in DB
+- `reconnectSubscriptions`: runs on startup to rejoin previously connected groups
+- `ClientGroupMembers(groupID)`: returns last known member list from `clientConn.members`
+- Subscriptions persisted in `_group_subscriptions` for reconnection across restarts
 
 ## Groups are never auto-deleted
 
-<!-- STUB: -->
-<!-- Only the owner removes groups (via Close or template switch) -->
-<!-- Template apply closes groups where group_type == "template" AND group_context == old template name -->
-<!-- No PurgeInvalid or startup cleanup exists -->
+Only the owner removes groups:
+
+- `CloseGroup` removes from memory + DB + broadcasts `TypeClose` to all members
+- Template apply closes groups where `group_type == template AND group_context == old template name`
+- No startup cleanup or purge logic exists

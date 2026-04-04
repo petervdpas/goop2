@@ -236,6 +236,7 @@ func TestFeatures(t *testing.T) {
 		ScenarioInitializer: func(ctx *godog.ScenarioContext) {
 			InitializeScenario(ctx)
 			initClubhouseWiringScenario(ctx)
+			initJoinerScenario(ctx)
 		},
 		Options: &godog.Options{
 			Format:   "pretty",

@@ -16,7 +16,7 @@ A rendezvous server is typically placed behind a reverse proxy like Caddy or Ngi
 
 The reverse proxy should forward traffic to the rendezvous port (default `8787`). Example Caddy configuration:
 
-```
+```caddy
 goop2.com {
     reverse_proxy localhost:8787
 }

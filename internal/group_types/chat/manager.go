@@ -177,6 +177,9 @@ func (m *Manager) ListRooms() []Room {
 
 func (m *Manager) resolveMembers(groupID string) []Member {
 	members := m.grp.HostedGroupMembers(groupID)
+	if len(members) == 0 {
+		members = m.grp.ClientGroupMembers(groupID)
+	}
 	out := make([]Member, len(members))
 	for i, mi := range members {
 		out[i] = Member{

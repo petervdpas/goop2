@@ -2,27 +2,92 @@
 
 ## Protocols
 
-<!-- STUB: libp2p protocols and their IDs -->
-<!-- /goop/site/1.0.0 — site content serving -->
-<!-- /goop/data/1.0.0 — data proxy (ORM operations over P2P) -->
-<!-- /goop/docs/1.0.0 — shared document listing and retrieval -->
-<!-- /goop/mq/1.0.0 — message queue (ACK-based messaging) -->
-<!-- /goop/listen/1.0.0 — audio streaming binary protocol -->
+All protocol IDs are defined in `internal/proto/proto.go`:
+
+| Protocol ID | Purpose |
+| -- | -- |
+| `/goop/content/1.0.0` | Fetch a peer's current content label (single line, unencrypted, used as reachability probe) |
+| `/goop/site/1.0.0` | Fetch files from a peer's site folder |
+| `/goop/data/1.0.0` | Remote data operations (ORM queries over P2P) |
+| `/goop/group/1.0.0` | Host-relayed group protocol |
+| `/goop/group-invite/1.0.0` | Group invitation delivery |
+| `/goop/avatar/1.0.0` | Peer avatar fetching |
+| `/goop/docs/1.0.0` | Shared document listing and retrieval |
+| `/goop/listen/1.0.0` | Audio streaming binary protocol |
+| `/goop/mq/1.0.0` | Message queue (ACK-based messaging) |
+
+## Presence
+
+Peers announce themselves via GossipSub on topic `goop.presence.v1`. The `PresenceMsg` struct carries:
+
+- `type`: `online`, `update`, `offline`, `punch`
+- `peerId`, `content`, `email`, `avatarHash`, `videoDisabled`, `activeTemplate`
+- `addrs`: multiaddresses for WAN connectivity
+- `publicKey`, `encryptionSupported`: NaCl E2E encryption
+- `verificationToken`: set by client, validated by rendezvous server
+- `verified`: set by rendezvous server after email verification
+- `goopClientVersion`: build version of the sending peer
+- `target`: punch hint (peer ID this message is addressed to)
 
 ## Data proxy
 
-<!-- STUB: How remote ORM/query calls route through P2P DataRequest -->
-<!-- DataRequest struct: Op, Table, ID, Data, Where, Args, Order, Fields, Expr, GroupBy, KeyCol -->
-<!-- Operations: query, insert, update, delete, query-one, exists, count, pluck, distinct, aggregate, update-where, delete-where, upsert, role -->
-<!-- Access enforcement happens here (checkGroupAccess) -->
+Remote ORM operations route through the `/goop/data/1.0.0` stream protocol (`internal/p2p/data.go`).
+
+### Wire format
+
+Request: single newline-delimited JSON line (`DataRequest`). Response: single newline-delimited JSON line (`DataResponse`).
+
+When encryption is enabled, lines are prefixed with `ENC:` followed by base64-encoded NaCl ciphertext.
+
+### DataRequest fields
+
+`Op`, `Table`, `Name`, `Data`, `ID`, `Where`, `Args`, `Columns`, `ColumnDefs`, `Column`, `Limit`, `Offset`, `OldName`, `NewName`, `Function`, `Params`, `Order`, `Fields`, `Expr`, `GroupBy`, `KeyCol`
+
+### Operations
+
+| Op | Remote | Local-only | Notes |
+| -- | -- | -- | -- |
+| `tables` | yes | yes | List all tables |
+| `orm-schema` | yes | yes | List all ORM schemas |
+| `describe` | yes | yes | Table column info |
+| `query` | yes | yes | Remote: access-checked; local: unrestricted |
+| `insert` | yes | yes | Access-checked |
+| `update` | yes | yes | Remote: access-checked; local: unrestricted |
+| `delete` | yes | yes | Remote: access-checked; local: unrestricted |
+| `query-one` | no | yes | Local only |
+| `exists` | no | yes | Local only |
+| `count` | no | yes | Local only |
+| `pluck` | no | yes | Local only |
+| `distinct` | no | yes | Local only |
+| `aggregate` | no | yes | Local only |
+| `update-where` | no | yes | Local only |
+| `delete-where` | no | yes | Local only |
+| `upsert` | no | yes | Local only |
+| `role` | yes | yes | Returns caller's role and permissions for a table |
+| `lua-call` | yes | yes | Invoke a Lua data function |
+| `lua-list` | yes | yes | List available Lua data functions |
+| `create-table`, `add-column`, `drop-column`, `rename-table`, `delete-table` | no | yes | Schema ops: local only |
+
+### Access enforcement
+
+Access is checked in `data.go`, NOT in the storage layer. The `checkGroupAccess` function:
+
+1. Looks up the caller's role via `groupChecker.TemplateMemberRole(callerID)`
+2. Loads the table's ORM schema (`db.GetSchema(table)`)
+3. Checks `schema.RoleCanDo(roles, role, op)` against the schema's Roles map
+4. Owner (callerID == selfID) always has full access
+
+Access levels per table operation: `local`, `owner`, `group`, `open` — defined in the schema JSON.
 
 ## Peer discovery
 
-<!-- STUB: mDNS for LAN, rendezvous server for WAN -->
-<!-- mdns_tag in config determines discovery group -->
-<!-- Rendezvous server runs on Pi behind Caddy (goop2.com) -->
+- **LAN**: mDNS with tag `goop-mdns` — starts immediately in `p2p.New()` (not deferred)
+- **WAN**: Rendezvous server — peers publish presence via HTTP POST or WebSocket; server relays to all connected peers
 
 ## NAT traversal
 
-<!-- STUB: Circuit relay v2 + DCUtR hole-punching -->
-<!-- How reachability works: SetReachable on first discovery, not on every heartbeat -->
+- **Circuit relay v2**: Auto-relay with static relay peer (from rendezvous server config)
+- **DCUtR hole-punching**: Enabled when relay is available
+- **ForceReachabilityPrivate**: All peers assume they're behind NAT
+- `SetReachable(true)` is called only on first successful discovery, not on every heartbeat
+- Failure dedup: peer is only marked unreachable after 2 distinct failure events >4s apart

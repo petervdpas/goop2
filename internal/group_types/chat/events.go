@@ -60,6 +60,9 @@ func (m *Manager) sendToPeer(peerID, groupID, sub string, msg chatMsg) {
 
 func (m *Manager) broadcastToRoom(groupID, sub string, msg chatMsg, excludePeer string) {
 	members := m.grp.HostedGroupMembers(groupID)
+	if len(members) == 0 {
+		members = m.grp.ClientGroupMembers(groupID)
+	}
 	for _, mi := range members {
 		if mi.PeerID == m.selfID || mi.PeerID == excludePeer {
 			continue
