@@ -63,14 +63,14 @@ Group chat rooms are a TypeHandler implementation on top of the group protocol. 
 ### Room lifecycle
 
 1. **Create**: `CreateRoom(name, desc, context, max)` → `grp.CreateGroup()` + `grp.JoinOwnGroup()` → `OnCreate` callback creates `roomState`
-2. **Join**: Joiner calls `JoinRoom(ctx, hostPeerID, groupID)` → `grp.JoinRemoteGroup()` (group protocol join)
+2. **Join**: Joiner calls `JoinRoom(ctx, hostPeerID, groupID)` → `grp.JoinRemoteGroup()` (group protocol join) → creates local `roomState` with name from subscription
 3. **Send**: `SendMessage(groupID, fromPeerID, text)` → stores in ring buffer → `broadcastToRoom`
 4. **Close**: `CloseRoom(groupID)` → `grp.CloseGroup()` → `OnClose` removes from rooms map
 5. **Context close**: `CloseByContext(context)` — closes all rooms matching a template context (on template switch)
 
 ### Host vs joiner asymmetry
 
-The TypeHandler callbacks (`OnCreate`, `OnJoin`, `OnLeave`, `OnClose`) only fire on the **host** side. The joiner's chat manager needs its own `rooms` entry.
+The TypeHandler callbacks (`OnCreate`, `OnJoin`, `OnLeave`, `OnClose`) only fire on the **host** side. The joiner's `rooms` entry is created by `JoinRoom` after the group join succeeds, using the group name from the stored subscription.
 
 `resolveMembers(groupID)` checks `HostedGroupMembers` first (host path), then falls back to `ClientGroupMembers` (joiner path).
 

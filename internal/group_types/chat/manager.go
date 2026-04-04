@@ -107,7 +107,27 @@ func (m *Manager) CloseByContext(context string) {
 
 // JoinRoom joins a remote chat room.
 func (m *Manager) JoinRoom(ctx context.Context, hostPeerID, groupID string) error {
-	return m.grp.JoinRemoteGroup(ctx, hostPeerID, groupID)
+	if err := m.grp.JoinRemoteGroup(ctx, hostPeerID, groupID); err != nil {
+		return err
+	}
+	name := groupID
+	if subs, err := m.grp.ListSubscriptions(); err == nil {
+		for _, s := range subs {
+			if s.GroupID == groupID {
+				name = s.GroupName
+				break
+			}
+		}
+	}
+	m.mu.Lock()
+	if _, exists := m.rooms[groupID]; !exists {
+		m.rooms[groupID] = &roomState{
+			info:    Room{ID: groupID, Name: name},
+			history: &RingBuffer{},
+		}
+	}
+	m.mu.Unlock()
+	return nil
 }
 
 // LeaveRoom leaves a remote chat room.
