@@ -599,6 +599,7 @@ func RunPeer(p PeerParams) error {
 			PeerDir:     o.PeerDir,
 			RVClients:   rvClients,
 			BridgeURL:   o.BridgeURL,
+			Version:     o.Version,
 			Chat:        chatMgr,
 			EnsureLua:   ensureLua,
 			LuaCall: func(ctx context.Context, function string, params map[string]any) (any, error) {

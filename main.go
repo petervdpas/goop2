@@ -98,7 +98,7 @@ func runDesktopApp() {
 	app := NewApp()
 
 	err := wails.Run(&options.App{
-		Title:  "Goop²  ·  ephemeral web",
+		Title:  fmt.Sprintf("Goop²  ·  ephemeral web  ·  v%s", appVersion),
 		Width:  1200,
 		Height: 800,
 
@@ -159,6 +159,7 @@ func runCLIPeer(peerDirArg string) {
 		PeerDir: absDir,
 		CfgPath: cfgPath,
 		Cfg:     cfg,
+		Version: appVersion,
 	}); err != nil {
 		log.Fatalf("Peer failed: %v", err)
 	}
@@ -202,6 +203,7 @@ func runCLIRendezvous(peerDirArg string) {
 		PeerDir: absDir,
 		CfgPath: cfgPath,
 		Cfg:     cfg,
+		Version: appVersion,
 	}); err != nil {
 		log.Fatalf("Rendezvous server failed: %v", err)
 	}

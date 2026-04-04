@@ -27,7 +27,7 @@
       <header class="topbar">
         <div class="brand">
           <span class="logo">Goop²</span>
-          <span class="tag">ephemeral web</span>
+          <span class="tag">ephemeral web{{if .Version}}  ·  v{{.Version}}{{end}}</span>
         </div>
 
         {{/* Navigation — varies by mode */}}

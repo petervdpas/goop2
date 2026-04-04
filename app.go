@@ -317,6 +317,7 @@ func (a *App) StartPeer(peerName string) error {
 			CfgPath:   cfgPath,
 			Cfg:       cfg,
 			BridgeURL: a.GetBridgeURL(),
+			Version:   appVersion,
 			Progress:  progress,
 		}); err != nil {
 			log.Fatal(err)
@@ -330,6 +331,10 @@ func (a *App) StartPeer(peerName string) error {
 	}
 
 	return nil
+}
+
+func (a *App) GetVersion() string {
+	return appVersion
 }
 
 func (a *App) GetViewerURL() string {

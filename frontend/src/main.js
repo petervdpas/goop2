@@ -463,6 +463,14 @@ async function boot() {
   await wireThemeToggle();
   await waitForWails();
 
+  try {
+    const ver = await window.go.main.App.GetVersion();
+    if (ver && ver !== "dev") {
+      const tag = document.querySelector(".topbar .tag");
+      if (tag) tag.textContent = "ephemeral web  ·  v" + ver;
+    }
+  } catch { /* ignore */ }
+
   // If a peer is already started, immediately replace with viewer.
   const st = await window.go.main.App.GetStatus();
   if (st && st.started === "true" && st.viewerURL) {

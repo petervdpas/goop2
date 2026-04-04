@@ -62,6 +62,7 @@ func baseVM(title, active, contentTmpl string, d Deps) viewmodels.BaseVM {
 		OpenSitesExternal:     openSitesExternal,
 		AppRunID:              appRunID,
 		SplitPrefs:            loadSplitPrefsJSON(d),
+		Version:               d.Version,
 	}
 }
 

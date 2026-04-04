@@ -12,6 +12,7 @@ type ModeOpts struct {
 	CfgPath   string
 	Logs      *viewer.LogBuffer
 	BridgeURL string
+	Version   string
 }
 
 // NormalizeLocalViewer ensures the viewer only binds to localhost

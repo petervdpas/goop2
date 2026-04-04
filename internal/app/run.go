@@ -23,6 +23,7 @@ type Options struct {
 	CfgPath   string
 	Cfg       config.Config
 	BridgeURL string
+	Version   string
 	Progress  func(step, total int, label string)
 }
 
@@ -37,6 +38,7 @@ func Run(ctx context.Context, opt Options) error {
 		CfgPath:   opt.CfgPath,
 		Logs:      logBuf,
 		BridgeURL: opt.BridgeURL,
+		Version:   opt.Version,
 	}
 	return runPeer(ctx, mo, opt.Cfg, opt.Progress)
 }
