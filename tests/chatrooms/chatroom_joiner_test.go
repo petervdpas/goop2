@@ -58,8 +58,8 @@ func aRunningHostAndJoinerChatServer() error {
 		return err
 	}
 
-	hostGrp := group.NewTestManager(hostDB, "host-peer-id", testResolvePeer)
-	joinerGrp := group.NewTestManager(joinerDB, "joiner-peer", testResolvePeer)
+	hostGrp := group.NewTestManager(hostDB, "host-peer-id", group.TestManagerOpts{ResolvePeer: testResolvePeer})
+	joinerGrp := group.NewTestManager(joinerDB, "joiner-peer", group.TestManagerOpts{ResolvePeer: testResolvePeer})
 
 	hostChat := chat.NewTestManager(hostGrp, "host-peer-id", testResolvePeer)
 	joinerChat := chat.NewTestManager(joinerGrp, "joiner-peer", testResolvePeer)

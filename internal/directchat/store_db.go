@@ -1,4 +1,4 @@
-package chat
+package directchat
 
 import "github.com/petervdpas/goop2/internal/storage"
 

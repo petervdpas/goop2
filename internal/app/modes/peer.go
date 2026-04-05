@@ -12,7 +12,7 @@ import (
 	"github.com/petervdpas/goop2/internal/app/shared"
 	"github.com/petervdpas/goop2/internal/avatar"
 	"github.com/petervdpas/goop2/internal/call"
-	"github.com/petervdpas/goop2/internal/chat"
+	"github.com/petervdpas/goop2/internal/directchat"
 	"github.com/petervdpas/goop2/internal/config"
 	"github.com/petervdpas/goop2/internal/content"
 	goopCrypto "github.com/petervdpas/goop2/internal/crypto"
@@ -22,7 +22,7 @@ import (
 	"github.com/petervdpas/goop2/internal/orm/gql"
 	filesType "github.com/petervdpas/goop2/internal/group_types/files"
 	"github.com/petervdpas/goop2/internal/group_types/listen"
-	chatType "github.com/petervdpas/goop2/internal/group_types/chat"
+	"github.com/petervdpas/goop2/internal/group_types/chat"
 	templateType "github.com/petervdpas/goop2/internal/group_types/template"
 	luapkg "github.com/petervdpas/goop2/internal/lua"
 	"github.com/petervdpas/goop2/internal/mq"
@@ -423,7 +423,7 @@ func RunPeer(p PeerParams) error {
 	})
 
 	// ── Chat manager
-	chatMgr := chat.New(node.ID(), chat.NewDBStore(db), mqMgr)
+	chatMgr := directchat.New(node.ID(), directchat.NewDBStore(db), mqMgr)
 	chatMgr.Start()
 
 	// ── Lua scripting engine
@@ -495,7 +495,7 @@ func RunPeer(p PeerParams) error {
 	// all other platforms use browser-native WebRTC. No config toggle needed.
 	var callMgr *call.Manager
 	if runtime.GOOS == "linux" {
-		sigAdapter := &mqSignalerAdapter{mqMgr: mqMgr, peers: make(map[string]string)}
+		sigAdapter := &mqSignalerAdapter{mq: mqMgr, peers: make(map[string]string)}
 		// callLogFn publishes structured log events from the call layer (e.g. hardware
 		// capture errors) to the MQ bus so they appear in the browser's Video log tab.
 		callLogFn := func(level, msg string) {
@@ -520,7 +520,7 @@ func RunPeer(p PeerParams) error {
 	grpMgr.RegisterType("listen", listenMgr)
 
 	// ── Chat group type (chat rooms)
-	chatRoomMgr := chatType.New(grpMgr, mqMgr, node.ID(), resolvePeer)
+	chatRoomMgr := chat.New(grpMgr, mqMgr, node.ID(), resolvePeer)
 	defer chatRoomMgr.Close()
 
 	if luaEngine != nil {
@@ -686,7 +686,7 @@ func RunPeer(p PeerParams) error {
 			PeerDir:     o.PeerDir,
 			RVClients:   rvClients,
 			BridgeURL:   o.BridgeURL,
-			Chat:        chatMgr,
+			DirectChat:  chatMgr,
 			EnsureLua:   ensureLua,
 			LuaCall: func(ctx context.Context, function string, params map[string]any) (any, error) {
 				if luaEngine == nil {

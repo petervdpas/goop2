@@ -17,7 +17,7 @@ const GroupTypeName = "chat"
 // Manager manages chat rooms backed by groups.
 type Manager struct {
 	grp         *group.Manager
-	mq          *mq.Manager
+	mq          mq.Transport
 	selfID      string
 	resolvePeer func(string) state.PeerIdentityPayload
 
@@ -34,10 +34,10 @@ type roomState struct {
 }
 
 // New creates a chat manager and registers the group type handler.
-func New(grpMgr *group.Manager, mqMgr *mq.Manager, selfID string, resolvePeer func(string) state.PeerIdentityPayload) *Manager {
+func New(grpMgr *group.Manager, transport mq.Transport, selfID string, resolvePeer func(string) state.PeerIdentityPayload) *Manager {
 	m := &Manager{
 		grp:         grpMgr,
-		mq:          mqMgr,
+		mq:          transport,
 		selfID:      selfID,
 		resolvePeer: resolvePeer,
 		rooms:       make(map[string]*roomState),
@@ -45,7 +45,7 @@ func New(grpMgr *group.Manager, mqMgr *mq.Manager, selfID string, resolvePeer fu
 
 	grpMgr.RegisterType(GroupTypeName, m)
 
-	m.unsubMQ = mqMgr.SubscribeTopic(topicPrefix, func(from, t string, payload any) {
+	m.unsubMQ = transport.SubscribeTopic(topicPrefix, func(from, t string, payload any) {
 		m.handleIncoming(from, t, payload)
 	})
 

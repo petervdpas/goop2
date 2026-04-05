@@ -33,7 +33,7 @@ type ActiveGroupInfo struct {
 type Manager struct {
 	host        host.Host
 	db          *storage.DB
-	mq          *mq.Manager
+	mq          mq.Transport
 	mu          sync.RWMutex
 	selfID      string
 	resolvePeer func(string) state.PeerIdentityPayload
@@ -91,11 +91,11 @@ const (
 )
 
 // New creates a new group manager and registers MQ subscriptions.
-func New(h host.Host, db *storage.DB, mqMgr *mq.Manager, resolvePeer func(string) state.PeerIdentityPayload) *Manager {
+func New(h host.Host, db *storage.DB, transport mq.Transport, resolvePeer func(string) state.PeerIdentityPayload) *Manager {
 	m := &Manager{
 		host:         h,
 		db:           db,
-		mq:           mqMgr,
+		mq:           transport,
 		selfID:       h.ID().String(),
 		resolvePeer:  resolvePeer,
 		groups:       make(map[string]*hostedGroup),
@@ -120,19 +120,19 @@ func New(h host.Host, db *storage.DB, mqMgr *mq.Manager, resolvePeer func(string
 	}
 
 	// Register MQ subscriptions
-	m.unsubGroup = mqMgr.SubscribeTopic("group:", func(from, topic string, payload any) {
+	m.unsubGroup = transport.SubscribeTopic("group:", func(from, topic string, payload any) {
 		rest := topic[len("group:"):]
 		if before, after, ok := strings.Cut(rest, ":"); ok {
 			m.handleMQMessage(from, before, after, payload)
 		}
 	})
 
-	m.unsubInvite = mqMgr.SubscribeTopic("group.invite", func(from, topic string, payload any) {
+	m.unsubInvite = transport.SubscribeTopic("group.invite", func(from, topic string, payload any) {
 		m.handleInvite(from, payload)
 	})
 
 	// Watch for peers coming online — auto-rejoin disconnected subscriptions
-	m.unsubPeer = mqMgr.SubscribeTopic("peer:announce", func(_, _ string, payload any) {
+	m.unsubPeer = transport.SubscribeTopic("peer:announce", func(_, _ string, payload any) {
 		m.handlePeerAnnounce(payload)
 	})
 

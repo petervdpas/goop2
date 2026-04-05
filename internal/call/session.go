@@ -185,7 +185,7 @@ func (s *Session) ToggleAudio() bool {
 	muted := !s.audioOn
 	s.mu.Unlock()
 	log.Printf("CALL [%s]: audio muted=%v", s.channelID, muted)
-	// TODO Phase 5: mute the Pion audio track in-place
+	// State tracked but Pion track not muted yet — needs RTPSender.ReplaceTrack or silence injection
 	return muted
 }
 
@@ -196,7 +196,7 @@ func (s *Session) ToggleVideo() bool {
 	disabled := !s.videoOn
 	s.mu.Unlock()
 	log.Printf("CALL [%s]: video disabled=%v", s.channelID, disabled)
-	// TODO Phase 5: disable the Pion video track in-place
+	// State tracked but Pion track not disabled yet — needs RTPSender.ReplaceTrack or black frame injection
 	return disabled
 }
 

@@ -23,11 +23,11 @@ import (
 
 // New creates a new listen manager. It registers the binary stream handler
 // and subscribes to group events for listen control messages.
-func New(h libhost.Host, grp *group.Manager, mqMgr *mq.Manager, selfID, dataDir string) *Manager {
+func New(h libhost.Host, grp *group.Manager, transport mq.Transport, selfID, dataDir string) *Manager {
 	m := &Manager{
 		host:   h,
 		grp:    grp,
-		mq:     mqMgr,
+		mq:     transport,
 		selfID: selfID,
 		store:  newStateStore(dataDir),
 		pipes:  make(map[string]*listenerPipe),

@@ -1,13 +1,21 @@
 package group
 
 import (
+	"github.com/petervdpas/goop2/internal/mq"
 	"github.com/petervdpas/goop2/internal/state"
 	"github.com/petervdpas/goop2/internal/storage"
 )
 
+// TestManagerOpts configures a test manager.
+type TestManagerOpts struct {
+	ResolvePeer func(string) state.PeerIdentityPayload
+	MQ          mq.Transport
+}
+
 // NewTestManager creates a minimal Manager backed only by a DB,
 // suitable for unit tests that don't need P2P or MQ transport.
-func NewTestManager(db *storage.DB, selfID string, resolvePeer ...func(string) state.PeerIdentityPayload) *Manager {
+// Pass TestManagerOpts to wire in an MQ sender or resolver.
+func NewTestManager(db *storage.DB, selfID string, opts ...TestManagerOpts) *Manager {
 	m := &Manager{
 		db:           db,
 		selfID:       selfID,
@@ -16,8 +24,12 @@ func NewTestManager(db *storage.DB, selfID string, resolvePeer ...func(string) s
 		pendingJoins: make(map[string]chan joinResult),
 		handlers:     make(map[string]TypeHandler),
 	}
-	if len(resolvePeer) > 0 {
-		m.resolvePeer = resolvePeer[0]
+	if len(opts) > 0 {
+		m.resolvePeer = opts[0].ResolvePeer
+		m.mq = opts[0].MQ
+	}
+	if m.mq == nil {
+		m.mq = mq.NopTransport{}
 	}
 	return m
 }

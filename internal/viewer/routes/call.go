@@ -406,8 +406,8 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager, mqMgr *mq.Manager) 
 				return
 			}
 			_ = sess
-			// TODO Phase 4: pass SDP offer to LocalPC, return real SDP answer.
-			writeJSON(w, map[string]string{"sdp": "", "status": "stub — Phase 4 pending"})
+			// Stub: loopback SDP negotiation not yet implemented
+			writeJSON(w, map[string]string{"sdp": "", "status": "loopback SDP not implemented"})
 
 		case "ice":
 			// Only POST is accepted — browser sends its ICE candidates here for
@@ -428,7 +428,7 @@ func RegisterCall(mux *http.ServeMux, callMgr *call.Manager, mqMgr *mq.Manager) 
 				return
 			}
 			_ = sess
-			// TODO Phase 4: add to LocalPC remote candidates.
+			// Stub: loopback ICE candidate handling not yet implemented
 			writeJSON(w, map[string]string{"status": "ok"})
 
 		default:

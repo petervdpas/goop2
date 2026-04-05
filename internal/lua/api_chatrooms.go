@@ -1,7 +1,7 @@
 package lua
 
 import (
-	chatType "github.com/petervdpas/goop2/internal/group_types/chat"
+	"github.com/petervdpas/goop2/internal/group_types/chat"
 
 	lua "github.com/yuin/gopher-lua"
 )
@@ -120,7 +120,7 @@ func chatRoomListFn(engine *Engine) lua.LGFunction {
 	}
 }
 
-func roomToLua(L *lua.LState, r *chatType.Room) *lua.LTable {
+func roomToLua(L *lua.LState, r *chat.Room) *lua.LTable {
 	tbl := L.NewTable()
 	tbl.RawSetString("id", lua.LString(r.ID))
 	tbl.RawSetString("name", lua.LString(r.Name))
@@ -138,7 +138,7 @@ func roomToLua(L *lua.LState, r *chatType.Room) *lua.LTable {
 	return tbl
 }
 
-func messagesToLua(L *lua.LState, msgs []chatType.Message) *lua.LTable {
+func messagesToLua(L *lua.LState, msgs []chat.Message) *lua.LTable {
 	tbl := L.NewTable()
 	for i, m := range msgs {
 		entry := L.NewTable()

@@ -6,8 +6,8 @@ import (
 
 	"github.com/petervdpas/goop2/internal/avatar"
 	"github.com/petervdpas/goop2/internal/call"
-	"github.com/petervdpas/goop2/internal/chat"
-	chatType "github.com/petervdpas/goop2/internal/group_types/chat"
+	"github.com/petervdpas/goop2/internal/directchat"
+	"github.com/petervdpas/goop2/internal/group_types/chat"
 	"github.com/petervdpas/goop2/internal/group_types/cluster"
 	"github.com/petervdpas/goop2/internal/config"
 	"github.com/petervdpas/goop2/internal/group_types/datafed"
@@ -41,14 +41,13 @@ type Viewer struct {
 	MQ      *mq.Manager
 	Groups  *group.Manager
 	Listen    *listen.Manager
-	ChatRooms *chatType.Manager
+	ChatRooms *chat.Manager
 	DB      *storage.DB  // SQLite database for peer data
 	Docs    *files.Store // shared documents store
 
 	AvatarStore *avatar.Store
 	AvatarCache *avatar.Cache
 
-	// NEW: canonical base URL for templates (e.g. http://127.0.0.1:7777)
 	BaseURL string
 
 	PeerDir string // root directory for this peer's data
@@ -58,8 +57,8 @@ type Viewer struct {
 	// Canonical peer identity resolver — single instance shared by all routes.
 	ResolvePeer func(string) state.PeerIdentityPayload
 
-	// Chat manager — owns message persistence, Lua dispatch, history endpoints.
-	Chat *chat.Manager
+	// DirectChat manager — owns message persistence, Lua dispatch, history endpoints.
+	DirectChat *directchat.Manager
 
 	// Wails bridge URL for native dialogs (empty when not running in Wails)
 	BridgeURL string
@@ -136,11 +135,11 @@ func Start(addr string, v Viewer) error {
 	// Register MQ endpoints
 	if v.MQ != nil {
 		var onChatSent func(string, string)
-		if v.Chat != nil {
-			onChatSent = v.Chat.PersistOutbound
+		if v.DirectChat != nil {
+			onChatSent = v.DirectChat.PersistOutbound
 		}
 		routes.RegisterMQ(mux, v.MQ, onChatSent)
-		routes.RegisterChat(mux, v.Chat)
+		routes.RegisterChat(mux, v.DirectChat)
 	}
 
 	// Register data/storage endpoints if DB is available

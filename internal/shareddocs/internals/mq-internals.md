@@ -62,6 +62,25 @@ Only two SSE endpoints exist in the system:
 | `PublishPeerAnnounce(payload)` | Convenience wrapper: `PublishLocal(TopicPeerAnnounce, "", payload)` |
 | `PublishPeerGone(peerID)` | Convenience wrapper: `PublishLocal(TopicPeerGone, "", payload)` |
 
+## Transport interface
+
+`internal/mq/transport.go` — the abstraction all managers depend on:
+
+```
+mq.Transport interface {
+    Send(ctx, peerID, topic, payload) (string, error)
+    SubscribeTopic(prefix, fn) func()
+    PublishLocal(topic, from, payload)
+}
+```
+
+- `*mq.Manager` satisfies Transport (production — libp2p streams)
+- `testpeer.MQAdapter` satisfies Transport (testing — in-process bus)
+- `mq.NopTransport` satisfies Transport (unit tests that don't need messaging)
+
+All manager fields use `mq mq.Transport`. Constructor params use `transport mq.Transport`.
+Viewer routes keep `mqMgr *mq.Manager` because they need concrete methods like `Subscribe()` and `NotifyDelivered()`.
+
 ## Manager internals
 
 `internal/mq/manager.go`:

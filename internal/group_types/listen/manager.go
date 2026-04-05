@@ -20,7 +20,7 @@ import (
 type Manager struct {
 	host    host.Host
 	grp     *group.Manager
-	mq      *mq.Manager
+	mq      mq.Transport
 	selfID string
 	store  *group.StateStore
 

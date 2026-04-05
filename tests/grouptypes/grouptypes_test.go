@@ -63,11 +63,13 @@ func freshWorld() error {
 	if err != nil {
 		return err
 	}
-	grpMgr := group.NewTestManager(db, "self-peer-id", func(id string) state.PeerIdentityPayload {
-		if id == "self-peer-id" {
-			return state.PeerIdentityPayload{Content: "Self", Known: true}
-		}
-		return state.PeerIdentityPayload{Content: id, Known: true}
+	grpMgr := group.NewTestManager(db, "self-peer-id", group.TestManagerOpts{
+		ResolvePeer: func(id string) state.PeerIdentityPayload {
+			if id == "self-peer-id" {
+				return state.PeerIdentityPayload{Content: "Self", Known: true}
+			}
+			return state.PeerIdentityPayload{Content: id, Known: true}
+		},
 	})
 	w = &world{db: db, grpMgr: grpMgr, dir: dir}
 	return nil

@@ -10,12 +10,12 @@ import (
 var sendTimeout = group.ClusterSendTimeout
 
 type Handler struct {
-	mqMgr      *mq.Manager
+	mq         mq.Transport
 	clusterMgr *Manager
 }
 
-func New(mqMgr *mq.Manager, grpMgr *group.Manager, selfID string) *Manager {
-	h := &Handler{mqMgr: mqMgr}
+func New(transport mq.Transport, grpMgr *group.Manager, selfID string) *Manager {
+	h := &Handler{mq: transport}
 
 	clusterMgr := NewManager(selfID, h.send, h.subscribe)
 	h.clusterMgr = clusterMgr
@@ -28,12 +28,12 @@ func New(mqMgr *mq.Manager, grpMgr *group.Manager, selfID string) *Manager {
 func (h *Handler) send(peerID, topic string, payload any) error {
 	ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
 	defer cancel()
-	_, err := h.mqMgr.Send(ctx, peerID, topic, payload)
+	_, err := h.mq.Send(ctx, peerID, topic, payload)
 	return err
 }
 
 func (h *Handler) subscribe(fn func(from, topic string, payload any)) func() {
-	return h.mqMgr.SubscribeTopic("cluster:", func(from, topic string, payload any) {
+	return h.mq.SubscribeTopic("cluster:", func(from, topic string, payload any) {
 		fn(from, topic, payload)
 	})
 }

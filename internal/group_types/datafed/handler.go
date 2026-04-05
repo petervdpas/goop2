@@ -14,7 +14,7 @@ const GroupTypeName = "data-federation"
 
 type Manager struct {
 	mu      sync.RWMutex
-	mqMgr   *mq.Manager
+	mq      mq.Transport
 	grpMgr  *group.Manager
 	selfID  string
 	schemas func() []*schema.Table
@@ -23,9 +23,9 @@ type Manager struct {
 	onChange func()
 }
 
-func New(mqMgr *mq.Manager, grpMgr *group.Manager, selfID string, schemas func() []*schema.Table) *Manager {
+func New(transport mq.Transport, grpMgr *group.Manager, selfID string, schemas func() []*schema.Table) *Manager {
 	m := &Manager{
-		mqMgr:   mqMgr,
+		mq:      transport,
 		grpMgr:  grpMgr,
 		selfID:  selfID,
 		schemas: schemas,
@@ -33,7 +33,7 @@ func New(mqMgr *mq.Manager, grpMgr *group.Manager, selfID string, schemas func()
 	}
 	grpMgr.RegisterType(GroupTypeName, m)
 
-	mqMgr.SubscribeTopic("peer:", func(from, topic string, payload any) {
+	transport.SubscribeTopic("peer:", func(from, topic string, payload any) {
 		switch topic {
 		case "peer:gone":
 			m.handlePeerGone(from, payload)

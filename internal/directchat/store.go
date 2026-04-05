@@ -1,4 +1,4 @@
-package chat
+package directchat
 
 import "context"
 

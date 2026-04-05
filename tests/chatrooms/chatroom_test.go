@@ -45,7 +45,7 @@ func aRunningChatRoomServer() error {
 		return err
 	}
 
-	grpMgr := group.NewTestManager(db, "self-peer-id", testResolvePeer)
+	grpMgr := group.NewTestManager(db, "self-peer-id", group.TestManagerOpts{ResolvePeer: testResolvePeer})
 
 	cm := newTestChatManager(grpMgr)
 

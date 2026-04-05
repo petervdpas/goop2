@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/petervdpas/goop2/internal/group"
+	"github.com/petervdpas/goop2/internal/mq"
 	"github.com/petervdpas/goop2/internal/state"
 	"github.com/petervdpas/goop2/internal/storage"
 )
@@ -22,6 +23,7 @@ func testManager(t *testing.T) *Manager {
 
 	m := &Manager{
 		grp:    grpMgr,
+		mq:     mq.NopTransport{},
 		selfID: "self-peer-id",
 		resolvePeer: func(id string) state.PeerIdentityPayload {
 			if id == "self-peer-id" {
@@ -136,6 +138,7 @@ func TestResolveMembersUsesPeerNameFallback(t *testing.T) {
 
 	m := &Manager{
 		grp:    grpMgr,
+		mq:     mq.NopTransport{},
 		selfID: "joiner-peer",
 		resolvePeer: func(id string) state.PeerIdentityPayload {
 			switch id {

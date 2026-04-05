@@ -6,18 +6,18 @@ Goop2 has two separate chat systems that share the `chat` word but are architect
 
 | System | Package | Transport | Persistence | Purpose |
 | -- | -- | -- | -- | -- |
-| Direct/broadcast chat | `internal/chat/` | MQ topics `chat` and `chat.broadcast` | `_chat_messages` table | 1:1 messages and broadcast to all peers |
+| Direct/broadcast chat | `internal/directchat/` | MQ topics `chat` and `chat.broadcast` | `_chat_messages` table | 1:1 messages and broadcast to all peers |
 | Group chat rooms | `internal/group_types/chat/` | MQ topics `chat.room:{groupID}:{sub}` | In-memory ring buffer per room | Bounded group chat within a hosted group |
 
-## Direct chat (`internal/chat/`)
+## Direct chat (`internal/directchat/`)
 
 ### Manager
 
-`chat.Manager` owns direct message persistence and Lua command dispatch.
+`directchat.Manager` owns direct message persistence and Lua command dispatch.
 
 - `selfID`: local peer ID
 - `store`: `Store` interface (backed by `_chat_messages` table)
-- `mq`: `MQ` interface (Send + SubscribeTopic)
+- `mq`: local `MQ` interface (Send + SubscribeTopic — a subset of `mq.Transport`, defined in `store.go`)
 - `lua`: optional `LuaDispatcher` for `!` command handling
 
 ### Message flow

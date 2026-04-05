@@ -9,14 +9,14 @@ import (
 
 // Handler implements group.TypeHandler for the "files" group_type.
 type Handler struct {
-	mqMgr *mq.Manager
+	mq mq.Transport
 	store *Store
 }
 
 // New creates a files handler and registers it with the group manager.
-func New(mqMgr *mq.Manager, grpMgr *group.Manager, store *Store) {
+func New(transport mq.Transport, grpMgr *group.Manager, store *Store) {
 	h := &Handler{
-		mqMgr: mqMgr,
+		mq: transport,
 		store: store,
 	}
 	grpMgr.RegisterType("files", h)

@@ -11,10 +11,10 @@ import (
 	"github.com/petervdpas/goop2/internal/mq"
 )
 
-// mqSignalerAdapter bridges *mq.Manager to call.Signaler.
+// mqSignalerAdapter bridges mq.Transport to call.Signaler for WebRTC signaling.
 // This is the only place that imports both packages — call knows nothing about mq.
 type mqSignalerAdapter struct {
-	mqMgr *mq.Manager
+	mq mq.Transport
 
 	mu    sync.Mutex
 	peers map[string]string // channelID → peerID
@@ -37,17 +37,17 @@ func (a *mqSignalerAdapter) Send(channelID string, payload any) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), MQCallSignalTimeout)
 	defer cancel()
-	_, err := a.mqMgr.Send(ctx, peerID, "call:"+channelID, payload)
+	_, err := a.mq.Send(ctx, peerID, "call:"+channelID, payload)
 	return err
 }
 
 func (a *mqSignalerAdapter) PublishLocal(channelID string, payload any) {
-	a.mqMgr.PublishLocal("call:"+channelID, "", payload)
+	a.mq.PublishLocal("call:"+channelID, "", payload)
 }
 
 func (a *mqSignalerAdapter) Subscribe() (chan *call.Envelope, func()) {
 	callCh := make(chan *call.Envelope, 64)
-	unsub := a.mqMgr.SubscribeTopic("call:", func(from, topic string, payload any) {
+	unsub := a.mq.SubscribeTopic("call:", func(from, topic string, payload any) {
 		channelID := strings.TrimPrefix(topic, "call:")
 		select {
 		case callCh <- &call.Envelope{Channel: channelID, From: from, Payload: payload}:

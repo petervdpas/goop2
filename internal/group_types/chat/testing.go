@@ -2,12 +2,14 @@ package chat
 
 import (
 	"github.com/petervdpas/goop2/internal/group"
+	"github.com/petervdpas/goop2/internal/mq"
 	"github.com/petervdpas/goop2/internal/state"
 )
 
 func NewTestManager(grpMgr *group.Manager, selfID string, resolvePeer func(string) state.PeerIdentityPayload) *Manager {
 	m := &Manager{
 		grp:         grpMgr,
+		mq:          mq.NopTransport{},
 		selfID:      selfID,
 		resolvePeer: resolvePeer,
 		rooms:       make(map[string]*roomState),

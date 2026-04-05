@@ -16,7 +16,7 @@ import (
 	"github.com/petervdpas/goop2/internal/config"
 	"github.com/petervdpas/goop2/internal/content"
 	"github.com/petervdpas/goop2/internal/group"
-	chatType "github.com/petervdpas/goop2/internal/group_types/chat"
+	"github.com/petervdpas/goop2/internal/group_types/chat"
 	"github.com/petervdpas/goop2/internal/group_types/listen"
 	"github.com/petervdpas/goop2/internal/state"
 	"github.com/petervdpas/goop2/internal/storage"
@@ -93,7 +93,7 @@ type Engine struct {
 	db           *storage.DB
 	content      *content.Store
 	listen       *listen.Manager
-	chatRooms    *chatType.Manager
+	chatRooms    *chat.Manager
 	groups       GroupChecker
 	groupMgr     GroupManager
 	mqSub        MQSubscriber
@@ -480,7 +480,7 @@ func (e *Engine) SetListen(lm *listen.Manager) {
 }
 
 // SetChatRooms sets the chat room manager reference for goop.chat access in scripts.
-func (e *Engine) SetChatRooms(cm *chatType.Manager) {
+func (e *Engine) SetChatRooms(cm *chat.Manager) {
 	e.chatRooms = cm
 }
 

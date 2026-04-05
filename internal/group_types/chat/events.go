@@ -73,9 +73,6 @@ func (m *Manager) broadcastToRoom(groupID, sub string, msg chatMsg, excludePeer 
 }
 
 func (m *Manager) publishLocal(groupID, sub string, msg chatMsg) {
-	if m.mq == nil {
-		return
-	}
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return
