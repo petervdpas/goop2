@@ -4834,7 +4834,7 @@ const docTemplate = `{
         },
         "/api/mq/send": {
             "post": {
-                "description": "Delivers the payload to the remote peer over the MQ P2P protocol.\\nBlocks until the peer sends a transport ACK (up to 4 s, one retry).\\nTopic convention: call:{channelId}, group:{groupId}:{type}, group.invite, chat, chat.broadcast",
+                "description": "Delivers the payload to the remote peer over the MQ P2P protocol.\\nBlocks until the peer sends a transport ACK (up to 4 s, one retry).\\nTopic convention: call:{channelId}, group:{groupId}:{type}, group.invite, chat, chat.broadcast, identity, identity.response",
                 "consumes": [
                     "application/json"
                 ],
