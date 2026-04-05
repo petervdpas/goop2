@@ -33,7 +33,6 @@ func RunRendezvous(ctx context.Context, o shared.ModeOpts, cfg config.Config, rv
 			SelfLabel:     selfContent,
 			SelfEmail:     selfEmail,
 			CfgPath:       o.CfgPath,
-			Cfg:           cfg,
 			Logs:          o.Logs,
 			BaseURL:       url,
 			RendezvousURL: rvURL,

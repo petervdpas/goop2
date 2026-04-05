@@ -29,61 +29,51 @@ import (
 )
 
 type Viewer struct {
-	Node      *p2p.Node
-	SelfLabel func() string
-	SelfEmail func() string
-	Peers     *state.PeerTable
+	// Identity
+	Node        *p2p.Node
+	SelfLabel   func() string
+	SelfEmail   func() string
+	Peers       *state.PeerTable
+	ResolvePeer func(string) state.PeerIdentityPayload
 
+	// Config & content
 	CfgPath string
-	Cfg     any // Config interface to avoid import cycle
-	Logs    *LogBuffer
+	PeerDir string
 	Content *content.Store
-	MQ      *mq.Manager
-	Groups  *group.Manager
-	Listen    *listen.Manager
-	ChatRooms *chat.Manager
-	DB      *storage.DB  // SQLite database for peer data
-	Docs    *files.Store // shared documents store
+	Logs    *LogBuffer
 
+	// Storage
+	DB *storage.DB
+
+	// Networking
+	BaseURL   string
+	BridgeURL string
+	RVClients []*rendezvous.Client
+
+	// Core managers
+	MQ         *mq.Manager
+	Groups     *group.Manager
+	DirectChat *directchat.Manager
+
+	// Group-type managers
+	Listen          *listen.Manager
+	ChatRooms       *chat.Manager
+	Docs            *files.Store
+	Cluster         *cluster.Manager
+	DataFed         *datafed.Manager
+	TemplateHandler *templateType.Handler
+
+	// Avatar
 	AvatarStore *avatar.Store
 	AvatarCache *avatar.Cache
 
-	BaseURL string
-
-	PeerDir string // root directory for this peer's data
-
-	RVClients []*rendezvous.Client
-
-	// Canonical peer identity resolver — single instance shared by all routes.
-	ResolvePeer func(string) state.PeerIdentityPayload
-
-	// DirectChat manager — owns message persistence, Lua dispatch, history endpoints.
-	DirectChat *directchat.Manager
-
-	// Wails bridge URL for native dialogs (empty when not running in Wails)
-	BridgeURL string
-
-	// EnsureLua starts the Lua engine if needed and rescans functions.
+	// Lua integration
 	EnsureLua func()
+	LuaCall   func(ctx context.Context, function string, params map[string]any) (any, error)
 
-	// LuaCall invokes a named Lua data function as the local peer.
-	LuaCall func(ctx context.Context, function string, params map[string]any) (any, error)
-
-	// Call manager for native Go/Pion WebRTC (nil = use browser WebRTC).
-	// Set automatically on Linux; nil on all other platforms.
+	// Platform-specific (nil when unavailable)
 	Call *call.Manager
-
-	// Cluster compute manager (nil when cluster not configured).
-	Cluster *cluster.Manager
-
-	// GraphQL engine for data federation (nil when DB not available).
-	GQL *gql.Engine
-
-	// Data federation manager (nil when not available).
-	DataFed *datafed.Manager
-
-	// Template group handler.
-	TemplateHandler *templateType.Handler
+	GQL  *gql.Engine
 }
 
 func Start(addr string, v Viewer) error {
@@ -113,7 +103,6 @@ func Start(addr string, v Viewer) error {
 		SelfEmail:    v.SelfEmail,
 		Peers:        v.Peers,
 		CfgPath:      v.CfgPath,
-		Cfg:          v.Cfg,
 		Logs:         v.Logs,
 		Content:      v.Content,
 		BaseURL:      baseURL,
@@ -206,7 +195,6 @@ type MinimalViewer struct {
 	SelfLabel     func() string
 	SelfEmail     func() string
 	CfgPath       string
-	Cfg           any
 	Logs          *LogBuffer
 	BaseURL       string
 	RendezvousURL string
@@ -242,7 +230,6 @@ func StartMinimal(addr string, v MinimalViewer) error {
 		SelfLabel:      v.SelfLabel,
 		SelfEmail:      v.SelfEmail,
 		CfgPath:        v.CfgPath,
-		Cfg:            v.Cfg,
 		Logs:           v.Logs,
 		BaseURL:        baseURL,
 		RendezvousOnly: true,

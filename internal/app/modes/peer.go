@@ -671,7 +671,6 @@ func RunPeer(p PeerParams) error {
 			Peers:       peers,
 			ResolvePeer: resolvePeer,
 			CfgPath:     o.CfgPath,
-			Cfg:         cfg,
 			Logs:        o.Logs,
 			Content:     store,
 			MQ:          mqMgr,

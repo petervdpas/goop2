@@ -74,7 +74,6 @@ func RunBridge(ctx context.Context, o shared.ModeOpts, cfg config.Config, selfCo
 			SelfLabel:   selfContent,
 			SelfEmail:   selfEmail,
 			CfgPath:     o.CfgPath,
-			Cfg:         cfg,
 			Logs:        o.Logs,
 			BaseURL:     url,
 			AvatarStore: avatarStore,

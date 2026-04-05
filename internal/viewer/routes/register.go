@@ -22,53 +22,44 @@ type Logs interface {
 }
 
 type Deps struct {
-	Node      *p2p.Node
-	SelfLabel func() string
-	SelfEmail func() string
-	Peers     *state.PeerTable
+	// Identity
+	Node        *p2p.Node
+	SelfLabel   func() string
+	SelfEmail   func() string
+	Peers       *state.PeerTable
+	ResolvePeer func(string) state.PeerIdentityPayload
 
+	// Config & content
 	CfgPath string
-	Cfg     any // Config interface to avoid import cycle
-	Logs    Logs
+	PeerDir string
 	Content *content.Store
+	Logs    Logs
 	BaseURL string
-	DB      *storage.DB
 
-	AvatarStore *avatar.Store
-	AvatarCache *avatar.Cache
+	// Storage
+	DB *storage.DB
+
+	// Networking
+	BridgeURL  string
+	RVClients  []*rendezvous.Client
 
 	// Rendezvous-only mode (no p2p node, limited routes)
 	RendezvousOnly bool
 	RendezvousURL  string
+	TopologyFunc   func() any
 
-	PeerDir string // root directory for this peer's data
-
-	RVClients []*rendezvous.Client
-
-	// Wails bridge URL for native dialogs (empty when not running in Wails)
-	BridgeURL string
-
-	// TopologyFunc returns topology data for the graph. Set by p2p node or rendezvous.
-	TopologyFunc func() any
-
-	// Canonical peer identity resolver
-	ResolvePeer func(string) state.PeerIdentityPayload
-
-	// Document sharing
-	DocsStore    *files.Store
-	GroupManager *group.Manager
-
-	// Template group handler
+	// Group managers
+	GroupManager    *group.Manager
+	DocsStore       *files.Store
 	TemplateHandler *templateType.Handler
 
-	// EnsureLua is called when a template with Lua files is applied.
-	// It starts the Lua engine (if not already running) and rescans the
-	// functions directory so scripts are available immediately.
-	EnsureLua func()
+	// Avatar
+	AvatarStore *avatar.Store
+	AvatarCache *avatar.Cache
 
-	// LuaCall invokes a named Lua data function (e.g. "seed") as the local peer.
-	// Set after the Lua engine is available; nil when Lua is not wired.
-	LuaCall func(ctx context.Context, function string, params map[string]any) (any, error)
+	// Lua integration
+	EnsureLua func()
+	LuaCall   func(ctx context.Context, function string, params map[string]any) (any, error)
 }
 
 func Register(mux *http.ServeMux, d Deps) {

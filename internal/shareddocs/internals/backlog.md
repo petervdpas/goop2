@@ -1,4 +1,4 @@
-# Cleanup Backlog
+# Backlog
 
 ## How to work with this file
 
@@ -6,7 +6,7 @@ You are reading this because the user asked you to improve the codebase. Follow 
 
 1. **Ask the user first:** "Want to add new items to the backlog, or shall I start working on the open TODOs?" Then proceed accordingly.
 2. **Read the code first.** Every TODO has file paths. Read those files before changing anything.
-3. **Fix it, then mark it DONE.** Add a one-line summary of what you did under the item.
+3. **Fix it, then mark it DONE.** Move it to `backlog-history.md` with a one-line summary of what you did.
 4. **Add what you find.** Every file you read is a chance to spot new problems. Add them as new TODOs immediately — naming issues, dead code, missing tests, inconsistencies, anything that doesn't read like a story.
 5. **Update the other internals docs.** If your fix changes how a system works, update the matching doc (architecture.md, identity.md, mq-internals.md, chat-internals.md, etc.). These docs are YOUR memory across sessions — stale docs waste the user's money.
 6. **Run tests before declaring done.** `go test ./...` must pass. No exceptions.
@@ -18,35 +18,6 @@ You are reading this because the user asked you to improve the codebase. Follow 
 ---
 
 ## Naming consistency
-
-### DONE: mq.Transport interface and field naming
-
-- `internal/mq/transport.go` — interface extracted, file renamed from sender.go
-- All manager fields: `mq mq.Transport` (consistent)
-- All constructor params: `transport mq.Transport` (declarative)
-- Viewer routes keep `mqMgr *mq.Manager` (correct — they need the concrete type)
-- `mq.NopTransport{}` default in test managers
-
-### DONE: stale comments
-
-- `internal/call/session.go:188,199` — Phase TODO markers replaced with descriptive comments about what's missing
-- `internal/viewer/routes/call.go:409,431` — Phase TODO markers replaced with "Stub: not yet implemented"
-- These are real stubs (loopback SDP/ICE not wired, track mute/disable state tracked but not applied to Pion)
-
-### TODO: Viewer struct bloat
-
-- `internal/viewer/viewer.go` — `Viewer` struct has 20+ fields with inconsistent commenting
-- `Cfg any` with comment "avoid import cycle" — investigate if the cycle still exists or if this can be typed
-- Consider grouping related fields (all the managers, all the config, all the identity funcs)
-
-### DONE: two chat packages renamed
-
-- `internal/chat/` renamed to `internal/directchat/` (P2P + broadcast chat, persisted)
-- `internal/group_types/chat/` stays as `chat` (group-bounded chat rooms)
-- No more `chatType` alias needed — `group_types/chat` is now just `chat` everywhere
-- `viewer.Viewer` field renamed: `Chat` → `DirectChat`
-- `templateType` alias remains (Go stdlib `template` name collision, unavoidable)
-- Chat system has 3 modes: direct (persisted, P2P), group rooms (group protocol), broadcast (ephemeral MQ, no manager — frontend-only over `chat.broadcast` topic)
 
 ### TODO: direct &Manager{} construction in tests
 
@@ -76,11 +47,6 @@ You are reading this because the user asked you to improve the codebase. Follow 
 - Many route handlers repeat: `json.NewDecoder(r.Body).Decode(&req)` → check error → process → `json.NewEncoder(w).Encode(resp)`
 - Not a bug but reads as boilerplate. Consider a typed handler helper if the pattern appears 20+ times
 
-### DONE: error handling asymmetry in group_types/chat/events.go
-
-- Removed stale nil guard from `publishLocal` — NopTransport handles nil-safety now
-- Both `sendToPeer` and `publishLocal` now consistently rely on the Transport interface
-
 ### TODO: `group.New()` requires host.Host but TestPeer passes nil
 
 - `group.New(h host.Host, db, transport, resolvePeer)` uses `h.ID().String()` for selfID
@@ -89,10 +55,6 @@ You are reading this because the user asked you to improve the codebase. Follow 
 - This is correct. The split between `New` (production, needs host) and `NewTestManager` (testing, no host) is intentional
 
 ## Test gaps
-
-### DONE: PeerTable unit tests
-
-- Added `peers_test.go` with 13 tests covering Upsert (new, preserve local state, clear offline), Seed, SetReachable (success, fail streak, reset), MarkOffline, PruneStale (TTL, grace), Subscribe, Remove, Snapshot
 
 ### TODO: MQ Manager.Send test
 
@@ -135,29 +97,14 @@ Every template should have a `README.md` next to `manifest.json`, editable by th
 7. `TemplateMeta` struct does NOT need a readme field — readme is content, not metadata
 8. Viewer UI: add editor (textarea) for markdown in the template settings area of `self.html`
 
-## Recently completed
-
-- 2026-04-06: mq.Transport interface extracted, all managers updated
-- 2026-04-06: testpeer package created (bus.go, adapter.go, peer.go) with 10 tests
-- 2026-04-06: group.NewTestManager updated to accept TestManagerOpts with MQ
-- 2026-04-06: NopTransport added as default for test managers
-- 2026-04-06: All field/param naming made consistent (mq field, transport param)
-- 2026-04-06: shareddocs/internals/architecture.md and identity.md fully rewritten
-- 2026-04-06: Stale TODO/Phase comments cleaned up in call.go and session.go
-- 2026-04-06: chat/events.go nil guard asymmetry fixed
-- 2026-04-06: PeerTable unit tests added (13 tests in peers_test.go)
-- 2026-04-06: cleanup-backlog.md created as living backlog
-- 2026-04-06: Fixed chat/handler_test.go — two direct Manager{} creations missing NopTransport (caused panic after nil guard removal)
-- 2026-04-06: Renamed internal/chat → internal/directchat, dropped chatType alias everywhere
-
 ## Permanent tasks
 
 These never close. Every session must do them.
 
 ### Maintain internals docs
 
-1. **Read cleanup-backlog.md first** to know what needs work
-2. **Update it while working** — mark DONE, add new findings
+1. **Read backlog.md first** to know what needs work
+2. **Update it while working** — move DONE items to `backlog-history.md`, add new findings
 3. **Keep state docs accurate** — when code changes, update the matching internals doc (architecture.md, identity.md, testing.md, mq-internals.md, etc.)
 4. **Add new issues as discovered** — every file read is an opportunity to spot problems
 
