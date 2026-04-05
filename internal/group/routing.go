@@ -160,7 +160,7 @@ func (m *Manager) handleMemberMessage(from string, cc *clientConn, groupID, msgT
 			if b, err := json.Marshal(rawPayload); err == nil {
 				var mp MetaPayload
 				if json.Unmarshal(b, &mp) == nil && mp.GroupName != "" {
-					_ = m.db.AddSubscription(cc.hostPeerID, groupID, mp.GroupName, mp.GroupType, mp.MaxMembers, m.isVolatileType(cc.groupType), "member", m.db.GetPeerName(cc.hostPeerID))
+					_ = m.db.AddSubscription(cc.hostPeerID, groupID, mp.GroupName, mp.GroupType, mp.MaxMembers, m.isVolatileType(cc.groupType), "member", m.resolvePeerName(cc.hostPeerID))
 				}
 			}
 		}

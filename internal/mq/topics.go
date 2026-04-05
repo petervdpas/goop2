@@ -33,6 +33,12 @@ const (
 	// Chat rooms — group-bounded message broadcast.
 	TopicChatRoomPrefix = "chat.room:" // + groupID + ":" + type
 
+	// Peer identity — on-demand P2P identity exchange.
+	// Request: peer sends "identity" to unknown peer.
+	// Response: peer replies "identity.response" with full identity payload.
+	TopicIdentity         = "identity"
+	TopicIdentityResponse = "identity.response"
+
 	// Internal MQ event log — published locally by mq.logMQEvent.
 	TopicLogMQ = "log:mq"
 )
@@ -142,6 +148,21 @@ type PeerAnnouncePayload struct {
 	Favorite       bool      `json:"favorite,omitempty"`
 	// Internal only — not sent to browser, populated from CachedPeer after lookup.
 	LastSeenTime time.Time `json:"-"`
+}
+
+// IdentityPayload is the payload for TopicIdentityResponse.
+// Sent by a peer in response to a TopicIdentity request.
+// Fields mirror PeerAnnouncePayload — same identity, different transport.
+type IdentityPayload struct {
+	PeerID              string `json:"peerID"`
+	Content             string `json:"content"`
+	Email               string `json:"email,omitempty"`
+	AvatarHash          string `json:"avatarHash,omitempty"`
+	VideoDisabled       bool   `json:"videoDisabled,omitempty"`
+	ActiveTemplate      string `json:"activeTemplate,omitempty"`
+	PublicKey           string `json:"publicKey,omitempty"`
+	EncryptionSupported bool   `json:"encryptionSupported,omitempty"`
+	GoopClientVersion   string `json:"goopClientVersion,omitempty"`
 }
 
 // PeerGonePayload is the payload for TopicPeerGone.

@@ -831,7 +831,7 @@ func swagClusterWorkerResume() {}
 // swagMQSend is a documentation stub for POST /api/mq/send.
 //
 //	@Summary	Send an MQ message to a peer
-//	@Description	Delivers the payload to the remote peer over the MQ P2P protocol.\nBlocks until the peer sends a transport ACK (up to 4 s, one retry).\nTopic convention: call:{channelId}, group:{groupId}:{type}, group.invite, chat, chat.broadcast
+//	@Description	Delivers the payload to the remote peer over the MQ P2P protocol.\nBlocks until the peer sends a transport ACK (up to 4 s, one retry).\nTopic convention: call:{channelId}, group:{groupId}:{type}, group.invite, chat, chat.broadcast, identity, identity.response
 //	@Tags		mq
 //	@Accept		json
 //	@Produce	json

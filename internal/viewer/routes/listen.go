@@ -6,10 +6,11 @@ import (
 	"time"
 
 	"github.com/petervdpas/goop2/internal/group_types/listen"
+	"github.com/petervdpas/goop2/internal/state"
 )
 
 // RegisterListen adds listening group HTTP API endpoints.
-func RegisterListen(mux *http.ServeMux, lm *listen.Manager, peerName func(string) string) {
+func RegisterListen(mux *http.ServeMux, lm *listen.Manager, resolvePeer func(string) state.PeerIdentity) {
 
 	// POST /api/listen/create — host creates a group
 	handlePost(mux, "/api/listen/create", func(w http.ResponseWriter, r *http.Request, req struct {
@@ -200,7 +201,7 @@ func RegisterListen(mux *http.ServeMux, lm *listen.Manager, peerName func(string
 		}
 		names := make(map[string]string, len(group.Listeners))
 		for _, pid := range group.Listeners {
-			if n := peerName(pid); n != "" {
+			if n := resolvePeer(pid).Name; n != "" {
 				names[pid] = n
 			}
 		}

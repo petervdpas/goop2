@@ -55,6 +55,9 @@ type Viewer struct {
 
 	RVClients []*rendezvous.Client
 
+	// Canonical peer identity resolver — single instance shared by all routes.
+	ResolvePeer func(string) state.PeerIdentity
+
 	// Chat manager — owns message persistence, Lua dispatch, history endpoints.
 	Chat *chat.Manager
 
@@ -121,6 +124,7 @@ func Start(addr string, v Viewer) error {
 		PeerDir:      v.PeerDir,
 		RVClients:    v.RVClients,
 		BridgeURL:    v.BridgeURL,
+		ResolvePeer:     v.ResolvePeer,
 		DocsStore:    v.Docs,
 		GroupManager:    v.Groups,
 		TemplateHandler: v.TemplateHandler,
@@ -157,38 +161,7 @@ func Start(addr string, v Viewer) error {
 
 	// Register group endpoints if group manager is available
 	if v.Groups != nil {
-		routes.RegisterGroups(mux, v.Groups, v.Node.ID(),
-			func(id string) string {
-				if id == v.Node.ID() {
-					return v.SelfLabel()
-				}
-				if v.Peers != nil {
-					if sp, ok := v.Peers.Snapshot()[id]; ok && sp.Content != "" {
-						return sp.Content
-					}
-				}
-				if v.DB != nil {
-					if cached := v.DB.GetPeerName(id); cached != "" {
-						return cached
-					}
-				}
-				return ""
-			},
-			func(id string) bool {
-				if v.Peers != nil {
-					if sp, ok := v.Peers.Snapshot()[id]; ok {
-						return sp.OfflineSince.IsZero()
-					}
-				}
-				if v.DB != nil {
-					if cp, ok := v.DB.GetCachedPeer(id); ok {
-						return len(cp.Addrs) > 0
-					}
-				}
-				return false
-			},
-			v.MQ,
-		)
+		routes.RegisterGroups(mux, v.Groups, v.Node.ID(), v.ResolvePeer, v.MQ)
 	}
 
 	// Register filesystem browsing
@@ -210,32 +183,12 @@ func Start(addr string, v Viewer) error {
 
 	// Register listen room endpoints if listen manager is available
 	if v.Listen != nil {
-		routes.RegisterListen(mux, v.Listen, func(id string) string {
-			if v.Peers != nil {
-				if sp, ok := v.Peers.Snapshot()[id]; ok && sp.Content != "" {
-					return sp.Content
-				}
-			}
-			if v.DB != nil {
-				return v.DB.GetPeerName(id)
-			}
-			return ""
-		})
+		routes.RegisterListen(mux, v.Listen, v.ResolvePeer)
 	}
 
 	// Register chat room endpoints if chat manager is available
 	if v.ChatRooms != nil {
-		routes.RegisterChatRooms(mux, v.ChatRooms, func(id string) string {
-			if v.Peers != nil {
-				if sp, ok := v.Peers.Snapshot()[id]; ok && sp.Content != "" {
-					return sp.Content
-				}
-			}
-			if v.DB != nil {
-				return v.DB.GetPeerName(id)
-			}
-			return ""
-		})
+		routes.RegisterChatRooms(mux, v.ChatRooms, v.ResolvePeer)
 	}
 
 	// Register data proxy for remote peer data operations

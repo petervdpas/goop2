@@ -275,7 +275,8 @@ func (m *Manager) handleIncoming(stream network.Stream) {
 	// Topics handled entirely by subscribers that republish via PublishLocal.
 	// Skip raw SSE delivery to avoid duplicate events in the browser.
 	if msg.Topic == TopicGroupInvite || strings.HasPrefix(msg.Topic, TopicGroupPrefix) ||
-		strings.HasPrefix(msg.Topic, TopicChatRoomPrefix) {
+		strings.HasPrefix(msg.Topic, TopicChatRoomPrefix) ||
+		msg.Topic == TopicIdentity || msg.Topic == TopicIdentityResponse {
 		go m.logMQEvent("recv", msg.Topic, remotePeer, "", connVia(stream), decrypted)
 		return
 	}

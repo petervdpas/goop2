@@ -58,28 +58,18 @@ func aRunningHostAndJoinerChatServer() error {
 		return err
 	}
 
-	hostGrp := group.NewTestManager(hostDB, "host-peer-id")
-	joinerGrp := group.NewTestManager(joinerDB, "joiner-peer")
+	hostGrp := group.NewTestManager(hostDB, "host-peer-id", testResolvePeer)
+	joinerGrp := group.NewTestManager(joinerDB, "joiner-peer", testResolvePeer)
 
-	peerName := func(id string) string {
-		switch id {
-		case "host-peer-id":
-			return "Host"
-		case "joiner-peer":
-			return "Joiner"
-		}
-		return id
-	}
-
-	hostChat := chat.NewTestManager(hostGrp, "host-peer-id", peerName)
-	joinerChat := chat.NewTestManager(joinerGrp, "joiner-peer", peerName)
+	hostChat := chat.NewTestManager(hostGrp, "host-peer-id", testResolvePeer)
+	joinerChat := chat.NewTestManager(joinerGrp, "joiner-peer", testResolvePeer)
 
 	hostMux := http.NewServeMux()
-	routes.RegisterChatRooms(hostMux, hostChat, peerName)
+	routes.RegisterChatRooms(hostMux, hostChat, testResolvePeer)
 	hostSrv := httptest.NewServer(hostMux)
 
 	joinerMux := http.NewServeMux()
-	routes.RegisterChatRooms(joinerMux, joinerChat, peerName)
+	routes.RegisterChatRooms(joinerMux, joinerChat, testResolvePeer)
 	joinerSrv := httptest.NewServer(joinerMux)
 
 	jw = &joinerWorld{
@@ -264,6 +254,48 @@ func theJoinerLatestMessageTextShouldBe(expected string) error {
 	return nil
 }
 
+func theJoinerMemberShouldHaveName(peerID, expectedName string) error {
+	var state struct {
+		Room struct {
+			Members []struct {
+				PeerID string `json:"peer_id"`
+				Name   string `json:"name"`
+			} `json:"members"`
+		} `json:"room"`
+	}
+	if err := json.Unmarshal(jw.lastJoinerBody, &state); err != nil {
+		return err
+	}
+	for _, m := range state.Room.Members {
+		if m.PeerID == peerID {
+			if m.Name != expectedName {
+				return fmt.Errorf("expected member %s name %q, got %q", peerID, expectedName, m.Name)
+			}
+			return nil
+		}
+	}
+	return fmt.Errorf("member %s not found in joiner state", peerID)
+}
+
+func theJoinerLatestMessageFromNameShouldBe(expected string) error {
+	var state struct {
+		Messages []struct {
+			FromName string `json:"from_name"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(jw.lastJoinerBody, &state); err != nil {
+		return err
+	}
+	if len(state.Messages) == 0 {
+		return fmt.Errorf("no messages found")
+	}
+	last := state.Messages[len(state.Messages)-1]
+	if last.FromName != expected {
+		return fmt.Errorf("expected from_name %q, got %q", expected, last.FromName)
+	}
+	return nil
+}
+
 func theHostStateShouldHaveNMembers(n int) error {
 	var state struct {
 		Room struct {
@@ -323,4 +355,6 @@ func initJoinerScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the joiner state should have (\d+) messages?$`, theJoinerStateShouldHaveNMessages)
 	ctx.Step(`^the joiner latest message text should be "([^"]*)"$`, theJoinerLatestMessageTextShouldBe)
 	ctx.Step(`^the host state should have (\d+) members?$`, theHostStateShouldHaveNMembers)
+	ctx.Step(`^the joiner member "([^"]*)" should have name "([^"]*)"$`, theJoinerMemberShouldHaveName)
+	ctx.Step(`^the joiner latest message from_name should be "([^"]*)"$`, theJoinerLatestMessageFromNameShouldBe)
 }

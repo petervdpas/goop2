@@ -1,11 +1,14 @@
 package group
 
-import "github.com/petervdpas/goop2/internal/storage"
+import (
+	"github.com/petervdpas/goop2/internal/state"
+	"github.com/petervdpas/goop2/internal/storage"
+)
 
 // NewTestManager creates a minimal Manager backed only by a DB,
 // suitable for unit tests that don't need P2P or MQ transport.
-func NewTestManager(db *storage.DB, selfID string) *Manager {
-	return &Manager{
+func NewTestManager(db *storage.DB, selfID string, resolvePeer ...func(string) state.PeerIdentity) *Manager {
+	m := &Manager{
 		db:           db,
 		selfID:       selfID,
 		groups:       make(map[string]*hostedGroup),
@@ -13,6 +16,10 @@ func NewTestManager(db *storage.DB, selfID string) *Manager {
 		pendingJoins: make(map[string]chan joinResult),
 		handlers:     make(map[string]TypeHandler),
 	}
+	if len(resolvePeer) > 0 {
+		m.resolvePeer = resolvePeer[0]
+	}
+	return m
 }
 
 // SimulateInvite processes an invite payload as if it arrived via MQ.

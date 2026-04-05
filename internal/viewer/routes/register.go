@@ -51,6 +51,9 @@ type Deps struct {
 	// TopologyFunc returns topology data for the graph. Set by p2p node or rendezvous.
 	TopologyFunc func() any
 
+	// Canonical peer identity resolver
+	ResolvePeer func(string) state.PeerIdentity
+
 	// Document sharing
 	DocsStore    *files.Store
 	GroupManager *group.Manager

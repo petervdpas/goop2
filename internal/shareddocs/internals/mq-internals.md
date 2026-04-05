@@ -40,6 +40,8 @@ All topic constants are in `internal/mq/topics.go`. Mirrored in `internal/ui/ass
 | `call:{channelID}` | P2P | Call signaling: `call-request`, `call-ack`, `call-offer`, `call-answer`, `ice-candidate`, `call-hangup` |
 | `call:loopback:{channelID}` | local | Go → browser ICE candidates for native WebRTC (Phase 4) |
 | `listen:{groupID}:state` | local | Listen player state updates |
+| `identity` | P2P | Request a peer's full identity (timing race fallback) |
+| `identity.response` | P2P | Full identity reply: name, email, avatar, version, etc. |
 | `log:mq` | local | Internal MQ event log |
 
 ## SSE endpoints

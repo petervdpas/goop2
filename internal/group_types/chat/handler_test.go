@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/petervdpas/goop2/internal/group"
+	"github.com/petervdpas/goop2/internal/state"
 	"github.com/petervdpas/goop2/internal/storage"
 )
 
@@ -22,11 +23,11 @@ func testManager(t *testing.T) *Manager {
 	m := &Manager{
 		grp:    grpMgr,
 		selfID: "self-peer-id",
-		peerName: func(id string) string {
+		resolvePeer: func(id string) state.PeerIdentity {
 			if id == "self-peer-id" {
-				return "Self"
+				return state.PeerIdentity{Name: "Self", Known: true}
 			}
-			return id[:8]
+			return state.PeerIdentity{Name: id, Known: true}
 		},
 		rooms: make(map[string]*roomState),
 	}
@@ -119,5 +120,74 @@ func TestListRooms(t *testing.T) {
 	rooms := m.ListRooms()
 	if len(rooms) != 2 {
 		t.Fatalf("expected 2 rooms, got %d", len(rooms))
+	}
+}
+
+func TestResolveMembersUsesPeerNameFallback(t *testing.T) {
+	dir := t.TempDir()
+	db, err := storage.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	grpMgr := group.NewTestManager(db, "joiner-peer")
+	t.Cleanup(func() { grpMgr.Close() })
+
+	m := &Manager{
+		grp:    grpMgr,
+		selfID: "joiner-peer",
+		resolvePeer: func(id string) state.PeerIdentity {
+			switch id {
+			case "joiner-peer":
+				return state.PeerIdentity{Name: "Joiner", Known: true}
+			case "host-peer-id":
+				return state.PeerIdentity{Name: "HostName", Known: true}
+			}
+			return state.PeerIdentity{}
+		},
+		rooms: make(map[string]*roomState),
+	}
+
+	grpMgr.SetActiveConn("room1", "host-peer-id", GroupTypeName)
+	grpMgr.SetActiveConnMembers("room1", []group.MemberInfo{
+		{PeerID: "host-peer-id", Name: ""},
+		{PeerID: "joiner-peer", Name: ""},
+	})
+	m.RegisterJoinedRoom("room1", "Test Room")
+
+	room, _, err := m.GetState("room1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(room.Members) != 2 {
+		t.Fatalf("expected 2 members, got %d", len(room.Members))
+	}
+
+	names := map[string]string{}
+	for _, mem := range room.Members {
+		if mem.Name == "" {
+			t.Fatalf("member %s has empty name — peerName fallback not working", mem.PeerID)
+		}
+		names[mem.PeerID] = mem.Name
+	}
+	if names["host-peer-id"] != "HostName" {
+		t.Fatalf("expected host name 'HostName', got %q", names["host-peer-id"])
+	}
+	if names["joiner-peer"] != "Joiner" {
+		t.Fatalf("expected joiner name 'Joiner', got %q", names["joiner-peer"])
+	}
+}
+
+func TestSendMessageFromNameResolved(t *testing.T) {
+	m := testManager(t)
+	_ = m.OnCreate("room1", "Test Room", 0)
+
+	_ = m.SendMessage("room1", "self-peer-id", "hello")
+
+	_, msgs, _ := m.GetState("room1")
+	if msgs[0].FromName != "Self" {
+		t.Fatalf("expected FromName 'Self', got %q", msgs[0].FromName)
 	}
 }

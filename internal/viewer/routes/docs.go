@@ -337,14 +337,9 @@ func registerDocsRoutes(mux *http.ServeMux, d Deps) {
 
 						// Resolve peer label: live table first, persistent cache as fallback
 						label := peerID
-						if d.Peers != nil {
-							if sp, ok := d.Peers.Snapshot()[peerID]; ok && sp.Content != "" {
-								label = sp.Content
-							}
-						}
-						if label == peerID && d.DB != nil {
-							if cached := d.DB.GetPeerName(peerID); cached != "" {
-								label = cached
+						if d.ResolvePeer != nil {
+							if n := d.ResolvePeer(peerID).Name; n != "" {
+								label = n
 							}
 						}
 

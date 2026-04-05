@@ -20,6 +20,8 @@
  *   listen:{groupID}:state    Go → browser   listen state (PublishLocal)
  *   chat                      P2P            direct peer message
  *   chat.broadcast            P2P broadcast  message to all peers
+ *   identity                  P2P            request peer's full identity
+ *   identity.response         P2P            full identity reply
  *   log:mq                    Go → browser   MQ event log entry (PublishLocal)
  *
  * ── Call signaling protocol ───────────────────────────────────────────────────
@@ -56,6 +58,8 @@
     CHAT:                  "chat",
     CHAT_BROADCAST:        "chat.broadcast",
     CHATROOM_PREFIX:       "chat.room:",       // + groupID + ":" + type
+    IDENTITY:              "identity",
+    IDENTITY_RESPONSE:     "identity.response",
     LOG_MQ:                "log:mq",
     LOG_CALL:              "log:call",
     RELAY_STATUS:          "relay:status",

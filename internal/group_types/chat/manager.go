@@ -9,16 +9,17 @@ import (
 
 	"github.com/petervdpas/goop2/internal/group"
 	"github.com/petervdpas/goop2/internal/mq"
+	"github.com/petervdpas/goop2/internal/state"
 )
 
 const GroupTypeName = "chat"
 
 // Manager manages chat rooms backed by groups.
 type Manager struct {
-	grp      *group.Manager
-	mq       *mq.Manager
-	selfID   string
-	peerName func(string) string
+	grp         *group.Manager
+	mq          *mq.Manager
+	selfID      string
+	resolvePeer func(string) state.PeerIdentity
 
 	mu    sync.RWMutex
 	rooms map[string]*roomState
@@ -33,13 +34,13 @@ type roomState struct {
 }
 
 // New creates a chat manager and registers the group type handler.
-func New(grpMgr *group.Manager, mqMgr *mq.Manager, selfID string, peerName func(string) string) *Manager {
+func New(grpMgr *group.Manager, mqMgr *mq.Manager, selfID string, resolvePeer func(string) state.PeerIdentity) *Manager {
 	m := &Manager{
-		grp:      grpMgr,
-		mq:       mqMgr,
-		selfID:   selfID,
-		peerName: peerName,
-		rooms:    make(map[string]*roomState),
+		grp:         grpMgr,
+		mq:          mqMgr,
+		selfID:      selfID,
+		resolvePeer: resolvePeer,
+		rooms:       make(map[string]*roomState),
 	}
 
 	grpMgr.RegisterType(GroupTypeName, m)
@@ -147,7 +148,7 @@ func (m *Manager) SendMessage(groupID, fromPeerID, text string) error {
 	msg := Message{
 		ID:        fmt.Sprintf("%d-%s", time.Now().UnixMilli(), fromPeerID[:8]),
 		From:      fromPeerID,
-		FromName:  m.peerName(fromPeerID),
+		FromName:  m.resolvePeer(fromPeerID).Name,
 		Text:      text,
 		Timestamp: time.Now().UnixMilli(),
 	}
@@ -202,9 +203,13 @@ func (m *Manager) resolveMembers(groupID string) []Member {
 	}
 	out := make([]Member, len(members))
 	for i, mi := range members {
+		name := mi.Name
+		if name == "" {
+			name = m.resolvePeer(mi.PeerID).Name
+		}
 		out[i] = Member{
 			PeerID: mi.PeerID,
-			Name:   mi.Name,
+			Name:   name,
 		}
 	}
 	return out

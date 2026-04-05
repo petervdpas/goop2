@@ -5,10 +5,11 @@ import (
 	"net/http"
 
 	"github.com/petervdpas/goop2/internal/group_types/chat"
+	"github.com/petervdpas/goop2/internal/state"
 )
 
 // RegisterChatRooms adds chat room HTTP API endpoints.
-func RegisterChatRooms(mux *http.ServeMux, cm *chat.Manager, peerName func(string) string) {
+func RegisterChatRooms(mux *http.ServeMux, cm *chat.Manager, _ func(string) state.PeerIdentity) {
 	selfID := cm.SelfID()
 
 	// POST /api/chat/rooms/create

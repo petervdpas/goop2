@@ -214,6 +214,89 @@ func RunPeer(p PeerParams) error {
 		}
 	}
 
+	// ── Canonical peer identity resolver ─────────────────────────────────
+	// Single function for resolving a peer ID to its full identity. Every
+	// subsystem (chat, groups, listen, viewer) uses this same instance.
+	// Identity comes from presence (WebSocket/gossipsub → PeerTable) or
+	// the DB cache. Returns empty PeerIdentity if the peer is unknown.
+	resolvePeer := func(id string) state.PeerIdentity {
+		if id == node.ID() {
+			return state.PeerIdentity{
+				Name:  selfContent(),
+				Email: selfEmail(),
+				Known: true,
+			}
+		}
+		if sp, ok := peers.Get(id); ok {
+			return state.FromSeenPeer(sp)
+		}
+		if cp, ok := db.GetCachedPeer(id); ok {
+			return state.PeerIdentity{
+				Name:       cp.Content,
+				Email:      cp.Email,
+				AvatarHash: cp.AvatarHash,
+				Reachable:  len(cp.Addrs) > 0,
+				Known:      true,
+			}
+		}
+		// Unknown peer — request identity over MQ. The response handler
+		// above will upsert into PeerTable asynchronously, so next lookup
+		// will have the data. Fire-and-forget: we don't block for the response.
+		go func() {
+			reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			defer cancel()
+			_, _ = mqMgr.Send(reqCtx, id, mq.TopicIdentity, nil)
+		}()
+		return state.PeerIdentity{}
+	}
+
+	// ── Identity MQ handler ──────────────────────────────────────────────
+	// When a peer sends us "identity", respond with our full identity on
+	// "identity.response". This handles the timing race where an MQ message
+	// arrives before the WebSocket presence has propagated.
+	mqMgr.SubscribeTopic(mq.TopicIdentity, func(from, topic string, _ any) {
+		if topic != mq.TopicIdentity {
+			return
+		}
+		resp := mq.IdentityPayload{
+			PeerID:              node.ID(),
+			Content:             selfContent(),
+			Email:               selfEmail(),
+			AvatarHash:          avatarStore.Hash(),
+			GoopClientVersion:   o.GoopClientVersion,
+			PublicKey:           selfPublicKey(),
+			EncryptionSupported: selfPublicKey() != "",
+			ActiveTemplate:      selfActiveTemplate(),
+			VideoDisabled:       selfVideoDisabled(),
+		}
+		sendCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		_, _ = mqMgr.Send(sendCtx, from, mq.TopicIdentityResponse, resp)
+	})
+
+	// Handle incoming identity responses — upsert into PeerTable.
+	mqMgr.SubscribeTopic(mq.TopicIdentityResponse, func(from, topic string, payload any) {
+		if topic != mq.TopicIdentityResponse {
+			return
+		}
+		// The payload arrives as map[string]any from JSON dispatch.
+		pm, ok := payload.(map[string]any)
+		if !ok {
+			return
+		}
+		content, _ := pm["content"].(string)
+		email, _ := pm["email"].(string)
+		avatarHash, _ := pm["avatarHash"].(string)
+		version, _ := pm["goopClientVersion"].(string)
+		publicKey, _ := pm["publicKey"].(string)
+		encSupported, _ := pm["encryptionSupported"].(bool)
+		activeTemplate, _ := pm["activeTemplate"].(string)
+		videoDisabled, _ := pm["videoDisabled"].(bool)
+		if content != "" {
+			peers.Upsert(from, content, email, avatarHash, videoDisabled, activeTemplate, publicKey, encSupported, false, version)
+		}
+	})
+
 	// Proactively fetch avatars when a peer announces a hash we don't have cached.
 	warmAvatar := func(peerID, hash string) {
 		if hash == "" || avatarCache == nil {
@@ -401,7 +484,7 @@ func RunPeer(p PeerParams) error {
 	}
 
 	// ── Group manager
-	grpMgr := group.New(node.Host, db, mqMgr)
+	grpMgr := group.New(node.Host, db, mqMgr, resolvePeer)
 	log.Printf("👥 Group manager enabled (MQ transport)")
 
 	// ── Native call manager (Go/Pion WebRTC — Linux only)
@@ -434,12 +517,7 @@ func RunPeer(p PeerParams) error {
 	grpMgr.RegisterType("listen", listenMgr)
 
 	// ── Chat group type (chat rooms)
-	chatRoomMgr := chatType.New(grpMgr, mqMgr, node.ID(), func(id string) string {
-		if sp, ok := peers.Get(id); ok && sp.Content != "" {
-			return sp.Content
-		}
-		return db.GetPeerName(id)
-	})
+	chatRoomMgr := chatType.New(grpMgr, mqMgr, node.ID(), resolvePeer)
 	defer chatRoomMgr.Close()
 
 	if luaEngine != nil {
@@ -588,6 +666,7 @@ func RunPeer(p PeerParams) error {
 			SelfLabel:   selfContent,
 			SelfEmail:   selfEmail,
 			Peers:       peers,
+			ResolvePeer: resolvePeer,
 			CfgPath:     o.CfgPath,
 			Cfg:         cfg,
 			Logs:        o.Logs,

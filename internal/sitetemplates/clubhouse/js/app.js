@@ -25,7 +25,7 @@
   var ctx = await Goop.peer();
   var myId = ctx.myId;
   var hostId = ctx.hostId;
-  var myLabel = ctx.label || (myId ? myId.slice(-6) : "???");
+  var myLabel = ctx.label || Goop.identity.resolveName(myId);
   var isOwner = ctx.isOwner;
   var currentRoom = null;
   var chatUnsub = null;
@@ -52,9 +52,7 @@
   }
 
   function displayName(peerId, name) {
-    if (peerId === myId) return "You";
-    if (name) return name;
-    return peerId ? peerId.slice(-6) : "???";
+    return Goop.identity.resolveName(peerId, name);
   }
 
   async function loadRooms() {
@@ -231,7 +229,7 @@
   function appendChat(fromId, label, text, isSelf) {
     Goop.partial("message", {
       msgClass: isSelf ? "msg-self" : "msg-other",
-      fromLabel: isSelf ? "You" : (label || (fromId ? fromId.slice(-6) : "???")),
+      fromLabel: Goop.identity.resolveName(fromId, isSelf ? null : label),
       text: text,
       time: timeStr()
     }).then(function(el) {

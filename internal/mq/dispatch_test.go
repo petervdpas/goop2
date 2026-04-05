@@ -20,7 +20,8 @@ func simulateDispatch(m *Manager, remotePeer string, msg MQMsg) bool {
 
 	// Check if topic is suppressed from SSE
 	if msg.Topic == TopicGroupInvite || strings.HasPrefix(msg.Topic, TopicGroupPrefix) ||
-		strings.HasPrefix(msg.Topic, TopicChatRoomPrefix) {
+		strings.HasPrefix(msg.Topic, TopicChatRoomPrefix) ||
+		msg.Topic == TopicIdentity || msg.Topic == TopicIdentityResponse {
 		return false
 	}
 	return true

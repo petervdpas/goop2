@@ -15,6 +15,7 @@ import (
 
 	"github.com/petervdpas/goop2/internal/group"
 	"github.com/petervdpas/goop2/internal/group_types/chat"
+	"github.com/petervdpas/goop2/internal/state"
 	"github.com/petervdpas/goop2/internal/storage"
 	"github.com/petervdpas/goop2/internal/viewer/routes"
 )
@@ -44,17 +45,12 @@ func aRunningChatRoomServer() error {
 		return err
 	}
 
-	grpMgr := group.NewTestManager(db, "self-peer-id")
+	grpMgr := group.NewTestManager(db, "self-peer-id", testResolvePeer)
 
 	cm := newTestChatManager(grpMgr)
 
 	mux := http.NewServeMux()
-	routes.RegisterChatRooms(mux, cm, func(id string) string {
-		if id == "self-peer-id" {
-			return "Self"
-		}
-		return id
-	})
+	routes.RegisterChatRooms(mux, cm, testResolvePeer)
 
 	srv := httptest.NewServer(mux)
 
@@ -249,13 +245,20 @@ func TestFeatures(t *testing.T) {
 	}
 }
 
+func testResolvePeer(id string) state.PeerIdentity {
+	switch id {
+	case "self-peer-id":
+		return state.PeerIdentity{Name: "Self", Known: true}
+	case "host-peer-id":
+		return state.PeerIdentity{Name: "Host", Known: true}
+	case "joiner-peer":
+		return state.PeerIdentity{Name: "Joiner", Known: true}
+	}
+	return state.PeerIdentity{Name: id, Known: true}
+}
+
 func newTestChatManager(grpMgr *group.Manager) *chat.Manager {
-	return chat.NewTestManager(grpMgr, "self-peer-id", func(id string) string {
-		if id == "self-peer-id" {
-			return "Self"
-		}
-		return id
-	})
+	return chat.NewTestManager(grpMgr, "self-peer-id", testResolvePeer)
 }
 
 func createTempDir() (string, error) {

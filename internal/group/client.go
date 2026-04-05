@@ -111,7 +111,7 @@ func (m *Manager) JoinRemoteGroup(ctx context.Context, hostPeerID, groupID strin
 	}
 
 	// Store subscription with full metadata
-	hostName := m.db.GetPeerName(hostPeerID)
+	hostName := m.resolvePeerName(hostPeerID)
 	m.db.AddSubscription(hostPeerID, groupID, wp.GroupName, wp.GroupType, wp.MaxMembers, vol, "member", hostName) //nolint:errcheck
 
 	m.notifyListeners(&Event{Type: TypeWelcome, Group: groupID, From: hostPeerID, Payload: map[string]any{

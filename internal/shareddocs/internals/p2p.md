@@ -2,19 +2,30 @@
 
 ## Protocols
 
-All protocol IDs are defined in `internal/proto/proto.go`:
+All protocol IDs are defined in `internal/proto/proto.go`.
+
+### Two categories
+
+**MQ (messaging)** — all peer-to-peer messaging goes through a single protocol:
 
 | Protocol ID | Purpose |
 | -- | -- |
-| `/goop/content/1.0.0` | Fetch a peer's current content label (single line, unencrypted, used as reachability probe) |
+| `/goop/mq/1.0.0` | THE message bus — chat, groups, calls, identity, all messaging |
+
+Everything that is a message (text, signals, state updates, identity requests) goes over MQ. See `shareddocs/internals/mq-internals.md` for topics.
+
+**Stream (binary/large data)** — separate protocols for bulk transfers:
+
+| Protocol ID | Purpose |
+| -- | -- |
+| `/goop/content/1.0.0` | Reachability probe — single line, unencrypted, NOT for identity |
 | `/goop/site/1.0.0` | Fetch files from a peer's site folder |
-| `/goop/data/1.0.0` | Remote data operations (ORM queries over P2P) |
-| `/goop/group/1.0.0` | Host-relayed group protocol |
-| `/goop/group-invite/1.0.0` | Group invitation delivery |
-| `/goop/avatar/1.0.0` | Peer avatar fetching |
-| `/goop/docs/1.0.0` | Shared document listing and retrieval |
-| `/goop/listen/1.0.0` | Audio streaming binary protocol |
-| `/goop/mq/1.0.0` | Message queue (ACK-based messaging) |
+| `/goop/data/1.0.0` | Remote ORM queries/responses (request-response, large payloads) |
+| `/goop/avatar/1.0.0` | Peer avatar binary fetch |
+| `/goop/docs/1.0.0` | Shared document listing and file transfer |
+| `/goop/listen/1.0.0` | Audio streaming (continuous binary) |
+
+Stream protocols exist because their payloads are binary or too large for the MQ JSON transport. If it's a message, it goes over MQ. If it's a file or stream, it gets its own protocol.
 
 ## Presence
 

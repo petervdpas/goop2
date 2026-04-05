@@ -51,3 +51,19 @@ Feature: Chat room joiner perspective
     And peer "joiner-peer" has left the host group for "Party"
     When the host requests the state of "Party"
     Then the host state should have 1 member
+
+  # ── Name resolution ──────────────────────────────────────────────────
+
+  Scenario: Joiner sees real peer names in member list
+    Given the host has created room "Names" with description "Test names"
+    And peer "joiner-peer" has joined the host group for "Names"
+    When the joiner requests the state of "Names"
+    Then the joiner member "host-peer-id" should have name "Host"
+    And the joiner member "joiner-peer" should have name "Joiner"
+
+  Scenario: Message from joiner has resolved sender name
+    Given the host has created room "Named" with description "Test"
+    And peer "joiner-peer" has joined the host group for "Named"
+    And the joiner sends message "hi there" to "Named"
+    When the joiner requests the state of "Named"
+    Then the joiner latest message from_name should be "Joiner"

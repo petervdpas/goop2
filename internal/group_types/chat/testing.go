@@ -1,13 +1,16 @@
 package chat
 
-import "github.com/petervdpas/goop2/internal/group"
+import (
+	"github.com/petervdpas/goop2/internal/group"
+	"github.com/petervdpas/goop2/internal/state"
+)
 
-func NewTestManager(grpMgr *group.Manager, selfID string, peerName func(string) string) *Manager {
+func NewTestManager(grpMgr *group.Manager, selfID string, resolvePeer func(string) state.PeerIdentity) *Manager {
 	m := &Manager{
-		grp:      grpMgr,
-		selfID:   selfID,
-		peerName: peerName,
-		rooms:    make(map[string]*roomState),
+		grp:         grpMgr,
+		selfID:      selfID,
+		resolvePeer: resolvePeer,
+		rooms:       make(map[string]*roomState),
 	}
 	grpMgr.RegisterType(GroupTypeName, m)
 	return m

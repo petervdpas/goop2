@@ -11,11 +11,12 @@ import (
 
 	"github.com/petervdpas/goop2/internal/group"
 	"github.com/petervdpas/goop2/internal/mq"
+	"github.com/petervdpas/goop2/internal/state"
 	"github.com/petervdpas/goop2/internal/storage"
 )
 
 // RegisterGroups adds group-related HTTP API endpoints.
-func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, peerName func(id string) string, peerReachable func(id string) bool, mqMgr *mq.Manager) {
+func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, resolvePeer func(string) state.PeerIdentity, mqMgr *mq.Manager) {
 	// Create a hosted group / list hosted groups
 	mux.HandleFunc("/api/groups", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -70,7 +71,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 				raw := grpMgr.HostedGroupMembers(g.ID)
 				named := make([]memberWithName, 0, len(raw))
 				for _, m := range raw {
-					named = append(named, memberWithName{MemberInfo: m, Name: peerName(m.PeerID)})
+					named = append(named, memberWithName{MemberInfo: m, Name: resolvePeer(m.PeerID).Name})
 				}
 				flags := grpMgr.GroupTypeFlagsForGroup(g.ID)
 				result[i] = groupWithMembers{
@@ -152,12 +153,13 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, pe
 			if s.Volatile {
 				continue
 			}
-			if live := peerName(s.HostPeerID); live != "" {
-				s.HostName = live
+			hostIdentity := resolvePeer(s.HostPeerID)
+			if hostIdentity.Name != "" {
+				s.HostName = hostIdentity.Name
 			}
 			enriched = append(enriched, subWithCount{
 				SubscriptionRow: s,
-				HostReachable:   peerReachable(s.HostPeerID),
+				HostReachable:   hostIdentity.Reachable,
 				MemberCount:     len(grpMgr.StoredGroupMembers(s.GroupID)),
 			})
 		}

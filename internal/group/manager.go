@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/petervdpas/goop2/internal/mq"
+	"github.com/petervdpas/goop2/internal/state"
 	"github.com/petervdpas/goop2/internal/storage"
 
 	"github.com/libp2p/go-libp2p/core/host"
@@ -30,11 +31,12 @@ type ActiveGroupInfo struct {
 
 // Manager handles the group protocol, both host-side (relay) and client-side (connection).
 type Manager struct {
-	host   host.Host
-	db     *storage.DB
-	mq     *mq.Manager
-	mu     sync.RWMutex
-	selfID string
+	host        host.Host
+	db          *storage.DB
+	mq          *mq.Manager
+	mu          sync.RWMutex
+	selfID      string
+	resolvePeer func(string) state.PeerIdentity
 
 	// Host-side: groupID -> *hostedGroup
 	groups map[string]*hostedGroup
@@ -89,12 +91,13 @@ const (
 )
 
 // New creates a new group manager and registers MQ subscriptions.
-func New(h host.Host, db *storage.DB, mqMgr *mq.Manager) *Manager {
+func New(h host.Host, db *storage.DB, mqMgr *mq.Manager, resolvePeer func(string) state.PeerIdentity) *Manager {
 	m := &Manager{
 		host:         h,
 		db:           db,
 		mq:           mqMgr,
 		selfID:       h.ID().String(),
+		resolvePeer:  resolvePeer,
 		groups:       make(map[string]*hostedGroup),
 		activeConns:  make(map[string]*clientConn),
 		pendingJoins: make(map[string]chan joinResult),
@@ -229,12 +232,15 @@ func membersToStorage(members []MemberInfo) []storage.GroupMember {
 // resolveMemberNames enriches a MemberInfo slice with peer display names.
 func (m *Manager) resolveMemberNames(members []MemberInfo) {
 	for i := range members {
-		if members[i].PeerID == m.selfID {
-			members[i].Name = m.db.GetPeerName(m.selfID)
-		} else {
-			members[i].Name = m.db.GetPeerName(members[i].PeerID)
-		}
+		members[i].Name = m.resolvePeerName(members[i].PeerID)
 	}
+}
+
+func (m *Manager) resolvePeerName(id string) string {
+	if m.resolvePeer != nil {
+		return m.resolvePeer(id).Name
+	}
+	return m.db.GetPeerName(id)
 }
 
 func shortID(id string) string {

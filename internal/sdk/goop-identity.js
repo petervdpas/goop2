@@ -54,5 +54,20 @@
     refresh() {
       cached = null;
     },
+
+    /**
+     * Resolve a peer ID to a display name.
+     * Checks: self → MQ peer cache → server-provided name → truncated ID.
+     * This is THE single name resolver for templates.
+     */
+    resolveName(peerId, serverName) {
+      if (cached && peerId === cached.id) return "You";
+      if (serverName) return serverName;
+      if (window.Goop.mq && window.Goop.mq.getPeerName) {
+        const mqName = window.Goop.mq.getPeerName(peerId);
+        if (mqName) return mqName;
+      }
+      return peerId ? peerId.slice(-6) : "???";
+    },
   };
 })();
