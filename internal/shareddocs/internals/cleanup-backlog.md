@@ -112,6 +112,29 @@ You are reading this because the user asked you to improve the codebase. Follow 
 - No test for the reconnection logic or the SSE→WS upgrade probe
 - Hard to test (needs a real server), but the state machine could be unit tested
 
+## Features
+
+### TODO: Template README.md
+
+Every template should have a `README.md` next to `manifest.json`, editable by the template author through the viewer UI.
+
+**Current state:**
+- `embed.go:75` — `SiteFiles()` skips `manifest.json` and `schema.sql` but knows nothing about `README.md`
+- `templates.go` apply flows (built-in :128, local :243, store :355) — all separate `manifest.json` and `schema.sql` from site files, `README.md` not handled
+- `templates.go:407` — `GET /api/template/settings` returns manifest from `_meta["template_manifest"]`, no readme field
+- `templates.html` — gallery cards show `.Description` (one-liner from manifest), no readme display
+- Local/store apply both use `readLocalTemplateDir` / `extractTarGz` which return all files as `map[string][]byte`
+
+**What needs to happen:**
+1. `embed.go:75` — add `README.md` to `SiteFiles()` exclusion list (don't copy to site dir)
+2. `templates.go` apply flows — extract `README.md` from file map, store as `_meta["template_readme"]`
+3. `templates.go` local + store apply switches (lines 244, 356) — add `case "README.md"` next to `manifest.json`
+4. `GET /api/template/settings` — include readme content in response
+5. New `POST /api/template/readme` — save edited markdown back to `_meta["template_readme"]`
+6. `internal/sitetemplates/*/README.md` — write one per built-in template
+7. `TemplateMeta` struct does NOT need a readme field — readme is content, not metadata
+8. Viewer UI: add editor (textarea) for markdown in the template settings area of `self.html`
+
 ## Recently completed
 
 - 2026-04-06: mq.Transport interface extracted, all managers updated

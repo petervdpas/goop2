@@ -56,6 +56,7 @@ Typical template structure:
 ```
 blog/
   manifest.json
+  README.md          ← (planned) author-editable docs, stored in _meta not site dir
   schemas/posts.json
   index.html
   js/app.js
@@ -63,6 +64,11 @@ blog/
   lua/functions/blog.lua
   lua/seed.lua
 ```
+
+**Excluded from site copy** (handled separately during apply):
+- `manifest.json` — parsed into `TemplateMeta`, stored in `_meta["template_manifest"]`
+- `schema.sql` — executed against DB (legacy path)
+- `README.md` — (planned) stored in `_meta["template_readme"]`, editable in viewer UI
 
 ## Apply flow
 
