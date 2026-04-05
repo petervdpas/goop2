@@ -18,7 +18,7 @@ Wire format: newline-delimited JSON on a persistent libp2p stream.
 {"type":"ack", "id":"<matches msg id>", "seq":<matches msg seq>}
 ```
 
-ACK timeout: 4 seconds (`internal/mq/constants.go`). Messages not ACKed within this window are considered failed.
+ACK timeout: 2 seconds (`internal/mq/timings.go`). Retry delay: 300ms (one retry on transient failure). Messages not ACKed after both attempts are considered failed.
 
 ### Encryption
 
@@ -90,3 +90,11 @@ Viewer routes keep `mqMgr *mq.Manager` because they need concrete methods like `
 - **pending**: ACK channels keyed by message ID
 - **topicSubs**: Prefix-based topic subscribers (used by group manager, chat manager, etc.)
 - **seq**: Atomic monotonic counter for outbound message ordering
+
+## Test coverage
+
+| File | What it tests |
+| -- | -- |
+| `mq_test.go` | Unit tests: topic subscribe/unsubscribe, inbox buffer/replay/cap, PublishLocal, NotifyDelivered, Subscribe/cancel, logMQEvent skip |
+| `dispatch_test.go` | Dispatch routing: which topics go to SSE vs subscribers only |
+| `send_test.go` | Integration tests: two real libp2p hosts with MQ Managers. Covers Send→handleIncoming→ACK round-trip, topic subscribers, bidirectional, invalid/unreachable peers, sequence ordering, inbox buffering without listeners |

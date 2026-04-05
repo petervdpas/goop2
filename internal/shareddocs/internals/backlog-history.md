@@ -44,6 +44,13 @@ Completed items moved from `backlog.md`.
 
 - Added `peers_test.go` with 13 tests covering Upsert (new, preserve local state, clear offline), Seed, SetReachable (success, fail streak, reset), MarkOffline, PruneStale (TTL, grace), Subscribe, Remove, Snapshot
 
+### MQ Manager.Send integration test
+
+- Added `internal/mq/send_test.go` — 7 tests using two in-process libp2p hosts with real MQ Managers
+- Tests: DeliveredAndAcked, TopicSubscriberReceives, Bidirectional, InvalidPeerID, UnreachablePeer, MultipleMessages_SequenceIncreases, InboxBuffering_NoListener
+- Covers the full Send→handleIncoming→ACK round-trip over the real wire protocol
+- Discovery: `logMQEvent` publishes `log:mq` events to SSE listeners — tests must filter by topic to avoid matching log events
+
 ### Other completed work
 
 - testpeer package created (bus.go, adapter.go, peer.go) with 10 tests

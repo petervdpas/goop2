@@ -56,12 +56,6 @@ You are reading this because the user asked you to improve the codebase. Follow 
 
 ## Test gaps
 
-### TODO: MQ Manager.Send test
-
-- Currently untestable without libp2p (Send opens a stream)
-- The TestBus/MQAdapter tests cover the Transport interface but not the real Manager
-- Consider: a test that creates two libp2p hosts in-process and tests real Send/receive
-
 ### TODO: viewer route tests
 
 - Most routes have zero unit tests
