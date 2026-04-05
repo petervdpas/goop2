@@ -7,7 +7,7 @@ import (
 
 // NewTestManager creates a minimal Manager backed only by a DB,
 // suitable for unit tests that don't need P2P or MQ transport.
-func NewTestManager(db *storage.DB, selfID string, resolvePeer ...func(string) state.PeerIdentity) *Manager {
+func NewTestManager(db *storage.DB, selfID string, resolvePeer ...func(string) state.PeerIdentityPayload) *Manager {
 	m := &Manager{
 		db:           db,
 		selfID:       selfID,

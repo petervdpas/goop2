@@ -9,7 +9,7 @@ import (
 )
 
 // RegisterChatRooms adds chat room HTTP API endpoints.
-func RegisterChatRooms(mux *http.ServeMux, cm *chat.Manager, _ func(string) state.PeerIdentity) {
+func RegisterChatRooms(mux *http.ServeMux, cm *chat.Manager, _ func(string) state.PeerIdentityPayload) {
 	selfID := cm.SelfID()
 
 	// POST /api/chat/rooms/create

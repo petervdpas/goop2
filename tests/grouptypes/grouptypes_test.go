@@ -63,11 +63,11 @@ func freshWorld() error {
 	if err != nil {
 		return err
 	}
-	grpMgr := group.NewTestManager(db, "self-peer-id", func(id string) state.PeerIdentity {
+	grpMgr := group.NewTestManager(db, "self-peer-id", func(id string) state.PeerIdentityPayload {
 		if id == "self-peer-id" {
-			return state.PeerIdentity{Name: "Self", Known: true}
+			return state.PeerIdentityPayload{Content: "Self", Known: true}
 		}
-		return state.PeerIdentity{Name: id, Known: true}
+		return state.PeerIdentityPayload{Content: id, Known: true}
 	})
 	w = &world{db: db, grpMgr: grpMgr, dir: dir}
 	return nil
@@ -81,11 +81,11 @@ func aHandler(handlerType string) error {
 	}
 	switch handlerType {
 	case "chat":
-		cm := chat.NewTestManager(w.grpMgr, "self-peer-id", func(id string) state.PeerIdentity {
+		cm := chat.NewTestManager(w.grpMgr, "self-peer-id", func(id string) state.PeerIdentityPayload {
 			if id == "self-peer-id" {
-				return state.PeerIdentity{Name: "Self", Known: true}
+				return state.PeerIdentityPayload{Content: "Self", Known: true}
 			}
-			return state.PeerIdentity{Name: id, Known: true}
+			return state.PeerIdentityPayload{Content: id, Known: true}
 		})
 		w.chatMgr = cm
 		w.handler = cm

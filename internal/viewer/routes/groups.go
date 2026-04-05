@@ -16,7 +16,7 @@ import (
 )
 
 // RegisterGroups adds group-related HTTP API endpoints.
-func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, resolvePeer func(string) state.PeerIdentity, mqMgr *mq.Manager) {
+func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, resolvePeer func(string) state.PeerIdentityPayload, mqMgr *mq.Manager) {
 	// Create a hosted group / list hosted groups
 	mux.HandleFunc("/api/groups", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -71,7 +71,7 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, re
 				raw := grpMgr.HostedGroupMembers(g.ID)
 				named := make([]memberWithName, 0, len(raw))
 				for _, m := range raw {
-					named = append(named, memberWithName{MemberInfo: m, Name: resolvePeer(m.PeerID).Name})
+					named = append(named, memberWithName{MemberInfo: m, Name: resolvePeer(m.PeerID).Name()})
 				}
 				flags := grpMgr.GroupTypeFlagsForGroup(g.ID)
 				result[i] = groupWithMembers{
@@ -154,8 +154,8 @@ func RegisterGroups(mux *http.ServeMux, grpMgr *group.Manager, selfID string, re
 				continue
 			}
 			hostIdentity := resolvePeer(s.HostPeerID)
-			if hostIdentity.Name != "" {
-				s.HostName = hostIdentity.Name
+			if hostIdentity.Name() != "" {
+				s.HostName = hostIdentity.Name()
 			}
 			enriched = append(enriched, subWithCount{
 				SubscriptionRow: s,

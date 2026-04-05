@@ -52,7 +52,7 @@ type Deps struct {
 	TopologyFunc func() any
 
 	// Canonical peer identity resolver
-	ResolvePeer func(string) state.PeerIdentity
+	ResolvePeer func(string) state.PeerIdentityPayload
 
 	// Document sharing
 	DocsStore    *files.Store

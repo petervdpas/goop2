@@ -36,7 +36,7 @@ type Manager struct {
 	mq          *mq.Manager
 	mu          sync.RWMutex
 	selfID      string
-	resolvePeer func(string) state.PeerIdentity
+	resolvePeer func(string) state.PeerIdentityPayload
 
 	// Host-side: groupID -> *hostedGroup
 	groups map[string]*hostedGroup
@@ -91,7 +91,7 @@ const (
 )
 
 // New creates a new group manager and registers MQ subscriptions.
-func New(h host.Host, db *storage.DB, mqMgr *mq.Manager, resolvePeer func(string) state.PeerIdentity) *Manager {
+func New(h host.Host, db *storage.DB, mqMgr *mq.Manager, resolvePeer func(string) state.PeerIdentityPayload) *Manager {
 	m := &Manager{
 		host:         h,
 		db:           db,
@@ -238,7 +238,7 @@ func (m *Manager) resolveMemberNames(members []MemberInfo) {
 
 func (m *Manager) resolvePeerName(id string) string {
 	if m.resolvePeer != nil {
-		return m.resolvePeer(id).Name
+		return m.resolvePeer(id).Name()
 	}
 	return m.db.GetPeerName(id)
 }

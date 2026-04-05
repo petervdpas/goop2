@@ -19,7 +19,7 @@ type Manager struct {
 	grp         *group.Manager
 	mq          *mq.Manager
 	selfID      string
-	resolvePeer func(string) state.PeerIdentity
+	resolvePeer func(string) state.PeerIdentityPayload
 
 	mu    sync.RWMutex
 	rooms map[string]*roomState
@@ -34,7 +34,7 @@ type roomState struct {
 }
 
 // New creates a chat manager and registers the group type handler.
-func New(grpMgr *group.Manager, mqMgr *mq.Manager, selfID string, resolvePeer func(string) state.PeerIdentity) *Manager {
+func New(grpMgr *group.Manager, mqMgr *mq.Manager, selfID string, resolvePeer func(string) state.PeerIdentityPayload) *Manager {
 	m := &Manager{
 		grp:         grpMgr,
 		mq:          mqMgr,
@@ -148,7 +148,7 @@ func (m *Manager) SendMessage(groupID, fromPeerID, text string) error {
 	msg := Message{
 		ID:        fmt.Sprintf("%d-%s", time.Now().UnixMilli(), fromPeerID[:8]),
 		From:      fromPeerID,
-		FromName:  m.resolvePeer(fromPeerID).Name,
+		FromName:  m.resolvePeer(fromPeerID).Name(),
 		Text:      text,
 		Timestamp: time.Now().UnixMilli(),
 	}
@@ -205,7 +205,7 @@ func (m *Manager) resolveMembers(groupID string) []Member {
 	for i, mi := range members {
 		name := mi.Name
 		if name == "" {
-			name = m.resolvePeer(mi.PeerID).Name
+			name = m.resolvePeer(mi.PeerID).Name()
 		}
 		out[i] = Member{
 			PeerID: mi.PeerID,

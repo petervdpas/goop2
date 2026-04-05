@@ -1,6 +1,6 @@
 package mq
 
-import "time"
+import "github.com/petervdpas/goop2/internal/state"
 
 // ── Topic constants ───────────────────────────────────────────────────────────
 // Single source of truth for all MQ topic strings used across the codebase.
@@ -129,41 +129,9 @@ type CallLoopbackICEPayload struct {
 
 // ── Peer lifecycle payloads ─────────────────────────────────────────────────────
 
-// PeerAnnouncePayload is the payload for TopicPeerAnnounce.
-// Published by run.go whenever the PeerTable emits an "update" event.
-type PeerAnnouncePayload struct {
-	PeerID         string    `json:"peerID"`
-	Content        string    `json:"content"`
-	Email          string    `json:"email,omitempty"`
-	AvatarHash     string    `json:"avatarHash,omitempty"`
-	VideoDisabled  bool      `json:"videoDisabled,omitempty"`
-	ActiveTemplate string    `json:"activeTemplate,omitempty"`
-	PublicKey            string `json:"publicKey,omitempty"`
-	EncryptionSupported bool   `json:"encryptionSupported,omitempty"`
-	Verified            bool   `json:"verified,omitempty"`
-	GoopClientVersion   string `json:"goopClientVersion,omitempty"`
-	Reachable      bool      `json:"reachable"`
-	Offline        bool      `json:"offline"`
-	LastSeen       int64     `json:"lastSeen"` // Unix milliseconds
-	Favorite       bool      `json:"favorite,omitempty"`
-	// Internal only — not sent to browser, populated from CachedPeer after lookup.
-	LastSeenTime time.Time `json:"-"`
-}
-
-// IdentityPayload is the payload for TopicIdentityResponse.
-// Sent by a peer in response to a TopicIdentity request.
-// Fields mirror PeerAnnouncePayload — same identity, different transport.
-type IdentityPayload struct {
-	PeerID              string `json:"peerID"`
-	Content             string `json:"content"`
-	Email               string `json:"email,omitempty"`
-	AvatarHash          string `json:"avatarHash,omitempty"`
-	VideoDisabled       bool   `json:"videoDisabled,omitempty"`
-	ActiveTemplate      string `json:"activeTemplate,omitempty"`
-	PublicKey           string `json:"publicKey,omitempty"`
-	EncryptionSupported bool   `json:"encryptionSupported,omitempty"`
-	GoopClientVersion   string `json:"goopClientVersion,omitempty"`
-}
+// PeerAnnouncePayload is the payload for peer:announce, identity.response,
+// and the canonical resolver return type. Defined in state.PeerIdentityPayload.
+type PeerAnnouncePayload = state.PeerIdentityPayload
 
 // PeerGonePayload is the payload for TopicPeerGone.
 // Published by run.go when a peer is pruned from the in-memory PeerTable.

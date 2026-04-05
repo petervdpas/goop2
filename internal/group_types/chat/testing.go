@@ -5,7 +5,7 @@ import (
 	"github.com/petervdpas/goop2/internal/state"
 )
 
-func NewTestManager(grpMgr *group.Manager, selfID string, resolvePeer func(string) state.PeerIdentity) *Manager {
+func NewTestManager(grpMgr *group.Manager, selfID string, resolvePeer func(string) state.PeerIdentityPayload) *Manager {
 	m := &Manager{
 		grp:         grpMgr,
 		selfID:      selfID,

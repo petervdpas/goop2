@@ -245,16 +245,16 @@ func TestFeatures(t *testing.T) {
 	}
 }
 
-func testResolvePeer(id string) state.PeerIdentity {
+func testResolvePeer(id string) state.PeerIdentityPayload {
 	switch id {
 	case "self-peer-id":
-		return state.PeerIdentity{Name: "Self", Known: true}
+		return state.PeerIdentityPayload{Content: "Self", Known: true}
 	case "host-peer-id":
-		return state.PeerIdentity{Name: "Host", Known: true}
+		return state.PeerIdentityPayload{Content: "Host", Known: true}
 	case "joiner-peer":
-		return state.PeerIdentity{Name: "Joiner", Known: true}
+		return state.PeerIdentityPayload{Content: "Joiner", Known: true}
 	}
-	return state.PeerIdentity{Name: id, Known: true}
+	return state.PeerIdentityPayload{Content: id, Known: true}
 }
 
 func newTestChatManager(grpMgr *group.Manager) *chat.Manager {

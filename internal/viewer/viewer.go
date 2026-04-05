@@ -56,7 +56,7 @@ type Viewer struct {
 	RVClients []*rendezvous.Client
 
 	// Canonical peer identity resolver — single instance shared by all routes.
-	ResolvePeer func(string) state.PeerIdentity
+	ResolvePeer func(string) state.PeerIdentityPayload
 
 	// Chat manager — owns message persistence, Lua dispatch, history endpoints.
 	Chat *chat.Manager

@@ -219,20 +219,22 @@ func RunPeer(p PeerParams) error {
 	// subsystem (chat, groups, listen, viewer) uses this same instance.
 	// Identity comes from presence (WebSocket/gossipsub → PeerTable) or
 	// the DB cache. Returns empty PeerIdentity if the peer is unknown.
-	resolvePeer := func(id string) state.PeerIdentity {
+	resolvePeer := func(id string) state.PeerIdentityPayload {
 		if id == node.ID() {
-			return state.PeerIdentity{
-				Name:  selfContent(),
-				Email: selfEmail(),
-				Known: true,
+			return state.PeerIdentityPayload{
+				PeerID:  node.ID(),
+				Content: selfContent(),
+				Email:   selfEmail(),
+				Known:   true,
 			}
 		}
 		if sp, ok := peers.Get(id); ok {
 			return state.FromSeenPeer(sp)
 		}
 		if cp, ok := db.GetCachedPeer(id); ok {
-			return state.PeerIdentity{
-				Name:       cp.Content,
+			return state.PeerIdentityPayload{
+				PeerID:     id,
+				Content:    cp.Content,
 				Email:      cp.Email,
 				AvatarHash: cp.AvatarHash,
 				Reachable:  len(cp.Addrs) > 0,
@@ -247,7 +249,7 @@ func RunPeer(p PeerParams) error {
 			defer cancel()
 			_, _ = mqMgr.Send(reqCtx, id, mq.TopicIdentity, nil)
 		}()
-		return state.PeerIdentity{}
+		return state.PeerIdentityPayload{}
 	}
 
 	// ── Identity MQ handler ──────────────────────────────────────────────
@@ -258,7 +260,7 @@ func RunPeer(p PeerParams) error {
 		if topic != mq.TopicIdentity {
 			return
 		}
-		resp := mq.IdentityPayload{
+		resp := mq.PeerAnnouncePayload{
 			PeerID:              node.ID(),
 			Content:             selfContent(),
 			Email:               selfEmail(),
@@ -268,6 +270,7 @@ func RunPeer(p PeerParams) error {
 			EncryptionSupported: selfPublicKey() != "",
 			ActiveTemplate:      selfActiveTemplate(),
 			VideoDisabled:       selfVideoDisabled(),
+			Reachable:           true,
 		}
 		sendCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()

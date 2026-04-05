@@ -23,11 +23,11 @@ func testManager(t *testing.T) *Manager {
 	m := &Manager{
 		grp:    grpMgr,
 		selfID: "self-peer-id",
-		resolvePeer: func(id string) state.PeerIdentity {
+		resolvePeer: func(id string) state.PeerIdentityPayload {
 			if id == "self-peer-id" {
-				return state.PeerIdentity{Name: "Self", Known: true}
+				return state.PeerIdentityPayload{Content: "Self", Known: true}
 			}
-			return state.PeerIdentity{Name: id, Known: true}
+			return state.PeerIdentityPayload{Content: id, Known: true}
 		},
 		rooms: make(map[string]*roomState),
 	}
@@ -137,14 +137,14 @@ func TestResolveMembersUsesPeerNameFallback(t *testing.T) {
 	m := &Manager{
 		grp:    grpMgr,
 		selfID: "joiner-peer",
-		resolvePeer: func(id string) state.PeerIdentity {
+		resolvePeer: func(id string) state.PeerIdentityPayload {
 			switch id {
 			case "joiner-peer":
-				return state.PeerIdentity{Name: "Joiner", Known: true}
+				return state.PeerIdentityPayload{Content: "Joiner", Known: true}
 			case "host-peer-id":
-				return state.PeerIdentity{Name: "HostName", Known: true}
+				return state.PeerIdentityPayload{Content: "HostName", Known: true}
 			}
-			return state.PeerIdentity{}
+			return state.PeerIdentityPayload{}
 		},
 		rooms: make(map[string]*roomState),
 	}
