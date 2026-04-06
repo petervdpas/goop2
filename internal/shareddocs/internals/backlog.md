@@ -19,14 +19,6 @@ You are reading this because the user asked you to improve the codebase. Follow 
 
 ## Naming consistency
 
-### TODO: direct &Manager{} construction in tests
-
-- `group_types/chat/handler_test.go` — two places create `&Manager{}` directly (fixed for mq, but pattern remains)
-- `group_types/listen/queue_test.go` and `events_test.go` — same pattern
-- `group_types/datafed/handler_test.go` — same pattern
-- These bypass `NewTestManager` and break when fields gain non-nil requirements
-- Fix: either use `NewTestManager` consistently, or at minimum ensure `mq: mq.NopTransport{}` is always set
-
 ### TODO: group/testing.go API change
 
 - Changed from `NewTestManager(db, selfID, resolvePeer...)` to `NewTestManager(db, selfID, opts...)`
@@ -67,6 +59,62 @@ You are reading this because the user asked you to improve the codebase. Follow 
 - `client.go` ConnectWebSocket has exponential backoff + SSE fallback
 - No test for the reconnection logic or the SSE→WS upgrade probe
 - Hard to test (needs a real server), but the state machine could be unit tested
+
+## Missing test files
+
+Packages with logic but zero test files (`go test` reports `[no test files]`).
+
+### TODO: internal/config — no tests
+
+- `config.go` has `Default()`, `Validate()`, and the `Presence` struct
+- Validation rules and default values are prime unit test targets
+- Risk: config changes silently break startup if Validate() logic drifts
+
+### TODO: internal/avatar — no tests
+
+- `avatar.go` + `cache.go` — avatar generation and caching
+- Pure logic, easy to test: generate deterministic avatar, verify cache hit/miss
+
+### TODO: internal/content — no tests
+
+- `store.go` — content storage
+- Data handling logic should have basic CRUD coverage
+
+### TODO: internal/viewer — no tests
+
+- `contenttype.go`, `logbuf.go`, `nocache.go`, `proxy.go`, `viewer.go`
+- `logbuf.go` (ring buffer) and `contenttype.go` (MIME detection) are pure functions, trivial to test
+- `proxy.go` could use an httptest-based test
+
+### TODO: internal/ui/render — no tests
+
+- `highlight.go` + `templates.go` — syntax highlighting and template rendering helpers
+- `highlight.go` is pure transformation, easy to test
+
+### TODO: internal/ui/viewmodels — no tests
+
+- 8 files building view models (self, peer, peers, templates, settings, etc.)
+- These are struct builders — test that fields are populated correctly from input data
+
+### TODO: internal/bridge — no tests
+
+- `client.go` — bridge client logic
+- Network-dependent but the state machine / retry logic could be unit tested
+
+### TODO: internal/app — no tests
+
+- `helpers.go`, `services.go`, `timings.go`, `run.go` — app wiring and startup
+- Mostly orchestration; `helpers.go` and `timings.go` may have testable pure functions
+
+### TODO: internal/app/modes — no tests
+
+- `bridge.go`, `peer.go`, `rendezvous.go`, `signaler.go` — run mode setup
+- Heavy on wiring, low unit-test value unless logic is extracted
+
+### TODO: internal/app/shared — no tests
+
+- `opts.go` — shared options struct
+- Likely just a struct definition; skip unless it has validation logic
 
 ## Features
 

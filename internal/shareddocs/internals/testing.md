@@ -82,6 +82,9 @@ What it wires up:
 | `group_types/chat` | `RegisterJoinedRoom(groupID, name)` | Fake room entry for joiner tests |
 | `group_types/datafed` | `NewTestManager(grpMgr, selfID, schemas)` | DataFed manager without MQ |
 | `group_types/datafed` | `AddTestContribution(groupID, peerID, tableName)` | Inject fake federation data |
+| `group_types/listen` | `NewTestManager(store)` | Listen manager with StateStore, no host/MQ |
+| `group_types/listen` | `SetTestGroup(id)` | Set active listen group for queue tests |
+| `group_types/listen` | `SetTestQueue(paths, idx)` | Set playlist queue and current index |
 
 Both `group.NewTestManager` and `chat.NewTestManager` default to `mq.NopTransport{}` when no MQ is provided, preventing nil interface panics.
 
@@ -109,7 +112,6 @@ Both `group.NewTestManager` and `chat.NewTestManager` default to `mq.NopTranspor
 ### Things that still don't read well
 
 - `internal/group/manager.go` line 94: `group.New()` takes `host.Host` as first param but TestPeer passes nil — the constructor should either not require it or NewTestManager should be the only test path (currently it is, but the signature of New suggests host is always required)
-- `internal/group_types/chat/events.go` line 76: nil guard on `m.mq` for `publishLocal` but not for `sendToPeer` — inconsistent. NopTransport handles this now but the asymmetry is confusing to read
 - `internal/group/testing.go`: `TestManagerOpts` struct — the old API took variadic `resolvePeer`, callers that already existed had to be updated. Clean but the migration wasn't perfect (some BDD tests in tests/chatrooms needed updating)
 - `internal/viewer/viewer.go`: the `Viewer` struct passed to `Start()` has ~20 fields. Could benefit from grouping into sub-structs but this is cosmetic
 - Many route handler files in `internal/viewer/routes/` are large (groups.go, data.go, call.go) with repetitive JSON decode + error handling patterns. Not broken, but reads like boilerplate

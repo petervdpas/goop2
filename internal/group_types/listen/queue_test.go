@@ -8,16 +8,13 @@ func TestQueuePersistence(t *testing.T) {
 	dir := t.TempDir()
 	store := newStateStore(dir)
 
-	m := &Manager{
-		store:    store,
-		group:    &Group{ID: "listen-abc123"},
-		queue:    []string{"/music/track1.mp3", "/music/track2.mp3"},
-		queueIdx: 1,
-	}
+	m := NewTestManager(store)
+	m.SetTestGroup("listen-abc123")
+	m.SetTestQueue([]string{"/music/track1.mp3", "/music/track2.mp3"}, 1)
 
 	m.saveQueueToDisk()
 
-	m2 := &Manager{store: store}
+	m2 := NewTestManager(store)
 	qs := m2.loadQueueFromDisk()
 	if qs == nil {
 		t.Fatal("expected queue state from disk")

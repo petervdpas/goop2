@@ -51,6 +51,14 @@ Completed items moved from `backlog.md`.
 - Covers the full Send→handleIncoming→ACK round-trip over the real wire protocol
 - Discovery: `logMQEvent` publishes `log:mq` events to SSE listeners — tests must filter by topic to avoid matching log events
 
+### Direct &Manager{} construction in tests
+
+- `chat/handler_test.go` — refactored `testManager` to use `NewTestManager` from `testing.go`, added `testManagerOpts` for custom selfID/resolvePeer; `TestResolveMembersUsesPeerNameFallback` no longer duplicates Manager construction
+- `datafed/handler_test.go` — `testManager` now delegates to `NewTestManager` instead of building `&Manager{}` directly
+- `listen/queue_test.go` — created `testing.go` with `NewTestManager`, `SetTestGroup`, `SetTestQueue`; `TestQueuePersistence` uses these helpers
+- `listen/events_test.go` `TestFlags` and `chat/handler_test.go` `TestFlags` left as `&Manager{}` — intentional zero-value tests (Flags() is a static return)
+- `listen/queue_test.go` `TestQueuePersistenceNoStore` left as `&Manager{}` — intentionally tests nil-store behavior
+
 ### Other completed work
 
 - testpeer package created (bus.go, adapter.go, peer.go) with 10 tests

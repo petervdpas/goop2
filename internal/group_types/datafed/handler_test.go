@@ -20,14 +20,7 @@ func testManager(t *testing.T) *Manager {
 	grpMgr := group.NewTestManager(db, "self")
 	t.Cleanup(func() { grpMgr.Close() })
 
-	m := &Manager{
-		grpMgr:  grpMgr,
-		selfID:  "self",
-		schemas: func() []*ormschema.Table { return nil },
-		groups:  make(map[string]*federatedGroup),
-	}
-	grpMgr.RegisterType(GroupTypeName, m)
-	return m
+	return NewTestManager(grpMgr, "self", func() []*ormschema.Table { return nil })
 }
 
 func TestFlags(t *testing.T) {

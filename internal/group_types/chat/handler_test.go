@@ -4,13 +4,34 @@ import (
 	"testing"
 
 	"github.com/petervdpas/goop2/internal/group"
-	"github.com/petervdpas/goop2/internal/mq"
 	"github.com/petervdpas/goop2/internal/state"
 	"github.com/petervdpas/goop2/internal/storage"
 )
 
-func testManager(t *testing.T) *Manager {
+type testManagerOpts struct {
+	selfID      string
+	resolvePeer func(string) state.PeerIdentityPayload
+}
+
+func testManager(t *testing.T, opts ...testManagerOpts) (*Manager, *group.Manager) {
 	t.Helper()
+
+	var o testManagerOpts
+	if len(opts) > 0 {
+		o = opts[0]
+	}
+	if o.selfID == "" {
+		o.selfID = "self-peer-id"
+	}
+	if o.resolvePeer == nil {
+		o.resolvePeer = func(id string) state.PeerIdentityPayload {
+			if id == o.selfID {
+				return state.PeerIdentityPayload{Content: "Self", Known: true}
+			}
+			return state.PeerIdentityPayload{Content: id, Known: true}
+		}
+	}
+
 	dir := t.TempDir()
 	db, err := storage.Open(dir)
 	if err != nil {
@@ -18,23 +39,11 @@ func testManager(t *testing.T) *Manager {
 	}
 	t.Cleanup(func() { db.Close() })
 
-	grpMgr := group.NewTestManager(db, "self-peer-id")
+	grpMgr := group.NewTestManager(db, o.selfID)
 	t.Cleanup(func() { grpMgr.Close() })
 
-	m := &Manager{
-		grp:    grpMgr,
-		mq:     mq.NopTransport{},
-		selfID: "self-peer-id",
-		resolvePeer: func(id string) state.PeerIdentityPayload {
-			if id == "self-peer-id" {
-				return state.PeerIdentityPayload{Content: "Self", Known: true}
-			}
-			return state.PeerIdentityPayload{Content: id, Known: true}
-		},
-		rooms: make(map[string]*roomState),
-	}
-	grpMgr.RegisterType(GroupTypeName, m)
-	return m
+	m := NewTestManager(grpMgr, o.selfID, o.resolvePeer)
+	return m, grpMgr
 }
 
 func TestFlags(t *testing.T) {
@@ -45,7 +54,7 @@ func TestFlags(t *testing.T) {
 }
 
 func TestOnCreateAndClose(t *testing.T) {
-	m := testManager(t)
+	m, _ := testManager(t)
 
 	if err := m.OnCreate("room1", "Test Room", 0); err != nil {
 		t.Fatal(err)
@@ -64,7 +73,7 @@ func TestOnCreateAndClose(t *testing.T) {
 }
 
 func TestSendMessage(t *testing.T) {
-	m := testManager(t)
+	m, _ := testManager(t)
 	_ = m.OnCreate("room1", "Test Room", 0)
 
 	if err := m.SendMessage("room1", "self-peer-id", "hello"); err != nil {
@@ -88,7 +97,7 @@ func TestSendMessage(t *testing.T) {
 }
 
 func TestSendMessageUnknownRoom(t *testing.T) {
-	m := testManager(t)
+	m, _ := testManager(t)
 
 	err := m.SendMessage("nonexistent", "self-peer-id", "hello")
 	if err == nil {
@@ -97,7 +106,7 @@ func TestSendMessageUnknownRoom(t *testing.T) {
 }
 
 func TestGetState(t *testing.T) {
-	m := testManager(t)
+	m, _ := testManager(t)
 	_ = m.OnCreate("room1", "Test Room", 0)
 	_ = m.SendMessage("room1", "self-peer-id", "msg1")
 	_ = m.SendMessage("room1", "self-peer-id", "msg2")
@@ -115,7 +124,7 @@ func TestGetState(t *testing.T) {
 }
 
 func TestListRooms(t *testing.T) {
-	m := testManager(t)
+	m, _ := testManager(t)
 	_ = m.OnCreate("room1", "Room A", 0)
 	_ = m.OnCreate("room2", "Room B", 0)
 
@@ -126,19 +135,7 @@ func TestListRooms(t *testing.T) {
 }
 
 func TestResolveMembersUsesPeerNameFallback(t *testing.T) {
-	dir := t.TempDir()
-	db, err := storage.Open(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { db.Close() })
-
-	grpMgr := group.NewTestManager(db, "joiner-peer")
-	t.Cleanup(func() { grpMgr.Close() })
-
-	m := &Manager{
-		grp:    grpMgr,
-		mq:     mq.NopTransport{},
+	m, grpMgr := testManager(t, testManagerOpts{
 		selfID: "joiner-peer",
 		resolvePeer: func(id string) state.PeerIdentityPayload {
 			switch id {
@@ -149,8 +146,7 @@ func TestResolveMembersUsesPeerNameFallback(t *testing.T) {
 			}
 			return state.PeerIdentityPayload{}
 		},
-		rooms: make(map[string]*roomState),
-	}
+	})
 
 	grpMgr.SetActiveConn("room1", "host-peer-id", GroupTypeName)
 	grpMgr.SetActiveConnMembers("room1", []group.MemberInfo{
@@ -184,7 +180,7 @@ func TestResolveMembersUsesPeerNameFallback(t *testing.T) {
 }
 
 func TestSendMessageFromNameResolved(t *testing.T) {
-	m := testManager(t)
+	m, _ := testManager(t)
 	_ = m.OnCreate("room1", "Test Room", 0)
 
 	_ = m.SendMessage("room1", "self-peer-id", "hello")
