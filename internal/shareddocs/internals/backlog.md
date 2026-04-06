@@ -19,12 +19,6 @@ You are reading this because the user asked you to improve the codebase. Follow 
 
 ## Test gaps
 
-### TODO: viewer route tests
-
-- Most routes have zero unit tests
-- BDD tests in `tests/chatrooms/` cover chat room routes but nothing else
-- Low priority but fragile — route changes can break silently
-
 ### TODO: rendezvous server WebSocket reconnection
 
 - `client.go` ConnectWebSocket has exponential backoff + SSE fallback

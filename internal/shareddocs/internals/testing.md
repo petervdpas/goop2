@@ -105,7 +105,7 @@ Both `group.NewTestManager` and `chat.NewTestManager` default to `mq.NopTranspor
 | `rendezvous` | 10+ | Server API, WebSocket, relay, credits, docs, templates | Client reconnect logic |
 | `orm` | 10+ | Schema validation, query building, merge, roles | - |
 | `lua` | 10+ | ORM API, blog, groups, templates | - |
-| `viewer/routes` | BDD | Template store install/uninstall | Most routes untested |
+| `viewer/routes` | 80 | Template apply, helpers, home routes, data API, site API, export/zip | Peer routes, settings (need config file), editor routes |
 
 ## Code quality notes (for future cleanup)
 

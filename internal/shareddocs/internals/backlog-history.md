@@ -6,6 +6,17 @@ Completed items moved from `backlog.md`.
 
 ## 2026-04-06
 
+### viewer route tests
+
+Added 4 test files covering viewer route handlers with httptest:
+- `helpers_test.go` — 17 tests for pure helper functions (normalizeRel, dirOf, atoiOrNeg, isImageExt, isValidTheme, formBool, safeCall, newToken, isLocalRequest, requireMethod, requireLocal, requireContentStore, writeJSON, topologyHandler, handleGet, handlePostAction, fetchServiceHealth)
+- `home_test.go` — 8 tests for home routes (/ redirect, 404, /api/peers, /api/peers/favorite, /api/topology)
+- `data_test.go` — 20 tests for data API routes (list tables, insert, find, find-one, count, exists, pluck, get-by, create/delete table, describe, set-policy, role, update-where, delete-where, upsert, orm-schema, export-schema)
+- `site_api_test.go` — 8 tests for site API routes (list files, content read/write, delete, upload-local, no-store errors, method checks)
+- `export_test.go` — 4 tests for extractZip (basic, wrapper stripping, path traversal rejection, invalid data)
+
+Total: 57 new tests (routes package went from 23 to 80 passing tests).
+
 ### mq.Transport interface and field naming
 
 - `internal/mq/transport.go` — interface extracted, file renamed from sender.go

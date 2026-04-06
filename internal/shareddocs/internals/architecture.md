@@ -412,7 +412,7 @@ viewer.Start()
 | POST | `/api/groups/set-default-role` | Default role for new members |
 | POST | `/api/groups/set-roles` | Define role permissions |
 | GET | `/api/groups/subscriptions` | List joined groups |
-| POST | `/api/groups/remove-subscription` | Remove subscription |
+| POST | `/api/groups/subscriptions/remove` | Remove subscription |
 | GET | `/api/groups/events` | SSE stream |
 
 **Call** (`/api/call/`)
@@ -498,6 +498,21 @@ viewer.Start()
 | POST | `/api/cluster/*` | Cluster ops (create, join, leave, submit, cancel, pause, resume) |
 | GET | `/api/datafed/*` | Data federation (groups, contributions) |
 | POST | `/api/datafed/*` | Federation ops (offer, withdraw) |
+| POST | `/api/bridge/request-token` | Request bridge token via rendezvous |
+| GET | `/api/rendezvous/check?url=` | Check rendezvous capabilities |
+| POST | `/api/split-prefs` | Save split pane preference |
+| POST | `/api/data/role` | Get user role for table |
+| POST | `/api/data/tables/export-schema` | Export table schema |
+| POST | `/api/data/tables/rename` | Rename table |
+| POST | `/api/data/schemas/set-context` | Set schema context |
+| POST | `/api/data/schemas/set-access` | Set schema access policy |
+| POST | `/api/data/schemas/set-roles` | Set schema role permissions |
+| POST | `/api/site/delete` | Delete site file |
+| POST | `/api/graphql/schema` | Get/set GraphQL schema for table |
+| GET | `/api/my-balance` | Credits balance |
+| GET | `/api/template/settings` | Template settings (manifest) |
+| GET | `/api/docs/groups` | List groups with docs |
+| GET | `/api/docs/download?...` | Download doc file |
 
 ## Two UI layers
 
