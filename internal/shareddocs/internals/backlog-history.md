@@ -114,6 +114,22 @@ Total: 57 new tests (routes package went from 23 to 80 passing tests).
 - Viewer routes keep `mqMgr *mq.Manager` (correct — they need the concrete type)
 - `mq.NopTransport{}` default in test managers
 
+### ORM operations BDD feature
+
+Added `tests/orm/orm.feature` + `tests/orm/orm_test.go` — 49 scenarios covering the full ORM data API through HTTP routes:
+- **Schema management**: list tables, describe, create/delete, export, list ORM schemas, rename
+- **CRUD**: insert (with auto-generated system fields), find, find-one, get-by, update by id, delete by id
+- **Query ops**: WHERE filtering, ORDER+LIMIT, field selection, exists, count (with/without WHERE)
+- **Pluck/distinct**: single-column extraction, unique values
+- **Aggregate**: COUNT, SUM, GROUP BY
+- **Bulk ops**: update-where, delete-where, upsert (insert + update paths)
+- **Access policies**: set-policy (valid + invalid), role endpoint
+- **Validation**: 11 error-case scenarios (missing table, missing columns, missing where, etc.)
+
+**Bug fix**: `db.Upsert()` insert path now auto-generates values for `auto` columns (guid, datetime, date, time, integer) — same as `OrmInsert()`. Previously, upserting a new row into an ORM table with auto-guid keys silently failed because the NOT NULL guid column got no value. Fixed by calling `GetSchema()` before acquiring the write lock and applying the same auto-fill logic from `OrmInsert`.
+
+**Warning fix**: removed unnecessary type arguments at `orm.go:287` (`orm.NewRepository[schema.Row]` → `orm.NewRepository`).
+
 ### Stale comments
 
 - `internal/call/session.go:188,199` — Phase TODO markers replaced with descriptive comments about what's missing

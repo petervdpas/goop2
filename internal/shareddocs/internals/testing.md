@@ -88,6 +88,20 @@ What it wires up:
 
 Both `group.NewTestManager` and `chat.NewTestManager` default to `mq.NopTransport{}` when no MQ is provided, preventing nil interface panics.
 
+## BDD feature tests (godog)
+
+All under `tests/` — each directory has a `.feature` file + `*_test.go` step definitions.
+
+| Suite | File | Scenarios | What it covers |
+| -- | -- | -- | -- |
+| `tests/mq/` | `mq.feature` | 49 | Topic routing, SSE delivery/suppression, inbox buffering, payload fidelity, identity propagation, cross-subsystem isolation |
+| `tests/orm/` | `orm.feature` | 49 | ORM data API through HTTP routes: schema CRUD, insert/find/find-one/get-by, exists/count, pluck/distinct, aggregate+GROUP BY, update/delete by id, update-where/delete-where, upsert, access policies, table DDL (rename), 11 validation error cases |
+| `tests/groups/` | `subscription.feature` | — | Group subscription lifecycle |
+| `tests/chatrooms/` | `chatroom.feature`, `chatroom_joiner.feature`, `clubhouse_wiring.feature` | — | Chat room host/joiner flows, clubhouse template wiring |
+| `tests/grouptypes/` | `grouptypes.feature` | — | Group type registry |
+
+The ORM suite tests through the real HTTP handler stack (`RegisterData` → `storage.DB` → SQLite in-memory), not mocks.
+
 ## Test coverage by package (2026-04-06 baseline)
 
 Run: `go test ./... -coverprofile=coverage.out -covermode=atomic`

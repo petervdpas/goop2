@@ -138,14 +138,6 @@ Run: `go test ./... -coverprofile=coverage.out -covermode=atomic`
 
 ## BDD feature gaps
 
-### TODO: ORM operations feature
-
-- Core data API (`goop.orm()` / `db.orm()`) has zero BDD coverage
-- Unit tests exist in `internal/orm/orm_test.go` but no end-to-end feature file
-- Should cover: create table via schema, insert/update/delete rows, query ops (find, find_one, pluck, count, distinct, aggregate), upsert, update_where, delete_where
-- Access policies (owner-only, role-based) should be tested as scenarios
-- Files: `internal/orm/`, `internal/viewer/routes/data.go`
-
 ### TODO: Lua sandbox feature
 
 - Template Lua scripting has zero BDD coverage

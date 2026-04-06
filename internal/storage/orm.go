@@ -284,7 +284,7 @@ func (d *DB) OrmRepository(tableName string) (*orm.Repository[schema.Row], error
 	}
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	return orm.NewRepository[schema.Row](d.db, schema.NewCodec(tbl)), nil
+	return orm.NewRepository(d.db, schema.NewCodec(tbl)), nil
 }
 
 // ExportSchema exports the schema of an existing table (ORM or classic) as

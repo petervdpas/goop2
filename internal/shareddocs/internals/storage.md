@@ -50,6 +50,16 @@ Enforcement happens in the P2P data proxy (`internal/p2p/data.go`):
 - Schema is THE ACL — host enforces, client tries
 - Owner (callerID == selfID) always has full access
 
+## Upsert
+
+`db.Upsert(table, keyCol, ownerID, ownerEmail, data)` — insert-or-update by a named key column.
+
+1. Looks up existing row by `keyCol` value
+2. If found: updates all non-key columns + `_updated_at`
+3. If not found: auto-generates `auto` columns (guid, datetime, date, time, integer) from the ORM schema — same logic as `OrmInsert` — then inserts with `_owner` and `_owner_email`
+
+The schema lookup (`GetSchema`) happens before the write lock to avoid RLock→Lock deadlock.
+
 ## Table deletion
 
 `DeleteTable` cleans both `_tables` and `_orm_schemas` entries for a given table name.

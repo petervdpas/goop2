@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/petervdpas/goop2/internal/orm/schema"
 	_ "modernc.org/sqlite"
 )
 
@@ -882,6 +883,9 @@ func (d *DB) Upsert(table, keyCol string, ownerID, ownerEmail string, data map[s
 		return 0, fmt.Errorf("upsert: data must contain key column %q", keyCol)
 	}
 
+	// Fetch schema before acquiring write lock (GetSchema takes RLock).
+	tbl, _ := d.GetSchema(table)
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -906,6 +910,32 @@ func (d *DB) Upsert(table, keyCol string, ownerID, ownerEmail string, data map[s
 		args = append(args, existingID)
 		d.db.Exec(fmt.Sprintf("UPDATE %s SET %s WHERE _id = ?", table, setClauses), args...)
 		return existingID, nil
+	}
+
+	if tbl != nil {
+		for _, col := range tbl.Columns {
+			if !col.Auto {
+				continue
+			}
+			if v, exists := data[col.Name]; !exists || v == nil || v == "" {
+				switch col.Type {
+				case "guid":
+					data[col.Name] = schema.GenerateGUID()
+				case "datetime":
+					data[col.Name] = schema.NowUTC()
+				case "date":
+					data[col.Name] = schema.NowDate()
+				case "time":
+					data[col.Name] = schema.NowTime()
+				case "integer":
+					var maxVal int64
+					d.db.QueryRow(
+						"SELECT COALESCE(MAX("+col.Name+"), 0) FROM "+table,
+					).Scan(&maxVal)
+					data[col.Name] = maxVal + 1
+				}
+			}
+		}
 	}
 
 	cols := []string{"_owner", "_owner_email"}
