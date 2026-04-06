@@ -6,6 +6,85 @@ Completed items moved from `backlog.md`.
 
 ## 2026-04-06
 
+### internal/app/shared tests
+
+Added `opts_test.go` with 5 cases for `NormalizeLocalViewer`:
+- Port-only (`:8080` → `127.0.0.1:8080`), wildcard bind (`0.0.0.0:` → `127.0.0.1:`), explicit localhost, whitespace trimming, non-localhost IP passthrough
+
+### internal/app/modes — no tests (reviewed)
+
+All 4 files (bridge.go, peer.go, rendezvous.go, signaler.go) are pure orchestration wiring — no extractable pure functions. `timings.go` is constants only. Not worth testing.
+
+### internal/app tests
+
+Added `app_test.go` with 4 tests covering:
+- `WaitTCP`: success (real listener), timeout (unreachable port)
+- `setupMicroService`: skips on empty URL, calls configure on non-empty URL
+- `run.go` and `timings.go` are pure orchestration/constants, not unit-testable
+
+### internal/bridge tests
+
+Added `client_test.go` with 6 tests covering:
+- `New`: URL trimming, field assignment, DNS cache + HTTP client init
+- `Register`: success (201 + session_id + headers verified), non-201 error
+- `connectOnce`: receives presence events via WS, ignores unknown event types
+- `Connect`: reconnects after WS failure with backoff (register → fail → register → succeed)
+
+### internal/ui/viewmodels tests
+
+Added `viewmodels_test.go` with 5 tests covering:
+- `BuildPeerRow`: all fields mapped correctly (Content, Email, AvatarHash, VideoDisabled, ActiveTemplate, PublicKey, Verified, Reachable, LastSeen, Favorite), Offline derived from OfflineSince
+- `BuildPeerRows`: empty map, sorted by ID, field mapping preserved
+- Other files are pure struct definitions (no logic to test)
+
+### internal/ui/render tests
+
+Added `render_test.go` with 10 tests covering:
+- `Highlight`: Go, JavaScript, HTML, CSS, unknown language (fallback), empty code
+- `InitTemplates`: success, idempotent (sync.Once)
+- `RenderStandalone`: renders named template with data, unknown template returns 500
+
+### internal/viewer tests
+
+Added `viewer_test.go` with 18 tests covering:
+- `contentTypeForPath`: 10 cases (CSS, JS, HTML, HTM, SVG, case-insensitive, PNG sniff, JSON, text/binary fallback)
+- `LogBuffer`: Write+Snapshot, partial line buffering, blank line skipping, ring overflow, default max, Subscribe, CancelSubscription (double cancel safe), ServeLogsJSON, ServeLogsJSON method not allowed, CR stripping
+- `noCache` middleware: Cache-Control/Pragma/Expires headers
+- `proxyPeerSite`: self short-circuit (content + headers + CSP), default index.html, not found, no content store (500), no/empty peer ID (404) — uses real libp2p host via `&p2p.Node{Host: h}`
+
+### internal/content tests
+
+Added `store_test.go` with 34 tests covering:
+- NewStore (defaults, absolute path), Write+Read (round-trip, etag), Read NotFound
+- Write: etag conflict, etag "none" for new files, image path enforcement, path traversal, dir conflict, auto-create parent dirs
+- Delete/DeletePath: file, not found, recursive dir, non-recursive non-empty dir
+- Mkdir: success, path traversal
+- List: files+dirs, not found
+- ListTree: nested items with depth, dirs-before-files sort
+- Rename: success, not found, path traversal
+- NormalizeDir: file→parent, directory→self, empty
+- MkdirUnder: success, empty name, slash in name, dotdot
+- Pure functions: normalizeRelPath (6 cases), etagBytes, cleanAbs path traversal
+
+### internal/avatar tests
+
+Added `avatar_test.go` with 21 tests covering:
+- Store: NewStore (no avatar), Write+Read, ReadNoAvatar, Delete, DeleteNonExistent, HashChangesOnWrite, HashDeterministic, InitialHashFromExistingFile
+- Pure functions: hashBytes length, extractInitials (8 cases incl. unicode), deterministicColor (determinism + diversity), InitialsSVG (content + empty label)
+- Cache: PutAndGet, GetHashMismatch, GetEmptyHash, GetMissingPeer, GetAny, GetAnyMissing, Clear
+
+### internal/config tests
+
+Added `config_test.go` with 49 tests covering:
+- `Default()` validates cleanly + key default values verified
+- `Validate()` — every section: identity (empty key), paths (empty/equal), P2P (port range, empty mdns), presence (topic, TTL, heartbeat, heartbeat≥TTL, rendezvous-only), rendezvous host (port, bind), relay (requires host, port range, WS port, 5 negative timings), Lua (all 7 constraints + disabled skips validation)
+- `validateWANRendezvous` — 11 cases (valid URLs, invalid scheme, no host, bind address, bad port)
+- `stripBOM` — with/without BOM, short input
+- `Load` — valid file, BOM, invalid JSON, validation failure, missing file
+- `LoadPartial` — skips validation
+- `Save` — valid round-trip, invalid rejected
+- `Ensure` — creates default, loads existing
+
 ### Rendezvous WS reconnection state machine tests
 
 Added `client_ws_test.go` with 15 tests covering:

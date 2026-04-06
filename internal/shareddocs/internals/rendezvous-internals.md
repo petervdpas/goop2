@@ -74,8 +74,9 @@ Used by peers to connect to the rendezvous server:
 
 - `Publish(ctx, PresenceMsg)` — HTTP POST to `/publish`
 - `PublishWS(PresenceMsg)` — send via WebSocket (preferred)
-- `ConnectWebSocket()` — establish persistent WebSocket connection
-- `Subscribe(ctx)` — SSE subscription to `/events`
+- `ConnectWebSocket()` — persistent WS with state machine: WS connect → on 425 retry after backoff → on unsupported fall back to SSE + periodic WS probe → on probe success cancel SSE and switch to WS → on normal disconnect reconnect with exponential backoff (capped at 500ms)
+- `SubscribeEvents(ctx)` — SSE subscription to `/events` with auto-reconnect and exponential backoff (capped at 500ms)
+- `probeWS()` — lightweight WS dial + immediate close to check server support
 - DNS caching for server hostname resolution
 
 ## Rate limiting

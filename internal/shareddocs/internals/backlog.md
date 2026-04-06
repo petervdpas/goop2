@@ -12,7 +12,7 @@ You are reading this because the user asked you to improve the codebase. Follow 
 6. **Run tests before declaring done.** `go test ./...` must pass. No exceptions.
 7. **Don't ask the user what to prioritize.** The backlog IS the priority list. Work through it.
 8. **Don't spawn agents for this work.** Read the files yourself. You need to understand what you're fixing.
-9. **Do the permanent tasks** (bottom of this file) every session — they never close.
+9. **Do the permanent tasks after every TODO.** After completing each TODO item, run the permanent tasks (bottom of this file) before moving to the next TODO. They never close.
 10. **Commit nothing.** The user commits when ready.
 
 ---
@@ -21,57 +21,6 @@ You are reading this because the user asked you to improve the codebase. Follow 
 
 Packages with logic but zero test files (`go test` reports `[no test files]`).
 
-### TODO: internal/config — no tests
-
-- `config.go` has `Default()`, `Validate()`, and the `Presence` struct
-- Validation rules and default values are prime unit test targets
-- Risk: config changes silently break startup if Validate() logic drifts
-
-### TODO: internal/avatar — no tests
-
-- `avatar.go` + `cache.go` — avatar generation and caching
-- Pure logic, easy to test: generate deterministic avatar, verify cache hit/miss
-
-### TODO: internal/content — no tests
-
-- `store.go` — content storage
-- Data handling logic should have basic CRUD coverage
-
-### TODO: internal/viewer — no tests
-
-- `contenttype.go`, `logbuf.go`, `nocache.go`, `proxy.go`, `viewer.go`
-- `logbuf.go` (ring buffer) and `contenttype.go` (MIME detection) are pure functions, trivial to test
-- `proxy.go` could use an httptest-based test
-
-### TODO: internal/ui/render — no tests
-
-- `highlight.go` + `templates.go` — syntax highlighting and template rendering helpers
-- `highlight.go` is pure transformation, easy to test
-
-### TODO: internal/ui/viewmodels — no tests
-
-- 8 files building view models (self, peer, peers, templates, settings, etc.)
-- These are struct builders — test that fields are populated correctly from input data
-
-### TODO: internal/bridge — no tests
-
-- `client.go` — bridge client logic
-- Network-dependent but the state machine / retry logic could be unit tested
-
-### TODO: internal/app — no tests
-
-- `helpers.go`, `services.go`, `timings.go`, `run.go` — app wiring and startup
-- Mostly orchestration; `helpers.go` and `timings.go` may have testable pure functions
-
-### TODO: internal/app/modes — no tests
-
-- `bridge.go`, `peer.go`, `rendezvous.go`, `signaler.go` — run mode setup
-- Heavy on wiring, low unit-test value unless logic is extracted
-
-### TODO: internal/app/shared — no tests
-
-- `opts.go` — shared options struct
-- Likely just a struct definition; skip unless it has validation logic
 
 ## BDD feature gaps
 
@@ -121,6 +70,7 @@ Packages with logic but zero test files (`go test` reports `[no test files]`).
 Every template should have a `README.md` next to `manifest.json`, editable by the template author through the viewer UI.
 
 **Current state:**
+
 - `embed.go:75` — `SiteFiles()` skips `manifest.json` and `schema.sql` but knows nothing about `README.md`
 - `templates.go` apply flows (built-in :128, local :243, store :355) — all separate `manifest.json` and `schema.sql` from site files, `README.md` not handled
 - `templates.go:407` — `GET /api/template/settings` returns manifest from `_meta["template_manifest"]`, no readme field

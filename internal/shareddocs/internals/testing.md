@@ -102,7 +102,17 @@ Both `group.NewTestManager` and `chat.NewTestManager` default to `mq.NopTranspor
 | `mq` | 9 | Topic prefix match, subscribe/unsubscribe, inbox replay, PublishLocal, delivered events | Send (needs libp2p) |
 | `state` | 5 | FromSeenPeer, PeerIdentityPayload, Name() | PeerTable Upsert/Prune |
 | `p2p` | 3 | Libp2p options, WSS dial, context flags | Node creation (slow, needs network) |
-| `rendezvous` | 10+ | Server API, WebSocket, relay, credits, docs, templates | Client reconnect logic |
+| `avatar` | 21 | Store CRUD + hash (write, read, delete, determinism, persistence), extractInitials, deterministicColor, InitialsSVG, Cache (put/get/mismatch/clear/getAny) | - |
+| `content` | 34 | Store CRUD (write/read/delete/rename), etag conflicts, image path enforcement, path traversal, mkdir, list, listTree, normalizeDir, mkdirUnder, deletePath recursive | - |
+| `ui/render` | 10 | Highlight (Go/JS/HTML/CSS/unknown/empty), InitTemplates idempotent, RenderStandalone | Render with layout (needs valid ContentTmpl) |
+| `ui/viewmodels` | 5 | BuildPeerRow (all fields + Offline), BuildPeerRows (empty/sorted/mapped) | Other files are pure struct defs |
+| `viewer` | 18 | contentTypeForPath, LogBuffer (write/snapshot/subscribe/SSE), noCache middleware, proxyPeerSite self-path (uses real libp2p host) | Remote peer proxy (needs two nodes) |
+| `app` | 4 | WaitTCP (success/timeout), setupMicroService (empty/non-empty URL) | run.go is orchestration |
+| `app/shared` | 5 | NormalizeLocalViewer (port-only, wildcard, localhost, trim, passthrough) | - |
+| `app/modes` | 0 | — | Pure orchestration, no extractable logic |
+| `bridge` | 6 | New (URL trim, DNS init), Register (success/failure), connectOnce (presence events, unknown types), Connect (reconnect after failure) | - |
+| `config` | 49 | Default() values, Validate() all sections (identity, paths, P2P, presence, rendezvous, relay timings, Lua), validateWANRendezvous, stripBOM, Load/LoadPartial/Save/Ensure | - |
+| `rendezvous` | 25+ | Server API, WebSocket races, relay, credits, docs, templates, client WS state machine (fallback, probe, 425 retry, reconnect), SSE parsing, PublishWS | - |
 | `orm` | 10+ | Schema validation, query building, merge, roles | - |
 | `lua` | 10+ | ORM API, blog, groups, templates | - |
 | `viewer/routes` | 80 | Template apply, helpers, home routes, data API, site API, export/zip | Peer routes, settings (need config file), editor routes |
