@@ -88,34 +88,46 @@ What it wires up:
 
 Both `group.NewTestManager` and `chat.NewTestManager` default to `mq.NopTransport{}` when no MQ is provided, preventing nil interface panics.
 
-## Test coverage by package
+## Test coverage by package (2026-04-06 baseline)
 
-| Package | Tests | What they cover | Gaps |
-| -- | -- | -- | -- |
-| `testpeer` | 10 | Bus routing, topic prefix, identity MQ fallback, presence broadcast, group lifecycle, 3-peer chain | Full MQ join (not just SimulateJoin) |
-| `group` | 15 | Host create/close/join, remote join/leave/kick, subscriptions, volatile wipe, invite | Client-side JoinRemoteGroup (needs libp2p for Connect) |
-| `group_types/chat` | 6+ | Room create/close, message delivery, history | Joiner-side message receipt |
-| `group_types/cluster` | 5+ | Job dispatch, worker assignment | Multi-peer compute |
-| `group_types/datafed` | 8+ | Contributions, sync, peer sources | Cross-peer federation |
-| `group_types/files` | 4+ | Store operations, handler lifecycle | File transfer |
-| `group_types/listen` | 4+ | Queue, events, room state | Audio streaming |
-| `mq` | 9 | Topic prefix match, subscribe/unsubscribe, inbox replay, PublishLocal, delivered events | Send (needs libp2p) |
-| `state` | 5 | FromSeenPeer, PeerIdentityPayload, Name() | PeerTable Upsert/Prune |
-| `p2p` | 3 | Libp2p options, WSS dial, context flags | Node creation (slow, needs network) |
-| `avatar` | 21 | Store CRUD + hash (write, read, delete, determinism, persistence), extractInitials, deterministicColor, InitialsSVG, Cache (put/get/mismatch/clear/getAny) | - |
-| `content` | 34 | Store CRUD (write/read/delete/rename), etag conflicts, image path enforcement, path traversal, mkdir, list, listTree, normalizeDir, mkdirUnder, deletePath recursive | - |
-| `ui/render` | 10 | Highlight (Go/JS/HTML/CSS/unknown/empty), InitTemplates idempotent, RenderStandalone | Render with layout (needs valid ContentTmpl) |
-| `ui/viewmodels` | 5 | BuildPeerRow (all fields + Offline), BuildPeerRows (empty/sorted/mapped) | Other files are pure struct defs |
-| `viewer` | 18 | contentTypeForPath, LogBuffer (write/snapshot/subscribe/SSE), noCache middleware, proxyPeerSite self-path (uses real libp2p host) | Remote peer proxy (needs two nodes) |
-| `app` | 4 | WaitTCP (success/timeout), setupMicroService (empty/non-empty URL) | run.go is orchestration |
-| `app/shared` | 5 | NormalizeLocalViewer (port-only, wildcard, localhost, trim, passthrough) | - |
-| `app/modes` | 0 | — | Pure orchestration, no extractable logic |
-| `bridge` | 6 | New (URL trim, DNS init), Register (success/failure), connectOnce (presence events, unknown types), Connect (reconnect after failure) | - |
-| `config` | 49 | Default() values, Validate() all sections (identity, paths, P2P, presence, rendezvous, relay timings, Lua), validateWANRendezvous, stripBOM, Load/LoadPartial/Save/Ensure | - |
-| `rendezvous` | 25+ | Server API, WebSocket races, relay, credits, docs, templates, client WS state machine (fallback, probe, 425 retry, reconnect), SSE parsing, PublishWS | - |
-| `orm` | 10+ | Schema validation, query building, merge, roles | - |
-| `lua` | 10+ | ORM API, blog, groups, templates | - |
-| `viewer/routes` | 80 | Template apply, helpers, home routes, data API, site API, export/zip | Peer routes, settings (need config file), editor routes |
+Run: `go test ./... -coverprofile=coverage.out -covermode=atomic`
+
+| Package | Coverage | Tests | What they cover | Gaps |
+| -- | -- | -- | -- | -- |
+| `app/shared` | 100% | 5 | NormalizeLocalViewer | - |
+| `ui/viewmodels` | 100% | 5 | BuildPeerRow, BuildPeerRows | - |
+| `avatar` | 96.2% | 21 | Store CRUD + hash, extractInitials, deterministicColor, InitialsSVG, Cache | - |
+| `config` | 94.9% | 49 | Default(), Validate() all sections, validateWANRendezvous, stripBOM, Load/Save/Ensure | - |
+| `orm/transformation` | 90.2% | — | — | - |
+| `orm/schema` | 86.6% | — | — | - |
+| `state` | 83.2% | 5+ | FromSeenPeer, PeerIdentityPayload, PeerTable Upsert/Prune | - |
+| `testpeer` | 82.8% | 10 | Bus routing, topic prefix, identity MQ, presence, group lifecycle | - |
+| `bridge` | 82.5% | 6 | New, Register, connectOnce, Connect reconnect | - |
+| `orm` | 82.3% | 10+ | Schema validation, query building, merge, roles | - |
+| `template` | 82.1% | — | Template handler lifecycle | - |
+| `sitetemplates` | 81.1% | — | Manifest parsing, embed | - |
+| `crypto` | 77.3% | — | NaCl encrypt/decrypt | - |
+| `content` | 74.9% | 34 | Store CRUD, etag, path traversal, tree listing | - |
+| `files` | 74.1% | 4+ | Store operations, handler lifecycle | File transfer |
+| `mq` | 73.8% | 9 | Topic match, subscribe, inbox replay, PublishLocal | - |
+| `directchat` | 72.4% | — | Manager, message delivery | - |
+| `lua` | 63.8% | 10+ | ORM API, blog, groups, templates | - |
+| `gql` | 64.2% | — | GraphQL engine | - |
+| `cluster` | 56.9% | 5+ | Job dispatch, worker assignment | Multi-peer compute |
+| `datafed` | 53.1% | 8+ | Contributions, sync, peer sources | Cross-peer federation |
+| `viewer` | 48.1% | 18 | contentType, LogBuffer, noCache, proxyPeerSite | Remote peer proxy |
+| `chat` | 44.9% | 6+ | Room create/close, message delivery | Joiner-side, events |
+| `util` | 37.1% | — | DNS cache, ring buffer, helpers | Pure functions untested |
+| `rendezvous` | 30.0% | 25+ | Server API, WS races, relay, credits, client WS state machine | Server handlers, punch hints |
+| `ui/render` | 29.6% | 10 | Highlight, InitTemplates, RenderStandalone | Template funcs via execution |
+| `group` | 25.3% | 15 | Host create/close/join, remote join/leave/kick | Client-side, routing |
+| `call` | 23.3% | — | Session basics | SDP/ICE, track mgmt |
+| `storage` | 17.0% | — | SQLite basics | Table CRUD, meta, ORM schema |
+| `viewer/routes` | 11.1% | 80 | Helpers, home, data API, site API, export | Peer, settings, editor, groups |
+| `app` | 10.8% | 4 | WaitTCP, setupMicroService | runPeer logic branches |
+| `p2p` | 6.4% | 3 | Libp2p options, WSS dial | Data handlers, topology |
+| `listen` | 2.9% | 4+ | Queue basics | Events, room state |
+| `app/modes` | 0% | 0 | — | Pure orchestration |
 
 ## Code quality notes (for future cleanup)
 

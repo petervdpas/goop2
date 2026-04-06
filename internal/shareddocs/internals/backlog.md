@@ -17,10 +17,124 @@ You are reading this because the user asked you to improve the codebase. Follow 
 
 ---
 
-## Missing test files
+## Test coverage (2026-04-06 baseline)
 
-Packages with logic but zero test files (`go test` reports `[no test files]`).
+Run: `go test ./... -coverprofile=coverage.out -covermode=atomic`
 
+| Package | Coverage | Notes |
+|---------|----------|-------|
+| app/shared | 100% | Done |
+| ui/viewmodels | 100% | Done |
+| config | 94.9% | Done |
+| avatar | 96.2% | Done |
+| orm/transformation | 90.2% | - |
+| orm/schema | 86.6% | - |
+| state | 83.2% | - |
+| bridge | 82.5% | Done |
+| testpeer | 82.8% | Test infra |
+| orm | 82.3% | - |
+| template (group_type) | 82.1% | - |
+| sitetemplates | 81.1% | - |
+| content | 74.9% | Done |
+| files | 74.1% | - |
+| mq | 73.8% | - |
+| crypto | 77.3% | - |
+| directchat | 72.4% | - |
+| lua | 63.8% | - |
+| gql | 64.2% | - |
+| cluster | 56.9% | - |
+| datafed | 53.1% | - |
+| viewer | 48.1% | Done |
+| chat (group_type) | 44.9% | - |
+| util | 37.1% | - |
+| rendezvous | 30.0% | Large package |
+| ui/render | 29.6% | Done (template init limits) |
+| group | 25.3% | - |
+| call | 23.3% | Pion WebRTC |
+| storage | 17.0% | - |
+| viewer/routes | 11.1% | Large package |
+| app | 10.8% | Orchestration |
+| p2p | 6.4% | Needs libp2p hosts |
+| listen | 2.9% | - |
+| app/modes | 0% | Pure orchestration |
+
+### TODO: storage — 17.0% coverage
+
+- `internal/storage/` — SQLite wrapper, table CRUD, meta store, ORM schema persistence
+- Core data layer used by everything — low coverage is high risk
+- Should cover: Open/Close, table create/delete, insert/query/update/delete rows, meta get/set, ORM schema store
+- Files: `internal/storage/`
+
+### TODO: util — 37.1% coverage
+
+- `internal/util/` — shared helpers (DNS cache, ring buffer, file helpers, URL normalization, etc.)
+- Pure utility functions, easy to test
+- Files: `internal/util/`
+
+### TODO: listen — 2.9% coverage
+
+- `internal/group_types/listen/` — listen room queue, events, state
+- Almost no test coverage despite having testable logic (queue management, event handling)
+- Files: `internal/group_types/listen/`
+
+### TODO: group — 25.3% coverage
+
+- `internal/group/` — group manager, host/client lifecycle, routing
+- Core system — many code paths untested
+- Focus: host create/close edge cases, routing logic, group state queries
+- Files: `internal/group/`
+
+### TODO: viewer/routes — 11.1% coverage
+
+- `internal/viewer/routes/` — 80 tests exist but package is large (many route handlers)
+- Focus on untested route handlers: peer routes, settings, editor, groups, call, listen, chat rooms
+- Files: `internal/viewer/routes/`
+
+### TODO: chat (group_type) — 44.9% coverage
+
+- `internal/group_types/chat/` — chat room manager, message delivery, history
+- Room lifecycle partially tested but many event handlers untested
+- Files: `internal/group_types/chat/`
+
+### TODO: datafed — 53.1% coverage
+
+- `internal/group_types/datafed/` — data federation, contributions, sync
+- Handler logic and sync flows need more coverage
+- Files: `internal/group_types/datafed/`
+
+### TODO: cluster — 56.9% coverage
+
+- `internal/group_types/cluster/` — cluster compute, job dispatch
+- Worker assignment and job lifecycle flows need coverage
+- Files: `internal/group_types/cluster/`
+
+### TODO: p2p — 6.4% coverage
+
+- `internal/p2p/` — libp2p node, peer discovery, data exchange, relay, site file serving
+- Needs real libp2p hosts — use `libp2p.New(libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))` like existing tests in `circuit_stream_test.go` and `relay_lazy_test.go`
+- Focus: data request/response handlers, site file fetch, peer connection helpers, topology
+- Files: `internal/p2p/`
+
+### TODO: call — 23.3% coverage
+
+- `internal/call/` — Pion WebRTC call manager, SDP/ICE signaling, track management
+- Pion has test helpers (`webrtc.NewAPI` with `SettingEngine`) — use those for session lifecycle
+- Focus: session create/close, offer/answer exchange, track add/remove, call state queries
+- Files: `internal/call/`
+
+### TODO: rendezvous — 30.0% coverage
+
+- `internal/rendezvous/` — server + client, large package
+- Client WS state machine tested this session, but server handlers still low
+- Focus: publish handler, peer state management, punch hints, entangle, admin panel, service proxies
+- Files: `internal/rendezvous/`
+
+### TODO: app — 10.8% coverage
+
+- `internal/app/` — WaitTCP and setupMicroService tested, but run.go orchestration is untested
+- Focus: runPeer step counting logic, NaCl key generation path, mode selection (rendezvous-only, bridge, peer)
+- Needs config fixtures + temp dirs, no network required for the logic branches
+- Files: `internal/app/run.go`
 
 ## BDD feature gaps
 
