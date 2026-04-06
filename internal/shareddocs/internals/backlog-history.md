@@ -6,6 +6,16 @@ Completed items moved from `backlog.md`.
 
 ## 2026-04-06
 
+### Rendezvous WS reconnection state machine tests
+
+Added `client_ws_test.go` with 15 tests covering:
+- Pure functions: `isWSUnsupported` (6 cases), `isWSTooEarly` (3 cases), `wsBase` URL conversion (5 cases), `wsURL`, `wsProbeURL`
+- `PublishWS` edge cases: no connection, buffer full, success
+- `subscribeOnce` SSE parsing: valid messages, invalid/malformed messages skipped, non-2xx status
+- `SubscribeEvents` reconnection: retries after server failures with backoff
+- `ConnectWebSocket` state machine: receives WS messages, 425 retry (publish-first), reconnects after close, SSE fallback with WS probe switch-back
+- `IsWebSocketConnected` initial state
+
 ### viewer route tests
 
 Added 4 test files covering viewer route handlers with httptest:

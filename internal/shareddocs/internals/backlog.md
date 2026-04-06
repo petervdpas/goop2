@@ -17,14 +17,6 @@ You are reading this because the user asked you to improve the codebase. Follow 
 
 ---
 
-## Test gaps
-
-### TODO: rendezvous server WebSocket reconnection
-
-- `client.go` ConnectWebSocket has exponential backoff + SSE fallback
-- No test for the reconnection logic or the SSE→WS upgrade probe
-- Hard to test (needs a real server), but the state machine could be unit tested
-
 ## Missing test files
 
 Packages with logic but zero test files (`go test` reports `[no test files]`).
