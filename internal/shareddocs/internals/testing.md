@@ -111,10 +111,14 @@ Both `group.NewTestManager` and `chat.NewTestManager` default to `mq.NopTranspor
 
 ### Things that still don't read well
 
-- `internal/group/manager.go` line 94: `group.New()` takes `host.Host` as first param but TestPeer passes nil — the constructor should either not require it or NewTestManager should be the only test path (currently it is, but the signature of New suggests host is always required)
-- `internal/group/testing.go`: `TestManagerOpts` struct — the old API took variadic `resolvePeer`, callers that already existed had to be updated. Clean but the migration wasn't perfect (some BDD tests in tests/chatrooms needed updating)
 - `internal/viewer/viewer.go`: the `Viewer` struct passed to `Start()` has ~20 fields. Could benefit from grouping into sub-structs but this is cosmetic
-- Many route handler files in `internal/viewer/routes/` are large (groups.go, data.go, call.go) with repetitive JSON decode + error handling patterns. Not broken, but reads like boilerplate
+
+### Reviewed and accepted
+
+- `group.New(host.Host, ...)` vs `NewTestManager(db, selfID, opts...)` — intentional split. Production needs host for `h.ID()` and `h.Connect()`. TestPeer never passes nil to `New`; it uses `NewTestManager` exclusively.
+- `TestManagerOpts` migration — complete. All callers (unit tests, BDD tests, testpeer) use the opts pattern correctly.
+- Route file sizes — groups.go (461), data.go (664), call.go (452). Moderate, not worth splitting.
+- JSON decode pattern — only 4 occurrences of `json.NewDecoder(r.Body).Decode` in routes. Helpers (`writeJSON`, `http.Error`) already handle most response encoding. No abstraction needed.
 
 ### What NOT to change
 

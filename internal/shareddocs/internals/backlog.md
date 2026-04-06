@@ -17,35 +17,6 @@ You are reading this because the user asked you to improve the codebase. Follow 
 
 ---
 
-## Naming consistency
-
-### TODO: group/testing.go API change
-
-- Changed from `NewTestManager(db, selfID, resolvePeer...)` to `NewTestManager(db, selfID, opts...)`
-- All existing callers updated but the opts pattern means you need to know about `TestManagerOpts` struct
-- This is fine but should be documented in the test helpers table (now done in testing.md)
-
-## Code structure
-
-### TODO: viewer/routes file sizes
-
-- `internal/viewer/routes/groups.go` — large file, handles hosted + joined + subscriptions + SSE
-- `internal/viewer/routes/data.go` — large file, handles tables + CRUD + ORM queries
-- `internal/viewer/routes/call.go` — large file, handles all call modes + loopback + media streaming
-- Not broken but hard to navigate. Consider splitting the largest ones (groups.go → groups_hosted.go + groups_client.go + groups_sse.go)
-
-### TODO: repetitive JSON decode pattern in routes
-
-- Many route handlers repeat: `json.NewDecoder(r.Body).Decode(&req)` → check error → process → `json.NewEncoder(w).Encode(resp)`
-- Not a bug but reads as boilerplate. Consider a typed handler helper if the pattern appears 20+ times
-
-### TODO: `group.New()` requires host.Host but TestPeer passes nil
-
-- `group.New(h host.Host, db, transport, resolvePeer)` uses `h.ID().String()` for selfID
-- TestPeer uses `group.NewTestManager(db, id, opts)` which skips this
-- But `group.New` also calls `h.Connect()` in `JoinRemoteGroup` — this means production `New` fundamentally needs a host
-- This is correct. The split between `New` (production, needs host) and `NewTestManager` (testing, no host) is intentional
-
 ## Test gaps
 
 ### TODO: viewer route tests
@@ -115,6 +86,47 @@ Packages with logic but zero test files (`go test` reports `[no test files]`).
 
 - `opts.go` — shared options struct
 - Likely just a struct definition; skip unless it has validation logic
+
+## BDD feature gaps
+
+### TODO: ORM operations feature
+
+- Core data API (`goop.orm()` / `db.orm()`) has zero BDD coverage
+- Unit tests exist in `internal/orm/orm_test.go` but no end-to-end feature file
+- Should cover: create table via schema, insert/update/delete rows, query ops (find, find_one, pluck, count, distinct, aggregate), upsert, update_where, delete_where
+- Access policies (owner-only, role-based) should be tested as scenarios
+- Files: `internal/orm/`, `internal/viewer/routes/data.go`
+
+### TODO: Lua sandbox feature
+
+- Template Lua scripting has zero BDD coverage
+- Unit tests exist (`internal/lua/lua_test.go`, `orm_test.go`, `blog_test.go`, `group_test.go`, `template_test.go`) but no feature file
+- Should cover: `goop.orm()` from Lua, seed execution, rate limiting, memory limits
+- Key risk: Lua↔Go boundary bugs (e.g. the empty table `{}` → `[]` fix) only caught by unit tests
+- Files: `internal/lua/`
+
+### TODO: Direct chat feature
+
+- Direct chat subsystem has zero BDD coverage
+- MQ feature tests cover topic routing but not actual message storage/retrieval
+- Unit tests exist in `internal/directchat/manager_test.go`
+- Should cover: send message, retrieve history, chat list, message ordering
+- Files: `internal/directchat/`, `internal/viewer/routes/chat.go`
+
+### TODO: Data proxy (P2P ORM) feature
+
+- P2P data exchange has zero BDD coverage
+- When a joiner queries a host's ORM table, requests go through the data proxy
+- Should cover: remote query, remote insert (if allowed by access policy), access denial for unauthorized ops
+- Hard to test (needs two peers) but the proxy logic could use an httptest-based BDD suite
+- Files: `internal/viewer/routes/data_proxy.go`, `internal/p2p/data.go`
+
+### TODO: Template lifecycle feature
+
+- Template apply/remove/settings has zero BDD coverage
+- Should cover: apply built-in template, apply local template, remove template (drops tables), template settings API
+- The manifest/schema/site-file separation logic is complex and only tested manually
+- Files: `internal/viewer/routes/templates.go`, `internal/sitetemplates/`
 
 ## Features
 

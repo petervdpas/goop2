@@ -22,8 +22,8 @@ type SeenPeer struct {
 	Favorite       bool
 
 	// Consecutive probe failures. A peer is only marked unreachable after
-	// failStreak >= 2 distinct failure events (> 4 s apart). This prevents
-	// a single transient probe timeout from causing the UI to flash.
+	// failStreak >= 2 distinct failure events (> PeerFailureDedupWindow apart).
+	// This prevents a single transient probe timeout from causing the UI to flash.
 	failStreak int
 	lastFailAt time.Time
 }

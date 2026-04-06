@@ -1214,6 +1214,16 @@ func swagGroupsSetDefaultRole() {}
 //	@Router		/api/groups/set-roles [post]
 func swagGroupsSetRolesList() {}
 
+// swagGroupsEvents is a documentation stub for GET /api/groups/events.
+//
+//	@Summary	SSE stream — group lifecycle events for SDK and templates
+//	@Description	Re-emits group events from the unified MQ stream in SSE wire format. Used by SDK templates that subscribe to group events without connecting to the full MQ SSE endpoint.
+//	@Tags		groups
+//	@Produce	text/event-stream
+//	@Success	200	{string}	string	"SSE stream"
+//	@Router		/api/groups/events [get]
+func swagGroupsEvents() {}
+
 // ── Listen ───────────────────────────────────────────────────────────────────
 
 // swagListenCreate is a documentation stub for POST /api/listen/create.

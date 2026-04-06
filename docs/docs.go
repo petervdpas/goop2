@@ -3868,6 +3868,26 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/groups/events": {
+            "get": {
+                "description": "Re-emits group events from the unified MQ stream in SSE wire format. Used by SDK templates that subscribe to group events without connecting to the full MQ SSE endpoint.",
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "groups"
+                ],
+                "summary": "SSE stream — group lifecycle events for SDK and templates",
+                "responses": {
+                    "200": {
+                        "description": "SSE stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/api/groups/invite": {
             "post": {
                 "consumes": [

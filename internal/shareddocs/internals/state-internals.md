@@ -45,7 +45,7 @@ type SeenPeer struct {
 
 ### Failure dedup
 
-A peer is only marked unreachable after `failStreak >= 2` distinct failure events that are more than 4 seconds apart (`PeerFailureDedupWindow`). This prevents a single transient probe timeout from flashing the UI.
+A peer is only marked unreachable after `failStreak >= 2` distinct failure events that are more than 2 seconds apart (`PeerFailureDedupWindow`). This prevents a single transient probe timeout from flashing the UI.
 
 ### Event system
 

@@ -27,6 +27,13 @@ Everything that is a message (text, signals, state updates, identity requests) g
 
 Stream protocols exist because their payloads are binary or too large for the MQ JSON transport. If it's a message, it goes over MQ. If it's a file or stream, it gets its own protocol.
 
+**Infrastructure** — registered inline in `node.go`, not defined in `proto.go`:
+
+| Protocol ID | Purpose |
+| -- | -- |
+| `/goop/diag/1.0.0` | Relay diagnostics — rendezvous server queries peer diagnostic snapshot |
+| `/goop/relay-refresh/1.0.0` | Relay pulse — rendezvous server triggers relay circuit refresh |
+
 ## Presence
 
 Peers announce themselves via GossipSub on topic `goop.presence.v1`. The `PresenceMsg` struct carries:
@@ -101,4 +108,4 @@ Access levels per table operation: `local`, `owner`, `group`, `open` — defined
 - **DCUtR hole-punching**: Enabled when relay is available
 - **ForceReachabilityPrivate**: All peers assume they're behind NAT
 - `SetReachable(true)` is called only on first successful discovery, not on every heartbeat
-- Failure dedup: peer is only marked unreachable after 2 distinct failure events >4s apart
+- Failure dedup: peer is only marked unreachable after 2 distinct failure events >2s apart

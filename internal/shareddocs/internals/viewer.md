@@ -6,28 +6,56 @@
 
 Central dependency container passed to all route registration functions:
 
+Grouped into semantic sections:
+
+**Identity**
 | Field | Type | Purpose |
 | -- | -- | -- |
 | `Node` | `*p2p.Node` | P2P networking (nil in rendezvous-only mode) |
 | `SelfLabel` | `func() string` | Local peer's display name |
 | `SelfEmail` | `func() string` | Local peer's email |
 | `Peers` | `*state.PeerTable` | In-memory peer state |
+| `ResolvePeer` | `func(string) state.PeerIdentityPayload` | Resolve peer ID to identity |
+
+**Config & content**
+| Field | Type | Purpose |
+| -- | -- | -- |
 | `CfgPath` | `string` | Path to `goop.json` |
-| `Cfg` | `any` | Config struct (any to avoid import cycle) |
-| `Logs` | `Logs` | Log buffer interface |
-| `Content` | `*content.Store` | Site content file store |
-| `BaseURL` | `string` | Canonical base URL for the viewer |
-| `DB` | `*storage.DB` | SQLite database |
-| `AvatarStore` | `*avatar.Store` | Avatar file storage |
-| `AvatarCache` | `*avatar.Cache` | Avatar cache |
 | `PeerDir` | `string` | Root directory for this peer's data |
-| `RVClients` | `[]*rendezvous.Client` | Rendezvous server connections |
+| `Content` | `*content.Store` | Site content file store |
+| `Logs` | `Logs` | Log buffer interface |
+| `BaseURL` | `string` | Canonical base URL for the viewer |
+
+**Storage**
+| Field | Type | Purpose |
+| -- | -- | -- |
+| `DB` | `*storage.DB` | SQLite database |
+
+**Networking**
+| Field | Type | Purpose |
+| -- | -- | -- |
 | `BridgeURL` | `string` | Wails bridge URL (empty when not in Wails) |
+| `RVClients` | `[]*rendezvous.Client` | Rendezvous server connections |
 | `RendezvousOnly` | `bool` | Rendezvous-only mode (limited nav) |
 | `RendezvousURL` | `string` | Rendezvous server URL |
-| `DocsStore` | `*files.Store` | Document sharing storage |
+| `TopologyFunc` | `func() any` | Override for topology endpoint |
+
+**Group managers**
+| Field | Type | Purpose |
+| -- | -- | -- |
 | `GroupManager` | `*group.Manager` | Group protocol manager |
+| `DocsStore` | `*files.Store` | Document sharing storage |
 | `TemplateHandler` | `*template.Handler` | Template lifecycle handler |
+
+**Avatar**
+| Field | Type | Purpose |
+| -- | -- | -- |
+| `AvatarStore` | `*avatar.Store` | Avatar file storage |
+| `AvatarCache` | `*avatar.Cache` | Avatar cache |
+
+**Lua integration**
+| Field | Type | Purpose |
+| -- | -- | -- |
 | `EnsureLua` | `func()` | Start Lua engine and rescan functions |
 | `LuaCall` | `func(ctx, function, params)` | Invoke a Lua data function |
 
@@ -37,7 +65,21 @@ Assembled in `viewer.go` from the `Viewer` struct, which is assembled in `app/mo
 
 `internal/viewer/routes/register.go`
 
-- `handleGet` / `handlePost` helpers: JSON decode for POST bodies, standard error responses
+Route helpers in `helpers.go` eliminate boilerplate:
+
+| Helper | What it does |
+| -- | -- |
+| `handleGet(mux, path, fn)` | Registers GET handler with method check |
+| `handlePost[T](mux, path, fn)` | Generic typed POST: method check + `decodeJSON` into `T`, then calls `fn(w, r, T)` |
+| `handlePostAction(mux, path, fn)` | POST with method check but no body decoding |
+| `handleFormPost(mux, path, csrf, fn)` | POST with CSRF + localhost check + form parsing |
+| `writeJSON(w, v)` | Sets Content-Type + encodes JSON response |
+| `decodeJSON(w, r, v)` | Decodes JSON body, sends 400 on failure |
+| `requireMethod(w, r, method)` | Method guard, sends 405 on mismatch |
+| `requireLocal(w, r)` | Localhost guard, sends 403 on mismatch |
+
+Only 4 route handlers still use raw `json.NewDecoder` — the rest use `handlePost[T]` or `decodeJSON`.
+
 - CSRF token: generated once in `Register()`, passed to templates for form validation
 - All routes registered via `Register(mux, deps)` which calls domain-specific functions:
   - `registerHomeRoutes`, `registerPeerRoutes`, `registerSelfRoutes`

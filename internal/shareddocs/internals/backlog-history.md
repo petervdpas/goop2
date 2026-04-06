@@ -59,6 +59,22 @@ Completed items moved from `backlog.md`.
 - `listen/events_test.go` `TestFlags` and `chat/handler_test.go` `TestFlags` left as `&Manager{}` — intentional zero-value tests (Flags() is a static return)
 - `listen/queue_test.go` `TestQueuePersistenceNoStore` left as `&Manager{}` — intentionally tests nil-store behavior
 
+### group/testing.go API change (naming consistency)
+
+- `NewTestManager(db, selfID, opts...)` with `TestManagerOpts` — already documented in testing.md (line 78, 89, 115). All callers verified correct. Nothing left to do.
+
+### viewer/routes file sizes (code structure)
+
+- groups.go (461 lines), data.go (664 lines), call.go (452 lines) — moderate, not extreme. No file over 700 lines. Not worth splitting right now.
+
+### repetitive JSON decode pattern (code structure)
+
+- Only 4 occurrences of `json.NewDecoder(r.Body).Decode` and 4 of `json.NewEncoder(w).Encode` in routes. The codebase already uses `writeJSON`/`http.Error`/helpers extensively. The "20+" threshold for a typed handler helper is not met. No action needed.
+
+### group.New() host.Host requirement (code structure)
+
+- `New(h host.Host, ...)` for production, `NewTestManager(db, selfID, opts...)` for tests — intentional split. `New` needs host for `h.ID()` and `h.Connect()`. Already documented in testing.md. No action needed.
+
 ### Other completed work
 
 - testpeer package created (bus.go, adapter.go, peer.go) with 10 tests

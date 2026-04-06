@@ -43,15 +43,18 @@ All topic constants are in `internal/mq/topics.go`. Mirrored in `internal/ui/ass
 | `identity` | P2P | Request a peer's full identity (timing race fallback) |
 | `identity.response` | P2P | Full identity reply: name, email, avatar, version, etc. |
 | `log:mq` | local | Internal MQ event log |
+| `log:call` | local | Call event log (published by signaler adapter in peer.go) |
+| `relay:status` | local | Relay connection status updates (published by peer.go) |
 
 ## SSE endpoints
 
-Only two SSE endpoints exist in the system:
+Three SSE endpoints exist in the system:
 
 | Endpoint | Purpose |
 | -- | -- |
 | `/api/mq/events` | MQ bus — all real-time events delivered to the browser |
 | `/api/logs/stream` | Log tailing — streams log buffer to the browser |
+| `/api/groups/events` | SSE shim — re-emits group events from the MQ stream for SDK/templates |
 
 ## Local vs remote
 
