@@ -140,7 +140,7 @@ Run: `go test ./... -coverprofile=coverage.out -covermode=atomic`
 | `viewer/routes` | 11.1% | 80 | Helpers, home, data API, site API, export | Peer, settings, editor, groups |
 | `app` | 10.8% | 4 | WaitTCP, setupMicroService | runPeer logic branches |
 | `p2p` | 6.4% | 3 | Libp2p options, WSS dial | Data handlers, topology |
-| `listen` | 2.9% | 4+ | Queue basics | Events, room state |
+| `listen` | 24.9% | 34 | Lifecycle, control events, queue, stream, OnEvent | host/client need libp2p |
 | `app/modes` | 0% | 0 | — | Pure orchestration |
 
 ## Code quality notes (for future cleanup)

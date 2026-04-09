@@ -55,7 +55,7 @@ Run: `go test ./... -coverprofile=coverage.out -covermode=atomic`
 | viewer/routes | 11.1% | Large package |
 | app | 10.8% | Orchestration |
 | p2p | 6.4% | Needs libp2p hosts |
-| listen | 2.9% | - |
+| listen | 24.9% | Done (partial — host/client need libp2p) |
 | app/modes | 0% | Pure orchestration |
 
 ### DONE: storage — 17.0% → 75.7% coverage
@@ -66,11 +66,7 @@ Run: `go test ./... -coverprofile=coverage.out -covermode=atomic`
 - Pure utility functions, easy to test
 - Files: `internal/util/`
 
-### TODO: listen — 2.9% coverage
-
-- `internal/group_types/listen/` — listen room queue, events, state
-- Almost no test coverage despite having testable logic (queue management, event handling)
-- Files: `internal/group_types/listen/`
+### DONE: listen — 2.9% → 24.9% coverage
 
 ### TODO: group — 25.3% coverage
 

@@ -193,6 +193,18 @@ Added `tests/orm/orm.feature` + `tests/orm/orm_test.go` — 49 scenarios coverin
 
 ## 2026-04-09
 
+### internal/group_types/listen tests — 2.9% → 24.9% coverage
+
+Added 4 test files covering testable logic without libp2p hosts:
+- `lifecycle_test.go` — 10 tests: OnCreate (success, already in group), OnClose (correct group, wrong group), Close, GetGroup (nil, advances position when playing, no advance when paused), OnJoin/OnLeave don't panic, currentPosition (nil, paused, playing)
+- `control_test.go` — 9 tests: handleControlEvent for all 6 actions (load with queue, play, pause, seek preserves state, sync updates track+queue, close clears group), nil group no-panic, invalid payload
+- `on_event_test.go` — 5 tests: OnEvent ignores own messages, ignores wrong group, leave as listener clears group, leave as host no-op, msg routes to control handler
+- `stream_test.go` — 10 tests: updateQueueInfoLocked (file+stream mix, empty queue, nil group), streamDisplayName edge cases (invalid URL, empty host), probeMP3 (valid minimal MP3, file not found, not MP3, too small), ratePacer.stream (EOF, stop signal), SetEncryptor
+
+Remaining uncovered: New() constructor (needs libp2p host + group.Manager), CreateGroup/LoadTrack/Play/Pause/Seek/Next/Prev (need full host state with file + group protocol), JoinGroup/LeaveGroup/AudioReader (need group.Manager), handleAudioStream/writeAudioChunk/decryptingReader (need network.Stream interface), handleMembersEvent (needs group.ParseMembers with real member payloads + group.SendControl).
+
+Extended testing.go with NewTestManagerOpts (accepts SelfID, MQ transport) and SetTestGroupFull for richer test state.
+
 ### internal/storage tests — 17.0% → 75.7% coverage
 
 Added 5 test files covering the full storage package:
