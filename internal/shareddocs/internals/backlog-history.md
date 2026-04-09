@@ -191,6 +191,18 @@ Added `tests/orm/orm.feature` + `tests/orm/orm_test.go` — 49 scenarios coverin
 
 - `New(h host.Host, ...)` for production, `NewTestManager(db, selfID, opts...)` for tests — intentional split. `New` needs host for `h.ID()` and `h.Connect()`. Already documented in testing.md. No action needed.
 
+## 2026-04-09
+
+### internal/storage tests — 17.0% → 75.7% coverage
+
+Added 5 test files covering the full storage package:
+- `db_test.go` — 23 tests: Open/Close/Path, CreateTable (success, duplicate, invalid name/column), ListTables, DeleteTable, RenameTable (success, invalid), Insert (success, invalid table/column), UpdateRow (success, invalid table/column), UpdateRowOwner (success, non-owner, invalid), DeleteRow (success, invalid), DeleteRowOwner (success, non-owner, invalid), SetMeta/GetMeta (miss, set, overwrite), DescribeTable (success, invalid), AddColumn (success, invalid), DropColumn (success, invalid), Set/GetTableInsertPolicy (default, update, missing), validIdent (good/bad cases)
+- `query_test.go` — 18 tests: SelectPaged (limit, offset), SelectWithColumns, SelectWithWhere, Aggregate (sum+count, with where, invalid table), AggregateGroupBy (basic, with where, invalid table), UpdateWhere (basic, invalid table/column, SQLExpr), DeleteWhere (basic, invalid table), Upsert (insert+update, invalid ident, missing key), Distinct (basic, with where, invalid ident)
+- `lua_chat_test.go` — 17 tests: validateReadOnly (6 valid, 5 invalid), validateWrite (4 valid, 4 invalid), LuaQuery (basic, with args, rejects write), LuaExec (basic, rejects select), LuaScalar (basic, rejects write), ChatMessage roundtrip, history ordering/limit/default/empty/isolation, ClearChatHistory, FIFO cap, DumpSQL (with data, empty), sqlEscapeValue (7 type cases)
+- `peers_test.go` — 16 tests: UpsertAndGetCachedPeer (all fields), GetCachedPeerMissing, UpsertUpdate, PreservesAddrsWhenEmptyList, DeleteCachedPeer, GetPeerName (miss, hit), ListCachedPeers (basic, empty), SetFavorite (on, off), FavoriteSurvivesPeerDeletion, ListIncludesOfflineFavorites, UpsertPeerProtocols (basic, mirrors to favorites), UpsertMirrorsFavoriteMetadata
+- `groups_test.go` — 19 tests: CreateAndGetGroup (all fields), CreateGroupVolatile, GetGroupNotFound, ListGroups (basic, empty), DeleteGroup, SetMaxMembers, UpdateGroup, SetGroupRoles, SetDefaultRole, SetHostJoined (on, off), GroupMembersRoundtrip, UpsertGroupMembersReplaces, EmptyRoleDefault, DeleteGroupMembers, SetMemberRole, AddAndListSubscriptions, RemoveSubscription, UpdateSubscriptionHostName, AddSubscriptionUpsert
+- `cluster_test.go` — 10 tests: SaveAndLoadClusterJobs (all fields), SaveClusterJobUpsert, LoadEmpty, LoadIsolation, DeleteClusterJob, DeleteClusterJobs, MarshalJSON (nil, map), UnmarshalJSON (empty, {}, valid), FormatTime (zero, valid), ParseTime (empty, valid)
+
 ### Other completed work
 
 - testpeer package created (bus.go, adapter.go, peer.go) with 10 tests

@@ -136,7 +136,7 @@ Run: `go test ./... -coverprofile=coverage.out -covermode=atomic`
 | `ui/render` | 29.6% | 10 | Highlight, InitTemplates, RenderStandalone | Template funcs via execution |
 | `group` | 25.3% | 15 | Host create/close/join, remote join/leave/kick | Client-side, routing |
 | `call` | 23.3% | — | Session basics | SDP/ICE, track mgmt |
-| `storage` | 17.0% | — | SQLite basics | Table CRUD, meta, ORM schema |
+| `storage` | 75.7% | 103 | db CRUD, queries, Lua, chat, peers, groups, cluster | OrmRepository edge cases |
 | `viewer/routes` | 11.1% | 80 | Helpers, home, data API, site API, export | Peer, settings, editor, groups |
 | `app` | 10.8% | 4 | WaitTCP, setupMicroService | runPeer logic branches |
 | `p2p` | 6.4% | 3 | Libp2p options, WSS dial | Data handlers, topology |

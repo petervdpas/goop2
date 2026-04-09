@@ -51,19 +51,14 @@ Run: `go test ./... -coverprofile=coverage.out -covermode=atomic`
 | ui/render | 29.6% | Done (template init limits) |
 | group | 25.3% | - |
 | call | 23.3% | Pion WebRTC |
-| storage | 17.0% | - |
+| storage | 75.7% | Done |
 | viewer/routes | 11.1% | Large package |
 | app | 10.8% | Orchestration |
 | p2p | 6.4% | Needs libp2p hosts |
 | listen | 2.9% | - |
 | app/modes | 0% | Pure orchestration |
 
-### TODO: storage — 17.0% coverage
-
-- `internal/storage/` — SQLite wrapper, table CRUD, meta store, ORM schema persistence
-- Core data layer used by everything — low coverage is high risk
-- Should cover: Open/Close, table create/delete, insert/query/update/delete rows, meta get/set, ORM schema store
-- Files: `internal/storage/`
+### DONE: storage — 17.0% → 75.7% coverage
 
 ### TODO: util — 37.1% coverage
 
