@@ -171,6 +171,43 @@ Run: `go test ./... -coverprofile=coverage.out -covermode=atomic`
 
 ## Features
 
+### TODO: Prezentia — zoomable canvas presentation template
+
+Prezi-style presentation tool: content nodes (text, images) placed on a zoomable 2D canvas, with a path that defines the presentation order. Camera zooms/pans between nodes during playback. Single-author, not collaborative. Heavy use of site folder for image upload/delete.
+
+**SDK extension:**
+
+1. New `internal/sdk/goop-component-canvas.js` — reusable zoomable/pannable canvas (behaviour only, no CSS)
+   - Pan (drag empty space), zoom (wheel/pinch), transform tracking
+   - `animateTo(rect, duration)` — smooth camera transitions (the core of presentation playback)
+   - Coordinate conversion: `toCanvas(screenX, screenY)` / `toScreen(canvasX, canvasY)`
+   - `fitBounds(rect, padding)`, `getTransform()`, `setTransform()`
+   - Free-form item dragging that accounts for zoom/pan transform
+   - Reusable by any template wanting spatial/map/diagram views
+
+**Template files:**
+
+2. `internal/sitetemplates/prezentia/manifest.json` — name "Prezentia", category "content", icon, schemas: ["slides", "prezentia_config"]
+3. `internal/sitetemplates/prezentia/schemas/slides.json` — columns: x, y, width, height, scale, rotation, type (text/image), content, position (path order), style_json
+4. `internal/sitetemplates/prezentia/schemas/prezentia_config.json` — KV config (canvas bg, title, theme)
+5. `internal/sitetemplates/prezentia/lua/functions/prezentia.lua` — CRUD for slides + config, follows blog.lua pattern with `goop.route()`
+6. `internal/sitetemplates/prezentia/index.html` — editor + presenter UI, loads canvas SDK + site SDK + drag SDK
+7. `internal/sitetemplates/prezentia/css/style.css` — all visual design (canvas, sidebar, nodes, presenter, responsive)
+8. `internal/sitetemplates/prezentia/js/app.js` — editor: canvas interaction, node CRUD, image upload/delete via `Goop.site`, path editor sidebar (drag reorder via existing drag SDK), present button
+9. `internal/sitetemplates/prezentia/js/present.js` — presentation engine: camera follows path via `canvas.animateTo()`, arrow key / click navigation, fullscreen
+10. `internal/sitetemplates/prezentia/images/.keep`
+
+**Registration:**
+
+11. `internal/sitetemplates/embed.go:12` — add `all:prezentia` to the `//go:embed` directive
+
+**Key design decisions:**
+- Lua = control plane (slide CRUD, config), JS SDK = data plane (canvas, file ops)
+- Images stored in `images/` via `Goop.site.upload/remove` — owner only
+- Existing `Goop.drag.sortable` reused for path order sidebar
+- No collaboration — owner edits, visitors see presentation
+- `goop.config()` pattern for prezentia_config (same as blog_config)
+
 ### TODO: Template README.md
 
 Every template should have a `README.md` next to `manifest.json`, editable by the template author through the viewer UI.
