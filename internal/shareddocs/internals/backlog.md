@@ -66,7 +66,9 @@ Run: `go test ./... -coverprofile=coverage.out -covermode=atomic`
 - Pure utility functions, easy to test
 - Files: `internal/util/`
 
-### DONE: listen — 2.9% → 24.9% coverage
+### DONE: listen — 2.9% → 24.9% coverage (partial)
+
+Remaining ~50% needs two real libp2p hosts + group.Manager per side (the pattern exists in `mq/send_test.go` and `p2p/` tests). Would cover: New, CreateGroup, LoadTrack, Play/Pause/Seek/Next/Prev, JoinGroup, AudioReader, handleAudioStream, writeAudioChunk, decryptingReader.
 
 ### TODO: group — 25.3% coverage
 
